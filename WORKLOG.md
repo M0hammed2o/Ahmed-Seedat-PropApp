@@ -1,0 +1,11 @@
+# Worklog
+
+## 2026-07-21 — Phase 0 + Phase 1 kickoff
+
+- Inspected repository: the working directory `PropValt (Property App)/` was empty; the machine's ambient Git repository was rooted at the home directory (unrelated, accidental) — see DECISIONS.md. Initialised a new, correctly-scoped Git repo in-place and added `origin` = the specified GitHub repo (confirmed empty and reachable via `gh repo view`).
+- Verified current package versions via live web search (Expo SDK 56/RN 0.85, Next.js 16.2.7, supabase-js 2.110.7, Zod 4.4.3, react-native-purchases 10.4.0) rather than relying on the assistant's training-data snapshot, since the current date is well past the knowledge cutoff.
+- Scaffolded monorepo root: pnpm workspaces, Turborepo, base tsconfig, flat ESLint config, Prettier, `.gitignore`, root `.env.example`.
+- Wrote the full Phase 0 documentation set.
+- Built shared packages (types, config, validation, utils, ui), Supabase migrations (RLS on every customer table, storage bucket policies, monthly-checklist function), the mobile Expo Router app (auth, onboarding, biometric lock, property CRUD, mock subscription/document-intelligence providers), and the admin Next.js app (login, role-gated dashboard shell, overview/customers/subscriptions/processing/system pages backed by live Supabase counts).
+- Verification pass: `pnpm install` (clean, all workspaces resolve), `pnpm format` (61 files auto-fixed, then clean), `pnpm typecheck` (all 7 packages pass after fixing an `ALLOWED_MIME_TYPES` import boundary, admin cookie-handler typing, and a mobile `Property` enum cast), `pnpm test` (packages/utils, packages/validation, packages/config, apps/admin all pass — 32 tests; apps/mobile's `jest-expo` runner crashes on this Windows/Node combination with an upstream tooling bug unrelated to application code, root-caused and documented in KNOWN_BUGS.md rather than left unexplained).
+- Rebalanced the payment-match scoring weights after the first test run correctly caught that a supplier/recipient name mismatch alone (e.g. "Municipality" vs "City of Cape Town" — the brief's own example) was knocking an otherwise-fully-matching pair out of the "strong match" band; reduced supplier weight from 15→10 and redistributed to amount/reference (25→30 each) so the brief's worked example lands in the intended 90-100% band.

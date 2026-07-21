@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+.next/
+.expo/
+.expo-shared/
+web-build/
+*.tsbuildinfo
+.turbo/
+
+# Env files (never commit real secrets)
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Supabase local
+supabase/.branches/
+supabase/.temp/
+
+# Testing / coverage
+coverage/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# EAS / native
+*.p8
+*.p12
+*.mobileprovision
+*.jks
+*.keystore
+ios/Pods/
+android/.gradle/
+android/app/build/
+
+# IDE
+.idea/
+
+# Local agent tooling state (not project source)
+.claude/

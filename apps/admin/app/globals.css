@@ -1,0 +1,11 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  @apply bg-light-surface text-light-textPrimary dark:bg-dark-surface dark:text-dark-textPrimary;
+}
