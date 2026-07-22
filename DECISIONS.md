@@ -34,6 +34,20 @@ See SUBSCRIPTIONS.md. Chosen because the product's core promise is "your documen
 
 The brief explicitly says not to implement the full OCR provider in Phase 1 and to keep the abstraction vendor-agnostic. Rather than guessing a vendor (which would bias cost/architecture decisions Mohammed hasn't weighed in on), the interface is built and a mock provider ships; vendor selection is logged as an open question in TODO.md for Phase 2.
 
+## 2026-07-22 — Phase 2: demo mode, default ON, for a same-week client meeting
+
+Scope changed mid-project: the immediate priority became a polished, believable end-to-end demo for a client meeting, explicitly not backend completeness (see WORKLOG.md). Rather than fork a separate "demo build," every screen was built to read through the same repository/provider interface boundary already established in Phase 1 (`SubscriptionProvider`, `DocumentIntelligenceProvider` pattern) — a new `EXPO_PUBLIC_DEMO_MODE`/`NEXT_PUBLIC_DEMO_MODE` flag swaps in an in-memory mock data layer (`apps/mobile/src/demo/`, `apps/admin/lib/demo/`) instead of Supabase, everywhere a screen would otherwise need a live project. Production code paths are untouched, not deleted or bypassed permanently — flipping the flag to `false` restores the exact Phase 1 behavior.
+
+**The flag defaults to ON when unset.** This was a deliberate tradeoff, not an oversight: the whole point of Phase 2 is that the app must work with zero backend setup for tomorrow's meeting, and an opt-in flag that has to be manually set would fail that goal the moment anyone forgets to set it. The cost is real and is treated as release-blocking — see the new section at the top of SECURITY.md — a deployment that leaves this unset ships with a full authentication bypass on the admin app. A boot-time console warning was added specifically because this tradeoff is dangerous enough that it must never be silent.
+
+## 2026-07-22 — Payment-match extraction templates align to real outstanding bills, not hardcoded scores
+
+Rather than faking a "Strong Match Found" result for the demo's AI-matching step, the demo upload flow (`apps/mobile/src/demo/extractionTemplates.ts`) generates a proof-of-payment's amount/reference from whatever the property's actual largest outstanding bill in the store currently is, then runs the real `calculateMatchScore()` from `packages/utils` (the same function unit-tested in Phase 1 and destined for production) against it. The demo is compelling because the real algorithm genuinely scores it high, not because the UI lies about a canned number — this also means the demo doubles as an informal live test of the actual matching logic.
+
+## 2026-07-22 — No charting library added for the admin dashboard
+
+`MiniLineChart`/`MiniBarChart` (`apps/admin/components/ui/`) are hand-rolled inline SVG/div components rather than a pulled-in library (e.g. Recharts). For the handful of simple trend visualisations the brief asked for, a full charting dependency would add bundle weight and a new version-compatibility surface to the "test everything" pass for marginal benefit — revisit if the admin dashboard's charting needs grow materially in a later phase.
+
 ## 2026-07-21 — RLS/policy tests written but not executed in this environment
 
 This development sandbox has no Docker/local Supabase instance available to run `supabase start` + `supabase test db` against. Tests are written per TESTING.md and will run once Mohammed (or a CI runner with Docker) executes them locally — reported as Blocked, not claimed as passing, per the project's evidence rule.

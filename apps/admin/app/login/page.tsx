@@ -19,6 +19,15 @@ export default function AdminLoginPage() {
 
   const onSubmit = async (values: LoginInput) => {
     setSubmitError(null);
+
+    if (process.env.NEXT_PUBLIC_DEMO_MODE === 'true') {
+      // No Supabase project to authenticate against in demo mode — see DECISIONS.md. Any
+      // credentials "work"; the server always resolves the fixed demo admin session.
+      router.replace('/overview');
+      router.refresh();
+      return;
+    }
+
     const supabase = getBrowserSupabaseClient();
     const { error } = await supabase.auth.signInWithPassword(values);
     if (error) {

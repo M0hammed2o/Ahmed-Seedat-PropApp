@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { ADMIN_DEMO_MODE } from './lib/demoMode';
 
 type CookieToSet = { name: string; value: string; options: CookieOptions };
 
@@ -11,6 +12,13 @@ type CookieToSet = { name: string; value: string; options: CookieOptions };
  * avoid an extra service-role round trip on every request).
  */
 export async function middleware(request: NextRequest) {
+  // Demo mode has no Supabase project to check a session against — lib/auth.ts's
+  // getAdminSession() always returns the fixed demo admin session instead, so there's nothing
+  // for this coarse gate to do (see DECISIONS.md, Phase 2 entry).
+  if (ADMIN_DEMO_MODE) {
+    return NextResponse.next();
+  }
+
   const response = NextResponse.next();
 
   const supabase = createServerClient(

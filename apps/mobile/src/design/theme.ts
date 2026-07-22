@@ -8,9 +8,20 @@ import {
   spacing,
   typeScale,
 } from '@propvault/ui';
+import { useAppStore } from '@/state/useAppStore';
 
 export function useTheme() {
-  const scheme = useColorScheme();
-  const color = scheme === 'dark' ? colorDark : colorLight;
-  return { color, spacing, radii, typeScale, motionDuration, iconSize };
+  const systemScheme = useColorScheme();
+  const override = useAppStore((s) => s.colorSchemeOverride);
+  const effectiveScheme = override === 'system' ? systemScheme : override;
+  const color = effectiveScheme === 'dark' ? colorDark : colorLight;
+  return {
+    color,
+    spacing,
+    radii,
+    typeScale,
+    motionDuration,
+    iconSize,
+    isDark: effectiveScheme === 'dark',
+  };
 }

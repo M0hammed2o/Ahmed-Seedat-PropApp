@@ -6,8 +6,12 @@ import { z } from 'zod';
  * it actually needs.
  */
 export const mobileEnvSchema = z.object({
-  EXPO_PUBLIC_SUPABASE_URL: z.string().url(),
-  EXPO_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
+  // Optional at the schema level: in EXPO_PUBLIC_DEMO_MODE=true, the app never constructs a
+  // real Supabase client at all (see src/demo/), so these aren't required to run/demo the app.
+  // The real (non-demo) repository/auth code paths assert their presence themselves before use.
+  EXPO_PUBLIC_SUPABASE_URL: z.string().optional(),
+  EXPO_PUBLIC_SUPABASE_ANON_KEY: z.string().optional(),
+  EXPO_PUBLIC_DEMO_MODE: z.string().optional(),
   EXPO_PUBLIC_SUBSCRIPTION_MODE: z.enum(['mock', 'revenuecat']).default('mock'),
   EXPO_PUBLIC_REVENUECAT_API_KEY_IOS: z.string().optional(),
   EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID: z.string().optional(),

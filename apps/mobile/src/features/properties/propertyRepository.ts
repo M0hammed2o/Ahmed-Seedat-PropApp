@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { getSupabaseClient } from '@/lib/supabase';
 import type { PropertyInput } from '@propvault/validation';
 import type { Property } from '@propvault/types';
 
@@ -59,7 +59,7 @@ function mapRow(row: PropertyRow): Property {
  */
 export const propertyRepository = {
   async list(status: 'active' | 'archived' = 'active') {
-    const { data, error } = await supabase
+    const { data, error } = await getSupabaseClient()
       .from('properties')
       .select('*')
       .eq('status', status)
@@ -69,13 +69,17 @@ export const propertyRepository = {
   },
 
   async getById(id: string) {
-    const { data, error } = await supabase.from('properties').select('*').eq('id', id).single();
+    const { data, error } = await getSupabaseClient()
+      .from('properties')
+      .select('*')
+      .eq('id', id)
+      .single();
     if (error) throw error;
     return mapRow(data as PropertyRow);
   },
 
   async create(input: PropertyInput, ownerUserId: string) {
-    const { data, error } = await supabase
+    const { data, error } = await getSupabaseClient()
       .from('properties')
       .insert({
         owner_user_id: ownerUserId,
@@ -98,7 +102,7 @@ export const propertyRepository = {
   },
 
   async update(id: string, input: Partial<PropertyInput>) {
-    const { data, error } = await supabase
+    const { data, error } = await getSupabaseClient()
       .from('properties')
       .update({
         nickname: input.nickname,
@@ -121,12 +125,18 @@ export const propertyRepository = {
   },
 
   async archive(id: string) {
-    const { error } = await supabase.from('properties').update({ status: 'archived' }).eq('id', id);
+    const { error } = await getSupabaseClient()
+      .from('properties')
+      .update({ status: 'archived' })
+      .eq('id', id);
     if (error) throw error;
   },
 
   async restore(id: string) {
-    const { error } = await supabase.from('properties').update({ status: 'active' }).eq('id', id);
+    const { error } = await getSupabaseClient()
+      .from('properties')
+      .update({ status: 'active' })
+      .eq('id', id);
     if (error) throw error;
   },
 };

@@ -36,9 +36,15 @@ export default function AppLayout() {
     >
       <Tabs.Screen name="dashboard" options={{ title: 'Dashboard' }} />
       <Tabs.Screen name="properties/index" options={{ title: 'Properties' }} />
+      <Tabs.Screen name="search" options={{ title: 'Search' }} />
       <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
-      <Tabs.Screen name="properties/[id]" options={{ href: null }} />
       <Tabs.Screen name="properties/add" options={{ href: null }} />
+      <Tabs.Screen name="properties/[id]/index" options={{ href: null }} />
+      <Tabs.Screen name="properties/[id]/upload" options={{ href: null }} />
+      <Tabs.Screen name="properties/[id]/processing" options={{ href: null }} />
+      <Tabs.Screen name="properties/[id]/review" options={{ href: null }} />
+      <Tabs.Screen name="properties/[id]/match" options={{ href: null }} />
+      <Tabs.Screen name="properties/[id]/checklist" options={{ href: null }} />
     </Tabs>
   );
 }

@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getAdminSession } from '@/lib/auth';
+import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 // Every page here is session-scoped, live data — never statically prerendered or cached.
 export const dynamic = 'force-dynamic';
@@ -27,6 +28,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <p className="px-2 text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
           PropVault Admin
         </p>
+        {ADMIN_DEMO_MODE ? (
+          <span className="mx-2 mt-2 inline-block w-fit rounded-full border border-light-accent px-2 py-0.5 text-[10px] font-semibold text-light-accent dark:border-dark-accent dark:text-dark-accent">
+            Demo mode
+          </span>
+        ) : null}
         <nav className="mt-6 flex flex-col gap-1">
           {NAV_ITEMS.map((item) => (
             <Link

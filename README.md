@@ -59,13 +59,24 @@ supabase db push          # applies supabase/migrations in order
 
 For fully local development: `supabase start` (requires Docker) spins up local Postgres/Auth/Storage; point the app env files at the printed local URL/anon key instead of a hosted project.
 
+## Demo mode (no Supabase project required)
+
+Both apps run entirely on realistic mock data by default — `EXPO_PUBLIC_DEMO_MODE`/`NEXT_PUBLIC_DEMO_MODE` default to `true` when unset, specifically so the product can be demonstrated with zero backend setup. Just run:
+
+```bash
+pnpm --filter mobile dev        # expo start — press w for web, or scan the QR code
+pnpm --filter admin dev         # admin dashboard at localhost:3000, any login credentials work
+```
+
+**This is not a safe default for a real deployment.** Demo mode makes the admin login accept any credentials and bypasses auth entirely — see the release-blocking warning at the top of SECURITY.md. Set both flags to `false` explicitly, with real Supabase credentials, before deploying anywhere reachable by anyone other than the person driving a demo.
+
 ## Mobile development
 
 ```bash
 pnpm --filter mobile dev        # expo start
 ```
 
-Subscription mock mode is on by default (`EXPO_PUBLIC_SUBSCRIPTION_MODE=mock`) so the full paywall/restore/entitlement flow works with zero App Store/Play Console setup. See SUBSCRIPTIONS.md.
+Subscription mock mode is on by default (`EXPO_PUBLIC_SUBSCRIPTION_MODE=mock`) so the full paywall/restore/entitlement flow works with zero App Store/Play Console setup. See SUBSCRIPTIONS.md. Set `EXPO_PUBLIC_DEMO_MODE=false` plus real `EXPO_PUBLIC_SUPABASE_URL`/`ANON_KEY` to run against a live project instead of mock data.
 
 ## Admin development
 
@@ -73,7 +84,7 @@ Subscription mock mode is on by default (`EXPO_PUBLIC_SUBSCRIPTION_MODE=mock`) s
 pnpm --filter admin dev
 ```
 
-Requires `SUPABASE_SERVICE_ROLE_KEY` locally for server-side admin routes (server-only — never exposed to the browser bundle; see SECURITY.md). An `admin_users` row must exist for your Supabase Auth user to reach `(dashboard)` routes.
+With `NEXT_PUBLIC_DEMO_MODE=false`, requires `SUPABASE_SERVICE_ROLE_KEY` locally for server-side admin routes (server-only — never exposed to the browser bundle; see SECURITY.md). An `admin_users` row must exist for your Supabase Auth user to reach `(dashboard)` routes.
 
 ## Testing
 

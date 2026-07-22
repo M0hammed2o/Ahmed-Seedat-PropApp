@@ -2,6 +2,8 @@ import 'server-only';
 import type { AdminRole } from '@propvault/types';
 import { getServerSupabaseClient, getServiceRoleClient } from './supabase/server';
 import { isRoleAtLeast } from './roleRank';
+import { ADMIN_DEMO_MODE } from './demoMode';
+import { DEMO_ADMIN_SESSION } from './demo/adminMockData';
 
 export interface AdminSession {
   authUserId: string;
@@ -14,8 +16,20 @@ export interface AdminSession {
  * row. This is the single function both `middleware.ts` and every mutating route handler call —
  * per SECURITY.md, middleware alone is not treated as sufficient authorization, so route
  * handlers call this again rather than trusting a header middleware might have set.
+ *
+ * In demo mode (no live Supabase project — see DECISIONS.md) this returns a fixed fake admin
+ * session instead of touching Supabase at all, so the admin dashboard can be demonstrated
+ * end-to-end before a backend is provisioned. Never used when NEXT_PUBLIC_DEMO_MODE is unset.
  */
 export async function getAdminSession(): Promise<AdminSession | null> {
+  if (ADMIN_DEMO_MODE) {
+    return {
+      authUserId: DEMO_ADMIN_SESSION.authUserId,
+      role: DEMO_ADMIN_SESSION.role,
+      displayName: DEMO_ADMIN_SESSION.displayName,
+    };
+  }
+
   const supabase = await getServerSupabaseClient();
   const {
     data: { user },

@@ -7,6 +7,7 @@ import { useTheme } from '@/design/theme';
 import {
   EmptyState,
   ErrorState,
+  FadeSlideIn,
   PrimaryButton,
   PropertyCard,
   SkeletonState,
@@ -18,20 +19,14 @@ export default function PropertiesListScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: color.surface }}>
-      <View
-        style={{
-          flexDirection: 'row',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: spacing[6],
-          paddingBottom: 0,
-        }}
-      >
+      <View style={{ padding: spacing[6], paddingBottom: 0 }}>
         <Text style={[typeScale.title, { color: color.textPrimary }]}>Properties</Text>
       </View>
       <ScrollView contentContainerStyle={{ padding: spacing[6] }}>
         {propertiesQuery.isLoading ? <SkeletonState rows={4} /> : null}
-        {propertiesQuery.isError ? <ErrorState onRetry={() => propertiesQuery.refetch()} /> : null}
+        {propertiesQuery.isError ? (
+          <ErrorState onRetry={() => propertiesQuery.refetch?.()} />
+        ) : null}
         {propertiesQuery.data && propertiesQuery.data.length === 0 ? (
           <EmptyState
             title="No properties yet"
@@ -39,12 +34,13 @@ export default function PropertiesListScreen() {
           />
         ) : null}
         <View style={{ gap: spacing[3] }}>
-          {propertiesQuery.data?.map((property) => (
-            <PropertyCard
-              key={property.id}
-              property={property}
-              onPress={(id) => router.push(`/(app)/properties/${id}`)}
-            />
+          {propertiesQuery.data?.map((property, i) => (
+            <FadeSlideIn key={property.id} delay={i * 50}>
+              <PropertyCard
+                property={property}
+                onPress={(id) => router.push(`/(app)/properties/${id}`)}
+              />
+            </FadeSlideIn>
           ))}
         </View>
       </ScrollView>

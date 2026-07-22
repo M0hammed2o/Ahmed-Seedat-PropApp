@@ -2,6 +2,21 @@
 
 Security is release-blocking (per project mandate). This document is the working checklist; PRIVACY_AND_COMPLIANCE.md covers the legal/compliance layer built on top of these technical controls.
 
+## ⚠️ RELEASE-BLOCKING: Demo mode is an authentication bypass
+
+Phase 2 added `EXPO_PUBLIC_DEMO_MODE` (mobile) / `NEXT_PUBLIC_DEMO_MODE` (admin) so both apps run end-to-end on realistic mock data with zero backend setup, for sales/client demonstrations before a Supabase project exists (see DECISIONS.md). **Both default to ON when the variable is unset.**
+
+In the admin app specifically, demo mode:
+
+- Makes `/login` accept **any** email/password (`apps/admin/app/login/page.tsx`).
+- Skips the session check in `middleware.ts` entirely.
+- Makes `lib/auth.ts`'s `getAdminSession()` return a fixed fake `super_admin` session without touching Supabase at all.
+- Serves every dashboard page from mock data instead of the real database.
+
+A server-side console warning fires on boot whenever this is active (`apps/admin/lib/demoMode.ts`), and every demo screen/page carries a visible "Demo data"/"Demo mode" badge — but neither of those stops a real deployment from running wide open if the variable is left unset.
+
+**Before any deployment that could be reached by anyone other than the person driving a demo:** set `NEXT_PUBLIC_DEMO_MODE=false` (and `EXPO_PUBLIC_DEMO_MODE=false` for the mobile build) explicitly, and confirm real `SUPABASE_SERVICE_ROLE_KEY`/`NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_ANON_KEY` values are set — `lib/supabase/server.ts` and `lib/auth.ts` will then require and use them for every request as originally designed (see the rest of this document).
+
 ## Trust boundaries
 
 1. **Mobile/admin client → Supabase (anon key)**: zero implicit trust. Every table a customer can reach has RLS. See SECURITY.md → RLS policy summary below.
