@@ -16,8 +16,15 @@ import type {
 export const DEMO_USER = {
   id: 'demo-user-1',
   email: 'demo@propvault.app',
-  displayName: 'Naledi Khumalo',
+  displayName: 'Mohammed Khumalo',
 };
+
+// Added 2026-07-30 (TASKS.md M5): properties are org-scoped now, not user-scoped. Demo mode
+// still has no fake org/membership layer of its own (that's separately-scoped work, not part of
+// this schema cutover) - this constant exists only so DEMO_PROPERTIES has a plausible-looking
+// orgId to satisfy the Property type, matching the same single-workspace assumption the rest of
+// the demo dataset already makes.
+export const DEMO_ORG_ID = 'demo-org-1';
 
 export const DEMO_CATEGORIES: DocumentCategory[] = [
   {
@@ -69,7 +76,7 @@ function category(slug: string): string {
 export const DEMO_PROPERTIES: Property[] = [
   {
     id: 'prop-sea-point',
-    ownerUserId: DEMO_USER.id,
+    orgId: DEMO_ORG_ID,
     nickname: 'Sea Point Apartment',
     fullAddress: '12 Beach Road, Sea Point, Cape Town, Western Cape, 8005',
     addressLine1: '12 Beach Road',
@@ -89,7 +96,7 @@ export const DEMO_PROPERTIES: Property[] = [
   },
   {
     id: 'prop-constantia',
-    ownerUserId: DEMO_USER.id,
+    orgId: DEMO_ORG_ID,
     nickname: 'Constantia House',
     fullAddress: '45 Vineyard Lane, Constantia, Cape Town, Western Cape, 7806',
     addressLine1: '45 Vineyard Lane',
@@ -109,7 +116,7 @@ export const DEMO_PROPERTIES: Property[] = [
   },
   {
     id: 'prop-rondebosch',
-    ownerUserId: DEMO_USER.id,
+    orgId: DEMO_ORG_ID,
     nickname: 'Rondebosch Cottage',
     fullAddress: '8 Oak Avenue, Rondebosch, Cape Town, Western Cape, 7700',
     addressLine1: '8 Oak Avenue',

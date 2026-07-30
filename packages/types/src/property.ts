@@ -2,7 +2,13 @@ import type { PropertyStatus, PropertyType } from './enums';
 
 export interface Property {
   id: string;
-  ownerUserId: string;
+  /**
+   * Cut over from ownerUserId to orgId 2026-07-30 (TASKS.md M5, supabase/migrations/
+   * 20260101000023) — properties belong to an organization, not directly to an individual user.
+   * See DATABASE.md #14 and RETAIN_REFACTOR_REBUILD_MATRIX.md for why this is a schema change,
+   * not a rename.
+   */
+  orgId: string;
   nickname: string;
   fullAddress: string;
   addressLine1: string;
@@ -21,10 +27,7 @@ export interface Property {
   updatedAt: string;
 }
 
-export type PropertyDraft = Omit<
-  Property,
-  'id' | 'ownerUserId' | 'createdAt' | 'updatedAt' | 'status'
->;
+export type PropertyDraft = Omit<Property, 'id' | 'orgId' | 'createdAt' | 'updatedAt' | 'status'>;
 
 export interface PropertyExpectedCategory {
   id: string;

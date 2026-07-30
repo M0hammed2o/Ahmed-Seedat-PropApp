@@ -6,7 +6,7 @@ import type { Property } from '@propvault/types';
 // `Property` domain type used elsewhere in the app.
 interface PropertyRow {
   id: string;
-  owner_user_id: string;
+  org_id: string;
   nickname: string;
   full_address: string;
   address_line1: string;
@@ -31,7 +31,7 @@ interface PropertyRow {
 function mapRow(row: PropertyRow): Property {
   return {
     id: row.id,
-    ownerUserId: row.owner_user_id,
+    orgId: row.org_id,
     nickname: row.nickname,
     fullAddress: row.full_address,
     addressLine1: row.address_line1,
@@ -78,11 +78,11 @@ export const propertyRepository = {
     return mapRow(data as PropertyRow);
   },
 
-  async create(input: PropertyInput, ownerUserId: string) {
+  async create(input: PropertyInput, orgId: string) {
     const { data, error } = await getSupabaseClient()
       .from('properties')
       .insert({
-        owner_user_id: ownerUserId,
+        org_id: orgId,
         nickname: input.nickname,
         address_line1: input.addressLine1,
         address_line2: input.addressLine2 ?? null,

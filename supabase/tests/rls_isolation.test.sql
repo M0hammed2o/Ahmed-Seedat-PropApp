@@ -1,9 +1,16 @@
 -- pgTAP-style RLS isolation tests. Run via `supabase test db` against a local instance
 -- (`supabase start`, Docker required). Not executed in the assistant's sandbox — see
--- DECISIONS.md and TESTING.md for why, and KNOWN_BUGS.md/final report for current status.
+-- DECISIONS.md and TESTING.md for why, and KNOWN_BUGS.md/RISK_REGISTER.md R-02 for current status.
+--
+-- Updated 2026-07-30 (TASKS.md M5): `properties` is now org-scoped (org_id, has_org_role()-based
+-- RLS), not owner_user_id-scoped — this file's property fixture/assertions were rewritten to
+-- match. See supabase/tests/multi_tenant_isolation.test.sql for the fuller org/portfolio
+-- isolation suite this complements (that file covers organizations/units/owners specifically;
+-- this one keeps its original bill/payment_matches/admin_users cases, now updated for the org
+-- FK properties requires).
 --
 -- These tests assert the release-blocking isolation guarantees from SECURITY.md:
---   1. User A cannot SELECT User B's property.
+--   1. Org B's member cannot SELECT Org A's property.
 --   2. User A cannot UPDATE User B's bill.
 --   3. User A cannot INSERT a payment_matches row linking their payment to User B's bill.
 --   4. A customer session cannot read the admin_users table at all.
@@ -11,13 +18,21 @@
 begin;
 select plan(4);
 
--- Fixtures: two fake users and a property/bill owned by user B.
+-- Fixtures: two fake users, two orgs (properties requires org_id now), a property in Org A.
 insert into auth.users (id, email) values
   ('11111111-1111-1111-1111-111111111111', 'user-a@test.propvault.example'),
   ('22222222-2222-2222-2222-222222222222', 'user-b@test.propvault.example');
 
-insert into public.properties (id, owner_user_id, nickname, address_line1, city, country, property_type)
-values ('33333333-3333-3333-3333-333333333333', '22222222-2222-2222-2222-222222222222',
+insert into public.organizations (id, legal_name, org_type) values
+  ('44444444-4444-4444-4444-444444444444', 'Org A', 'owner_managed'),
+  ('55555555-5555-5555-5555-555555555555', 'Org B', 'owner_managed');
+
+insert into public.organization_members (org_id, user_id, role, status, joined_at) values
+  ('44444444-4444-4444-4444-444444444444', '22222222-2222-2222-2222-222222222222', 'principal', 'active', now()),
+  ('55555555-5555-5555-5555-555555555555', '11111111-1111-1111-1111-111111111111', 'principal', 'active', now());
+
+insert into public.properties (id, org_id, nickname, address_line1, city, country, property_type)
+values ('33333333-3333-3333-3333-333333333333', '44444444-4444-4444-4444-444444444444',
         'User B Property', '1 Test Street', 'Cape Town', 'ZA', 'house');
 
 set local role authenticated;
@@ -26,7 +41,7 @@ set local "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
 select is(
   (select count(*) from public.properties where id = '33333333-3333-3333-3333-333333333333'),
   0::bigint,
-  'User A cannot SELECT User B''s property by id'
+  'Org B''s member (user A) cannot SELECT Org A''s property by id'
 );
 
 select throws_ok(

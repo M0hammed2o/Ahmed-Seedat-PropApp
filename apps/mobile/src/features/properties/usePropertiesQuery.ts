@@ -45,13 +45,13 @@ export function usePropertyQuery(id: string) {
   return query;
 }
 
-export function useCreatePropertyMutation(ownerUserId: string) {
+export function useCreatePropertyMutation(orgId: string) {
   const queryClient = useQueryClient();
   const addDemoProperty = useDemoStore((s) => s.addProperty);
   return useMutation({
     mutationFn: async (input: PropertyInput) => {
       if (DEMO_MODE) return addDemoProperty(input);
-      return propertyRepository.create(input, ownerUserId);
+      return propertyRepository.create(input, orgId);
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: PROPERTIES_KEY }),
   });
