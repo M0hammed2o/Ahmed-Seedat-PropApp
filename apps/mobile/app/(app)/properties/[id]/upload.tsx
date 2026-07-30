@@ -121,8 +121,8 @@ export default function UploadDocumentScreen() {
       billingMonth: CURRENT_MONTH,
     });
     router.replace({
-      pathname: `/(app)/properties/${id}/processing`,
-      params: { documentId: doc.id, categorySlug, documentType },
+      pathname: '/(app)/properties/[id]/processing',
+      params: { id, documentId: doc.id, categorySlug, documentType },
     });
   };
 
