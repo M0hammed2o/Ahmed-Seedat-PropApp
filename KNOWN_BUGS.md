@@ -28,6 +28,10 @@ This isolates the bug to `jest-expo@56.0.5`'s stack-trace-based module lookup mi
 2. Watch `jest-expo` releases for a fix past `56.0.5` (there was none newer as of this writing — SDK 56's own jest-expo line tops out at `56.0.5`; SDK 57's `jest-expo@57.x` requires bumping the whole Expo SDK, which is a separate decision).
 3. As a workaround, running the affected suites with `expo/scripts/withScriptDefaults` disabled or a custom minimal Jest config that doesn't use the `jest-expo` preset (plain `react-native`'s preset + manual RN mocks) would sidestep this specific code path — not attempted here since it would mean re-deriving jest-expo's other RN mocks by hand, a larger change than fits Phase 1 scope.
 
+## RLS isolation tests written, not executed (2026-07-30)
+
+`supabase/tests/multi_tenant_isolation.test.sql` (M1/M3 org/portfolio schema) and the original `rls_isolation.test.sql` are both blocked by the same root cause as the jest-expo issue above — no local Docker/Supabase instance in this sandbox. Tracked as `RISK_REGISTER.md` R-02 (Critical) and `TASKS.md` M3's exit criteria — that's the canonical status; not duplicated in detail here.
+
 ## Structural limitations (not bugs — scope boundaries, tracked for transparency)
 
 - RLS/policy SQL tests are written but not executed in this sandbox (no local Docker/Supabase instance available) — see DECISIONS.md and TESTING.md.

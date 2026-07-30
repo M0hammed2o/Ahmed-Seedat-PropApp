@@ -31,15 +31,15 @@ Each milestone is scoped so the repository **compiles, passes its tests, has upd
 - [x] `has_org_role()` security-definer helper, org-role RLS pattern (`DATABASE.md` §12, `PERMISSIONS.md` §2).
 - [x] `create_organization()`/`accept_organization_invite()` RPCs enforce role assignment atomically (principal on creation, invited role on acceptance).
 - [ ] `is_admin()` → `is_platform_admin()` / `admin_users` → `platform_admin_users` rename — deferred to M19 (Super Admin), see `DECISIONS.md` 2026-07-30.
-- [ ] RLS isolation tests (`TESTING.md` §2) — written pattern exists (`supabase/tests/rls_isolation.test.sql` as the model), not yet extended or executed (no local Docker/Supabase instance in this sandbox).
-- **Exit criteria**: helper functions and policies exist and typecheck; automated isolation tests are the remaining gap, blocked on a Docker-capable environment.
+- [x] RLS isolation tests written (`supabase/tests/multi_tenant_isolation.test.sql`, 2026-07-30) — cross-org isolation, role-scoped write denial (viewer cannot write within their own org either), platform-admin table isolation. **Not executed** — no local Docker/Supabase instance in this sandbox (R-02, Critical, `RISK_REGISTER.md`).
+- **Exit criteria**: helper functions, policies, and test coverage all exist and typecheck/parse; test _execution_ is the one remaining gap, blocked on a Docker-capable environment — this is the last open item standing between M3 and being fully closed.
 
 ## M4 — Organizations
 
 - [x] `organizations`, `organization_subscriptions`, `organization_invites` schema.
-- [ ] Org signup flow (API route handler calling `create_organization()` + web UI) — RPC exists, UI doesn't yet.
-- [ ] Organisation compliance-profile settings screen (CIPC/VAT/SARS/POPIA/FFC, Team Seats) — web UI not yet built.
-- **Exit criteria**: not yet met.
+- [x] Org signup flow — `POST /api/v1/organizations` (`apps/admin/app/api/v1/organizations/route.ts`) + `/onboarding/create-organization` UI, 2026-07-30. Invite-acceptance endpoint (`POST /api/v1/organizations/invites/accept`) also implemented, pairing with `accept_organization_invite()`.
+- [ ] Organisation compliance-profile settings screen (CIPC/VAT/SARS/POPIA/FFC, Team Seats) — web UI not yet built; `PATCH /api/v1/organizations/:orgId` endpoint also not yet built.
+- **Exit criteria**: partially met — signup/invite-accept flow is real and typecheck/lint/build-verified; the compliance-profile settings screen (secondary to signup) remains open.
 
 ## M5 — Properties
 
