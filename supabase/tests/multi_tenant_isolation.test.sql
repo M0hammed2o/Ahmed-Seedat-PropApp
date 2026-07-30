@@ -79,11 +79,15 @@ select is(
   'Org B principal cannot SELECT Org A''s owners'
 );
 
-select throws_ok(
+-- FIXED 2026-07-30 (first real `supabase test db` run caught this): an RLS-filtered UPDATE does
+-- NOT raise an exception — it silently matches and updates zero rows, which is correct Postgres
+-- behavior, not a bug. `throws_ok` was the wrong assertion here (it requires an exception);
+-- `lives_ok` correctly asserts the statement completes without error, and the row-count check
+-- immediately below is what actually verifies the RLS denial took effect.
+select lives_ok(
   $$ update public.units set unit_label = 'hacked'
      where id = 'ffffffff-0000-0000-0000-000000000001' $$,
-  null, null,
-  'Org B principal UPDATE against Org A''s unit affects zero rows (RLS-filtered)'
+  'Org B principal UPDATE against Org A''s unit runs without error (RLS silently filters it to zero rows, verified next)'
 );
 
 select is(
@@ -101,11 +105,10 @@ select is(
   'Org A viewer CAN SELECT their own org''s unit (viewer has read access)'
 );
 
-select throws_ok(
+select lives_ok(
   $$ update public.units set unit_label = 'viewer-write-attempt'
      where id = 'ffffffff-0000-0000-0000-000000000001' $$,
-  null, null,
-  'Org A viewer UPDATE against their own org''s unit affects zero rows (has_org_role requires agent+)'
+  'Org A viewer UPDATE against their own org''s unit runs without error (has_org_role requires agent+, silently filters to zero rows, verified next)'
 );
 
 select is(

@@ -26,16 +26,19 @@ create trigger set_organization_members_updated_at
 alter table public.organization_members enable row level security;
 
 -- A member can see the roster of any org they themselves belong to (needed for the Team Seats
--- screen). Written as a self-referencing subquery rather than "org_id = my own org_id" because
--- a user can belong to more than one org.
-create policy "organization_members_select_same_org"
-  on public.organization_members for select
-  using (
-    org_id in (
-      select om.org_id from public.organization_members om
-      where om.user_id = auth.uid() and om.status = 'active'
-    )
-  );
+-- screen). A user can belong to more than one org, so this can't be "org_id = my own org_id."
+--
+-- No select policy created in THIS migration — deliberately. The original version here
+-- subqueried `organization_members` directly from within its own USING clause, which caused
+-- "infinite recursion detected in policy for relation organization_members" (found by the first
+-- real `supabase test db` run, RISK_REGISTER.md R-02). The fix requires routing through
+-- `has_org_role()` (a security-definer function whose internal queries run as the function
+-- owner — bypassing RLS on its own internal read of this table — rather than as the calling
+-- role, breaking the recursion), but `has_org_role()` isn't defined until 20260101000021, and
+-- `CREATE POLICY` must resolve every function it references at creation time (same class of
+-- forward-reference bug as 20260101000017's original mistake, caught the same way this time
+-- before it ever shipped). The real policy is created in 20260101000021, immediately after
+-- `has_org_role()` exists.
 
 -- No direct insert/update/delete policy here: membership changes (invite, role change, revoke)
 -- go through the has_org_role()-gated RPCs added in 20260101000021, so "can manager X actually

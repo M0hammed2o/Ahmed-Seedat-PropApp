@@ -15,24 +15,25 @@ Each milestone is scoped so the repository **compiles, passes its tests, has upd
 
 - [x] Migrations: `organizations`, `organization_members`, `organization_invites`, `plans`, `organization_subscriptions`, `subscription_payments`, `support_access_sessions` (`DATABASE.md` §1-2).
 - [x] `units`, `owners`, `property_owners` (org-scoped from day one) + nullable `properties.org_id` "expand" step (`DATABASE.md` §3).
-- [ ] `properties.owner_user_id` → `org_id` "contract" step, and the same cutover for `documents`/`bills`/`payments`/`payment_matches`/`extraction_jobs`/`subscriptions`/`audit_events` (all share the PropVault-era `owner_user_id` pattern, `EXISTING_CODEBASE_AUDIT.md` §2) — deliberately not done yet; see M5 (Properties) below for why this is sequenced there, not here.
-- **Exit criteria**: net-new multi-tenancy tables exist, RLS'd, `pnpm typecheck`/`lint` green (verified). Cutover of pre-existing single-owner tables is tracked under the module it blocks (M5+), not treated as part of "schema" in the abstract.
+- [~] `properties.owner_user_id` → `org_id` "contract" step done for `properties` (M5, relaxed not dropped — see M5's own entry); `documents`/`bills`/`payments`/`payment_matches`/`extraction_jobs`/`subscriptions`/`audit_events` (`EXISTING_CODEBASE_AUDIT.md` §2) not yet cut over.
+- [x] **All 24 migrations verified against a genuinely clean local Postgres database** (`supabase start`/`supabase db reset`, 2026-07-30) — not just reviewed statically. Found and fixed 4 real bugs execution surfaced that static review missed: a forward-reference (policy in migration 17 needing a table from migration 18), a DROP COLUMN blocked by cross-table RLS dependencies (migration 23), an infinite-recursion RLS policy on `organization_members` (self-referencing subquery in its own policy), and a project-wide missing-`GRANT`s gap present since this project's very first migration (new migration `20260101000024_grants.sql`). Full detail: `WORKLOG.md` 2026-07-30, `RISK_REGISTER.md` R-02.
+- [x] RLS isolation tests **executed and passing**: 15/15 pgTAP assertions across `rls_isolation.test.sql` and `multi_tenant_isolation.test.sql` (`supabase test db`) — cross-org isolation, role-scoped write denial, platform-admin table isolation all confirmed for real, not just written. Two test-assertion bugs (`throws_ok` used where an RLS-filtered UPDATE correctly doesn't throw) fixed along the way — one in the new test file, one in the original PropVault-era file that had never actually run before.
+- **Exit criteria**: met for everything in scope — net-new multi-tenancy tables exist, RLS'd, verified against a real database, `pnpm typecheck`/`lint` green. Cutover of the remaining seven pre-existing single-owner tables is tracked under M5/TD-02, not treated as part of "schema" in the abstract.
 
 ## M2 — Authentication
 
 - [x] Supabase Auth retained unchanged as identity provider (`ARCHITECTURE.md` § Retained from PropVault) — no rebuild needed.
-- [ ] Extend session resolution to look up `organization_members`/`tenants`/`owners` for the authenticated user (multi-portal identity, `ARCHITECTURE.md` § Multi-tenancy model) — not yet built; auth today still only resolves a single-owner `profiles` row.
+- [x] Session resolution for multi-portal identity — `resolvePortalSession()` (`apps/admin/lib/orgSession.ts`) resolves org memberships + owner identities for the authenticated caller. Tenant-identity resolution deferred to M8 (table doesn't exist yet).
 - [x] Demo-mode bypass fix (`SECURITY.md`) — **implemented and build-verified 2026-07-30**: `packages/config/src/demoMode.ts` (`resolveDemoMode()`, dual-gated, both default false), `apps/admin/lib/demoMode.ts` (+ `server-only` import), `apps/mobile/src/lib/supabase.ts`, `apps/mobile/eas.json` (production profile omits the second gate), `.github/workflows/ci.yml`. Verified: `pnpm --filter admin build` with only `NEXT_PUBLIC_DEMO_MODE=true` set produces zero demo-mode activation; with both gates set, demo mode activates as intended. CI production-_deploy_ assertion (distinct from this build-time fix) remains M24 work, since no deploy pipeline exists yet to assert against.
-- [ ] Session resolution for multi-portal identity — not yet built.
-- **Exit criteria**: partially met — the release-blocking piece (demo-mode bypass) is closed; session resolution remains open.
+- **Exit criteria**: met — demo-mode bypass closed, session resolution built and typechecked. Tenant-portal session resolution (needs the `tenants` table) is M8's concern, not a gap in this milestone's own scope.
 
 ## M3 — Roles and permissions
 
 - [x] `has_org_role()` security-definer helper, org-role RLS pattern (`DATABASE.md` §12, `PERMISSIONS.md` §2).
 - [x] `create_organization()`/`accept_organization_invite()` RPCs enforce role assignment atomically (principal on creation, invited role on acceptance).
 - [ ] `is_admin()` → `is_platform_admin()` / `admin_users` → `platform_admin_users` rename — deferred to M19 (Super Admin), see `DECISIONS.md` 2026-07-30.
-- [x] RLS isolation tests written (`supabase/tests/multi_tenant_isolation.test.sql`, 2026-07-30) — cross-org isolation, role-scoped write denial (viewer cannot write within their own org either), platform-admin table isolation. **Not executed** — no local Docker/Supabase instance in this sandbox (R-02, Critical, `RISK_REGISTER.md`).
-- **Exit criteria**: helper functions, policies, and test coverage all exist and typecheck/parse; test _execution_ is the one remaining gap, blocked on a Docker-capable environment — this is the last open item standing between M3 and being fully closed.
+- [x] RLS isolation tests **written AND executed** (`supabase/tests/multi_tenant_isolation.test.sql` + `rls_isolation.test.sql`, `supabase test db`, 2026-07-30) — 15/15 pgTAP assertions pass: cross-org isolation, role-scoped write denial (viewer cannot write within their own org either), platform-admin table isolation. Docker was confirmed available in this environment; the "no Docker" assumption this milestone previously carried was stale and never re-checked. R-02 closed (`RISK_REGISTER.md`).
+- **Exit criteria**: fully met. Helper functions, policies, and test coverage exist, typecheck, and are verified passing against a real database — nothing left open in this milestone.
 
 ## M4 — Organizations
 

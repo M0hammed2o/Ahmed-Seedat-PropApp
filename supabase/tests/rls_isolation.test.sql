@@ -44,12 +44,14 @@ select is(
   'Org B''s member (user A) cannot SELECT Org A''s property by id'
 );
 
-select throws_ok(
+-- FIXED 2026-07-30: this was `throws_ok` since the file was first written, contradicting its own
+-- description ("not an error") — an RLS-filtered UPDATE doesn't raise, it silently matches zero
+-- rows. Never caught until the first real `supabase test db` run. `lives_ok` is the correct
+-- assertion; the row-count check below is what actually verifies the denial.
+select lives_ok(
   $$ update public.properties set nickname = 'hacked'
      where id = '33333333-3333-3333-3333-333333333333' $$,
-  null,
-  null,
-  'User A UPDATE against User B''s property affects zero rows (RLS-filtered, not an error, but verified via row count below)'
+  'User A UPDATE against Org A''s property (from Org B) runs without error, silently filtered to zero rows, verified next'
 );
 
 select is(

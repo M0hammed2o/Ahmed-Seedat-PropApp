@@ -37,6 +37,14 @@ comment on function public.has_org_role(uuid, public.organization_member_role) i
    policies that need role granularity beyond plain org membership (e.g. only accountant+ can
    post journal entries).';
 
+-- Deferred from 20260101000018_organization_members_and_invites.sql: the select policy on
+-- organization_members itself needs has_org_role() to avoid the infinite-recursion bug documented
+-- there (a raw same-table subquery in a policy on that same table recurses forever; a
+-- security-definer function's internal query doesn't, since it executes as the function owner).
+create policy "organization_members_select_same_org"
+  on public.organization_members for select
+  using (public.has_org_role(org_id, 'viewer'));
+
 -- Deferred from 20260101000017_organizations.sql: only principal/manager may update the
 -- compliance profile, and this policy could not exist until has_org_role() (and the
 -- organization_members table it reads) existed.
