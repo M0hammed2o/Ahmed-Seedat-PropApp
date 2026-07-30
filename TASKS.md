@@ -48,15 +48,16 @@ Each milestone is scoped so the repository **compiles, passes its tests, has upd
 - [x] `packages/types/src/property.ts`: `ownerUserId` → `orgId`.
 - [x] `apps/mobile/src/features/properties/propertyRepository.ts`/`usePropertiesQuery.ts`, demo store/mock data, local dev seed script, `rls_isolation.test.sql` — all updated. New `useCurrentOrgId()` hook resolves org context for the two mobile screens that create properties.
 - [ ] `apps/admin` customer-page framing (→ organization framing) — **not done**: `customers/page.tsx`/`processing/page.tsx`/`subscriptions/page.tsx`/`adminMockData.ts` all have substantial unrelated pre-existing uncommitted changes (present before this work began) and were deliberately left untouched rather than risk conflicting with them. This piece of M5 is blocked on those pre-existing changes being resolved (committed or clarified) first — flagged to Mohammed, not silently dropped.
-- [ ] API endpoints + RLS for `properties` specifically (`API_SPEC.md` §3) — RLS exists (above); the `/api/v1/properties` route handlers themselves are not yet built. Web UI: Properties list/detail/create — not yet built.
+- [x] API endpoints for `properties` (`API_SPEC.md` §3, 2026-07-30): `GET/POST /api/v1/properties` (cursor-paginated list, org-role-checked create via `requireOrgRole()`/`has_org_role()` RPC — see `apps/admin/lib/portfolio.ts`), `GET/PATCH/DELETE /api/v1/properties/:id` (`DELETE` archives, never hard-deletes; cross-org access 404s rather than 403ing per `API_SPEC.md` §0). Web UI: Properties list/detail/create — still not built.
 - [ ] Mobile onboarding gap (`apps/mobile/app/(onboarding)/add-first-property.tsx`): this screen now requires an org to exist first, but mobile has no create-organization screen (only web does, `/onboarding/create-organization`) — flagged inline in the file and in `TECHNICAL_DEBT_REGISTER.md`, not solved here (real UX design work, not a mechanical follow-on to the schema cutover).
-- **Exit criteria**: the schema/type/mobile-data-layer cutover (the item this milestone exists for) is done and verified (`pnpm typecheck`/`lint`/`format` green); web API endpoints, web UI, and the admin customer-page reframing remain open, the last of which is blocked on pre-existing uncommitted work rather than new engineering.
+- **Exit criteria**: the schema/type/mobile-data-layer cutover (the item this milestone exists for) is done and verified (`pnpm typecheck`/`lint`/`format` green); API endpoints done and verified (`pnpm typecheck`/`lint`/`test` green, real `next build` run confirming route registration); web UI and the admin customer-page reframing remain open, the last of which is blocked on pre-existing uncommitted work rather than new engineering.
 
 ## M6 — Units
 
 - [x] Schema, RLS (`DATABASE.md` §3).
-- [ ] API endpoints (`API_SPEC.md` §3), Web UI, AI-assisted bulk unit generation (evidenced `PROPVIEW_SCREENSHOT_AUDIT.md` IMG_7998 — flagged in `PRODUCT_SPEC.md` §5 as needing its own design pass, not yet architected).
-- **Exit criteria**: schema done; API/UI/AI-assist not started.
+- [x] API endpoints (`API_SPEC.md` §3, 2026-07-30): `GET/POST /api/v1/properties/:propId/units` (folder is physically named `[id]` — Next.js requires sibling dynamic segments to share one slug name with `properties/[id]/route.ts`), `GET/PATCH /api/v1/units/:id`. Same cursor-pagination/org-role/404-vs-403 patterns as the properties endpoints, sharing `apps/admin/lib/portfolio.ts` and `apps/admin/lib/cursorPagination.ts`.
+- [ ] Web UI, AI-assisted bulk unit generation (evidenced `PROPVIEW_SCREENSHOT_AUDIT.md` IMG_7998 — flagged in `PRODUCT_SPEC.md` §5 as needing its own design pass, not yet architected) — not started.
+- **Exit criteria**: schema and API endpoints done and verified (`pnpm typecheck`/`lint`/`test` green — new `apps/admin/lib/__tests__/cursorPagination.test.ts`, 7 tests; real `next build` run); Web UI/AI-assist not started.
 
 ## M7 — Owners
 
