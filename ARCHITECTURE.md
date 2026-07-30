@@ -2,131 +2,92 @@
 
 ## System overview
 
-PropVault is a pnpm/Turborepo monorepo with two applications and a shared package layer, backed entirely by Supabase (Postgres + Auth + Storage + Edge Functions).
+PropertyVault is a multi-tenant property-management SaaS: a monorepo backend + responsive web app (retained/extended from PropVault), plus two from-zero native mobile apps. Backed by Supabase (Postgres + Auth + Storage + Edge Functions) for the backend, with an application-service layer enforcing business rules that RLS alone can't express (accounting immutability, application-approval automation, inspection-gated deposit release).
 
 ```
-apps/mobile   Expo Router app (iOS/Android) — customer-facing
-apps/admin    Next.js App Router app — SaaS operator dashboard
-packages/*    Code shared between both apps and edge functions
-supabase/*    Migrations, edge functions, seed data (single source of truth for schema)
+                         ┌─────────────────────────┐
+                         │   Supabase Postgres      │
+                         │  (org-scoped tables,     │
+                         │   RLS on every table,    │
+                         │   see DATABASE.md)       │
+                         └────────────┬─────────────┘
+                                      │
+                    ┌─────────────────┼─────────────────┐
+                    │                 │                 │
+          ┌─────────▼──────┐ ┌────────▼────────┐ ┌──────▼───────┐
+          │ Supabase Auth   │ │ Edge Functions   │ │ Storage       │
+          │ (all identity)  │ │ (posting service,│ │ (documents,   │
+          │                 │ │  webhooks, OCR    │ │  photos,      │
+          │                 │ │  orchestration)   │ │  PDFs)        │
+          └─────────┬───────┘ └────────┬─────────┘ └──────┬───────┘
+                    │                  │                   │
+        ┌───────────┴──────────────────┴───────────────────┴───────────┐
+        │                          REST/RPC API surface (API_SPEC.md)   │
+        └───────────┬───────────────────┬───────────────────┬──────────┘
+                    │                   │                   │
+          ┌─────────▼──────┐  ┌─────────▼──────┐  ┌─────────▼──────┐
+          │ apps/web        │  │ Native iOS      │  │ Native Android │
+          │ (Next.js,       │  │ (Swift/SwiftUI) │  │ (Kotlin/       │
+          │  staff+admin+   │  │  Owner+Tenant   │  │  Compose)      │
+          │  super admin)   │  │                 │  │  Owner+Tenant  │
+          └─────────────────┘  └─────────────────┘  └────────────────┘
 ```
 
-No backend server is hand-rolled: business rules that must not be trusted to the client (subscription state, admin authority, document ownership, webhook processing) live in Postgres (RLS + functions) or Supabase Edge Functions, never in mobile/admin client code.
+## Applications
 
-## Monorepo package graph
+| App                                                      | Stack                                          | Users                                                                          | Status                                                                                                               |
+| -------------------------------------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| `apps/admin` → renamed `apps/web`                        | Next.js App Router, retained shell             | Landlord/agency staff (all roles), platform Super Admin (separate route group) | Refactor — retained auth/RBAC pattern and UI primitives, rebuilt data/routes per `RETAIN_REFACTOR_REBUILD_MATRIX.md` |
+| `apps/ios` (new, replaces `apps/mobile` for iOS)         | Swift, SwiftUI, Xcode                          | Owner/Landlord + Tenant (role-switched in one app)                             | Full rebuild — see `MOBILE_ARCHITECTURE_DECISION.md`                                                                 |
+| `apps/android` (new, replaces `apps/mobile` for Android) | Kotlin, Jetpack Compose, Android Studio/Gradle | Owner/Landlord + Tenant (role-switched in one app)                             | Full rebuild — see `MOBILE_ARCHITECTURE_DECISION.md`                                                                 |
+| `apps/mobile` (Expo)                                     | Retired once native apps reach feature parity  | —                                                                              | Reference only during migration; not deployed to app stores                                                          |
 
-```
-apps/mobile ─┬─> packages/types
-             ├─> packages/validation ──> packages/types
-             ├─> packages/config
-             ├─> packages/utils ───────> packages/types
-             └─> packages/ui
+**Why one web app, not two (client-facing + Super Admin)**: the master prompt requires the Super Admin portal be inaccessible to client roles (§12) — this is enforced by route-group separation (`app/(dashboard)/**` for client orgs, `app/(super-admin)/**` for platform staff) plus an independent auth check (`platform_admin_users` membership, never an org role), not by a shared role enum with a "super" tier. A client `principal` role and a platform `super_admin` role are unrelated types; conflating them was the exact anti-pattern the master prompt's §12 warns against ("must not be visible or accessible to... client administrators").
 
-apps/admin ──┬─> packages/types
-             ├─> packages/validation
-             ├─> packages/config
-             ├─> packages/utils
-             └─> packages/ui
+## Multi-tenancy model
 
-supabase/functions ─> packages/types, packages/validation, packages/config
-                       (via relative import at deploy time — Edge Functions run on Deno,
-                       so these packages are kept dependency-light/isomorphic on purpose)
-```
+Organization-scoped throughout (`DATABASE.md` §0.1). A request is authorized by: (1) Supabase Auth verifies `auth.uid()`, (2) the API layer resolves which `org_id`(s) that user belongs to via `organization_members`/`tenants`/`owners`, (3) RLS independently re-enforces the same scoping at the database layer. Two independent enforcement layers (API + RLS) rather than one, so a bug in application-layer authorization doesn't become a cross-tenant data leak by itself.
 
-Rule: packages never import from apps. apps/mobile and apps/admin never import from each other.
+Portal identity (Landlord/Owner vs. Tenant, evidenced in the reference product as a "Switch Portal" control on one account) is resolved per-session from which role records (`organization_members`, `tenants`, `owners`) the authenticated user has — not a separate credential per portal.
 
-## Client/server trust boundary
+## Business logic placement
 
-This is the single most important architectural rule in the codebase (see SECURITY.md):
+- **Simple CRUD** (properties, units, vendors, announcements): RLS + thin API validation is sufficient; no dedicated service layer needed.
+- **Multi-table transactions** (application approval → tenant+lease+rent_schedule; inspection completion → gated deposit release; rent posting → journal entries): implemented as Postgres functions or Edge Functions wrapping an explicit transaction, never as client-side sequential API calls — a partial failure must not leave, e.g., a `lease` created without its `rent_schedules`.
+- **Accounting posting**: a dedicated posting service (Edge Function) is the _only_ code path permitted to write `journal_entries`/`journal_lines`. No other part of the system writes to these tables directly, even server-side — this is what makes the "immutable, reversing-entries-only" rule in `ACCOUNTING.md` actually enforceable rather than just documented.
+- **AI Assistant**: conversational turns are LLM calls that produce _staged_ changes (`ai_messages.staged_changes`), written nowhere else until the user confirms — the LLM never has direct write access to business tables.
+- **Portfolio Intelligence**: a scheduled rules job (not an LLM) that evaluates live data against fixed conditions (overdue rent, expiring leases, etc.) and writes `portfolio_insights` rows — kept separate from the AI Assistant specifically to preserve the evidenced "nothing is estimated or made up" guarantee (`AI_ARCHITECTURE.md`).
 
-- **Mobile and admin clients** hold only the Supabase **anon key**. RLS is the only thing standing between one customer's data and another's.
-- **The Supabase service-role key** exists only in: Edge Function environment variables, and (for admin-only elevated operations) Next.js server-only route handlers reading from `process.env` on the server. It is never sent to a browser bundle or the mobile app, and is never imported by any file reachable from client components (`"use client"`) or the RN bundle.
-- **Subscription entitlement** is resolved server-side (RevenueCat webhook → `subscriptions` table) and read-only from the client. The client never writes its own subscription status.
-- **Admin role** is resolved from the `admin_users` table via a server-side session check (Next.js middleware + route handlers), never from a client-supplied header or JWT claim the client could forge without also forging a valid Supabase-signed session for an account that is actually in `admin_users`.
+## Retained from PropVault (evidence: `EXISTING_CODEBASE_AUDIT.md`)
 
-## Mobile app structure (apps/mobile)
+- Monorepo tooling (pnpm/Turborepo/TS/ESLint), CI pipeline shape.
+- Supabase-Auth wrapper on both web and mobile (sign-in/up/out, password reset, email verification).
+- RLS _pattern_ (deny-by-default, `security definer` helpers, service-role-only privileged tables) — policies themselves rewritten per `DATABASE.md` §12.
+- `packages/utils`'s `calculateMatchScore` — retained, re-targeted at bank-line↔rent-payment matching.
+- `packages/ui` design tokens and both apps' component primitive libraries (Card, StatCard, EmptyState, table/chart primitives) — extended with new screens, not replaced.
+- The upload → AI-extract → human-review pattern (`DocumentIntelligenceProvider`) — extended from bills-only to leases/invoices/expenses.
+- `audit_events` table and its insert-only, no-client-write RLS pattern.
 
-Expo Router file-based routing, grouped by access level:
+## Rebuilt from zero
 
-```
-app/
-  (auth)/            welcome, register, verify-email, login, forgot-password, reset-password
-  (onboarding)/       paywall, restore, enable-biometrics, add-first-property, first-upload, intro
-  (app)/              (tabs) dashboard, properties, documents, settings — behind session + biometric lock
-    properties/[id]/
-  _layout.tsx          root layout: providers (QueryClient, auth store, lock gate)
-src/
-  features/
-    auth/              screens call into this: session logic, forms, zod schemas from packages/validation
-    biometrics/         BiometricLockProvider, lock-state machine, SecureStore-backed session gate
-    properties/         CRUD hooks (TanStack Query) + repository
-    subscriptions/       SubscriptionProvider interface + MockSubscriptionProvider + RevenueCatProvider (stub)
-    documents/           DocumentRepository interface + Supabase Storage implementation (upload/list/sign)
-    documentIntelligence/ DocumentIntelligenceProvider interface + Mock implementation
-  lib/
-    supabase.ts          single Supabase client factory (anon key only, SecureStore-backed session persistence)
-    queryClient.ts
-  state/
-    useAppStore.ts        Zustand — UI-only state (lock state, active property filter, onboarding step)
-  design/                 re-exports packages/ui tokens + RN component primitives
-```
+Organizations/membership/roles, owners, tenants, leases, applications, rent schedules, inspections, maintenance, vendors, the entire accounting subsystem (chart of accounts, journal entries, trust ledgers, bank reconciliation, owner statements, tax pack), announcements, notifications, WhatsApp/email integration, Super Admin billing/plan configuration, AI Assistant + Portfolio Intelligence, and both native mobile apps. See `RETAIN_REFACTOR_REBUILD_MATRIX.md` for the full module-by-module list and reasoning.
 
-## Admin app structure (apps/admin)
+## Caching strategy (added by Production Readiness Review, 2026-07-30 — previously unaddressed anywhere in the architecture)
 
-Next.js App Router, server-first:
+No caching layer existed in the design prior to this review. Three genuinely hot, cheap-to-cache read paths, addressed with the least-invasive option that solves each (not a single blanket cache layer bolted on everywhere):
 
-```
-app/
-  (auth)/login/
-  (dashboard)/
-    overview/
-    customers/[id]/
-    subscriptions/
-    processing/
-    system/
-  api/
-    admin/...            server route handlers using service-role client (never exported to client)
-    webhooks/revenuecat/  RevenueCat webhook receiver (signature-verified, idempotent)
-    webhooks/ocr/         Document-intelligence provider callback (signature-verified, idempotent)
-middleware.ts             session + admin-role gate for (dashboard) routes
-lib/
-  supabase/server.ts       service-role + server-session clients (server-only, "server-only" import guard)
-  supabase/client.ts        anon browser client for the small amount of client-side interactivity
-  auth.ts                   getAdminSession(), requireRole()
-```
+1. **Reference data that changes rarely, read constantly**: `plans`, `plans.feature_limits`. In-process/edge-cache with a short TTL (e.g. 60s) or cache-on-deploy invalidation — this data changes only when Super Admin edits a plan, which is rare and can tolerate a minute of staleness. No Redis needed for this one; a simple in-memory cache per Edge Function instance (or Next.js's built-in data-cache primitives for `apps/web`) is sufficient.
+2. **Org-membership/role resolution**: resolved on every authenticated request today (`API_SPEC.md` §0, `ARCHITECTURE.md` § Multi-tenancy model). At scale this is the highest-frequency lookup in the system. V1 does **not** add a cache here — it relies on the index-friendly query path (`DATABASE.md` § RLS performance at scale, mitigation 1) being fast enough on its own, since a cache here introduces a real correctness risk (a revoked membership must take effect immediately for security-sensitive checks, not after a cache TTL expires) that isn't worth taking on without a measured need. If load testing later shows this is a bottleneck, the fix is the session-scoped Postgres claim (`DATABASE.md`'s mitigation 2), not an external cache, specifically because a Postgres-session-scoped value is re-resolved every request by construction — it can't go stale between requests the way a Redis-cached value could.
+3. **Computed/expensive reports**: Trial Balance (`ACCOUNTING.md` §6) is a live aggregate query over `journal_lines` — cheap for a single org at V1 data volumes, but grows with ledger size. Rather than caching a query result that must always reflect the very latest posting (staleness here is unacceptable — an accountant reconciling books needs the true current state), the mitigation is the indexing already specified (`journal_lines(org_id, ...)`) plus the explicit non-goal of caching this particular read: if it ever becomes slow, the fix is a materialized summary table refreshed on every posting-service write (kept exactly current, not TTL-stale), not a generic cache.
 
-## Data flow: upload → extraction → match → checklist
+**Explicit non-goal for V1**: a general-purpose Redis/Upstash caching layer across arbitrary API responses. Every read in this system is RLS-scoped and mostly per-org (bounded working set per query), which is the main reason a blanket cache isn't the first tool reached for here — the real lever at this scale is correct indexing (`DATABASE.md` §13), which is cheaper to build, cheaper to reason about correctness for, and doesn't introduce a second source of truth to keep in sync. Revisit if profiling data from production (not speculation) shows a specific endpoint is both hot and safely cacheable.
 
-1. Mobile app uploads file to a private Storage bucket path `{user_id}/{property_id}/{year}/{month}/{uuid}.{ext}`, writes a `documents` row (status `processing`), and inserts an `extraction_jobs` row.
-2. An Edge Function (triggered by Storage webhook or a queued job — see DOCUMENT_INTELLIGENCE.md) calls the configured `DocumentIntelligenceProvider`, writes `extraction_results`, and updates `documents`/`bills` with typed fields plus a confidence score. In Phase 1 this runs against `MockDocumentIntelligenceProvider` only.
-3. Customer confirms/corrects extracted fields in-app; confirmed fields are written directly (never silently trusted from the provider).
-4. When a `proof_of_payment` document is uploaded, a matching pass (packages/utils `calculateMatchScore`) compares it against candidate unpaid `bills` for the same user and proposes `payment_matches` rows above the review threshold. The customer must confirm before a bill is marked `paid` (see PAYMENT_MATCHING design in this file's companion, DECISIONS.md).
-5. The monthly checklist is a read-optimised view (`property_expected_categories` LEFT JOIN `bills`) computed per property/month, not a separately maintained table, so it can never drift from the underlying bills.
+## Environments
 
-## Navigation map (mobile)
+- **Local dev**: `supabase start` (Docker) for a local Postgres/Auth/Storage instance; demo-mode flag available for zero-backend UI iteration (existing pattern retained, but see `SECURITY.md` — the default-ON behavior is fixed in this rebuild, not carried forward as-is).
+- **Staging**: a real Supabase project, seeded with synthetic multi-org data for QA across tenant boundaries specifically (verifying org A can never read org B's data is a standing staging-environment test, not a one-time check).
+- **Production**: a separate Supabase project; `SUPABASE_SERVICE_ROLE_KEY` never reaches any client bundle (retained pattern, `server-only` package enforced at build time).
 
-```
-Welcome → Register → Verify Email → Paywall → Restore? → Enable Biometrics? → Add First Property → First Upload → Dashboard
-                                                                                                          │
-                                                                    ┌─────────────────────────────────────┼───────────────────────┐
-                                                                Properties                            Documents                Settings
-                                                             Property Detail                        Search/Filter          Biometric toggle
-                                                          (Monthly Checklist)                     Document Preview         Subscription mgmt
-                                                                                                                          Delete account request
-```
+## Deployment topology
 
-Returning users: Login → (biometric unlock if enabled and within timeout) → Dashboard. Onboarding is resumable: progress is persisted (`user_preferences.onboarding_step`) so a killed app resumes at the right step.
-
-## Admin information architecture
-
-```
-Login (admin-only auth, separate session) → Overview
-  ├─ Customers → Customer detail (profile, subscription, properties/doc counts, audit, notes, suspend)
-  ├─ Subscriptions (platform, product id, status, RevenueCat sync)
-  ├─ Processing (extraction job queue, retries, dead-letter)
-  └─ System (health, webhook status, feature flags, plan limits, audit log, maintenance banner)
-```
-
-## Why Turborepo + pnpm
-
-Reasoning captured in DECISIONS.md. Short version: pnpm workspaces give strict, disk-efficient dependency isolation (important with an RN app and a Next.js app that must not silently share incompatible transitive versions); Turborepo gives cached, parallel `lint`/`typecheck`/`test`/`build` across both apps and all packages with minimal config.
+See `DEPLOYMENT.md` for the full pipeline. Summary: `apps/web` deploys to Vercel (or equivalent Next.js host) from `main` via CI; `apps/ios`/`apps/android` build via Xcode Cloud/Fastlane and Gradle/Fastlane respectively, gated on the same CI checks (lint/typecheck/test) applied to their native toolchains; Supabase migrations apply via CI on merge to `main`, never manually against production.

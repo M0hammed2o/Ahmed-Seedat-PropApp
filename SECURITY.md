@@ -1,77 +1,110 @@
 # Security
 
-Security is release-blocking (per project mandate). This document is the working checklist; PRIVACY_AND_COMPLIANCE.md covers the legal/compliance layer built on top of these technical controls.
+Security is release-blocking (per project mandate). This document is PropertyVault's production security architecture — the multi-tenant rebuild of the PropVault-era document. PRIVACY_AND_COMPLIANCE.md covers the legal/compliance layer built on top of these technical controls; ACCOUNTING.md covers posting rules; DATABASE.md, PERMISSIONS.md, ARCHITECTURE.md, API_SPEC.md, and MOBILE_ARCHITECTURE_DECISION.md are the design documents this file builds on rather than repeats.
 
-## ⚠️ RELEASE-BLOCKING: Demo mode is an authentication bypass
+## ⚠️ RELEASE-BLOCKING: Demo-mode auth bypass — carries forward from PropVault, still unresolved
 
-Phase 2 added `EXPO_PUBLIC_DEMO_MODE` (mobile) / `NEXT_PUBLIC_DEMO_MODE` (admin) so both apps run end-to-end on realistic mock data with zero backend setup, for sales/client demonstrations before a Supabase project exists (see DECISIONS.md). **Both default to ON when the variable is unset.**
+`EXISTING_CODEBASE_AUDIT.md` §3 confirms the PropVault-era issue is present in code exactly as `SECURITY.md` previously described it, unchanged: `NEXT_PUBLIC_DEMO_MODE` (admin/web) and `EXPO_PUBLIC_DEMO_MODE` (mobile) **default to ON when the environment variable is unset**. On the admin/web side this makes `/login` accept any email/password, skips the session check in `middleware.ts` entirely, and makes `getAdminSession()` fabricate a `super_admin` session without touching Supabase. On mobile, `AuthProvider.tsx` resolves `signIn`/`signUp` against a locally-constructed fake `Session` instead of calling Supabase Auth. A console warning and an on-screen "Demo data" badge both fire when active, but neither stops a real deployment from running wide open if the variable is simply never set — which is the default failure mode, not an edge case.
 
-In the admin app specifically, demo mode:
+**This is release-blocking for PropertyVault, same as it was for PropVault, and does not get inherited as "already handled."** The rebuild must fix the default direction, not just re-document the risk:
 
-- Makes `/login` accept **any** email/password (`apps/admin/app/login/page.tsx`).
-- Skips the session check in `middleware.ts` entirely.
-- Makes `lib/auth.ts`'s `getAdminSession()` return a fixed fake `super_admin` session without touching Supabase at all.
-- Serves every dashboard page from mock data instead of the real database.
+**Decision: unset means OFF, always.** The fix is not a new flag layered on top of the old one — it is removing the "default ON when unset" behavior from `isDemoMode()` (`packages/config`) entirely, so that an unset `NEXT_PUBLIC_DEMO_MODE`/`EXPO_PUBLIC_DEMO_MODE` resolves to `false`. Demo mode becomes something a developer must actively opt into (`NEXT_PUBLIC_DEMO_MODE=true`), never something an operator must remember to opt out of. On top of that inversion, add a second, independent gate so demo mode cannot be switched on by app-level env alone:
 
-A server-side console warning fires on boot whenever this is active (`apps/admin/lib/demoMode.ts`), and every demo screen/page carries a visible "Demo data"/"Demo mode" badge — but neither of those stops a real deployment from running wide open if the variable is left unset.
+- `ALLOW_DEMO_MODE=true` must also be set at the **infra level** (Vercel/hosting-platform project environment variable, not `.env` shipped in the app bundle) for any environment other than local dev, and this variable is never set in the production project's environment at all — not "set to false," genuinely absent, so there is no single flag flip that re-enables the bypass in production.
+- `isDemoMode()` becomes `NEXT_PUBLIC_DEMO_MODE === 'true' && ALLOW_DEMO_MODE === 'true'` (mobile: the Expo-public equivalent, gated the same way through `app.config` per build profile) — both conditions required, both default absent/false.
+- CI adds a build-time assertion for the `production` deploy target: fail the build if `ALLOW_DEMO_MODE` is set in that environment's configuration, so the gate can't silently regress via a copy-pasted env file.
 
-**Before any deployment that could be reached by anyone other than the person driving a demo:** set `NEXT_PUBLIC_DEMO_MODE=false` (and `EXPO_PUBLIC_DEMO_MODE=false` for the mobile build) explicitly, and confirm real `SUPABASE_SERVICE_ROLE_KEY`/`NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_ANON_KEY` values are set — `lib/supabase/server.ts` and `lib/auth.ts` will then require and use them for every request as originally designed (see the rest of this document).
+Every dashboard/screen-level "Demo data" badge and boot-time console warning are retained as defense-in-depth, but per the hard rule that UI-layer signals are never the only enforcement (`PERMISSIONS.md` §5), they are not what makes this safe — the inverted default and the infra-level second gate are.
 
-## Trust boundaries
+**Before any deployment reachable by anyone other than the person driving a demo:** confirm `ALLOW_DEMO_MODE` is absent from the target environment's infra config, confirm real `SUPABASE_SERVICE_ROLE_KEY`/`NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_ANON_KEY` values are set, and confirm the CI production-target assertion above is green.
 
-1. **Mobile/admin client → Supabase (anon key)**: zero implicit trust. Every table a customer can reach has RLS. See SECURITY.md → RLS policy summary below.
-2. **Webhooks (RevenueCat, OCR provider) → Supabase**: verified by HMAC/signature check inside the receiving Edge Function/route handler before any write; redelivery is a no-op via `idempotency_key` unique constraint (see DATABASE.md).
-3. **Admin browser → Next.js server**: the browser never receives the service-role key. Elevated reads/writes happen in server route handlers (`apps/admin/app/api/admin/**`) that construct a service-role client from `process.env.SUPABASE_SERVICE_ROLE_KEY` on the server only, guarded by the `server-only` package so an accidental client-component import fails the build rather than leaking at runtime.
-4. **Admin role vs RLS**: an admin does not get elevated Postgres access via a permissive client-side RLS policy — that would mean anyone who obtained a similar-looking anon session could try the same query. Elevated admin reads go through server route handlers that (a) verify the caller's Supabase session, (b) check `is_admin()` server-side, (c) then use the service-role client, (d) write an `audit_events` row. Customer-table RLS itself never grants admins a blanket bypass condition.
+## Multi-tenant trust boundaries
 
-## Row-Level Security policy summary (Phase 1 tables)
+```
+Client (web / iOS / Android)  →  API (Route Handlers / Edge Functions)  →  Postgres (RLS)
+```
 
-For every customer-owned table (`properties`, `documents`, `bills`, `payments`, `payment_matches`, `extraction_jobs`, `extraction_results`, `property_expected_categories`, `user_preferences`, `user_terms_acceptances`, `profiles`):
+Per `ARCHITECTURE.md` § Multi-tenancy model and `API_SPEC.md` §0/§10, every request crosses two independent enforcement layers, not one:
 
-- `select`: `owner_user_id = auth.uid()` (or, for tables reached via a parent id like `bills.document_id`, an `exists` subquery back to the owning `documents`/`properties` row's `owner_user_id`).
-- `insert`: `with check (owner_user_id = auth.uid())` — a client cannot insert a row it claims belongs to another user.
-- `update`/`delete`: `using (owner_user_id = auth.uid())`.
-- `subscriptions`, `subscription_events`, `audit_events`: customer gets `select`-only on their own rows; all `insert`/`update` happen exclusively through the service-role webhook/server path (no client insert/update policy exists at all, which is enforced by default-deny — RLS with no matching policy denies the operation).
-- `admin_users`: no policy grants any non-service-role client access; admin identity is resolved server-side only.
+1. **API layer (fail-fast)**: Supabase Auth verifies `auth.uid()`; the API re-derives which `org_id`(s) the caller belongs to from `organization_members`/`tenants`/`owners` — **never from a client-supplied `org_id`** (`API_SPEC.md` §0: "No endpoint accepts a client-supplied `org_id` as authoritative"). Role checks against `PERMISSIONS.md`'s org-role table happen here too, returning 403 before any query runs.
+2. **RLS (ground truth)**: every table's policy independently re-derives the same scoping from `organization_members`/`tenants`/`owners` (`DATABASE.md` §12), assuming the API layer could be buggy, bypassed, or (in the case of a compromised client) simply lying. A client cannot forge its way to another organization's data by tampering with a request body, because no policy anywhere trusts a client-supplied identifier — every `select`/`insert`/`update`/`delete` predicate resolves org/role membership server-side from tables the client cannot write to arbitrarily.
 
-Full SQL lives in `supabase/migrations/*_rls_policies.sql`. RLS test cases (User A cannot read/write User B's rows, cannot forge `owner_user_id`, cannot access another user's signed URL) are specified in TESTING.md and will be executed against a local `supabase start` instance — see the Unresolved section in the final delivery report for current run status, since they require a live Postgres instance this sandbox does not provision automatically.
+**What stops a compromised or malicious client from reading another organization's data**: nothing the client sends is trusted as an authorization claim. A forged `org_id` in a request body is simply not what any RLS predicate checks — the predicate checks `org_id in (select org_id from organization_members where user_id = auth.uid() and status = 'active')` (and the `tenants.user_id`/`owners.user_id` equivalents for portal-scoped tables), which is a server-side lookup keyed only on the caller's authenticated `auth.uid()`. Even a fully compromised client (stolen JWT included) is bounded by whatever orgs that specific `auth.uid()` actually belongs to; it cannot expand its own reach by changing what it asks for. This mirrors the retained pattern from PropVault's single-owner RLS (`owner_user_id = auth.uid()`, `EXISTING_CODEBASE_AUDIT.md` §3) generalized to org/tenant/owner membership.
 
-## Storage security
+The one deliberate exception is the service-role client used by Super Admin route handlers and the accounting posting service, which bypasses RLS by design — see Secrets below and `PERMISSIONS.md` §5/§6 for how that elevated path is itself gated (server-side role check + audit write, never exposed to any client bundle).
 
-- Buckets are **private** (`public = false`). No object is ever served via a public URL.
-- Path convention `{user_id}/{property_id}/{year}/{month}/{uuid}.{ext}` is defense-in-depth only — the actual authorization is a Storage RLS policy requiring `(storage.foldername(name))[1] = auth.uid()::text`, so guessing another user's path still fails at the policy layer.
-- Client access is always via a short-lived signed URL requested through a call that itself checks the `documents` row's ownership before signing — a signed URL is never generated from a client-supplied path alone.
-- Signed URL TTL is configurable (`packages/config`), defaults short (5 minutes) for preview and slightly longer (60s single-use intent) for download.
+## Secrets / PII handling — encrypted-secrets pointer pattern
 
-## Webhook forgery protection
+Per `DATABASE.md` §11, banking details (`owners.banking_ref`, `bank_accounts.account_number_ref`) and ID numbers (`tenants.id_number_ref`) are never stored as plaintext columns on their business table. Each is a `uuid` pointer into a dedicated `encrypted_secrets` table (`id`, `ciphertext bytea`, `created_at`).
 
-- RevenueCat webhook: verifies the `Authorization` header against `REVENUECAT_WEBHOOK_SECRET` (shared-secret; RevenueCat's simplest supported scheme) before parsing the body. Requests without a matching secret are rejected with 401 and logged to `system_events` as a security event, not processed.
-- OCR/document-intelligence callback: same pattern — HMAC-signed payload checked against `DOCUMENT_INTELLIGENCE_WEBHOOK_SECRET` server-side (see DOCUMENT_INTELLIGENCE.md).
-- Both paths are idempotent by external event id, so a replayed valid request is safely ignored rather than double-applied.
+- **Encryption happens at the application layer**, before the row is ever inserted — not `pgcrypto` column-level encryption alone, and not reliance on Postgres-at-rest encryption as the only control. This means a full-table dump, a leaked `SELECT *`, a misconfigured RLS policy, or a compromised read replica exposes ciphertext, not a bank account number or an ID number.
+- **Key management stays outside the database's trust boundary.** The key that decrypts `encrypted_secrets.ciphertext` is never stored in the same place as the ciphertext, and is never a value the application's Postgres role can read directly — it lives in a KMS (or hosting-provider equivalent secret manager) that the decrypting service calls at read time, so a Postgres-level compromise (leaked service-role key, SQL injection reaching this table, a rogue admin with database console access) is insufficient on its own to recover plaintext.
+- Decryption is scoped to the specific server-side code paths that legitimately need the plaintext (e.g. generating an owner payout instruction, verifying a tenant's ID during screening) — never returned to a client, never logged, never included in an `audit_events.before`/`after` snapshot (those record which secret was referenced, not its value).
+- This satisfies the hard rule that secrets/PII never appear unredacted in code, logs, or replies, extended from "don't log it" to "don't even store it in a form a database-level compromise can read."
 
-## Input validation
+## Auth
 
-All external input (mobile forms, admin forms, webhook payloads) is parsed through a `packages/validation` Zod schema before touching the database — client-side for UX, and **again server-side** (Edge Function / route handler) since client-side validation is a UX affordance, not a security control.
+Supabase Auth is retained unchanged as the identity provider (`ARCHITECTURE.md` § Retained from PropVault) across web and both native apps — same `auth.users` table, same sign-in/up/out/password-reset/email-verification flows, now feeding into org/owner/tenant role resolution instead of a single-owner assumption.
 
-## Secrets
+- **Session handling**: web retains the existing Supabase-Auth-via-`@supabase/ssr` pattern; native apps (`MOBILE_ARCHITECTURE_DECISION.md` §7/§8) integrate `supabase-swift`/`supabase-kt` directly rather than through a JS bridge, with the same unauthenticated → verifying → authenticated → locked state machine `apps/mobile`'s `AuthProvider.tsx` already validated as a flow (spec reused, code not — nothing in a JS runtime links into a native binary).
+- **Token storage**: iOS uses Keychain (`LocalAuthentication`/Keychain per §7), Android uses Keystore-backed `EncryptedSharedPreferences`/`DataStore` — both replace `expo-secure-store` with the native-first equivalent, never falling back to plain storage.
+- **Biometric re-entry is a re-auth gate, not just an app-open convenience.** Face ID/Touch ID (iOS) and `BiometricPrompt` (Android) unlock the app on cold start/background-return, but sensitive actions re-prompt biometrics independently of session validity: initiating/confirming an owner payout, approving a bank-transaction match, reversing a journal entry, viewing a tenant's ID number or bank details, and ending a Super Admin support-mode session all require a fresh biometric (or device passcode fallback) check immediately before the action executes — a valid, unexpired Supabase session is necessary but not sufficient for these. This list is enforced client-side as UX (the prompt itself) but the underlying action is additionally gated server-side by the normal role checks in `PERMISSIONS.md`/`API_SPEC.md` §10, so a jailbroken/tampered client that skips the biometric prompt still cannot execute the action without the legitimate role/session — biometrics narrow the window for "someone picked up an unlocked, already-authenticated phone," they are not the authorization boundary itself.
 
-- `.env.example` files contain only placeholder values (`TO_BE_CONFIRMED`, `CHANGE_ME`), never real keys.
-- Service-role key: Edge Function secrets + Next.js server environment only; never in `NEXT_PUBLIC_*`, never in the Expo app, never logged.
-- A repository-wide secret scan (`git grep` for common key patterns) is run as part of the Phase 1 verification pass (see WORKLOG.md for the actual command and result).
+## Super Admin support-mode (audited, time-boxed, never silent)
 
-## Other release-blocking controls implemented or scaffolded in Phase 1
+Per `PERMISSIONS.md` §6 and `DATABASE.md` §1 (`support_access_sessions`): platform staff never get silent, unbounded impersonation of a client organization.
 
-- Admin dashboard sends standard secure headers (`Strict-Transport-Security`, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, restrictive `Content-Security-Policy`) via `next.config` headers.
-- Rate-limiting architecture: a `packages/config` constant set (`RATE_LIMITS`) plus a documented Edge Function middleware pattern; Phase 1 does not yet wire a distributed limiter (needs a store — Upstash Redis or Supabase-based token bucket — deferred, tracked in TODO.md).
-- File upload validation: MIME type + extension allow-list + magic-byte signature check (`packages/utils/fileValidation.ts`) + size limit from `packages/config` plan limits.
-- Path traversal: storage paths are always server-constructed from `(user_id, property_id, uuid)`, never from a client-supplied filename directly.
-- IDOR: every lookup by id is scoped through RLS (customer side) or an explicit ownership check (admin/service-role side) rather than "trust the id".
-- Logs never include full document contents, tokens, or file bytes — only structured metadata (see analytics/error-monitoring abstractions).
+- Entering support mode requires a `reason` (not null, logged) and creates a `support_access_sessions` row (`platform_admin_id`, `org_id`, `reason`, `started_at`) before any elevated access is granted.
+- While active, the session is scoped to `viewer`-equivalent read access to the target org by default — full write/`principal`-equivalent access is never implicitly granted. Any write action during the session requires a separate, explicitly logged escalation (`actions_taken jsonb[]`, append-only) — there is no single toggle that grants blanket impersonation.
+- **Banner-visible, never silent**: while a support session is active, the platform admin's UI carries a persistent, unmissable banner identifying that they are in support mode against a specific org — this is a hard requirement, not a nice-to-have, because the master prompt's Super Admin isolation requirement (`ARCHITECTURE.md` § Why one web app, not two) depends on client staff and platform staff never being confusable, including to the platform staff member themselves mid-session.
+- Sessions end explicitly (`ended_at` set by the session closing itself) or by automatic timeout — `ended_at` is the only field on `support_access_sessions` ever updated after insert, everything else is append-only, consistent with the audit-immutability posture below.
+- `is_platform_admin(min_role)` gates entry server-side; a client-supplied role claim is never trusted (`PERMISSIONS.md` §1). Currently `is_admin()` — see `DATABASE.md` §1's naming note; the Milestone 13 rename hasn't landed yet.
+
+## WhatsApp / email webhook security
+
+Both inbound channels are external, unauthenticated-by-default surfaces (anyone can POST to a public webhook URL) and are treated accordingly: **no write happens before signature/HMAC verification succeeds.**
+
+- `POST /api/v1/webhooks/whatsapp` and `POST /api/v1/webhooks/email` (`API_SPEC.md` §8) verify the provider's signature/HMAC against a server-held secret before the payload is parsed or any `whatsapp_messages`/`email_messages` row is written — a request that fails verification is rejected (401) and never reaches business logic, matching the existing RevenueCat/OCR webhook pattern this codebase already has (`EXISTING_CODEBASE_AUDIT.md` §3 confirms the pattern's shape; the routes themselves are net-new for this rebuild).
+- WhatsApp inbound additionally must not resolve a conversation/entity from untrusted sender-text alone — number resolution is looked up server-side against known records, never inferred from message content (see `WHATSAPP.md` for the full number-resolution rule, §13 of the master prompt).
+- Both webhook paths are idempotent by provider message id, so a redelivered valid request is a no-op rather than a duplicate send/write.
+- Full protocol-level detail (exact header names, retry/backoff behavior, template-message constraints) lives in `WHATSAPP.md` and `EMAIL.md` — this section states the requirement those documents must satisfy, not a substitute for them.
+
+## OWASP-relevant controls
+
+- **Injection**: all database access goes through the Supabase client library or parameterized queries inside Postgres functions/Edge Functions — no string-concatenated SQL anywhere. All external input (mobile forms, web forms, webhook payloads) is parsed through a `packages/validation` Zod schema before touching the database, client-side for UX and **again server-side**, since client-side validation is a UX affordance, not a security control (retained from the existing pattern).
+- **XSS**: React's default JSX escaping is the baseline control on web; user-supplied text (tenant names, maintenance descriptions, announcement bodies) is never rendered via `dangerouslySetInnerHTML` or an unescaped native-WebView bridge. A restrictive `Content-Security-Policy` (retained/extended from the existing `next.config` headers) is defense-in-depth on top, not a substitute for escaping.
+- **CSRF**: session cookies (web) are `SameSite`-scoped; native apps and any cross-origin API consumption use bearer-token auth (`Authorization: Bearer <supabase-jwt>` per `API_SPEC.md` §0) rather than ambient cookie auth, so there's no implicit-credential request for a forged cross-site request to ride on.
+- **Rate limiting**: auth endpoints (`/api/v1/auth/signin`, `/api/v1/auth/signup`, `/api/v1/auth/password-reset`) and the webhook endpoints are the highest-priority targets for a distributed rate limiter — the `packages/config` `RATE_LIMITS` constant set and Edge Function middleware pattern already scaffolded carries forward; a real backing store (Upstash Redis or a Supabase-based token bucket) is still not wired end-to-end and remains tracked as a pre-production gap (see Unresolved).
+- **Dependency auditing**: the existing CI secret-scan step (`git grep` for common key patterns, run as part of the verification pass) is retained unchanged; a dependency-vulnerability scan (`npm audit`/`pnpm audit` or equivalent in CI) should run on the same cadence — confirm current CI config before claiming this as done (see Unresolved).
+- **IDOR**: every lookup by id is scoped through RLS (customer/owner/tenant side) or an explicit org-membership check (Super Admin/service-role side); `API_SPEC.md` §0 also closes the org-enumeration side channel specifically — a resource in another org 404s, never 403, so a client probing ids can't distinguish "doesn't exist" from "exists but isn't yours."
+- **Secrets hygiene**: `.env.example` files contain only placeholders, never real keys; `SUPABASE_SERVICE_ROLE_KEY` is server-environment/Edge-Function-secret only, never `NEXT_PUBLIC_*`, never in a native app bundle, never logged — enforced at build time by the `server-only` package so an accidental client-component import fails the build rather than leaking at runtime (`ARCHITECTURE.md` § Environments).
+
+## Accounting immutability as a security property
+
+`ACCOUNTING.md` §1 and `DATABASE.md` §9/§12 establish that `journal_entries` and `journal_lines` are insert-only — corrections happen via reversing/adjusting entries, never an `UPDATE`. This is stated here, not just in the accounting/data-integrity docs, because it is also a security control: **`journal_entries`/`journal_lines`/`audit_events` carry no `update`/`delete` RLS policy at all, for any role, including service-role-adjacent paths** (`DATABASE.md` §12). That means a compromised service-role credential, a bug in the posting service, or a malicious insider with database console access cannot silently rewrite financial history — the only way to change what the ledger says happened is to post a new, equally-permanent, fully-audited entry that says so. Combined with the rule that the posting service (`ARCHITECTURE.md` § Business logic placement) is the _only_ code path permitted to write these tables at all, this makes "the ledger cannot be quietly edited" an enforced property of the system, not a convention that trusted code is expected to honor.
+
+## Uploaded-file safety (added by Production Readiness Review, 2026-07-30 — previously unaddressed: MIME-type validation alone does not stop a malicious file)
+
+Tenants, owners, and staff all upload files (documents, maintenance photos, lease PDFs) that get stored and later served to _other_ users (a landlord opening a tenant-submitted photo, an owner opening a statement PDF) — this is a real attack surface a MIME-type check alone (the only existing control, `EXISTING_CODEBASE_AUDIT.md`'s `ALLOWED_MIME_TYPES`) does not close, since a MIME type is client-asserted metadata, not a guarantee about file content.
+
+- **Malware/antivirus scanning** on every upload before it's available to any other user — either a Supabase Storage-integrated scanning hook, or a dedicated scanning step in the upload pipeline (many storage providers and third-party services offer this; a specific vendor is not selected here, matching the provider-abstraction pattern used elsewhere) that runs between "file received" and "document row marked available," never after. A file that fails the scan is rejected outright, logged (`audit_events`), and never reaches storage in a downloadable state.
+- **File-type verification by content, not just extension/MIME header** — a magic-byte/content-sniffing check (confirming a `.pdf` upload's first bytes actually match the PDF format, etc.) in addition to the existing `ALLOWED_MIME_TYPES` check, closing the gap where a renamed executable could pass a naive MIME-type gate.
+- **Size limits** enforced server-side (not just client-side UX), per the existing `packages/config` limits pattern, to prevent storage-cost abuse and denial-of-service via oversized uploads.
+- This is flagged as a **launch-blocking** requirement for the Documents module (`TASKS.md` M11), not a nice-to-have — see `RISK_REGISTER.md`.
+
+## Storage security (retained pattern, re-scoped)
+
+- Buckets remain private (`public = false`); no object is ever served via a public URL.
+- Path convention becomes `{org_id}/{...}` (`DATABASE.md` §6) rather than `{user_id}/...` — Storage RLS requires `(storage.foldername(name))[1]` to resolve to an org the caller belongs to, so guessing another org's path still fails at the policy layer, not just by obscurity.
+- Client access is always via a short-lived signed URL requested through a call that checks the `documents` row's org/entity ownership before signing — never generated from a client-supplied path alone.
 
 ## What still needs security review before production (not yet done)
 
+- The demo-mode fix above is designed in this document but not yet implemented in code — confirm `packages/config`'s `isDemoMode()`, `apps/web/middleware.ts`, `apps/web/lib/auth.ts`, and the mobile `AuthProvider.tsx` equivalents are updated and the CI production-target assertion is wired before this item is closed.
+- `WHATSAPP.md`/`EMAIL.md` webhook signature schemes referenced above are being authored in parallel with this document — cross-check their final header names/verification steps against this section once complete.
+- Distributed rate limiting has a scaffolded pattern but no wired backing store.
+- Dependency-vulnerability scanning in CI (beyond the existing secret-scan step) — confirm current pipeline config.
 - Formal penetration test / third-party review.
-- Rate limiting with a real backing store.
 - CSP tightened against the actual final asset hosts once chosen.
-- RevenueCat/OCR webhook secrets rotated and stored in the real secret manager for the hosting target.
-- Legal review of retention periods (see PRIVACY_AND_COMPLIANCE.md).
+- Legal review of retention periods (see `PRIVACY_AND_COMPLIANCE.md`).
+- RLS test cases (org A cannot read/write org B's rows, tenant cannot escalate to org-staff data, owner cannot read another owner's statement) are specified per `PERMISSIONS.md`/`DATABASE.md` but require a live Postgres instance (`supabase start`) to execute — not run as part of producing this document.
