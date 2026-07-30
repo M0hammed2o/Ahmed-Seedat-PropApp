@@ -4,3 +4,5 @@ export * from './document';
 export * from './subscription';
 export * from './documentIntelligence';
 export * from './admin';
+export * from './organization';
+export * from './portfolio';

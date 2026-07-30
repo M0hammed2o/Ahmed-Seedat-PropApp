@@ -92,3 +92,38 @@ export type ExtractionJobStatus = (typeof EXTRACTION_JOB_STATUSES)[number];
 
 export const PAYMENT_MATCH_STATUSES = ['proposed', 'confirmed', 'rejected', 'unlinked'] as const;
 export type PaymentMatchStatus = (typeof PAYMENT_MATCH_STATUSES)[number];
+
+// --- PropertyVault multi-tenancy enums (see DATABASE.md, supabase/migrations/20260101000016+) ---
+
+export const ORGANIZATION_STATUSES = [
+  'trial',
+  'active',
+  'overdue',
+  'suspended',
+  'cancelled',
+] as const;
+export type OrganizationStatus = (typeof ORGANIZATION_STATUSES)[number];
+
+export const ORGANIZATION_TYPES = ['owner_managed', 'agency'] as const;
+export type OrganizationType = (typeof ORGANIZATION_TYPES)[number];
+
+export const ORGANIZATION_MEMBER_ROLES = [
+  'principal',
+  'manager',
+  'agent',
+  'accountant',
+  'viewer',
+] as const;
+export type OrganizationMemberRole = (typeof ORGANIZATION_MEMBER_ROLES)[number];
+
+export const ORGANIZATION_MEMBER_STATUSES = ['invited', 'active', 'revoked'] as const;
+export type OrganizationMemberStatus = (typeof ORGANIZATION_MEMBER_STATUSES)[number];
+
+export const BILLING_CYCLES = ['monthly', 'annual'] as const;
+export type BillingCycle = (typeof BILLING_CYCLES)[number];
+
+export const UNIT_STATUSES = ['vacant', 'occupied', 'maintenance'] as const;
+export type UnitStatus = (typeof UNIT_STATUSES)[number];
+
+export const OWNER_TYPES = ['individual', 'company', 'trust'] as const;
+export type OwnerType = (typeof OWNER_TYPES)[number];
