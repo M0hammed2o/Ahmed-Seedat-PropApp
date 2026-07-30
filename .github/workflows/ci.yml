@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Format check
+        run: pnpm format:check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build admin
+        run: pnpm --filter admin build
+        env:
+          # Demo mode lets the admin app build without a live Supabase project — see
+          # SECURITY.md. CI only needs to confirm the build compiles, not connect to real data.
+          # Both gates are required as of the 2026-07-30 demo-mode-bypass fix (R-01) — this CI
+          # job is the one place ALLOW_DEMO_MODE is legitimately set outside local dev, and it
+          # must never appear in this repo's *deployment* workflow (a separate, not-yet-written
+          # job per DEPLOYMENT.md/TASKS.md M24) once one exists.
+          NEXT_PUBLIC_DEMO_MODE: 'true'
+          ALLOW_DEMO_MODE: 'true'
+
+      - name: Secret scan
+        run: |
+          if grep -rEn "sk_live_|sb_secret_|AIza[0-9A-Za-z_-]{35}|-----BEGIN (RSA |EC |)PRIVATE KEY-----" \
+            --include="*.ts" --include="*.tsx" --include="*.js" --include="*.json" --include="*.env*" \
+            --exclude-dir=node_modules --exclude-dir=.next --exclude-dir=.expo --exclude-dir=.turbo --exclude-dir=dist . \
+            | grep -v "TO_BE_CONFIRMED\|CHANGE_ME"; then
+            echo "Potential secret pattern found — see above."
+            exit 1
+          fi

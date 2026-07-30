@@ -12,6 +12,9 @@ export const mobileEnvSchema = z.object({
   EXPO_PUBLIC_SUPABASE_URL: z.string().optional(),
   EXPO_PUBLIC_SUPABASE_ANON_KEY: z.string().optional(),
   EXPO_PUBLIC_DEMO_MODE: z.string().optional(),
+  // Second, independent gate (SECURITY.md "Demo-mode auth bypass") — see packages/config's
+  // resolveDemoMode(). Must never be 'true' in the `production` EAS build profile (eas.json).
+  EXPO_PUBLIC_ALLOW_DEMO_MODE: z.string().optional(),
   EXPO_PUBLIC_SUBSCRIPTION_MODE: z.enum(['mock', 'revenuecat']).default('mock'),
   EXPO_PUBLIC_REVENUECAT_API_KEY_IOS: z.string().optional(),
   EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID: z.string().optional(),

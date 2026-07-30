@@ -1,12 +1,13 @@
 import 'react-native-url-polyfill/auto';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import * as SecureStore from 'expo-secure-store';
-import { isDemoMode, parseMobileEnv } from '@propvault/config';
+import { resolveDemoMode, parseMobileEnv } from '@propvault/config';
 
 const env = parseMobileEnv({
   EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL,
   EXPO_PUBLIC_SUPABASE_ANON_KEY: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
   EXPO_PUBLIC_DEMO_MODE: process.env.EXPO_PUBLIC_DEMO_MODE,
+  EXPO_PUBLIC_ALLOW_DEMO_MODE: process.env.EXPO_PUBLIC_ALLOW_DEMO_MODE,
   EXPO_PUBLIC_SUBSCRIPTION_MODE: process.env.EXPO_PUBLIC_SUBSCRIPTION_MODE,
   EXPO_PUBLIC_REVENUECAT_API_KEY_IOS: process.env.EXPO_PUBLIC_REVENUECAT_API_KEY_IOS,
   EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID: process.env.EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID,
@@ -16,8 +17,23 @@ const env = parseMobileEnv({
 
 export const mobileEnv = env;
 
-/** True when the app should run entirely from mock data — no Supabase project required. */
-export const DEMO_MODE = isDemoMode(env.EXPO_PUBLIC_DEMO_MODE);
+/**
+ * True when the app should run entirely from mock data — no Supabase project required.
+ *
+ * SECURITY (fixed 2026-07-30, closes PRODUCTION_READINESS_REPORT.md R-01): gated by TWO
+ * independent conditions, both defaulting to false — `EXPO_PUBLIC_DEMO_MODE=true` AND
+ * `EXPO_PUBLIC_ALLOW_DEMO_MODE=true`. Unlike the web app, an Expo bundle has no server-only
+ * trust boundary to hide the second gate behind (a compiled app can always be inspected), so
+ * this pair is a defense against *accidental* enablement (a stray local `.env` leaking into a
+ * build, a CI misconfiguration), not a cryptographic guarantee against a determined attacker
+ * reverse-engineering the binary. The real enforcement point for mobile is `eas.json`'s
+ * `production` build profile, which must never set `EXPO_PUBLIC_ALLOW_DEMO_MODE` at all — see
+ * the comment there.
+ */
+export const DEMO_MODE = resolveDemoMode(
+  env.EXPO_PUBLIC_DEMO_MODE,
+  env.EXPO_PUBLIC_ALLOW_DEMO_MODE,
+);
 
 /**
  * SecureStore-backed session persistence — the Supabase session (access/refresh tokens) is
