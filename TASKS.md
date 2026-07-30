@@ -43,11 +43,13 @@ Each milestone is scoped so the repository **compiles, passes its tests, has upd
 
 ## M5 — Properties
 
-- [ ] **The `owner_user_id` → `org_id` cutover for `properties` specifically** (the real work in this milestone — schema is already "expanded" per M1): backfill (no-op, no real data exists yet), `not null`, drop `owner_user_id`, replace RLS with `has_org_role()`-based policies matching `units`'s pattern.
-- [ ] `packages/types/src/property.ts`: `ownerUserId` → `orgId`.
-- [ ] `apps/mobile/src/features/properties/propertyRepository.ts`/`usePropertiesQuery.ts`, demo store/mock data, `apps/admin` customer-page framing (→ organization framing) — all follow from the schema cutover, done together per the "coordinated pass, not split further" reasoning already recorded here previously.
-- [ ] API endpoints + RLS (`API_SPEC.md` §3), Web UI: Properties list/detail/create.
-- **Exit criteria**: not yet met — this is the largest concrete gap in the currently-implemented schema.
+- [x] **The `owner_user_id` → `org_id` cutover for `properties`** — done 2026-07-30 (`supabase/migrations/20260101000023_properties_org_contract.sql`): `not null` org_id, `owner_user_id` dropped, RLS rewritten to `has_org_role()`-based policies matching `units`'s pattern.
+- [x] `packages/types/src/property.ts`: `ownerUserId` → `orgId`.
+- [x] `apps/mobile/src/features/properties/propertyRepository.ts`/`usePropertiesQuery.ts`, demo store/mock data, local dev seed script, `rls_isolation.test.sql` — all updated. New `useCurrentOrgId()` hook resolves org context for the two mobile screens that create properties.
+- [ ] `apps/admin` customer-page framing (→ organization framing) — **not done**: `customers/page.tsx`/`processing/page.tsx`/`subscriptions/page.tsx`/`adminMockData.ts` all have substantial unrelated pre-existing uncommitted changes (present before this work began) and were deliberately left untouched rather than risk conflicting with them. This piece of M5 is blocked on those pre-existing changes being resolved (committed or clarified) first — flagged to Mohammed, not silently dropped.
+- [ ] API endpoints + RLS for `properties` specifically (`API_SPEC.md` §3) — RLS exists (above); the `/api/v1/properties` route handlers themselves are not yet built. Web UI: Properties list/detail/create — not yet built.
+- [ ] Mobile onboarding gap (`apps/mobile/app/(onboarding)/add-first-property.tsx`): this screen now requires an org to exist first, but mobile has no create-organization screen (only web does, `/onboarding/create-organization`) — flagged inline in the file and in `TECHNICAL_DEBT_REGISTER.md`, not solved here (real UX design work, not a mechanical follow-on to the schema cutover).
+- **Exit criteria**: the schema/type/mobile-data-layer cutover (the item this milestone exists for) is done and verified (`pnpm typecheck`/`lint`/`format` green); web API endpoints, web UI, and the admin customer-page reframing remain open, the last of which is blocked on pre-existing uncommitted work rather than new engineering.
 
 ## M6 — Units
 
