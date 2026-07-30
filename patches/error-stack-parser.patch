@@ -1,0 +1,20 @@
+diff --git a/error-stack-parser.js b/error-stack-parser.js
+index 5231091b0f2ff6b0b7335c23d26f9c0c67590256..e09780f12cf6283e09fcd30a9fd8a7fe1d84e5ce 100644
+--- a/error-stack-parser.js
++++ b/error-stack-parser.js	
+@@ -44,7 +44,14 @@
+             }
+ 
+             var regExp = /(.+?)(?::(\d+))?(?::(\d+))?$/;
+-            var parts = regExp.exec(urlLike.replace(/[()]/g, ''));
++            // PATCHED (see /patches/error-stack-parser@2.1.4.patch and KNOWN_BUGS.md): the
++            // original `urlLike.replace(/[()]/g, '')` strips EVERY literal parenthesis from the
++            // location string, not just the outer (URI:Line:Column) wrapper - which corrupts any
++            // real file path that itself contains parentheses (e.g. a project checked out under
++            // a directory literally named "PropValt (Property App)"). Only the wrapping parens
++            // added by V8's own stack-trace format should ever be stripped: a leading "(" and a
++            // trailing ")", not parens anywhere inside the path.
++            var parts = regExp.exec(urlLike.replace(/^\(|\)$/g, ''));
+             return [parts[1], parts[2] || undefined, parts[3] || undefined];
+         },
+ 
