@@ -4,6 +4,24 @@
 -- proper backfill-then-constrain sequence rather than a direct `not null` so the same migration
 -- shape works unchanged once real data does exist.
 --
+-- REVISED 2026-07-30 after a real `supabase start` run against a clean local database (per
+-- Mohammed's instruction to verify migrations for real before going further) caught something
+-- the original version of this migration got wrong: it does NOT actually drop `owner_user_id`.
+-- The original version tried to; Postgres rejected the `DROP COLUMN` because
+-- `document_categories.sql` (`property_expected_categories` policies) and `documents.sql`
+-- (its select policy) both reference `properties.owner_user_id` via a cross-table subquery —
+-- real dependencies that only surface by actually running the migration, not by reading the
+-- schema. Those two tables are themselves still owner_user_id-scoped and haven't been cut over
+-- yet (same deferred scope as documents/bills/payments/etc. below), so their policies can't be
+-- fixed as a side effect of this migration without expanding this change far past "properties."
+--
+-- Corrected approach: `org_id` becomes the required, RLS-enforced ownership column (the actual
+-- goal of this migration); `owner_user_id` is relaxed to nullable and left physically in place,
+-- inert, until the tables that still depend on it are cut over too — at which point a follow-up
+-- migration drops it for real. This was previously reported as fully dropped; that was inaccurate
+-- and is corrected here rather than left standing — see WORKLOG.md 2026-07-30 and
+-- TECHNICAL_DEBT_REGISTER.md TD-01.
+--
 -- Scope note: this migration cuts over `properties` only. `documents`/`bills`/`payments`/
 -- `payment_matches`/`extraction_jobs`/`subscriptions`/`audit_events` share the same
 -- `owner_user_id` pattern and were originally scoped to land in this same change (TASKS.md M1's
@@ -30,7 +48,13 @@ begin
 end $$;
 
 alter table public.properties alter column org_id set not null;
-alter table public.properties drop column owner_user_id;
+
+-- Relaxed, not dropped — see the revision note above. `owner_user_id` stays populated on
+-- existing rows (harmless) and becomes optional for new ones; application code (packages/types,
+-- propertyRepository.ts) already stopped reading/writing it as of this same change, so this is
+-- purely a physical-schema accommodation for the still-dependent tables, not something the app
+-- relies on going forward.
+alter table public.properties alter column owner_user_id drop not null;
 
 -- Replace the PropVault-era single-owner RLS policies with the org-scoped equivalent, matching
 -- the pattern already established for `units` (20260101000022).
@@ -48,6 +72,5 @@ create policy "properties_write_agent_plus"
   using (public.has_org_role(org_id, 'agent'))
   with check (public.has_org_role(org_id, 'agent'));
 
--- The old owner_user_id index is gone with the column; org_id already has an index from the
--- expand-step migration (20260101000022), and (org_id, status) from that same migration covers
--- the list-view query shape.
+-- org_id already has an index from the expand-step migration (20260101000022), and (org_id,
+-- status) from that same migration covers the list-view query shape — no new index needed here.

@@ -19,3 +19,11 @@ additional_redirect_urls = ["exp://localhost:19000"]
 
 [storage]
 enabled = true
+
+# Disabled for local migration/RLS verification (2026-07-30): analytics/logflare requires
+# additional backend configuration this sandbox doesn't have and was the container failing its
+# health check during `supabase start`, blocking the rest of the (healthy) stack from being
+# reported ready. Not needed to verify migrations, RLS policies, or functions. Re-enable if a
+# real need for local analytics emerges.
+[analytics]
+enabled = false

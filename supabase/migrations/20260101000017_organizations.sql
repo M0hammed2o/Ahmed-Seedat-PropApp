@@ -30,18 +30,16 @@ create trigger set_organizations_updated_at
 
 alter table public.organizations enable row level security;
 
--- A member can read their own org's row (compliance profile, plan status, etc). No client
--- insert policy: an org is created exclusively via the org-signup RPC (next migration), which
--- creates the organizations row and the creator's principal membership row atomically in one
--- transaction — never a bare client INSERT that could create an org with zero members.
-create policy "organizations_select_member"
-  on public.organizations for select
-  using (
-    id in (
-      select om.org_id from public.organization_members om
-      where om.user_id = auth.uid() and om.status = 'active'
-    )
-  );
-
--- Only principal/manager may update the compliance profile (checked via has_org_role in the
--- next-but-one migration, which organization_members must exist for first).
+-- No policy created in this migration, deliberately: BOTH the intended select policy (below)
+-- and the update policy need public.organization_members, which does not exist until the next
+-- migration (20260101000018). Creating a policy whose USING clause references a table that
+-- doesn't exist yet fails migration ordering outright (caught by an actual `supabase start` run
+-- against a clean database, 2026-07-30 — see WORKLOG.md/KNOWN_BUGS.md; this is not a
+-- theoretical concern, it is a migration that will not apply). Every policy on `organizations`
+-- is instead created in 20260101000018 (select) and 20260101000021 (update, which additionally
+-- needs has_org_role()) — both migrations that run after organization_members exists.
+--
+-- No client insert policy anywhere: an org is created exclusively via the org-signup RPC
+-- (create_organization(), 20260101000021), which creates the organizations row and the
+-- creator's principal membership row atomically in one transaction — never a bare client INSERT
+-- that could create an org with zero members.

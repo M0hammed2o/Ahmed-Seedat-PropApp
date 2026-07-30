@@ -41,6 +41,19 @@ create policy "organization_members_select_same_org"
 -- go through the has_org_role()-gated RPCs added in 20260101000021, so "can manager X actually
 -- promote to principal" logic lives in one place instead of being reconstructed per-policy.
 
+-- Deferred from 20260101000017_organizations.sql: this table (organization_members) is the
+-- dependency that policy needed, so it's created here, immediately once that dependency exists,
+-- rather than left until 20260101000021 alongside the update policy (which has a *different*
+-- dependency, has_org_role(), that genuinely isn't defined until then).
+create policy "organizations_select_member"
+  on public.organizations for select
+  using (
+    id in (
+      select om.org_id from public.organization_members om
+      where om.user_id = auth.uid() and om.status = 'active'
+    )
+  );
+
 create table public.organization_invites (
   id uuid primary key default gen_random_uuid(),
   org_id uuid not null references public.organizations(id) on delete cascade,
