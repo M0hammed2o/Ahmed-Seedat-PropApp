@@ -62,8 +62,9 @@ Each milestone is scoped so the repository **compiles, passes its tests, has upd
 ## M7 — Owners
 
 - [x] Schema, RLS, multi-owner `property_owners` (`DATABASE.md` §3).
-- [ ] API endpoints, Web UI (Owners directory, mandate fields).
-- **Exit criteria**: schema done; API/UI not started.
+- [x] API endpoints (`API_SPEC.md` §3, 2026-07-30): `GET/POST /api/v1/owners`, `GET/PATCH /api/v1/owners/:id`, `GET/POST /api/v1/properties/:propId/owners` (attach owner + ownership_pct; upserts on `(property_id, owner_id)` so re-attaching adjusts the existing share rather than erroring; explicitly checks the owner's `org_id` matches the property's `org_id` before insert — `property_owners`'s own RLS policy only constrains via the owner side, not the property side, so this cross-org guard is API-layer-only and load-bearing, not redundant). `bankingRef`/mandate-date fields deliberately not exposed yet — real onboarding workflow fields, not mechanical CRUD (`TECHNICAL_DEBT_REGISTER.md`).
+- [ ] Web UI (Owners directory, mandate fields) — not started.
+- **Exit criteria**: schema and API endpoints done and verified (`pnpm typecheck`/`lint`/`test` green, real `next build` route-table check); Web UI not started.
 
 ## M8 — Tenants
 

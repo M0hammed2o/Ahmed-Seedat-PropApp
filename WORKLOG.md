@@ -1,5 +1,15 @@
 # Worklog
 
+## 2026-07-30 (continued, 8) — M7: Owners API endpoints
+
+Continued straight on to M7 (Owners) after M6, reusing the same patterns (`apps/admin/lib/portfolio.ts`'s `mapOwnerRow`/`requireOrgRole`, `cursorPagination.ts`) rather than growing a parallel set:
+
+- **New routes**: `GET/POST /api/v1/owners`, `GET/PATCH /api/v1/owners/:id`, `GET/POST /api/v1/properties/:id/owners` (fractional-ownership attach; the `GET` here is a pragmatic addition beyond `API_SPEC.md`'s literal "POST ... attach owner" line, added because a property's owner list needs to be readable by something).
+- **Real tenant-isolation gap found and closed at the API layer, not just noted**: `property_owners`'s RLS policy (`supabase/migrations/20260101000022`) checks the *owner's* org via `owners.org_id` but never checks the *property's* org — so RLS alone would not stop a caller with `agent`+ in Org A from attaching an Org-A owner to a property that happens to belong to Org B, if they could ever get a valid property id for it. The attach handler explicitly fetches both rows and 400s with `org_mismatch` if `owner.org_id !== property.org_id` before the insert. Documented inline in the route file and here rather than silently relying on the FK constraint (whose RLS-bypass behavior on referenced-row existence checks is itself not something to depend on for a security guarantee) — this is exactly the "API-layer checks... enforce role/scope checks RLS can't express cleanly" case `PERMISSIONS.md` describes, not a redundant belt-and-braces check.
+- Used `.upsert(..., { onConflict: 'property_id,owner_id' })` for the attach so re-POSTing the same owner against the same property adjusts `ownership_pct` instead of erroring on the composite primary key — matches how a "change this owner's share" UI action would naturally call the same endpoint.
+- **Verified**: `pnpm typecheck`/`lint` clean; `pnpm --filter admin test` 13/13 (unchanged — no new pure-logic surface this pass, `requireOrgRole`/RLS remain the tested boundary per the "RLS is ground truth, don't mock Supabase in Jest" approach already established); real `next build` — all three new routes (`/api/v1/owners`, `/api/v1/owners/[id]`, `/api/v1/properties/[id]/owners`) registered alongside the existing ones with no path conflicts.
+- Web UI (Owners directory) remains open (`TASKS.md` M7), same as Properties/Units.
+
 ## 2026-07-30 (continued, 7) — M6: Properties + Units API endpoints
 
 With the test-environment fix and migration verification both committed, resumed the milestone queue at M6 (Units) per the standing "continue automatically" instruction. Units nest under properties in the API (`GET/POST /api/v1/properties/:propId/units`), and M5 had explicitly left the Properties API endpoints unbuilt too, so built both together as one coherent, dependency-ordered chunk rather than building an orphaned Units API with no parent resource endpoint to nest under:

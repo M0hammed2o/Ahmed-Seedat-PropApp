@@ -1,6 +1,6 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Property, Unit } from '@propvault/types';
+import type { Owner, Property, Unit } from '@propvault/types';
 
 // Row-mapping + role-check helpers shared by apps/admin/app/api/v1/properties and
 // .../units routes (TASKS.md M5/M6). Mirrors the snake_case-row -> camelCase-domain-type mapping
@@ -78,6 +78,40 @@ export function mapUnitRow(row: UnitRow): Unit {
     sizeSqm: row.size_sqm,
     marketRent: row.market_rent,
     status: row.status as Unit['status'],
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+interface OwnerRow {
+  id: string;
+  org_id: string;
+  user_id: string | null;
+  owner_type: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  banking_ref: string | null;
+  mandate_start: string | null;
+  mandate_end: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export function mapOwnerRow(row: OwnerRow): Owner {
+  return {
+    id: row.id,
+    orgId: row.org_id,
+    userId: row.user_id,
+    ownerType: row.owner_type as Owner['ownerType'],
+    name: row.name,
+    email: row.email,
+    phone: row.phone,
+    bankingRef: row.banking_ref,
+    mandateStart: row.mandate_start,
+    mandateEnd: row.mandate_end,
+    status: row.status as Owner['status'],
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
