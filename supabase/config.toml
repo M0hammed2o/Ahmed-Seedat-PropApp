@@ -8,6 +8,17 @@ schemas = ["public", "storage"]
 [db]
 port = 54322
 
+# Fixed 2026-07-31: no [db.seed] section existed, so `supabase db reset` silently fell back to its
+# default expected path `supabase/seed.sql` (single file at the supabase/ root), which does not
+# exist -- the real file is `supabase/seed/seed.sql`. Every `db reset` up to and including the
+# "verify migrations on a clean database" pass earlier this session logged
+# `WARN: no files matched pattern: supabase/seed.sql` and silently skipped seeding entirely; that
+# warning was never noticed/investigated before. Confirmed via `supabase db reset --help` that
+# `[db.seed].sql_paths` is the documented config key for a non-default seed location.
+[db.seed]
+enabled = true
+sql_paths = ["./seed/seed.sql"]
+
 [studio]
 enabled = true
 port = 54323
