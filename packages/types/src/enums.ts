@@ -130,3 +130,24 @@ export type OwnerType = (typeof OWNER_TYPES)[number];
 
 export const TENANT_STATUSES = ['active', 'expired', 'pending'] as const;
 export type TenantStatus = (typeof TENANT_STATUSES)[number];
+
+export const APPLICATION_SCREENING_STATUSES = ['not_started', 'in_progress', 'passed', 'failed'] as const;
+export type ApplicationScreeningStatus = (typeof APPLICATION_SCREENING_STATUSES)[number];
+
+export const APPLICATION_STATUSES = ['submitted', 'screening', 'decided'] as const;
+export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
+
+export const APPLICATION_DECISIONS = ['approved', 'declined'] as const;
+export type ApplicationDecision = (typeof APPLICATION_DECISIONS)[number];
+
+export const RENT_FREQUENCIES = ['monthly'] as const;
+export type RentFrequency = (typeof RENT_FREQUENCIES)[number];
+
+export const LEASE_STATUSES = ['draft', 'active', 'expired', 'terminated'] as const;
+export type LeaseStatus = (typeof LEASE_STATUSES)[number];
+
+export const LEASE_SOURCES = ['manual', 'pdf_parsed', 'application_approved'] as const;
+export type LeaseSource = (typeof LEASE_SOURCES)[number];
+
+export const RENT_SCHEDULE_STATUSES = ['pending', 'invoiced', 'paid', 'overdue', 'partial'] as const;
+export type RentScheduleStatus = (typeof RENT_SCHEDULE_STATUSES)[number];
