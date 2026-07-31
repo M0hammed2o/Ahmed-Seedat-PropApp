@@ -173,14 +173,21 @@ No vendor login in V1 (confirmed decision) — staff-entered on the vendor's beh
 
 ## 6. Documents & OCR
 
-### `documents` [RETAINED PATTERN, generalized]
+### `documents` [RETAINED PATTERN, org-scoped]
 
-- `id PK`, `org_id FK`, `related_entity_type enum(property|unit|lease|tenant|owner|maintenance_ticket|inspection|expense|owner_statement)`, `related_entity_id uuid`, `category enum(lease|invoice|statement|id_document|photo|receipt|other)`, `storage_path`, `uploaded_by FK`, `status enum(pending_review|processed|expired|archived)`, `created_at`
-- Storage bucket policy: private, path-scoped to `org_id` (extends the existing `[RETAINED PATTERN]` of `(storage.foldername(name))[1] = ...`, now keyed by org rather than user).
+**Corrected 2026-07-31 (TASKS.md M11)**: this section originally specified a `related_entity_type`/`related_entity_id` polymorphic redesign plus a `category enum`, written during early architecture design before the PropVault-era `documents`/`document_categories` tables were re-examined against it. Real execution (checking actual application code before migrating, not just this doc) found that redesign would have **regressed real, working, already-demoed features**: `document_categories` is a live reference table (13 default categories + org-custom categories, referenced by `property_expected_categories`' "expected documents" tracking), `billing_year`/`billing_month` back the Monthly Checklist feature, and `checksum_sha256` backs duplicate-upload detection — none of which the originally-specified shape had room for. Replacing them with a bare `category` enum and dropping period/checksum tracking to match a paper design would have been the tail wagging the dog. Kept the existing, proven shape; added only what was genuinely missing (`org_id`).
 
-### `ocr_jobs`
+- `id PK`, `org_id FK` (added 2026-07-31, migration `20260101000032`), `property_id FK`, `category_id FK → document_categories`, `document_type enum(bill|statement|proof_of_payment|receipt|supporting_document|other)`, `storage_path`, `original_file_name`, `mime_type`, `file_size_bytes`, `checksum_sha256`, `billing_year nullable`, `billing_month nullable`, `deleted_at nullable`, `created_at`
+- `related_entity_type`/`related_entity_id` generalization (documents attached to leases/tenants/maintenance tickets/inspections, not just properties) remains a real, plausible future need — evidenced only weakly so far (`PROVIEW_SCREENSHOT_AUDIT.md` doesn't show non-property document attachment in V1) — deferred, not abandoned. Revisit if/when a V1 module actually needs it (candidate: maintenance ticket photos, already modeled separately as `maintenance_photos` in §5 rather than through `documents`).
+- `document_categories`/`property_expected_categories`: `owner_user_id`-scoped custom categories become `org_id`-scoped (an org's custom category is shared by its staff, not owned by one individual) — same migration.
+- Storage bucket policy: private, path-scoped to `org_id` (extends the existing `[RETAINED PATTERN]` of `(storage.foldername(name))[1] = ...`, previously keyed by user) — **not yet updated**, tracked as `TECHNICAL_DEBT_REGISTER.md` TD-21 alongside the still-open mobile-app-code cutover.
 
-- `id PK`, `document_id FK`, `provider text`, `status enum(queued|processing|succeeded|failed)`, `extracted_fields jsonb`, `confidence_score numeric nullable`, `reviewed_by FK nullable`, `reviewed_at nullable`
+### `ocr_jobs` [RETAINED PATTERN as `extraction_jobs`/`extraction_results`, org-scoped]
+
+Retained under its PropVault-era names (`extraction_jobs`/`extraction_results`) rather than renamed to match this section's original `ocr_jobs` — same reasoning as `documents` above: the existing two-table shape (job status/retry tracking separate from raw provider output) is real, working design, not a placeholder.
+
+- `extraction_jobs`: `id PK`, `document_id FK`, `org_id FK` (added 2026-07-31), `status enum(queued|processing|succeeded|failed)`, `attempt`, `provider_name`, `error_message`, `created_at`
+- `extraction_results`: `id PK`, `extraction_job_id FK`, `org_id FK` (added 2026-07-31), `raw_provider_output jsonb`, `overall_confidence`, `created_at`
 
 ---
 
