@@ -7,3 +7,4 @@ export * from './admin';
 export * from './organization';
 export * from './portfolio';
 export * from './leasing';
+export * from './operations';

@@ -152,3 +152,40 @@ export type LeaseSource = (typeof LEASE_SOURCES)[number];
 
 export const RENT_SCHEDULE_STATUSES = ['pending', 'invoiced', 'paid', 'overdue', 'partial'] as const;
 export type RentScheduleStatus = (typeof RENT_SCHEDULE_STATUSES)[number];
+
+export const MAINTENANCE_PRIORITIES = ['low', 'medium', 'high', 'urgent'] as const;
+export type MaintenancePriority = (typeof MAINTENANCE_PRIORITIES)[number];
+
+export const MAINTENANCE_STATUSES = ['to_do', 'in_progress', 'pending_approval', 'completed'] as const;
+export type MaintenanceStatus = (typeof MAINTENANCE_STATUSES)[number];
+
+export const VENDOR_TRADE_CATEGORIES = [
+  'plumbing',
+  'electrical',
+  'hvac',
+  'appliance_repair',
+  'painting',
+  'general_handyman',
+  'landscaping',
+  'pest_control',
+  'locksmith',
+  'cleaning',
+  'roofing',
+  'other',
+] as const;
+export type VendorTradeCategory = (typeof VENDOR_TRADE_CATEGORIES)[number];
+
+export const VENDOR_STATUSES = ['active', 'inactive'] as const;
+export type VendorStatus = (typeof VENDOR_STATUSES)[number];
+
+export const VENDOR_BILL_STATUSES = ['submitted', 'approved', 'paid', 'rejected'] as const;
+export type VendorBillStatus = (typeof VENDOR_BILL_STATUSES)[number];
+
+export const INSPECTION_TYPES = ['move_in', 'move_out', 'routine'] as const;
+export type InspectionType = (typeof INSPECTION_TYPES)[number];
+
+export const INSPECTION_STATUSES = ['scheduled', 'in_progress', 'awaiting_signature', 'completed'] as const;
+export type InspectionStatus = (typeof INSPECTION_STATUSES)[number];
+
+export const INSPECTION_CONDITION_RATINGS = ['good', 'fair', 'poor', 'damaged'] as const;
+export type InspectionConditionRating = (typeof INSPECTION_CONDITION_RATINGS)[number];
