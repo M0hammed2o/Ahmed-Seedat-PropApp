@@ -16,7 +16,7 @@
 -- same fixture pattern rather than retrofitting everything into one file.
 
 begin;
-select plan(11);
+select plan(13);
 
 -- Fixtures: two organizations, one principal member each, a unit and owner in Org A only.
 insert into auth.users (id, email) values
@@ -50,6 +50,18 @@ values ('ffffffff-0000-0000-0000-000000000001', 'eeeeeeee-0000-0000-0000-0000000
 insert into public.owners (id, org_id, name, owner_type, status)
 values ('11110000-0000-0000-0000-000000000001', 'aaaaaaaa-0000-0000-0000-000000000001',
         'Org A Owner', 'individual', 'active');
+
+-- Fixtures for the support_access_sessions test below: a platform admin_users row (distinct role
+-- system from organization_members, see PERMISSIONS.md intro) and one support session against
+-- Org A.
+insert into auth.users (id, email) values
+  ('99990000-0000-0000-0000-000000000001', 'support-admin@test.propertyvault.example');
+insert into public.admin_users (id, auth_user_id, role, display_name, is_active)
+values ('88880000-0000-0000-0000-000000000001', '99990000-0000-0000-0000-000000000001',
+        'support_admin', 'Test Support Admin', true);
+insert into public.support_access_sessions (id, admin_user_id, org_id, reason)
+values ('77770000-0000-0000-0000-000000000001', '88880000-0000-0000-0000-000000000001',
+        'aaaaaaaa-0000-0000-0000-000000000001', 'Investigating a customer-reported billing issue');
 
 -- === Cross-org isolation: Org B's principal cannot see Org A's data ===
 set local role authenticated;
@@ -131,6 +143,36 @@ select is(
   (select count(*) from public.admin_users),
   0::bigint,
   'An ordinary authenticated user reads zero rows from admin_users (platform_admin_users post-Milestone-13 — DECISIONS.md 2026-07-30)'
+);
+
+-- === Support access: even Org A's own principal cannot see a support session opened against
+--     their own org (support_access_sessions has RLS enabled with zero policies — deny-by-default
+--     to anon/authenticated; verified separately via `select rolbypassrls from pg_roles` that
+--     service_role, which the real support-session route handlers use, has BYPASSRLS=true and so
+--     is unaffected by the absence of a policy here) ===
+set local "request.jwt.claim.sub" = 'a1000000-0000-0000-0000-000000000001';
+
+select is(
+  (select count(*) from public.support_access_sessions where org_id = 'aaaaaaaa-0000-0000-0000-000000000001'),
+  0::bigint,
+  'Org A''s own principal cannot see a support_access_sessions row opened against their own org — by design, not a bug (SECURITY.md/support-session model: this is PropertyVault auditing itself, not org-visible data)'
+);
+
+-- === organizations.status is NOT currently enforced by any RLS policy — documented as real,
+--     current behavior (evidenced 2026-07-31), not asserted as a security guarantee. has_org_role()
+--     only checks organization_members.status; nothing anywhere checks organizations.status.
+--     Archiving/suspending/cancelling an org today has zero effect on its own members' data
+--     access. Tracked as an open product decision in RISK_REGISTER.md/TECHNICAL_DEBT_REGISTER.md
+--     (what SHOULD an archived/suspended org's member access look like?) rather than guessed at
+--     here. If that decision is ever implemented, this assertion must flip to `false` and this
+--     comment must be corrected in the same change — a silently-stale comment here would be
+--     exactly the kind of documentation drift this verification pass exists to catch. ===
+update public.organizations set status = 'archived' where id = 'aaaaaaaa-0000-0000-0000-000000000001';
+
+select is(
+  (select public.has_org_role('aaaaaaaa-0000-0000-0000-000000000001', 'viewer')),
+  true,
+  'CURRENT BEHAVIOR (not a guarantee): an archived org''s own active principal still passes has_org_role() — organizations.status is not yet wired into any access-control check'
 );
 
 select * from finish();
