@@ -6,3 +6,4 @@ export * from './documentIntelligence';
 export * from './admin';
 export * from './organization';
 export * from './portfolio';
+export * from './leasing';

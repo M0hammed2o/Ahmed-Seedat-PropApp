@@ -127,3 +127,6 @@ export type UnitStatus = (typeof UNIT_STATUSES)[number];
 
 export const OWNER_TYPES = ['individual', 'company', 'trust'] as const;
 export type OwnerType = (typeof OWNER_TYPES)[number];
+
+export const TENANT_STATUSES = ['active', 'expired', 'pending'] as const;
+export type TenantStatus = (typeof TENANT_STATUSES)[number];
