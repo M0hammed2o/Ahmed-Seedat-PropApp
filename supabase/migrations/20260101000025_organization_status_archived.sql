@@ -1,0 +1,16 @@
+-- Fixes a real documentation-vs-implementation gap found during 2026-07-31 multi-tenant
+-- foundation verification: DATABASE.md §1 and SUPER_ADMIN.md both document
+-- `organizations.status` as `enum(trial|active|overdue|suspended|cancelled|archived)` -- the
+-- latter dated "architecture review 2026-07-30" -- but the enum actually created in
+-- 20260101000016_org_enums.sql only ever had five values, missing `archived` entirely. Confirmed
+-- live via `select enumlabel from pg_enum ... where typname = 'organization_status'` against a
+-- freshly reset database: exactly trial/active/overdue/suspended/cancelled, no archived. This was
+-- never caught before because nothing has ever tried to write 'archived' to this column --
+-- `POST /api/v1/admin/organizations/:orgId/archive` (SUPER_ADMIN.md, API_SPEC.md §2) is itself
+-- not yet implemented (Milestone 13, Super Admin portal), so the gap was silent.
+--
+-- `ALTER TYPE ... ADD VALUE` cannot run inside the same transaction as a later statement that
+-- uses the new value (Postgres restriction on enum additions), but this migration only adds the
+-- value -- nothing in this same file consumes it -- so no `COMMIT`/multi-transaction split is
+-- needed.
+alter type public.organization_status add value 'archived';
