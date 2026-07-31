@@ -113,11 +113,13 @@ Each milestone is scoped so the repository **compiles, passes its tests, has upd
 
 ## M13 — Maintenance
 
-- [ ] Schema: `maintenance_tickets`, `maintenance_photos`, `vendors`, `vendor_bills` (`DATABASE.md` §5).
-- [ ] Status state machine (kanban stages) enforced server-side.
-- [ ] Inspections: `inspections`, `inspection_items`, `inspection_photos` — both-signed-or-refusal-logged completion rule enforced server-side, since Trust & Deposits (M14) gates release on this.
-- [ ] Web UI: Maintenance Board, Vendors, Inspections.
-- **Exit criteria**: not started. Sequenced before Accounting per the restated milestone order — note this means the accounting engine's deposit-release gate (`ACCOUNTING.md` §4) has its dependency (a completed inspection) available before it's built, not stubbed-then-unstubbed as the previous milestone ordering required.
+- [x] Schema: `maintenance_tickets`, `maintenance_photos`, `vendors`, `vendor_bills`, `inspections`, `inspection_items`, `inspection_photos` (migration `20260101000034`, 2026-07-31, `DATABASE.md` §5). `vendor_bills.paid_journal_entry_id` added without its FK constraint yet (matches the `owners.banking_ref`/M2 precedent) — `journal_entries` doesn't exist until M14; FK retrofit is M14's job.
+- [x] Maintenance status state machine (To Do → In Progress → Pending Approval → Completed, with Pending Approval → In Progress as the rejection path) enforced server-side in `PATCH /api/v1/maintenance-tickets/:id` (`apps/admin/lib/operations.ts`'s `isValidMaintenanceTransition`) — RLS can only express "agent+ can write this row," not "is this a legal transition," matching `PERMISSIONS.md` layer 2.
+- [x] Inspections: both-signed-or-refusal-logged completion rule enforced as a **hard DB CHECK constraint**, not just an API check — deliberately stronger than the maintenance state machine, since `TASKS.md` M14's deposit-release gate depends on this being genuinely true even against a direct/service-role write. Verified with 5 dedicated pgTAP assertions proving every edge case (neither signed, landlord-only, both-set-simultaneously rejected, both-signed accepted, refusal-logged accepted).
+- [x] API: `GET/POST /api/v1/vendors`, `GET/PATCH /api/v1/vendors/:id`, `GET/POST /api/v1/maintenance-tickets`, `GET/PATCH /api/v1/maintenance-tickets/:id`, `GET/POST /api/v1/inspections`, `POST /api/v1/inspections/:id/items`, `POST /api/v1/inspections/:id/sign`, `POST /api/v1/inspections/:id/complete`. `vendor-bills`/`maintenance-tickets/:id/photos` API endpoints not built this pass — `vendor_bills`' approve flow is naturally paired with M14 (it writes to the same `paid_journal_entry_id` column M14 makes real), and photos need `documents` API endpoints (M11 TD-21) first.
+- [x] Tests: new `supabase/tests/maintenance_inspections_isolation.test.sql` (13 assertions). Full regression suite: 82/82 pgTAP assertions across 7 files. Full monorepo `pnpm typecheck`/`pnpm lint` (7/7 packages — caught and fixed one real unused-import lint error before commit), real `next build` (8 new routes registered, no conflicts).
+- [ ] Web UI: Maintenance Board, Vendors, Inspections — not started, consistent with every prior milestone's API-first sequencing.
+- **Exit criteria**: schema, both state machines (one API-layer, one DB-layer, deliberately different strength matching what each depends on), and core API done and execution-verified. `vendor-bills`/photos API and Web UI open.
 
 ## M14 — Accounting
 

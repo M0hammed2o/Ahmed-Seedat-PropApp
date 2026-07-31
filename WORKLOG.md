@@ -1,5 +1,21 @@
 # Worklog
 
+## 2026-07-31 (continued, 5) — M13: Maintenance and Inspections, two state machines of deliberately different strength
+
+Continuing autonomously. Built `maintenance_tickets`/`maintenance_photos`/`vendors`/`vendor_bills` and `inspections`/`inspection_items`/`inspection_photos` (migration `20260101000034`) plus the corresponding API surface (`vendors`, `maintenance-tickets`, `inspections` + `items`/`sign`/`complete` action endpoints).
+
+**Two state machines, deliberately enforced at different layers, for a reason worth recording**: the maintenance kanban (To Do → In Progress → Pending Approval → Completed) is enforced in the API route (`isValidMaintenanceTransition`) — a workflow convention, reversible if wrong, no financial consequence to getting it slightly wrong. The inspection completion rule (both signed, or landlord-signed-plus-refusal-logged) is enforced as a **hard DB CHECK constraint**, one layer stronger, because `TASKS.md` M14's deposit-release gate will depend on this invariant actually holding — even against a future service-role write that bypasses the API entirely. Matching the strength of enforcement to what depends on it, not applying the same treatment everywhere by default.
+
+**Modeled `maintenance_tickets`' "submitted by a user or a tenant" as two nullable FKs with an exactly-one-set CHECK constraint**, not a single polymorphic column — consistent with `DATABASE.md` §6's correction earlier today (M11), which explicitly rejected an untyped polymorphic-relation pattern in favor of typed FKs. No tenant portal exists in V1, so `submitted_by_tenant_id` has no real caller yet; included because the column is free and the schema is correct either way.
+
+**Real pgTAP test-writing bug caught and fixed before commit**: four `throws_ok` assertions initially passed only 3 arguments (sql, sqlstate, description) instead of the required 4 (sql, sqlstate, *expected message*, description) — pgTAP silently treated the test description as the expected error message, so every one of those assertions failed with a "wanted X, caught Y" mismatch on first run, even though the underlying constraints were correct. Fixed by supplying the actual Postgres constraint-violation text as the third argument. A reminder that pgTAP's own API has sharp edges worth getting right, distinct from bugs in the schema under test.
+
+**Real lint error caught before commit**: an unused `encodeCursor` import in the new `inspections` list route (list endpoint returned a bare array without pagination metadata) — fixed by actually wiring up cursor pagination to match every other list endpoint's convention, rather than just deleting the unused import, since inspections lists deserve the same pagination guarantee as everything else at scale.
+
+**Verified, in order**: full monorepo `pnpm typecheck`/`pnpm lint` (7/7 packages, after fixing the lint error above). Fresh `supabase db reset` — 34/34 migrations clean. Full pgTAP suite — 82/82 assertions across 7 files (13 new), zero regressions. `pnpm --filter admin test` — 13/13 unchanged. Real `next build` — 8 new routes registered, no conflicts. Stopped the local Supabase instance cleanly afterward.
+
+Deliberately deferred: `vendor-bills` API (naturally pairs with M14, since its approval flow writes to the same `paid_journal_entry_id` column M14 makes real) and maintenance/inspection photo upload endpoints (need the Documents API from M11's TD-21 first). Web UI open, same as every prior milestone.
+
 ## 2026-07-31 (continued, 4) — M12: OCR lease support, upload-and-parse, and a real LegacyHealthCheckTimeoutError reproduction
 
 Continuing autonomously. Extended `DocumentIntelligenceProvider` to handle leases (`'lease'` document type, lease-shaped optional fields on the shared `FieldExtractionResult`, a new server-side `MockDocumentIntelligenceProvider` in `apps/admin/lib/providers/` that actually branches on document type — the mobile client-side mock doesn't and wasn't touched, different runtime), then built the `POST /api/v1/leases/:id/upload-and-parse` endpoint deferred from M10 pending exactly this.
