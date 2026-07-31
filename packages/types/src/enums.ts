@@ -227,3 +227,17 @@ export type ExpenseStatus = (typeof EXPENSE_STATUSES)[number];
 
 export const OWNER_STATEMENT_STATUSES = ['draft', 'issued', 'paid'] as const;
 export type OwnerStatementStatus = (typeof OWNER_STATEMENT_STATUSES)[number];
+
+export const NOTIFICATION_CATEGORIES = [
+  'rent',
+  'maintenance',
+  'lease',
+  'inspections',
+  'announcements',
+  'security',
+  'promotional',
+] as const;
+export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
+
+export const DEVICE_PLATFORMS = ['ios', 'android'] as const;
+export type DevicePlatform = (typeof DEVICE_PLATFORMS)[number];
