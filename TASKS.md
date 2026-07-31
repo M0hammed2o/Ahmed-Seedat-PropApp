@@ -150,9 +150,12 @@ Given this milestone's own repeated flagging as the highest-risk single workstre
 
 ## M15 — Notifications
 
-- [ ] Schema: `notifications`, `notification_preferences` (extended category enum per architecture review, `DATABASE.md` §7), `device_push_tokens`.
-- [ ] `announcements`/`announcement_reads` (read-receipt/acknowledgement tracking).
-- **Exit criteria**: not started.
+- [x] Schema: `notifications`, `notification_preferences`, `device_push_tokens`, `announcements`, `announcement_reads` (migration `20260101000039`, 2026-07-31, `DATABASE.md` §7).
+- [x] **Real gap found and fixed before shipping**: the announcements tenant-visibility RLS policy's first version used a raw subquery through `lease_tenants`/`leases`, both built agent+-only in M10 (no tenant-self RLS branch existed, since there was no tenant-facing read need at the time). The subquery silently returned zero rows for every tenant, failing 3 of 4 tenant-visibility tests on first run. Fixed with a `security definer` helper (`tenant_can_view_property_announcement()`), the same pattern `has_org_role()` itself uses for the identical "needs a cross-table read the caller has no direct RLS policy for" problem.
+- [x] Tenant visibility for announcements is scoped correctly by property: a portfolio-wide announcement (`property_id null`) is visible to every tenant in the org; a property-scoped one only to tenants actually leasing that property — verified with a real two-property, two-tenant fixture, not assumed from a single-tenant case.
+- [x] API: `GET/POST /api/v1/announcements`, `POST /api/v1/announcements/:id/acknowledge` (tenant), `GET /api/v1/notifications`, `POST /api/v1/notifications/:id/read`, `GET/PATCH /api/v1/notification-preferences`, plus `POST/DELETE /api/v1/device-push-tokens` (not in `API_SPEC.md`'s literal list, but push registration needs a real endpoint and RLS already fully supports it scoped to the caller).
+- [x] Tests: new `supabase/tests/notifications_isolation.test.sql` (13 assertions). Full regression suite: 136/136 pgTAP assertions across 10 files. Full monorepo `pnpm typecheck`/`pnpm lint` (7/7 packages), real `next build` (6 new routes registered, no conflicts).
+- **Exit criteria**: schema, RLS (including the tenant-visibility fix), and API done and execution-verified. Actual push/email/WhatsApp delivery of a notification (the sending side) is M16/M17/M21/M22's own work — this milestone is the data model and the read/preference/acknowledge API surface.
 
 ## M16 — Email
 

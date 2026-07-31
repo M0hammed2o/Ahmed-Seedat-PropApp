@@ -1,5 +1,15 @@
 # Worklog
 
+## 2026-07-31 (continued, 8) — M15: Notifications, and a cross-milestone RLS gap found
+
+Continuing autonomously. Built `notifications`, `notification_preferences`, `device_push_tokens`, `announcements`, `announcement_reads` (migration `20260101000039`, `DATABASE.md` §7) and the corresponding API surface.
+
+**Real gap found and fixed on first test run**: the announcements tenant-visibility policy needs to check whether the calling tenant leases the announcement's property, which requires reading through `lease_tenants`/`leases`/`units`. Those tables were built agent+-only in M10, since no tenant-facing read need existed at the time — there is no tenant-self RLS branch on them. A raw subquery in the announcements policy therefore silently returned zero rows for every tenant caller (RLS on the intermediate tables blocked it before the join logic ever ran), failing 3 of 4 tenant-visibility assertions on first run. Fixed with a new `security definer` function, `tenant_can_view_property_announcement()` — the exact same shape of fix `has_org_role()` itself is: read cross-table as the function owner, bypassing RLS on tables the caller has no direct policy for, while still checking `auth.uid()` for the real authorization. Verified the fix correctly distinguishes portfolio-wide vs. property-scoped announcements across two tenants leasing different properties, not just a single trivial case.
+
+**Same recurring pgTAP-authoring mistake, again**: fixture UUIDs (`no000000...`) used non-hex characters (`n`, `o`) — the third time this exact class of typo has been caught by running the test rather than avoided by remembering it from the first two. Also hit the already-learned `throws_ok` 3-argument-treats-third-arg-as-message issue again and fixed it the same way (2-arg form).
+
+**Verified, in order**: full monorepo `pnpm typecheck`/`pnpm lint` (7/7 packages). Fresh `supabase db reset` — 39/39 migrations clean (including one `LegacyHealthCheckTimeoutError` on the storage container, retried successfully on the first attempt — consistent with the transient/retry-recoverable finding from earlier this session). Full pgTAP suite — 136/136 assertions across 10 files, zero regressions. `pnpm --filter admin test` — 13/13 unchanged. Real `next build` — 6 new routes registered, no conflicts. Stopped the local Supabase instance cleanly afterward.
+
 ## 2026-07-31 (continued, 7) — M14 part 2: subledgers and four posting operations
 
 Continuing autonomously per Mohammed's "continue until something genuinely requires your decision" instruction. Built the remaining `DATABASE.md` §9 tables (`trust_ledgers`/`trust_ledger_entries`, `bank_accounts`/`bank_transactions`, `invoices`, `expenses`, `owner_statements`, `tax_pack_exports`, migration `20260101000037`) and four typed posting operations (migration `20260101000038`).
