@@ -105,9 +105,11 @@ Each milestone is scoped so the repository **compiles, passes its tests, has upd
 
 ## M12 — OCR
 
-- [ ] Extend `DocumentIntelligenceProvider` to parse leases/invoices in addition to bills (`DOCUMENT_INTELLIGENCE.md`, `PRODUCT_SPEC.md` §5).
-- [ ] Real OCR vendor selection remains an open decision (deferred, `DOCUMENT_INTELLIGENCE.md` §1) — mock provider carries M11/M12 until then.
-- **Exit criteria**: not started.
+- [x] Extended `DocumentIntelligenceProvider` to parse leases in addition to bills (2026-07-31): `'lease'` added to `DOCUMENT_TYPES`/`documents.document_type` (migration `20260101000033`), `FieldExtractionResult` gained lease-shaped optional fields (`tenantName`/`rentAmount`/`depositAmount`/`leaseStartDate`/`leaseEndDate`/`propertyAddress`) alongside the existing bill fields on the same type, and a new server-side `apps/admin/lib/providers/documentIntelligence.ts` (`MockDocumentIntelligenceProvider`) branches on `documentType` — the mobile app's existing mock (client-side, different runtime) is untouched.
+- [x] Closed the `POST /api/v1/leases/:id/upload-and-parse` gap deferred from M10 — now built, using the extended provider. Returns extracted fields for client-side review only, never auto-applies them to the lease, per `DOCUMENT_INTELLIGENCE.md`'s "always confirm before treating as final" rule.
+- [x] **Real bug found and fixed before shipping**: the route initially wrote to `extraction_jobs`/`extraction_results` using the caller's own session-bound client — but those tables have deliberately had no client INSERT/UPDATE policy since Phase 1 ("jobs are created and progressed only by the server-side processing pipeline"). Verified live that an agent's insert is rejected by RLS; fixed by using the service-role client for those two tables specifically (only after `requireOrgRole()` already authorized the caller), matching the established `getServiceRoleClient()` usage pattern. Re-verified the fix directly (service-role insert reaches the FK constraint, not an RLS rejection).
+- [ ] Real OCR vendor selection remains an open decision (deferred, `DOCUMENT_INTELLIGENCE.md` §1) — mock provider carries M11/M12 until then; this is a cost/accuracy tradeoff for Mohammed, not an engineering call.
+- **Exit criteria**: lease-extraction support and the upload-and-parse endpoint done and verified (full monorepo `pnpm typecheck`/`pnpm lint`, real `next build` with the new route registered, 33/33 migrations clean). Real vendor integration open pending Mohammed's decision.
 
 ## M13 — Maintenance
 
