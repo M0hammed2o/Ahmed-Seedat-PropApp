@@ -100,3 +100,13 @@ Rather than faking a "Strong Match Found" result for the demo's AI-matching step
 ## 2026-07-21 — RLS/policy tests written but not executed in this environment
 
 This development sandbox has no Docker/local Supabase instance available to run `supabase start` + `supabase test db` against. Tests are written per TESTING.md and will run once Mohammed (or a CI runner with Docker) executes them locally — reported as Blocked, not claimed as passing, per the project's evidence rule.
+
+(Superseded 2026-07-30/31 — Docker turned out to be available in this environment after all; see the 2026-07-31 entry below for what running these tests for real actually found.)
+
+## 2026-07-31 — organizations.status enforcement: explicitly not implemented without a product decision
+
+While verifying the M1-M5 multi-tenant foundation end-to-end (per Mohammed's instruction to treat it as one integrated subsystem and execute real security tests, not just review the design), found that `organizations.status` (`suspended`/`archived`/`cancelled`/etc.) is not checked by any RLS policy — an archived or suspended org's own members retain full data access, proven with a real pgTAP assertion, not inferred.
+
+**Decision: do not implement enforcement speculatively.** `SUPER_ADMIN.md` documents what these statuses mean for billing/dashboard visibility but never states what they should mean for the org's own member access — full lockout, read-only, or unaffected (billing-only) are all defensible product choices with materially different UX and support implications, and picking one silently would be inventing a business rule that hasn't been decided. Logged as `TECHNICAL_DEBT_REGISTER.md` TD-17 / `RISK_REGISTER.md` R-22 instead, to be resolved once Mohammed decides the intended behavior — most naturally paired with `TASKS.md` M9/M19 when billing enforcement is actually built, since that's the first point an org would ever really become suspended.
+
+Also fixed two smaller, real gaps found in the same verification pass (both are mechanical corrections, not decisions, but noted here for the same session's record): `[db.seed]` was never configured in `supabase/config.toml`, so `supabase db reset`'s seed step had silently no-opped every single time since the seed file was moved to `supabase/seed/seed.sql` weeks ago (fixed: added `sql_paths = ["./seed/seed.sql"]`); and `organizations.status`'s `archived` enum value was documented in `DATABASE.md`/`SUPER_ADMIN.md` but never actually added to the Postgres enum (fixed: migration `20260101000025`). Full narrative, including the `LegacyHealthCheckTimeoutError` root-cause investigation (Docker-socket-unreachable `vector` sidecar container, infrastructure-only, not our code), is in `WORKLOG.md` 2026-07-31.
