@@ -189,3 +189,23 @@ export type InspectionStatus = (typeof INSPECTION_STATUSES)[number];
 
 export const INSPECTION_CONDITION_RATINGS = ['good', 'fair', 'poor', 'damaged'] as const;
 export type InspectionConditionRating = (typeof INSPECTION_CONDITION_RATINGS)[number];
+
+export const ACCOUNT_TYPES = ['asset', 'liability', 'equity', 'income', 'expense'] as const;
+export type AccountType = (typeof ACCOUNT_TYPES)[number];
+
+export const LEDGER_CLASSES = ['business', 'trust', 'deposit'] as const;
+export type LedgerClass = (typeof LEDGER_CLASSES)[number];
+
+export const JOURNAL_SOURCE_TYPES = [
+  'rent_invoice',
+  'expense',
+  'payment',
+  'deposit',
+  'owner_payout',
+  'adjustment',
+  'reversal',
+] as const;
+export type JournalSourceType = (typeof JOURNAL_SOURCE_TYPES)[number];
+
+export const ACCOUNTING_PERIOD_STATUSES = ['open', 'closed'] as const;
+export type AccountingPeriodStatus = (typeof ACCOUNTING_PERIOD_STATUSES)[number];
