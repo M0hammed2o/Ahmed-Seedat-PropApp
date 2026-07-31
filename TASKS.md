@@ -79,15 +79,19 @@ Each milestone is scoped so the repository **compiles, passes its tests, has upd
 
 ## M9 — Applications
 
-- [ ] Schema: `applications` (`DATABASE.md` §4).
-- [ ] Application-approval transaction (atomic tenant+lease+rent_schedule creation, `ACCOUNTING.md`/`ARCHITECTURE.md` § Business logic placement) — depends on M10 (Leases) existing.
-- **Exit criteria**: not started.
+- [x] Schema: `applications` (`DATABASE.md` §4, migration `20260101000029`, 2026-07-31). RLS mirrors the `properties`/`units`/`tenants` viewer-select/agent-write pattern. Two DB-level invariants beyond the documented column list: a decision's bookkeeping columns (`decision`/`decided_at`) are set together or not at all (CHECK), and `screening_status` cannot leave `not_started` before `screening_consent_at` is captured (CHECK) — both enforced independently of the API layer.
+- [x] Application-approval transaction (atomic tenant+lease+rent_schedule creation) — `approve_application()` (migration `20260101000031`). Not security definer (unlike `create_organization()`/`accept_organization_invite()`): the caller already holds agent+ membership in the application's org, so every insert runs under the caller's own RLS rather than needing a privilege bypass — atomicity is the only thing this function adds. Deliberately does **not** hard-require `screening_status = 'passed'` before allowing approval — `DATABASE.md` §4 never states that as a rule, and encoding an unstated business policy as a hard DB constraint would be guessing at a product decision, not an engineering one.
+- [x] API: `GET/POST /api/v1/applications`, `GET /api/v1/applications/:id` (no general PATCH — only the three state-transition actions below can mutate an application, so a blanket PATCH can't be used to bypass their rules), `POST /api/v1/applications/:id/consent`, `POST /api/v1/applications/:id/screen` (via a new mock-first `TenantScreeningProvider`/`MockTenantScreeningProvider`, `apps/admin/lib/providers/tenantScreening.ts`, matching ADR-014's vendor-agnostic pattern — no real screening vendor selected yet), `POST /api/v1/applications/:id/decide` (approve → `approve_application()` RPC; decline → simple update).
+- **Exit criteria**: schema, RLS, atomic approval transaction, and API done and execution-verified (see M10 for the shared test/verification summary). Web UI not started. Real screening-vendor integration not started (mock provider only).
 
 ## M10 — Leases
 
-- [ ] Schema: `leases`, `lease_tenants`, `rent_schedules` (`DATABASE.md` §4).
-- [ ] Lease-PDF-parse-to-prefill flow (depends on M12, OCR).
-- **Exit criteria**: not started.
+- [x] Schema: `leases`, `lease_tenants`, `rent_schedules` (`DATABASE.md` §4, migration `20260101000030`, 2026-07-31). `lease_tenants`/`rent_schedules` follow the same "denormalized `org_id`"/"scoped through parent" RLS patterns already established for `property_owners`/`units`.
+- [x] API: `GET/POST /api/v1/leases` (manual creation, `source: 'manual'` — the application-approval path never goes through this route), `GET/PATCH /api/v1/leases/:id`, `GET /api/v1/leases/:id/rent-schedule`.
+- [ ] Lease-PDF-parse-to-prefill flow (`POST /api/v1/leases/:id/upload-and-parse`) — genuinely blocked on M12 (OCR/Document Intelligence), not started; building a stub that fakes OCR output would be worse than leaving it undone.
+- [ ] **Recurring `rent_schedules` generation is not built.** `approve_application()` creates only the lease's first due-date row (the period it starts in) — generating every subsequent period's row is a scheduling/cron concern (needs a "run monthly, for every active lease, generate next period's row" job) that doesn't exist anywhere in this codebase yet (no cron/scheduled-function infrastructure at all). Tracked as new `TECHNICAL_DEBT_REGISTER.md` TD-20, not silently assumed to be "done" by the one row the approval transaction creates.
+- [x] Tests: new `supabase/tests/leasing_isolation.test.sql` (14 assertions) — cross-org isolation on `applications`/`leases`, role-scoped write denial, and specifically `approve_application()`'s correctness (tenant/lease/lease_tenants/rent_schedules all created with correct values, unit flips to occupied, application marked decided) **and** its safety (an outsider calling it gets "not found" via RLS, not a privilege bypass; calling it twice on the same application raises rather than double-creating). Full regression suite: 55/55 pgTAP assertions across 5 files on a genuinely fresh `db reset`. Full monorepo `pnpm typecheck`/`pnpm lint` (7/7 packages) and a real `next build` (all 8 new routes registered, no conflicts) also green.
+- **Exit criteria**: schema, RLS, and manual/approval-sourced lease creation all done and execution-verified; PDF-parse flow correctly blocked on M12; recurring rent-schedule generation open (TD-20). Web UI not started.
 
 ## M11 — Documents
 
