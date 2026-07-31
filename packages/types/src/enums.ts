@@ -28,6 +28,7 @@ export const DOCUMENT_TYPES = [
   'proof_of_payment',
   'receipt',
   'supporting_document',
+  'lease',
   'other',
 ] as const;
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];

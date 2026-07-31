@@ -45,6 +45,7 @@ export interface ExtractedField<T> {
 }
 
 export interface FieldExtractionResult {
+  // Bill/invoice-shaped fields (Phase 1, implemented).
   supplierName?: ExtractedField<string>;
   accountNumber?: ExtractedField<string>;
   amountDue?: ExtractedField<number>;
@@ -52,6 +53,17 @@ export interface FieldExtractionResult {
   statementDate?: ExtractedField<string>;
   invoiceNumber?: ExtractedField<string>;
   paymentReference?: ExtractedField<string>;
+  // Lease-shaped fields (TASKS.md M12, DOCUMENT_INTELLIGENCE.md). Deliberately on the same
+  // all-optional result type rather than a separate LeaseFieldExtractionResult -- the caller
+  // already knows which fields to expect from the `documentType` it passed into extractFields(),
+  // and a single result shape keeps the confirmation-screen review pattern (every field, whatever
+  // document type, gets the identical edit-before-accept treatment) uniform across document types.
+  tenantName?: ExtractedField<string>;
+  rentAmount?: ExtractedField<number>;
+  depositAmount?: ExtractedField<number>;
+  leaseStartDate?: ExtractedField<string>;
+  leaseEndDate?: ExtractedField<string>;
+  propertyAddress?: ExtractedField<string>;
   overallConfidence: number;
   metadata: ProviderMetadata;
 }
