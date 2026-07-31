@@ -70,9 +70,12 @@ Each milestone is scoped so the repository **compiles, passes its tests, has upd
 
 ## M8 — Tenants
 
-- [ ] Schema: `tenants` table (`DATABASE.md` §4) — not yet migrated.
-- [ ] API + RLS, Web UI (Tenant directory).
-- **Exit criteria**: not started.
+- [x] Schema: `tenants` table (`DATABASE.md` §4, migration `20260101000028`, 2026-07-31), decoupled from `auth.users` like `owners`. Prerequisite `encrypted_secrets` pointer table (`DATABASE.md` §11) also built (migration `20260101000027`) — schema only, matching the documented shape for `tenants.id_number_ref`/`owners.banking_ref` (the latter's FK was retrofitted here, previously unconstrained); the application-layer encrypt-before-insert pipeline is deliberately not built yet, since nothing calls it (`TECHNICAL_DEBT_REGISTER.md` TD-18).
+- [x] RLS: `tenants_select_org_or_self` (org staff viewer+, or the tenant's own portal identity if `user_id` is set — mirrors `owners`), `tenants_write_agent_plus` (no self-write policy — no tenant portal exists in V1). `encrypted_secrets`: zero client policies, service-role only.
+- [x] API: `GET/POST /api/v1/tenants`, `GET/PATCH /api/v1/tenants/:id` (`API_SPEC.md` §4) — same cursor-pagination/`requireOrgRole`/404-vs-403 patterns as Properties/Units/Owners, sharing `apps/admin/lib/leasing.ts` (new) + the existing `portfolio.ts`/`cursorPagination.ts` helpers.
+- [x] Tests: new `supabase/tests/tenants_isolation.test.sql` (10 assertions — cross-org isolation, role-scoped write denial, the self-access carve-out specifically, and `encrypted_secrets` deny-by-default) + full regression suite (41/41 pgTAP assertions across 4 files, real `supabase db reset` + `supabase test db`). Full monorepo `pnpm typecheck`/`lint` (7/7 packages) and a real `next build` (both new routes registered, no conflicts) also green.
+- [ ] Web UI (Tenant directory) — not started, consistent with how Properties/Units/Owners were sequenced (API first).
+- **Exit criteria**: schema, RLS, and API done and execution-verified; Web UI open.
 
 ## M9 — Applications
 
