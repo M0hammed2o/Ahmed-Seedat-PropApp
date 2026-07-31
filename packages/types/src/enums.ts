@@ -209,3 +209,21 @@ export type JournalSourceType = (typeof JOURNAL_SOURCE_TYPES)[number];
 
 export const ACCOUNTING_PERIOD_STATUSES = ['open', 'closed'] as const;
 export type AccountingPeriodStatus = (typeof ACCOUNTING_PERIOD_STATUSES)[number];
+
+export const TRUST_LEDGER_ENTRY_TYPES = ['deposit_received', 'interest_accrued', 'deduction', 'refund'] as const;
+export type TrustLedgerEntryType = (typeof TRUST_LEDGER_ENTRY_TYPES)[number];
+
+export const BANK_ACCOUNT_CLASSES = ['business', 'trust'] as const;
+export type BankAccountClass = (typeof BANK_ACCOUNT_CLASSES)[number];
+
+export const BANK_TRANSACTION_MATCH_STATUSES = ['unmatched', 'matched', 'ignored'] as const;
+export type BankTransactionMatchStatus = (typeof BANK_TRANSACTION_MATCH_STATUSES)[number];
+
+export const INVOICE_STATUSES = ['draft', 'issued', 'paid'] as const;
+export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
+
+export const EXPENSE_STATUSES = ['recorded', 'pending', 'reimbursed', 'void'] as const;
+export type ExpenseStatus = (typeof EXPENSE_STATUSES)[number];
+
+export const OWNER_STATEMENT_STATUSES = ['draft', 'issued', 'paid'] as const;
+export type OwnerStatementStatus = (typeof OWNER_STATEMENT_STATUSES)[number];
