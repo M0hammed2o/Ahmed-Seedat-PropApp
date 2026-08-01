@@ -241,3 +241,44 @@ export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
 
 export const DEVICE_PLATFORMS = ['ios', 'android'] as const;
 export type DevicePlatform = (typeof DEVICE_PLATFORMS)[number];
+
+export const MESSAGE_DIRECTIONS = ['inbound', 'outbound'] as const;
+export type MessageDirection = (typeof MESSAGE_DIRECTIONS)[number];
+
+export const EMAIL_STATUSES = ['queued', 'sent', 'delivered', 'bounced', 'failed'] as const;
+export type EmailStatus = (typeof EMAIL_STATUSES)[number];
+
+export const EMAIL_SUPPRESSION_REASONS = ['hard_bounce', 'spam_complaint'] as const;
+export type EmailSuppressionReason = (typeof EMAIL_SUPPRESSION_REASONS)[number];
+
+export const WHATSAPP_STATUSES = ['queued', 'sent', 'delivered', 'read', 'failed'] as const;
+export type WhatsAppStatus = (typeof WHATSAPP_STATUSES)[number];
+
+export const VERIFIED_PHONE_ENTITY_TYPES = ['tenant', 'owner', 'organization_member'] as const;
+export type VerifiedPhoneEntityType = (typeof VERIFIED_PHONE_ENTITY_TYPES)[number];
+
+export const WHATSAPP_CONVERSATION_STATE_TYPES = ['none', 'awaiting_context_selection'] as const;
+export type WhatsAppConversationStateType = (typeof WHATSAPP_CONVERSATION_STATE_TYPES)[number];
+
+// WHATSAPP.md §2: closed trigger list, the ONLY accepted input to the WhatsApp send dispatcher --
+// no sendWhatsApp(freeformText) entry point exists anywhere. Adding a trigger means adding a
+// value here, a template, and a code review, not a string.
+export const WHATSAPP_NOTIFICATION_TYPES = [
+  'rent_overdue_material',
+  'payment_accepted',
+  'payment_rejected',
+  'lease_expiring_soon',
+  'urgent_property_announcement',
+  'inspection_reminder_important',
+  'maintenance_update_critical',
+  'document_missing_required',
+  'id_document_expiring',
+  'payment_awaiting_confirmation',
+  'payment_discrepancy',
+  'rent_overdue_significant',
+  'lease_expiring_soon_owner',
+  'maintenance_approval_urgent',
+  'account_security_event',
+  'owner_statement_available',
+] as const;
+export type WhatsAppNotificationType = (typeof WHATSAPP_NOTIFICATION_TYPES)[number];
