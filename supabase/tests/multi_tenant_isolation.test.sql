@@ -51,15 +51,15 @@ insert into public.owners (id, org_id, name, owner_type, status)
 values ('11110000-0000-0000-0000-000000000001', 'aaaaaaaa-0000-0000-0000-000000000001',
         'Org A Owner', 'individual', 'active');
 
--- Fixtures for the support_access_sessions test below: a platform admin_users row (distinct role
+-- Fixtures for the support_access_sessions test below: a platform_admin_users row (distinct role
 -- system from organization_members, see PERMISSIONS.md intro) and one support session against
 -- Org A.
 insert into auth.users (id, email) values
   ('99990000-0000-0000-0000-000000000001', 'support-admin@test.propertyvault.example');
-insert into public.admin_users (id, auth_user_id, role, display_name, is_active)
+insert into public.platform_admin_users (id, auth_user_id, role, display_name, is_active)
 values ('88880000-0000-0000-0000-000000000001', '99990000-0000-0000-0000-000000000001',
         'support_admin', 'Test Support Admin', true);
-insert into public.support_access_sessions (id, admin_user_id, org_id, reason)
+insert into public.support_access_sessions (id, platform_admin_id, org_id, reason)
 values ('77770000-0000-0000-0000-000000000001', '88880000-0000-0000-0000-000000000001',
         'aaaaaaaa-0000-0000-0000-000000000001', 'Investigating a customer-reported billing issue');
 
@@ -140,9 +140,9 @@ select is(
 
 -- === Platform-admin table isolation (retained from rls_isolation.test.sql, renamed target) ===
 select is(
-  (select count(*) from public.admin_users),
+  (select count(*) from public.platform_admin_users),
   0::bigint,
-  'An ordinary authenticated user reads zero rows from admin_users (platform_admin_users post-Milestone-13 — DECISIONS.md 2026-07-30)'
+  'An ordinary authenticated user reads zero rows from platform_admin_users (renamed from admin_users, TASKS.md M19, migration 20260101000044)'
 );
 
 -- === Support access: even Org A's own principal cannot see a support session opened against

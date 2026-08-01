@@ -6,15 +6,17 @@
  */
 
 export interface DemoAdminSession {
+  id: string;
   authUserId: string;
   role: 'super_admin' | 'support_admin' | 'operations_admin' | 'read_only_admin';
   displayName: string;
 }
 
 export const DEMO_ADMIN_SESSION: DemoAdminSession = {
+  id: 'demo-platform-admin-1',
   authUserId: 'demo-admin-1',
   role: 'super_admin',
-  displayName: 'Priya Naidoo',
+  displayName: 'Ahmed Seedat',
 };
 
 export interface DemoCustomer {
@@ -31,7 +33,7 @@ export interface DemoCustomer {
 }
 
 const FIRST_NAMES = [
-  'Naledi',
+  'Mohammed',
   'Thabo',
   'Aisha',
   'Johan',
@@ -160,7 +162,7 @@ export interface DemoOcrJob {
 export const DEMO_OCR_JOBS: DemoOcrJob[] = [
   {
     id: 'job-1',
-    customerName: 'Naledi Khumalo',
+    customerName: 'Mohammed Khumalo',
     documentName: 'city-of-cape-town-water-july-2026.pdf',
     status: 'succeeded',
     provider: 'mock',
@@ -241,7 +243,7 @@ export interface DemoActivityEvent {
 export const DEMO_ACTIVITY: DemoActivityEvent[] = [
   {
     id: 'act-1',
-    actor: 'Naledi Khumalo',
+    actor: 'Mohammed Khumalo',
     action: 'confirmed payment match',
     target: 'Water bill · Sea Point Apartment',
     createdAt: '2026-07-21T16:02:00Z',
@@ -262,7 +264,7 @@ export const DEMO_ACTIVITY: DemoActivityEvent[] = [
   },
   {
     id: 'act-4',
-    actor: 'Priya Naidoo (admin)',
+    actor: 'Ahmed Seedat (admin)',
     action: 'reactivated account',
     target: 'billing_issue → active',
     createdAt: '2026-07-21T11:40:00Z',

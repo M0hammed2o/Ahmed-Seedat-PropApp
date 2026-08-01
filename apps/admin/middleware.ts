@@ -8,8 +8,8 @@ type CookieToSet = { name: string; value: string; options: CookieOptions };
  * Coarse gate: redirects unauthenticated sessions away from (dashboard) routes. This is
  * defense-in-depth only — per SECURITY.md, every mutating route handler re-checks
  * `requireRole()` itself rather than trusting middleware having run (middleware can be bypassed
- * in some deployment configurations, and doesn't itself check the `admin_users` table here to
- * avoid an extra service-role round trip on every request).
+ * in some deployment configurations, and doesn't itself check the `platform_admin_users` table
+ * here to avoid an extra service-role round trip on every request).
  */
 export async function middleware(request: NextRequest) {
   // Demo mode has no Supabase project to check a session against — lib/auth.ts's

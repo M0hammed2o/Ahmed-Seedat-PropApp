@@ -73,16 +73,16 @@ export async function resolvePortalSession(): Promise<PortalSession | null> {
     throw new Error(`Failed to resolve owner identities: ${ownersResult.error.message}`);
   }
 
-  // Platform-admin status is checked via the existing is_admin() pattern (ADMIN_DEMO_MODE-aware
-  // getAdminSession() in ./auth.ts) rather than duplicated here — a caller that needs both a
-  // portal session and platform-admin status calls both functions, since they're independent
-  // role systems by design (PERMISSIONS.md intro, ARCHITECTURE.md "Why one web app, not two")
-  // and conflating their resolution into one function would be exactly the anti-pattern those
-  // documents warn against. isPlatformAdmin here is a cheap existence check only, not a role
-  // resolution — callers needing the actual platform role must call requireRole()/
-  // getAdminSession() from ./auth.ts, which is the security-checked path.
+  // Platform-admin status is checked via the existing is_platform_admin() pattern
+  // (ADMIN_DEMO_MODE-aware getAdminSession() in ./auth.ts) rather than duplicated here — a
+  // caller that needs both a portal session and platform-admin status calls both functions,
+  // since they're independent role systems by design (PERMISSIONS.md intro, ARCHITECTURE.md
+  // "Why one web app, not two") and conflating their resolution into one function would be
+  // exactly the anti-pattern those documents warn against. isPlatformAdmin here is a cheap
+  // existence check only, not a role resolution — callers needing the actual platform role must
+  // call requireRole()/getAdminSession() from ./auth.ts, which is the security-checked path.
   const { count: platformAdminCount } = await supabase
-    .from('admin_users')
+    .from('platform_admin_users')
     .select('id', { count: 'exact', head: true });
 
   return {

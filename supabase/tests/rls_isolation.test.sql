@@ -6,14 +6,15 @@
 -- RLS), not owner_user_id-scoped — this file's property fixture/assertions were rewritten to
 -- match. See supabase/tests/multi_tenant_isolation.test.sql for the fuller org/portfolio
 -- isolation suite this complements (that file covers organizations/units/owners specifically;
--- this one keeps its original bill/payment_matches/admin_users cases, now updated for the org
--- FK properties requires).
+-- this one keeps its original bill/payment_matches/platform_admin_users cases, now updated for
+-- the org FK properties requires).
 --
 -- These tests assert the release-blocking isolation guarantees from SECURITY.md:
 --   1. Org B's member cannot SELECT Org A's property.
 --   2. User A cannot UPDATE User B's bill.
 --   3. User A cannot INSERT a payment_matches row linking their payment to User B's bill.
---   4. A customer session cannot read the admin_users table at all.
+--   4. A customer session cannot read the platform_admin_users table at all (renamed from
+--      admin_users, TASKS.md M19, migration 20260101000044).
 
 begin;
 select plan(4);
@@ -61,9 +62,9 @@ select is(
 );
 
 select is(
-  (select count(*) from public.admin_users),
+  (select count(*) from public.platform_admin_users),
   0::bigint,
-  'An ordinary authenticated user reads zero rows from admin_users (no policy grants access)'
+  'An ordinary authenticated user reads zero rows from platform_admin_users (no policy grants access)'
 );
 
 select * from finish();
