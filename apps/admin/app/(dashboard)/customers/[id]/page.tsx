@@ -2,11 +2,12 @@ import { notFound } from 'next/navigation';
 import { requireRole } from '@/lib/auth';
 import { getServiceRoleClient } from '@/lib/supabase/server';
 import { getPlatformOrganizationDetail } from '@/lib/superAdmin';
+import { OrganizationActionsPanel } from '@/components/organizations/OrganizationActionsPanel';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 import { DEMO_CUSTOMERS } from '@/lib/demo/adminMockData';
 
 export default async function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireRole('read_only_admin');
+  const session = await requireRole('read_only_admin');
   const { id } = await params;
 
   if (ADMIN_DEMO_MODE) {
@@ -135,10 +136,16 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
         </div>
       </dl>
 
-      <p className="mt-8 text-xs text-light-textMuted dark:text-dark-textMuted">
-        Activate/suspend/archive, plan/price/discount changes, credits, and support-session entry
-        are built (TASKS.md M19) but not yet wired to buttons on this page — that UI work is
-        scoped to the post-M19 design phase, not a data-layer gap.
+      <OrganizationActionsPanel
+        orgId={detail.orgId}
+        legalName={detail.legalName}
+        status={detail.status}
+        currentUserRole={session.role}
+      />
+
+      <p className="mt-4 text-xs text-light-textMuted dark:text-dark-textMuted">
+        Plan/price/discount changes and support-session entry are built (TASKS.md M19) but not yet
+        wired to this page — activate/suspend/archive and credits are, above.
       </p>
     </div>
   );
