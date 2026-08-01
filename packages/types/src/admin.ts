@@ -10,13 +10,19 @@ export interface AdminUser {
   updatedAt: string;
 }
 
+// Shape matches DATABASE.md §10 (post-TD-14 cutover, migration 20260101000043).
 export interface AuditEvent {
   id: string;
+  orgId: string | null; // null only for platform-level events with no org context
   actorUserId: string | null; // null for system-generated events
-  actorType: 'customer' | 'admin' | 'system';
+  actorType: 'user' | 'system' | 'api' | 'ai_assisted';
   action: string;
-  targetType: string;
-  targetId: string;
-  metadata: Record<string, unknown>;
+  entityType: string;
+  entityId: string;
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+  ipAddress: string | null;
+  aiConversationId: string | null;
+  aiMessageId: string | null;
   createdAt: string;
 }

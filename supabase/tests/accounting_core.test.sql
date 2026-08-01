@@ -147,9 +147,12 @@ select is(
 -- === The same real-immutability fix, applied to audit_events (migration 20260101000036) --
 --     discovered during this same review: identically documented as "no update/delete policy...
 --     trustworthy audit trail," identically insufficient against BYPASSRLS. Still in the
---     postgres-superuser context from `reset role;` above. ===
-insert into public.audit_events (org_id, actor_user_id, actor_type, action, target_type, target_id)
-select id, 'ac000000-0000-0000-0000-000000000001'::uuid, 'admin', 'test_action', 'test_entity', gen_random_uuid()
+--     postgres-superuser context from `reset role;` above. Columns/actor_type value updated for
+--     the TD-14 cutover (migration 20260101000043): target_type/target_id -> entity_type/
+--     entity_id, 'admin' -> 'user' (DATABASE.md §10's actor_type is now user|system|api|
+--     ai_assisted). ===
+insert into public.audit_events (org_id, actor_user_id, actor_type, action, entity_type, entity_id)
+select id, 'ac000000-0000-0000-0000-000000000001'::uuid, 'user', 'test_action', 'test_entity', gen_random_uuid()
 from public.organizations where legal_name = 'Accounting Test Org';
 
 select throws_ok(
