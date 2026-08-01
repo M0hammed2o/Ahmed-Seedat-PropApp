@@ -96,12 +96,17 @@ export type PaymentMatchStatus = (typeof PAYMENT_MATCH_STATUSES)[number];
 
 // --- PropertyVault multi-tenancy enums (see DATABASE.md, supabase/migrations/20260101000016+) ---
 
+// 'archived' added by migration 20260101000025 -- was missing here until TASKS.md M19 found the
+// drift while wiring POST /api/v1/admin/organizations/:orgId/archive (the first real writer of
+// this value; nothing had ever exercised the gap before). Confirmed live via `select enumlabel
+// from pg_enum ... where typname = 'organization_status'` before fixing, not assumed.
 export const ORGANIZATION_STATUSES = [
   'trial',
   'active',
   'overdue',
   'suspended',
   'cancelled',
+  'archived',
 ] as const;
 export type OrganizationStatus = (typeof ORGANIZATION_STATUSES)[number];
 
