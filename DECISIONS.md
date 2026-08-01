@@ -185,3 +185,43 @@ table's own colour map — every status except the two that happen to share a na
 `ORGANIZATION_STATUS_PRESENTATION` (`packages/ui`) and a shared `StatusBadge` component, used by
 `CustomersTable`/`SubscriptionsTable`/the organization detail page, with a defensive fallback for
 demo mode's still-different legacy vocabulary (left as-is — cosmetic-only, not this pass's target).
+
+## 2026-08-01 — M20: `(portal)` route group used instead of the ARCHITECTURE.md-correct `(dashboard)` name, because of a live process this session must not touch
+
+`ARCHITECTURE.md`'s "Why one web app, not two" section names the client-org route group
+`app/(dashboard)/**` and the Super Admin route group `app/(super-admin)/**`. What's actually on
+disk is the reverse: M19's Super Admin work was built at `(dashboard)` (per `SUPER_ADMIN.md` §0's
+"reused from apps/admin as-is," which didn't flag the naming mismatch against `ARCHITECTURE.md` at
+the time it was written). Starting M20's first client-org page, attempted the correct fix — `git
+mv "apps/admin/app/(dashboard)" "apps/admin/app/(super-admin)"` — and got `Permission denied`.
+
+**Investigated rather than forcing it** (`Get-CimInstance Win32_Process -Filter "Name =
+'node.exe'"`, checking each process's command line): found a `next dev -p 3005` process with a
+working directory inside `apps/admin`, launched independently of anything this session started —
+its file watcher holds a lock on the `(dashboard)` directory, which is what blocked the rename.
+This is very likely Mohammed's own live preview session. **Decision: do not kill it, do not force
+the rename.** An unfamiliar running process is exactly the "unfamiliar existing state — investigate
+before deleting or overwriting" case the session's standing safety rules describe, and killing
+someone else's live dev server to force a directory rename is a disproportionate, unilateral
+action for what has zero user-facing consequence either way (Next.js route group names in
+parentheses never appear in the resulting URL — `(dashboard)/overview` and
+`(super-admin)/overview` both resolve to `/overview` identically).
+
+**Resolution**: built the new client-org pages under `(portal)` instead — a real name, distinct
+from both `(dashboard)` (still Super Admin, unchanged) and the `ARCHITECTURE.md`-correct
+`(super-admin)` (not yet used). This is purely an internal source-tree organization choice with no
+URL or user-facing impact. The proper `(dashboard)`→`(super-admin)` rename (and, at the same time,
+`(portal)`→`(dashboard)`, to land exactly where `ARCHITECTURE.md` says) is left as an explicit,
+tracked follow-up (`TASKS.md` M20) for whenever that lock is confirmed clear — most likely by
+asking Mohammed directly whether it's safe to restart that dev server, rather than guessing.
+
+**Secondary consequence, disclosed rather than absorbed silently**: the same `next dev` process
+has almost certainly been running for this entire session (well before this was discovered), which
+means every earlier `pnpm --filter admin build`/`next start` verification call this session (M16
+through the design phase) may have raced against it on the shared `.next` build-output directory.
+No corruption or failure was actually observed in any of those runs — every one of them completed
+and reported success — but "no failure observed" is not the same as "confirmed safe," so this is
+flagged as a real gap in this session's own verification confidence for that historical work, not
+retroactively claimed as fine. Going forward, `next build`/`next start` are paused for `apps/admin`
+until confirmed safe; `pnpm typecheck`/`pnpm lint`/`pnpm --filter admin test` (none of which touch
+`.next`) remain the verification path in the meantime.

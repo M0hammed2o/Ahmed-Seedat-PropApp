@@ -221,8 +221,11 @@ notifications, deep links, biometric auth, tablet behaviour) — specification o
 
 ## M20 — Responsive Web
 
-- [ ] Full web UI pass across every module above that doesn't already have one — this milestone is where `apps/admin` fully becomes `apps/web` (`ARCHITECTURE.md`), reusing retained `AdminDataTable`/`AdminMetricCard`/chart primitives throughout, now against `DESIGN_SYSTEM.md`'s completed component-level spec rather than an ad hoc per-page decision.
+- [x] **New `(portal)` client-org-facing route group**, distinct from the Super-Admin-only `(dashboard)` group M19 built. `ARCHITECTURE.md` names these `(dashboard)`/`(super-admin)` respectively (the reverse of what's on disk) — not renamed yet because a `next dev` process not started by this session holds a live lock on the existing `(dashboard)` folder; URL paths are unaffected (route group names never appear in a URL), so this is a naming deviation only, tracked for a later mechanical rename once safe. Layout uses `resolvePortalSession()` (org-membership auth), never `getAdminSession()` (platform-admin auth) — a different auth model entirely, per `PERMISSIONS.md`'s "never merge role systems" principle.
+- [x] **Properties**: list, detail, create pages (`(portal)/properties/**`) — the first complete vertical slice (layout → list → detail → role-gated create form), proving the pattern the remaining modules below repeat. Reuses `AdminDataTable`/`Button`/`EmptyState` from the design-system pass, `mapPropertyRow`/`POST /api/v1/properties` from M5/M6 unchanged.
+- [ ] Units, Owners, Tenants, Leases, Applications, Maintenance, Inspections, Accounting screens, Notifications, Announcements, AI Assistant chat UI, Portfolio Intelligence feed — not started, same pattern as Properties.
 - [ ] Simplified Portfolio Map UI (property list on a map, no GIS/heatmap layers — confirmed V1 scope).
+- **Note**: `pnpm typecheck`/`pnpm lint`/`pnpm --filter admin test` verified this slice; a real `next build`/runtime smoke test was deliberately skipped — a `next dev -p 3005` process (not started by this session) has likely been running against `apps/admin` throughout, so competing build commands risk interfering with it. Resume full build verification once confirmed safe.
 - **Exit criteria**: not started as a full milestone; first real slice done ahead of schedule (design-phase `OrganizationActionsPanel` wiring) — design system and role-experience groundwork are no longer a blocker for starting the rest.
 
 ## M21 — Native iOS

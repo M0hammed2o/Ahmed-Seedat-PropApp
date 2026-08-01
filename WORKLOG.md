@@ -1,5 +1,37 @@
 # Worklog
 
+## 2026-08-01 (continued, 3) — M20 kickoff: first client-org page (Properties), and a live dev-server found
+
+Continuing per Mohammed's "continue." Started M20 (Responsive Web) with Properties as the first
+complete vertical slice: `(portal)` layout (org-membership auth via `resolvePortalSession()`,
+distinct from `(dashboard)`'s platform-admin auth), list/detail/create pages, `PropertiesTable`,
+`NewPropertyForm`.
+
+**Real architectural finding**: `ARCHITECTURE.md` names the client-org route group
+`(dashboard)` and the Super Admin group `(super-admin)` — the reverse of what M19 actually built
+(Super Admin ended up at `(dashboard)` because `SUPER_ADMIN.md` §0 said "reused from apps/admin
+as-is" without flagging the naming mismatch, and that was accepted at the time). Attempted the
+correct fix (`git mv (dashboard) (super-admin)`) and hit `Permission denied` — investigated rather
+than forcing it, and found a `next dev -p 3005` process holding a live file-watcher lock on that
+exact directory, with a command line showing it was launched independently of anything this
+session started. Did not kill it (an unfamiliar running process that might be Mohammed's own live
+preview session is not this session's to terminate) and did not force the rename. Built the new
+client-org pages under `(portal)` instead — a pure internal-organization deviation, since Next.js
+route group names never appear in the URL — with the proper `(dashboard)`→`(super-admin)` rename
+left as a documented follow-up for whenever that lock is confirmed clear.
+
+**Consequence for verification discipline this batch**: realized the same `next dev` process has
+likely been running for the entire session, meaning every earlier `pnpm --filter admin build`/
+`next start` smoke-test call (M16 through the design phase) may have been racing against it on the
+shared `.next` directory. Flagged this directly to Mohammed rather than continuing to run
+build/start commands that could interfere further. This batch's verification is `pnpm typecheck`/
+`pnpm lint`/`pnpm --filter admin test` only (all clean, none of which touch `.next`) — a real,
+disclosed reduction in verification coverage for this specific commit, not silently glossed over.
+
+`middleware.ts`'s route-prefix list refactored to one shared array driving both the runtime check
+and the matcher config, so future `(portal)` routes can't silently miss the auth gate the way two
+independently-maintained lists risked.
+
 ## 2026-08-01 (continued, 2) — Design phase: review, design system rewrite, native platform specs, first implementation slice
 
 Per Mohammed's explicit instruction after M19: paused new feature implementation for a complete
