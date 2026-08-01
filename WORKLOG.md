@@ -1,5 +1,36 @@
 # Worklog
 
+## 2026-08-01 (continued, 4) — Route-group rename completed, a real build bug caught
+
+Mohammed confirmed the `next dev -p 3005` process was safe to stop and instructed it directly.
+Re-queried live process PIDs (they'd changed since first discovered), confirmed the exact
+4-process tree for this instance by command line, stopped only those, explicitly left 6 unrelated
+`node`/`vite` processes for other projects on the machine untouched. Confirmed port 3005 no longer
+listening.
+
+With the lock cleared, completed the rename: `(dashboard)`→`(super-admin)` (Super Admin, M19),
+`(portal)`→`(dashboard)` (client-org, M20) — both succeeded on the first attempt. Updated every
+stale `(portal)`/"blocked on a lock" comment across `layout.tsx` (both), `middleware.ts`, and the
+Properties pages.
+
+**Real bug caught by actually running the build, not just typecheck/lint**: `middleware.ts`'s
+`config.matcher` (refactored last session to `PROTECTED_ROUTE_PREFIXES.map(...)` to avoid
+duplicating the route list) is valid TypeScript but fails Next.js's build-time static analysis --
+`matcher` must be a literal array. `pnpm typecheck` never catches this (it's not a type error), and
+neither would `pnpm lint`; only a real `next build` surfaces it. Fixed by reverting to a literal
+array, kept the computed list for the runtime check only. Also hit a stale `.next/types/
+validator.ts` referencing pre-rename paths on the first `pnpm typecheck` after the rename --
+cleared `apps/admin/.next` and re-ran clean, expected cache staleness after a route-group rename,
+not a real bug.
+
+**Full verification, in order**: `pnpm typecheck` (7/7, clean after the cache clear), `pnpm lint`
+(7/7), `pnpm --filter admin test` (32/32), real `next build` (clean after the matcher fix -- every
+route including `/properties/**` registered under its correct new path), runtime smoke test via
+`next start` covering `/overview`, `/customers`, `/subscriptions`, `/properties`,
+`/properties/demo-property-1`, `/properties/new` -- all 200, response bodies grepped for real
+content (not just status codes) to confirm each page actually renders what it should, not just
+that it doesn't crash.
+
 ## 2026-08-01 (continued, 3) — M20 kickoff: first client-org page (Properties), and a live dev-server found
 
 Continuing per Mohammed's "continue." Started M20 (Responsive Web) with Properties as the first
