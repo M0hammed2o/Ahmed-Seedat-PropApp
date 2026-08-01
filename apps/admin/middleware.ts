@@ -4,12 +4,27 @@ import { ADMIN_DEMO_MODE } from './lib/demoMode';
 
 type CookieToSet = { name: string; value: string; options: CookieOptions };
 
+// Every authenticated route prefix, both the (super-admin)-shaped pages (still physically under
+// app/(dashboard) pending the file-level rename ARCHITECTURE.md's naming calls for -- blocked on
+// a live `next dev` process holding a lock on that directory, DECISIONS.md 2026-08-01, not
+// forgotten) and the (portal) client-org-facing pages. One shared list so the matcher config below
+// and the runtime check can't drift out of sync as more portal routes are added.
+const PROTECTED_ROUTE_PREFIXES = [
+  '/overview',
+  '/customers',
+  '/subscriptions',
+  '/processing',
+  '/system',
+  '/properties',
+];
+
 /**
- * Coarse gate: redirects unauthenticated sessions away from (dashboard) routes. This is
+ * Coarse gate: redirects unauthenticated sessions away from protected routes. This is
  * defense-in-depth only — per SECURITY.md, every mutating route handler re-checks
- * `requireRole()` itself rather than trusting middleware having run (middleware can be bypassed
- * in some deployment configurations, and doesn't itself check the `platform_admin_users` table
- * here to avoid an extra service-role round trip on every request).
+ * `requireRole()`/`requireOrgRole()` itself rather than trusting middleware having run
+ * (middleware can be bypassed in some deployment configurations, and doesn't itself check
+ * `platform_admin_users`/`organization_members` here to avoid an extra round trip on every
+ * request).
  */
 export async function middleware(request: NextRequest) {
   // Demo mode has no Supabase project to check a session against — lib/auth.ts's
@@ -41,14 +56,11 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isDashboardRoute =
-    request.nextUrl.pathname.startsWith('/overview') ||
-    request.nextUrl.pathname.startsWith('/customers') ||
-    request.nextUrl.pathname.startsWith('/subscriptions') ||
-    request.nextUrl.pathname.startsWith('/processing') ||
-    request.nextUrl.pathname.startsWith('/system');
+  const isProtectedRoute = PROTECTED_ROUTE_PREFIXES.some((prefix) =>
+    request.nextUrl.pathname.startsWith(prefix),
+  );
 
-  if (isDashboardRoute && !user) {
+  if (isProtectedRoute && !user) {
     const loginUrl = new URL('/login', request.url);
     return NextResponse.redirect(loginUrl);
   }
@@ -57,11 +69,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    '/overview/:path*',
-    '/customers/:path*',
-    '/subscriptions/:path*',
-    '/processing/:path*',
-    '/system/:path*',
-  ],
+  matcher: PROTECTED_ROUTE_PREFIXES.map((prefix) => `${prefix}/:path*`),
 };
