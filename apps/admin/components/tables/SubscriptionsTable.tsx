@@ -2,7 +2,9 @@
 
 import Link from 'next/link';
 import type { ColumnDef } from '@tanstack/react-table';
+import { ORGANIZATION_STATUS_PRESENTATION } from '@propvault/ui';
 import { AdminDataTable } from '@/components/ui/AdminDataTable';
+import { StatusBadge } from '@/components/ui/StatusBadge';
 
 // Rebuilt for TASKS.md M19 (Super Admin): rows are organizations with their current subscription,
 // not individual owner-operator app-store subscriptions (SUPER_ADMIN.md: "subscriptions/page.tsx
@@ -58,7 +60,9 @@ const columns: ColumnDef<SubscriptionRow, unknown>[] = [
     accessorKey: 'subscriptionStatus',
     cell: (info) => {
       const value = info.getValue() as string | null;
-      return value ? value.replace('_', ' ') : '—';
+      if (!value) return '—';
+      const presentation = ORGANIZATION_STATUS_PRESENTATION[value as keyof typeof ORGANIZATION_STATUS_PRESENTATION];
+      return presentation ? <StatusBadge presentation={presentation} /> : value.replace('_', ' ');
     },
   },
   {

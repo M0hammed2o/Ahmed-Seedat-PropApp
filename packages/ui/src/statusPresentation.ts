@@ -1,4 +1,4 @@
-import type { BillStatus } from '@propvault/types';
+import type { BillStatus, OrganizationStatus } from '@propvault/types';
 
 /**
  * Status is never signalled by colour alone (accessibility requirement in the brief) — every
@@ -26,4 +26,19 @@ export const BILL_STATUS_PRESENTATION: Record<BillStatus, StatusPresentation> = 
   processing: { label: 'Processing', icon: 'spinner', colorToken: 'statusProcessing' },
   disputed: { label: 'Disputed', icon: 'flag', colorToken: 'statusDisputed' },
   void: { label: 'Void', icon: 'slash', colorToken: 'statusVoid' },
+};
+
+// DESIGN_SYSTEM.md's own "Needs extending" note (M19 introduced organizations.status usage in
+// the Super Admin directory/subscriptions UI with no presentation map yet -- CustomersTable.tsx/
+// SubscriptionsTable.tsx previously used an inline STATUS_TONE map keyed on the OLD PropVault-era
+// per-user subscription statuses, which don't overlap with OrganizationStatus's real values
+// (trial/overdue/suspended/archived would all have rendered unstyled). Added here instead of
+// perpetuating the inline-map pattern.
+export const ORGANIZATION_STATUS_PRESENTATION: Record<OrganizationStatus, StatusPresentation> = {
+  trial: { label: 'Trial', icon: 'eye', colorToken: 'statusProcessing' },
+  active: { label: 'Active', icon: 'check', colorToken: 'statusPaid' },
+  overdue: { label: 'Overdue', icon: 'alert-triangle', colorToken: 'statusOverdue' },
+  suspended: { label: 'Suspended', icon: 'slash', colorToken: 'statusOverdue' },
+  cancelled: { label: 'Cancelled', icon: 'slash', colorToken: 'statusVoid' },
+  archived: { label: 'Archived', icon: 'dot', colorToken: 'statusVoid' },
 };

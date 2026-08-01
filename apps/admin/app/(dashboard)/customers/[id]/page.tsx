@@ -1,8 +1,10 @@
 import { notFound } from 'next/navigation';
+import { ORGANIZATION_STATUS_PRESENTATION } from '@propvault/ui';
 import { requireRole } from '@/lib/auth';
 import { getServiceRoleClient } from '@/lib/supabase/server';
 import { getPlatformOrganizationDetail } from '@/lib/superAdmin';
 import { OrganizationActionsPanel } from '@/components/organizations/OrganizationActionsPanel';
+import { StatusBadge } from '@/components/ui/StatusBadge';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 import { DEMO_CUSTOMERS } from '@/lib/demo/adminMockData';
 
@@ -132,7 +134,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
         </div>
         <div>
           <dt className="text-light-textMuted dark:text-dark-textMuted">Account status</dt>
-          <dd className="text-light-textPrimary dark:text-dark-textPrimary">{detail.status}</dd>
+          <dd><StatusBadge presentation={ORGANIZATION_STATUS_PRESENTATION[detail.status]} /></dd>
         </div>
       </dl>
 
