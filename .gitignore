@@ -32,15 +32,15 @@ Thumbs.db
 npm-debug.log*
 pnpm-debug.log*
 
-# EAS / native
+# EAS / native (apps/mobile's Expo prebuild output -- apps/android has its own .gitignore)
 *.p8
 *.p12
 *.mobileprovision
 *.jks
 *.keystore
 ios/Pods/
-android/.gradle/
-android/app/build/
+apps/mobile/android/.gradle/
+apps/mobile/android/app/build/
 
 # IDE
 .idea/

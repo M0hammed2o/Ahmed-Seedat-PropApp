@@ -1,0 +1,24 @@
+# Copy this file to local.properties (gitignored, never committed) and fill in real values.
+# Public client configuration only -- the Supabase anon key is safe for a client bundle by design
+# (RLS is the real access boundary, ENVIRONMENT.md). NEVER put a service-role key here or
+# anywhere in this app.
+
+# Android SDK location -- normally auto-detected by Android Studio and written here for you; only
+# needed manually for command-line/CI builds without Android Studio running.
+sdk.dir=C\:\\Users\\junsm\\AppData\\Local\\Android\\Sdk
+
+# Supabase project (matches NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY in
+# ENVIRONMENT.md -- same project, same values, just Android's own env-var naming).
+SUPABASE_URL=http://10.0.2.2:54321
+SUPABASE_ANON_KEY=
+
+# The Next.js API (apps/admin/apps/web) this app calls for anything that needs real server-side
+# business logic (API_SPEC.md §0) -- 10.0.2.2 is the Android emulator's alias for the host
+# machine's own localhost, for use against a local `pnpm --filter admin dev`.
+API_BASE_URL=http://10.0.2.2:3000
+
+# true to use MockPropertiesRepository/MockAuthRepository (deterministic fixture data, no
+# network, any non-blank email/password "signs in") instead of the real Postgrest/Supabase-Auth-
+# backed repositories -- useful for UI development or toolchain verification with no backend
+# running.
+USE_MOCK_DATA=false
