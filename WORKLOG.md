@@ -1,5 +1,77 @@
 # Worklog
 
+## 2026-08-01 (continued, 5) — M22: Android toolchain verified end-to-end, real native project foundation + first vertical slice, built and run on an emulator
+
+Mohammed confirmed Android Studio was installed and instructed a full, unassuming verification of
+every toolchain component before building anything, then a real native `apps/android` project
+(separate from `apps/mobile`, never converted from it) with a first verified vertical slice, proven
+by actually compiling, testing, installing, and running it — not just scaffolding files.
+
+**Toolchain inspection** (nothing assumed): Android Studio and an SDK directory existed, but
+`cmdline-tools` (needed for `sdkmanager`/`avdmanager`) was missing entirely and no AVD existed.
+Installed `cmdline-tools` from Google's official zip; used `avdmanager` to create
+`PropertyVault_Pixel7_API35` (no Pixel 8 profile exists in this cmdline-tools version's device
+list — Pixel 7 is the newest available). Full component-by-component findings (SDK platforms,
+build-tools, platform-tools, emulator, system images) recorded in `apps/android/README.md`'s
+toolchain table rather than repeated here.
+
+**Real, reproduced JDK incompatibility**: attempted to use Android Studio's bundled JBR (OpenJDK
+25.0.2) for Gradle, per Mohammed's "use the bundled JDK where practical" instruction — every Gradle
+invocation failed immediately with `java.lang.IllegalArgumentException: 25.0.2` inside Gradle 8.7's
+own Kotlin-DSL-script-evaluation tooling (confirmed via `--stacktrace`, not guessed). Installed
+Eclipse Temurin 21 LTS and pointed Gradle at it via `org.gradle.java.home` in the machine-local
+`~/.gradle/gradle.properties` — deliberately not a system-wide `JAVA_HOME`, per the explicit
+instruction to prefer project-local configuration over system-wide env-var changes. Full reasoning
+in `DECISIONS.md` 2026-08-01.
+
+**Built the project foundation**: Gradle Kotlin DSL scripts, version catalog, Compose Material 3
+theme hand-transcribed from `packages/ui/src/tokens.ts` (light/dark, typography, shape), Navigation
+Compose skeleton, Hilt DI, Retrofit/OkHttp/kotlinx.serialization network client against Supabase
+Auth + PostgREST directly, Room (Properties read-through cache), EncryptedSharedPreferences session
+storage, `local.properties`-based config (no secrets committed — gitignored, `.example` template
+committed instead), unit- and instrumentation-test scaffolding.
+
+**Built the first vertical slice**: Auth shell (splash/session-restore, sign-in, sign-out) + Owner
+portal (bottom nav, Dashboard placeholder, Properties list, Property detail) with loading/empty/
+error states and a cached-data-banner foundation, each behind a `PropertiesRepository`/
+`AuthRepository` interface with a real implementation and a separate mock implementation (selected
+via `BuildConfig.USE_MOCK_DATA`), matching the mock-first provider pattern already used for email/
+WhatsApp/AI/document-intelligence elsewhere in the project. Verified against the real PropertyVault
+API surface and property model/validation rules, not Android-only business rules.
+
+**Two real bugs found and fixed while getting the first build green** (full narrative in
+`DECISIONS.md` 2026-08-01): Android XML comments rejecting `--` (this session's comment style
+everywhere else), and an external Retrofit/kotlinx.serialization converter library that resolved
+correctly on both classpaths (confirmed via `gradlew app:dependencies`) yet produced a persistent
+unexplained "Unresolved reference" surviving a full clean/daemon-restart cycle — replaced with a
+~30-line hand-rolled `Converter.Factory` on kotlinx.serialization's own JVM-reflection bridge rather
+than continue debugging an opaque toolchain issue.
+
+**Full verification, real command output for every step**:
+- `gradlew assembleDebug` — BUILD SUCCESSFUL, 20,638,661-byte `app-debug.apk` confirmed on disk.
+- `gradlew testDebugUnitTest` — BUILD SUCCESSFUL, 7/7 tests passed (XML result files inspected).
+- `gradlew lintDebug` — BUILD SUCCESSFUL, 0 errors / 55 warnings.
+- `PropertyVault_Pixel7_API35` emulator booted, confirmed via `adb shell getprop sys.boot_completed`.
+- `adb install -r` + `adb shell am start`, confirmed via `logcat`: "Displayed
+  com.propertyvault.app/.MainActivity ... +21s260ms", no crash.
+- Real screenshots pulled off the device and visually reviewed: sign-in screen, mock sign-in
+  navigating to Dashboard, Properties list showing the mock "Sea Point Apartment" fixture, Property
+  detail with working back-navigation, light mode, and dark mode (`adb shell cmd uimode night yes`
+  — confirmed the exact `#14161A` dark-surface token from `packages/ui`).
+- Along the way, found and fixed two bugs in my own verification process, not the app: ADB
+  screenshot paths mangled by Git Bash's automatic POSIX-path conversion (fixed with
+  `MSYS_NO_PATHCONV=1` and plain relative destination paths), and a scaled-screenshot tap-coordinate
+  bug (displayed images were 1.2x smaller than real device pixels; taps computed directly from the
+  displayed image landed in the wrong place until the 1.2x factor was applied).
+
+**Not claimed complete**: M22 is explicitly not marked done. Remaining `NATIVE_ANDROID_SPEC.md`
+scope (Units, Tenants, Leases, Maintenance, remaining Owner tabs, Tenant portal, biometric
+`BiometricPrompt` wiring, deep links, push notifications, tablet/foldable adaptive layout, the
+cross-platform design-token codegen step) is specification only, tracked in `TASKS.md` M22 for the
+same one-module-at-a-time vertical-slice approach used here. Updated `TASKS.md`, `apps/android/
+README.md`, and `DECISIONS.md`; nothing in `apps/android/` committed yet at the point this entry was
+written — commits follow immediately after, in small focused batches, per Mohammed's instruction.
+
 ## 2026-08-01 (continued, 4) — Route-group rename completed, a real build bug caught
 
 Mohammed confirmed the `next dev -p 3005` process was safe to stop and instructed it directly.

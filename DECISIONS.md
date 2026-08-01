@@ -227,3 +227,55 @@ until confirmed safe; `pnpm typecheck`/`pnpm lint`/`pnpm --filter admin test` (n
 `.next`) remain the verification path in the meantime.
 
 **Resolved, same day**: Mohammed confirmed and explicitly instructed stopping the process. Re-queried `Get-CimInstance Win32_Process -Filter "Name = 'node.exe'"` to get current PIDs (they'd changed since first discovered), confirmed the exact four-process tree belonging to this `next dev -p 3005` instance by command line (`npx-cli.js next dev -p 3005`, `next/dist/bin/next dev -p 3005`, `start-server.js`, and its `.next/dev/build/*.js` worker) — explicitly filtered OUT the six other unrelated Node processes on the machine (several `vite`/`npm run dev` processes under unrelated `nextgen-*` projects) rather than broadly killing every Node process, since only the exact tree matching this repo's path was in scope. Stopped all four, confirmed port 3005 no longer listening. Completed both renames immediately after (`git mv (dashboard) (super-admin)`, `git mv (portal) (dashboard)`) — both succeeded on the first attempt with the lock cleared. Full build/runtime verification resumed in the same batch (see `WORKLOG.md`).
+
+## 2026-08-01 — M22: Android toolchain gaps found and fixed; JDK 25 incompatibility; two real build bugs
+
+Mohammed confirmed Android Studio had been installed and instructed a full toolchain
+verification, explicitly warning not to assume every component was configured. Investigated
+rather than assumed, per that instruction: Android Studio itself and an SDK directory existed, but
+`cmdline-tools` (needed for `sdkmanager`/`avdmanager`) was entirely missing, and no AVD existed.
+Downloaded and installed `cmdline-tools` (Google's official `commandlinetools-win` zip), used
+`avdmanager` to create `PropertyVault_Pixel7_API35` (no Pixel 8 device profile exists in this
+cmdline-tools version's bundled device list; Pixel 7 is the newest available, a reasonable "recent
+Pixel profile" substitute).
+
+**Real, reproduced JDK incompatibility, not assumed**: Android Studio's bundled JBR is OpenJDK
+25.0.2. Per Mohammed's instruction to prefer the bundled JDK, attempted to use it for
+`gradle wrapper`/all subsequent builds — it failed with `java.lang.IllegalArgumentException:
+25.0.2` inside Gradle 8.7's own bundled Kotlin DSL compiler's `JavaVersion.parse()`, confirmed via
+`--stacktrace`, not guessed. This isn't a project misconfiguration; it's a real version mismatch
+between a very recent JBR and Gradle 8.7's Kotlin-DSL-script-evaluation tooling, which needs to
+parse the running JDK's version and doesn't yet recognize "25.0.2"'s format. Downloaded Eclipse
+Temurin 21 LTS (a widely-supported, known-compatible version for current AGP/Kotlin/Gradle) and
+wired it via `org.gradle.java.home` in `~/.gradle/gradle.properties` — Gradle's own user-level
+config file, not a system-wide `JAVA_HOME`, per the explicit "do not modify system-wide
+environment variables unnecessarily; prefer project-local configuration" instruction. This is
+machine-local by nature (a JDK install path is never portable across machines), so it was
+deliberately kept out of the committed `apps/android/gradle.properties` (which stays project-local
+and portable) and documented instead in `apps/android/README.md`.
+
+**Two real build bugs found and fixed** while getting the first `gradlew assembleDebug` green:
+
+1. Android XML comments reject `--` inside the comment body (`themes.xml`, both launcher-icon
+   vector drawables used the "--" aside style this session has used in every other language
+   throughout the whole project) — a real `mergeDebugResources` failure pointed at the exact file
+   and line; fixed by rewording every affected comment to avoid the sequence.
+
+2. `com.jakewharton.retrofit:retrofit2-kotlinx-serialization-converter:1.0.0` — confirmed present
+   on both the `debugCompileClasspath` and `debugRuntimeClasspath` via `gradlew app:dependencies`,
+   and confirmed via `javap` that the exact class (`KotlinSerializationConverterFactory`) exists in
+   the resolved jar at the expected path — yet the Kotlin compiler reported a persistent
+   "Unresolved reference" that survived a full `--stop`/clean/`--rerun-tasks` cycle. Rather than
+   keep sinking time into an unexplained toolchain issue on a first-time environment, replaced the
+   external dependency with a ~30-line hand-rolled `Converter.Factory`
+   (`SerializationConverterFactory.kt`) built directly on `kotlinx.serialization`'s own public
+   `serializer(java.lang.reflect.Type)` JVM-reflection bridge (`@ExperimentalSerializationApi`,
+   correctly handles generic types like `List<PropertyDto>`) — removing the dependency and the
+   mystery together. Logged as a real, disclosed engineering substitution, not silently done: if a
+   future session with more toolchain-debugging headroom isolates the actual cause, reintroducing
+   the library is a one-file revert (`NetworkModule.kt`'s two call sites plus the removed
+   dependency lines).
+
+Full command-by-command verification record (build, unit tests, lint, real emulator install/
+launch, screenshots in light and dark mode) is in `TASKS.md` M22 and `apps/android/README.md`'s
+"Toolchain status" table, not repeated here.
