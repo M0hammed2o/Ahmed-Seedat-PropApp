@@ -7,3 +7,4 @@ export * from './leasing';
 export * from './operations';
 export * from './accounting';
 export * from './notifications';
+export * from './ai';

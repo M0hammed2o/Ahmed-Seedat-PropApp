@@ -12,3 +12,4 @@ export * from './accounting';
 export * from './notifications';
 export * from './email';
 export * from './whatsapp';
+export * from './ai';

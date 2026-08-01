@@ -282,3 +282,24 @@ export const WHATSAPP_NOTIFICATION_TYPES = [
   'owner_statement_available',
 ] as const;
 export type WhatsAppNotificationType = (typeof WHATSAPP_NOTIFICATION_TYPES)[number];
+
+export const AI_MESSAGE_ROLES = ['user', 'assistant'] as const;
+export type AiMessageRole = (typeof AI_MESSAGE_ROLES)[number];
+
+export const PORTFOLIO_INSIGHT_SEVERITIES = ['info', 'warning', 'urgent'] as const;
+export type PortfolioInsightSeverity = (typeof PORTFOLIO_INSIGHT_SEVERITIES)[number];
+
+// AI_ARCHITECTURE.md §2.2: fixed rule set the Portfolio Intelligence rules engine evaluates --
+// closed list, matching the WhatsApp trigger-list pattern above. Adding an insight type means
+// adding a value here, a rule, and a severity table row (AI_ARCHITECTURE.md §2.4), not a string.
+export const PORTFOLIO_INSIGHT_TYPES = [
+  'rent_overdue',
+  'rent_due_soon',
+  'lease_expiring',
+  'maintenance_open',
+  'invoice_unpaid',
+] as const;
+export type PortfolioInsightType = (typeof PORTFOLIO_INSIGHT_TYPES)[number];
+
+export const USAGE_TYPES = ['storage_bytes', 'email_sent', 'whatsapp_sent', 'ocr_page', 'ai_token'] as const;
+export type UsageType = (typeof USAGE_TYPES)[number];
