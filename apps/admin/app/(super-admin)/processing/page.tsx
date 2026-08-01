@@ -1,19 +1,9 @@
-import { AdminDataTable } from '@/components/ui/AdminDataTable';
+import { ProcessingTable, type ProcessingRow } from '@/components/tables/ProcessingTable';
 import { AdminMetricCard } from '@/components/ui/AdminMetricCard';
 import { requireRole } from '@/lib/auth';
 import { getServiceRoleClient } from '@/lib/supabase/server';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 import { DEMO_OCR_JOBS } from '@/lib/demo/adminMockData';
-
-interface ProcessingRow {
-  id: string;
-  document_id: string;
-  status: string;
-  attempt: number;
-  provider_name: string | null;
-  error_message: string | null;
-  created_at: string;
-}
 
 export default async function ProcessingPage() {
   await requireRole('read_only_admin');
@@ -69,40 +59,7 @@ export default async function ProcessingPage() {
       </div>
 
       <div className="mt-6">
-        <AdminDataTable
-          emptyMessage="No extraction jobs yet."
-          data={data}
-          columns={[
-            { header: 'Document', accessorKey: 'document_id' },
-            {
-              header: 'Status',
-              accessorKey: 'status',
-              cell: (info) => {
-                const status = info.getValue() as string;
-                const tone =
-                  status === 'succeeded'
-                    ? 'text-light-statusPaid dark:text-dark-statusPaid'
-                    : status === 'failed'
-                      ? 'text-light-statusOverdue dark:text-dark-statusOverdue'
-                      : status === 'processing'
-                        ? 'text-light-statusProcessing dark:text-dark-statusProcessing'
-                        : 'text-light-textMuted dark:text-dark-textMuted';
-                return <span className={`text-xs font-semibold ${tone}`}>{status}</span>;
-              },
-            },
-            { header: 'Attempt', accessorKey: 'attempt' },
-            {
-              header: 'Provider',
-              accessorKey: 'provider_name',
-              cell: (info) => info.getValue() ?? '—',
-            },
-            {
-              header: 'Error',
-              accessorKey: 'error_message',
-              cell: (info) => info.getValue() ?? '—',
-            },
-          ]}
-        />
+        <ProcessingTable data={data} />
       </div>
     </div>
   );

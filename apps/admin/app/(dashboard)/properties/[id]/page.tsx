@@ -68,7 +68,7 @@ export default async function PropertyDetailPage({ params }: RouteParams) {
 
       <p className="mt-8 text-xs text-light-textMuted dark:text-dark-textMuted">
         Units, leases, tenants, and maintenance for this property are built at the API layer
-        (TASKS.md M6-M13) but not yet wired into this page — first vertical slice of the (portal)
+        (TASKS.md M6-M13) but not yet wired into this page — first vertical slice of the (dashboard)
         route group, more modules follow the same pattern.
       </p>
     </div>

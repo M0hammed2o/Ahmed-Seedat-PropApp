@@ -4,11 +4,10 @@ import { ADMIN_DEMO_MODE } from './lib/demoMode';
 
 type CookieToSet = { name: string; value: string; options: CookieOptions };
 
-// Every authenticated route prefix, both the (super-admin)-shaped pages (still physically under
-// app/(dashboard) pending the file-level rename ARCHITECTURE.md's naming calls for -- blocked on
-// a live `next dev` process holding a lock on that directory, DECISIONS.md 2026-08-01, not
-// forgotten) and the (portal) client-org-facing pages. One shared list so the matcher config below
-// and the runtime check can't drift out of sync as more portal routes are added.
+// Every authenticated route prefix, both the (super-admin) platform-staff pages and the
+// (dashboard) client-org-facing pages (ARCHITECTURE.md's "Why one web app, not two" naming, both
+// route groups now correctly named -- DECISIONS.md 2026-08-01). One shared list so the matcher
+// config below and the runtime check can't drift out of sync as more routes are added.
 const PROTECTED_ROUTE_PREFIXES = [
   '/overview',
   '/customers',
@@ -68,6 +67,24 @@ export async function middleware(request: NextRequest) {
   return response;
 }
 
+// Next.js's build-time config parser statically analyzes this file without executing it, so
+// `matcher` must be a literal array, never a computed expression (confirmed by a real
+// `next build` failure: "Next.js can't recognize the exported `config` field... matcher needs to
+// be a static string or array of static strings"). Kept in sync with PROTECTED_ROUTE_PREFIXES by
+// hand -- if this list falls behind (a new protected prefix added to PROTECTED_ROUTE_PREFIXES but
+// not here), middleware simply never runs for that path, so this coarse gate silently stops
+// covering it. Not a security hole on its own -- this file's own header comment already treats
+// middleware as defense-in-depth only, with every route handler re-checking `requireRole()`/
+// `requireOrgRole()` itself as the real enforcement -- but it is a real UX gap (an unauthenticated
+// user could reach the page shell before an API call 401s) worth keeping these two lists aligned
+// whenever a new protected route is added.
 export const config = {
-  matcher: PROTECTED_ROUTE_PREFIXES.map((prefix) => `${prefix}/:path*`),
+  matcher: [
+    '/overview/:path*',
+    '/customers/:path*',
+    '/subscriptions/:path*',
+    '/processing/:path*',
+    '/system/:path*',
+    '/properties/:path*',
+  ],
 };

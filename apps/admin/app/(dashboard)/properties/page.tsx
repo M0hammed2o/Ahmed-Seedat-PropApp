@@ -30,7 +30,7 @@ const DEMO_PROPERTIES: Property[] = [
 ];
 
 /**
- * GET /properties -- first page in the (portal) client-org-facing route group (TASKS.md M20).
+ * GET /properties -- first page in the (dashboard) client-org-facing route group (TASKS.md M20).
  * Queries directly through the caller's own session-bound client, same "plain RLS-protected
  * read" pattern GET /api/v1/properties documents (RLS already scopes to the caller's org
  * memberships) -- no org_id filter applied here, which is correct for a single-org user and a
