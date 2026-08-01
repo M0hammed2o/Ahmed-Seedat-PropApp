@@ -1,5 +1,58 @@
 # Worklog
 
+## 2026-08-01 (continued, 2) — Design phase: review, design system rewrite, native platform specs, first implementation slice
+
+Per Mohammed's explicit instruction after M19: paused new feature implementation for a complete
+design review before continuing.
+
+**`DESIGN_REVIEW.md`**: re-opened `IMG_7990.JPG`/`IMG_8023.JPG` from `reference/propview-screenshots/`
+directly to confirm `PROPVIEW_SCREENSHOT_AUDIT.md` §5's existing extraction against real pixels,
+then compared against the two Envato "Property Mobile App UI Kit" listings Mohammed pasted
+in-conversation. Both Envato kits are consumer real-estate marketplace apps — confirmed explicitly
+out of scope for information architecture/user journeys (PropertyVault manages portfolios, it
+doesn't sell listings), extracted only as component-level visual inspiration (shadow/radius
+execution, dark-theme contrast). Produced a per-pattern reuse/modernize/simplify/improve table and
+role-specific experience definitions (Owner/Tenant/Staff/Super Admin) grounded in the real API
+surface built through M19.
+
+**Native platforms — asked before assuming**: confirmed via `MOBILE_ARCHITECTURE_DECISION.md`
+that zero native code exists in this repo, and this session's environment has no Xcode (macOS-only
+requirement) or confirmed Android toolchain. Asked Mohammed directly rather than guessing whether
+to (a) spec-only, (b) write best-effort unverified source anyway, or (c) skip native platforms
+entirely — a real fork where a wrong guess costs either wasted unverifiable code or an
+under-delivered milestone. Answer: spec-only, explicitly not a way of skipping native work.
+Produced `NATIVE_IOS_SPEC.md`/`NATIVE_ANDROID_SPEC.md` to the full depth requested — navigation
+architecture, screen hierarchy, component mapping, HIG/Material-3 compliance, state management,
+offline behaviour (implementing `MOBILE_ARCHITECTURE_DECISION.md` §9 per platform), accessibility,
+animations, notifications (mapped 1:1 to `WHATSAPP.md` §2's 16-value closed type list — one
+server-side dispatch decision fans out to WhatsApp/push/email, no native-only taxonomy invented),
+deep links, biometric auth, and tablet/foldable behaviour — written so a future session with real
+Xcode/Android Studio tooling needs minimal redesign, not as a lesser substitute for the real apps.
+
+**`DESIGN_SYSTEM.md`** rewritten from its Phase-1/single-owner-era version into the component-level
+single source of truth the review calls for: buttons, cards, tables, forms, modals, alerts, empty/
+loading/error states, responsive rules — all grounded in `packages/ui/src/tokens.ts` (unchanged)
+and the primitives that already exist in `apps/admin/components/ui/`.
+
+**First real implementation slice** (web/PWA, continued in parallel per Mohammed's instruction,
+not deferred until the whole design phase finished): `Button`/`EmptyState` components (unit
+tested). While extending `statusPresentation.ts` to cover `OrganizationStatus`, found a real, live
+display bug: `CustomersTable.tsx`'s inline colour map was still keyed on the old PropVault-era
+subscription vocabulary, so every M19-introduced `OrganizationStatus` value except two
+coincidentally-matching names would have rendered unstyled. Fixed with
+`ORGANIZATION_STATUS_PRESENTATION` + a new shared `StatusBadge` component, wired into
+`CustomersTable`/`SubscriptionsTable`/the organization detail page. `OrganizationActionsPanel`
+(new client component) wires M19's activate/suspend/archive/credits endpoints into the
+organization detail page for the first time — the first real UI built against that milestone's
+API layer, role-gated for display (server-side `requireRole()` remains the actual enforcement).
+
+**Verified, in order**: full monorepo `pnpm typecheck`/`pnpm lint` (7/7 packages) after each
+implementation slice. `pnpm --filter admin test` — 32/32 (up from 26/26, +6 new: Button, EmptyState).
+Real `next build` — clean, no new route conflicts (no new API routes this pass, only pages/
+components). Runtime smoke check (`next start`, demo mode): `/overview`, `/customers`,
+`/customers/[id]`, `/subscriptions` all return 200, including through the new StatusBadge
+fallback path for demo mode's legacy status vocabulary.
+
 ## 2026-08-01 (continued) — M19: Super Admin — rename, directory/billing/support-session API, two real bugs found
 
 Continuing autonomously per Mohammed's explicit instruction to complete M19 fully against `SUPER_ADMIN.md`/`API_SPEC.md`/`TASKS.md`, then pause for a design phase before further UI work.

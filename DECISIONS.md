@@ -148,3 +148,40 @@ While wiring the Super Admin plan-management endpoint (`POST /api/v1/admin/plans
 Separately, while wiring the archive action (`POST /api/v1/admin/organizations/:orgId/archive`), found `packages/types/src/enums.ts`'s `ORGANIZATION_STATUSES` was missing `'archived'`, even though the Postgres enum gained that value in migration `20260101000025` (2026-07-31's session). This is the exact same class of drift migration `20260101000025`'s own header comment warned about for the enum itself ("This was never caught before because nothing has ever tried to write 'archived' to this column") — except this time the gap was one level up, in the TypeScript mirror of the enum, not the enum itself. Fixed directly in `enums.ts`, confirmed live post-fix (`select enumlabel from pg_enum where enumtypid = 'public.organization_status'::regtype` returns all 6 values, matching the corrected TS array). General lesson, worth naming for future work: an `ALTER TYPE ... ADD VALUE` migration is not complete until its TypeScript mirror is checked too — the two can drift independently, and neither this session nor the original 2026-07-31 fix caught it until a real write path exercised the missing value.
 
 **Usage-cap enforcement is real but currently a no-op**: `checkAiUsageCap()` sums the org's current-calendar-month `usage_events` (`usage_type = 'ai_token'`) against `plans.feature_limits.aiMonthlyTokenCap` and blocks with `429 ai_usage_cap_exceeded` before calling the LLM provider, per `AI_ARCHITECTURE.md` §4's exact enforcement point. No plan has this key configured yet — real cap numbers are a pricing decision (`SUBSCRIPTIONS.md`), not something to invent here — so an absent/non-numeric cap is treated as unlimited. This means the enforcement code path is real and tested, but will not actually block anyone until Mohammed sets a real number on a real plan.
+
+## 2026-08-01 — Design phase: native platforms specified, not coded; a real display bug found extending the design system
+
+Per Mohammed's explicit instruction after M19: paused new UI implementation for a design review
+(`DESIGN_REVIEW.md`) and design-system rewrite (`DESIGN_SYSTEM.md`) before continuing, comparing
+`reference/propview-screenshots/` against two Envato "Property Mobile App UI Kit" listings
+provided as visual inspiration. Both kits are consumer real-estate marketplace apps — confirmed
+their information architecture and user journeys are out of scope (`PRODUCT_SPEC.md` already
+establishes PropertyVault as portfolio management, not a marketplace); their component-level craft
+(shadow/radius execution, dark-theme contrast handling, filter-panel layout) was extracted as
+inspiration, their actual colours/copy were not copied, matching `PROPVIEW_SCREENSHOT_AUDIT.md`
+§5's existing "do not copy exact hex values" rule extended to the new references.
+
+**Native iOS/Android: specification only, a scope question asked and answered explicitly rather
+than assumed.** `MOBILE_ARCHITECTURE_DECISION.md` confirms zero native code exists in this repo
+and this session's environment has no Xcode (requires macOS — an OS constraint, not a missing
+package) and no confirmed Android toolchain. Rather than silently skip native platforms or
+silently write unverifiable `.swift`/`.kt` source and present it as done, asked Mohammed directly:
+spec-only, best-effort unverified source, or skip entirely. Answer: spec-only, explicitly *not* as
+a way of skipping native platforms — `NATIVE_IOS_SPEC.md`/`NATIVE_ANDROID_SPEC.md` were written to
+the full depth Mohammed specified (navigation, screens, component mapping, HIG/M3 compliance,
+state management, offline, accessibility, animations, notifications, deep links, biometric auth,
+tablet behaviour) precisely so a future session with real Xcode/Android Studio tooling can
+implement against them with minimal redesign, not as a lesser substitute for building the apps.
+
+**A real, live display bug found while extending `statusPresentation.ts`** (not while chasing a
+bug report — found by the design-system work itself, matching this session's pattern of
+verification surfacing real gaps): `CustomersTable.tsx`'s inline `STATUS_TONE` map was still keyed
+on the old PropVault-era per-user subscription vocabulary
+(`active/trialing/grace_period/billing_issue/expired/cancelled`). M19's rebuild (this same day,
+earlier) changed `customers/page.tsx` to pass real `OrganizationStatus` values
+(`trial/active/overdue/suspended/cancelled/archived`) into that same table without updating the
+table's own colour map — every status except the two that happen to share a name
+(`active`/`cancelled`) would have rendered as unstyled plain text. Fixed by adding
+`ORGANIZATION_STATUS_PRESENTATION` (`packages/ui`) and a shared `StatusBadge` component, used by
+`CustomersTable`/`SubscriptionsTable`/the organization detail page, with a defensive fallback for
+demo mode's still-different legacy vocabulary (left as-is — cosmetic-only, not this pass's target).

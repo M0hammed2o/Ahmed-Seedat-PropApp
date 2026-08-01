@@ -202,23 +202,42 @@ Given this milestone's own repeated flagging as the highest-risk single workstre
 - Tests: new `supabase/tests/super_admin_schema.test.sql` (9 assertions — the rename, the EXECUTE-grant regression, both bug-fix regressions). Full regression suite: **176/176 pgTAP assertions across 13 files**. Full monorepo `pnpm typecheck`/`pnpm lint` (7/7 packages), `pnpm --filter admin test` (26/26, unchanged — all new logic this milestone is DB-dependent, covered by pgTAP instead of vitest). Real `next build` — 12 new admin routes + no conflicts. Runtime smoke check (`next start`, demo mode): `/overview`, `/customers`, `/customers/[id]`, `/subscriptions` all return 200 with sensible content; demo-mode branches unchanged as designed. Live-mode branches verified via typecheck + pgTAP + code review, not an end-to-end browser click-through against real org data (no such click-through exists for any admin page in this session; consistent scope boundary, not a gap specific to this milestone).
 - **Exit criteria**: platform-admin rename, dashboard/directory/billing/support-session data layer and API surface, and the two real bug fixes are done and execution-verified. Support-mode's data-scoping enforcement, account recovery, and the three non-ratified endpoints remain open — correctly blocked on either M20 (client-facing UI to enforce against) or an explicit design pass, not guessed at.
 
+## Design phase — 2026-08-01, between M19 and M20
+
+Not a numbered milestone (cross-cutting groundwork Mohammed asked for after M19, before more UI
+work). `DESIGN_REVIEW.md`: full comparison of `reference/propview-screenshots/` against two
+Envato UI-kit references, reuse/modernize/simplify/improve determination per pattern, role-specific
+experience definitions (Owner/Tenant/Staff/Super Admin). `DESIGN_SYSTEM.md`: rewritten from its
+Phase-1/single-owner-era version into the component-level single source of truth (buttons, cards,
+tables, forms, modals, alerts, empty/loading/error states, responsive rules) the design review
+calls for. First real implementation slice: `Button`/`EmptyState`/`StatusBadge` components,
+`ORGANIZATION_STATUS_PRESENTATION` (closing a real display bug the M19 rebuild introduced — see
+`DECISIONS.md`), and `OrganizationActionsPanel` wiring M19's activate/suspend/archive/credits
+endpoints into the organization detail page for the first time. `NATIVE_IOS_SPEC.md`/
+`NATIVE_ANDROID_SPEC.md`: implementation-ready specifications (navigation, screens, component
+mapping, HIG/Material 3 compliance, state management, offline, accessibility, animations,
+notifications, deep links, biometric auth, tablet behaviour) — specification only, no `.swift`/
+`.kt` source, since this environment has no Xcode/confirmed Android toolchain to verify against.
+
 ## M20 — Responsive Web
 
-- [ ] Full web UI pass across every module above that doesn't already have one — this milestone is where `apps/admin` fully becomes `apps/web` (`ARCHITECTURE.md`), reusing retained `AdminDataTable`/`AdminMetricCard`/chart primitives throughout.
+- [ ] Full web UI pass across every module above that doesn't already have one — this milestone is where `apps/admin` fully becomes `apps/web` (`ARCHITECTURE.md`), reusing retained `AdminDataTable`/`AdminMetricCard`/chart primitives throughout, now against `DESIGN_SYSTEM.md`'s completed component-level spec rather than an ad hoc per-page decision.
 - [ ] Simplified Portfolio Map UI (property list on a map, no GIS/heatmap layers — confirmed V1 scope).
-- **Exit criteria**: not started; depends on M4-M19's backend/API work existing to build screens against.
+- **Exit criteria**: not started as a full milestone; first real slice done ahead of schedule (design-phase `OrganizationActionsPanel` wiring) — design system and role-experience groundwork are no longer a blocker for starting the rest.
 
 ## M21 — Native iOS
 
+- [x] Implementation-ready design specification (`NATIVE_IOS_SPEC.md`, 2026-08-01) — navigation architecture, screen hierarchy, component mapping, HIG compliance, state management, offline behaviour, accessibility, animations, notifications, deep links, biometric auth, tablet behaviour.
 - [ ] Xcode project scaffold, Swift/SwiftUI, Supabase Swift SDK, Keychain-backed auth (`MOBILE_ARCHITECTURE_DECISION.md`).
 - [ ] Role-aware navigation shell (portal switcher), biometric re-auth gate for sensitive actions (`SECURITY.md` § Auth).
-- [ ] Screens per `MOBILE_ARCHITECTURE_DECISION.md` §6, Maintenance flow first (explicit master-prompt priority).
-- **Exit criteria**: not started; from-zero build, no existing native project.
+- [ ] Screens per `NATIVE_IOS_SPEC.md` §3/§4, Maintenance flow first (explicit master-prompt priority).
+- **Exit criteria**: specification done and execution-verified as a document (self-consistent, cross-referenced, grounded in the real M4-M19 API surface). Actual Xcode build: not started; blocked on an environment with Xcode (requires macOS), not on more specification.
 
 ## M22 — Native Android
 
+- [x] Implementation-ready design specification (`NATIVE_ANDROID_SPEC.md`, 2026-08-01) — mirrors M21's spec scope with Kotlin/Compose/Material-3-specific detail.
 - [ ] Mirror M21 in Kotlin/Jetpack Compose, Supabase Kotlin SDK, Keystore-backed auth.
-- **Exit criteria**: not started; from-zero build, no existing native project.
+- **Exit criteria**: specification done. Actual build: not started; blocked on a confirmed Android SDK/Gradle toolchain, not on more specification.
 
 ## M23 — Automated testing
 
