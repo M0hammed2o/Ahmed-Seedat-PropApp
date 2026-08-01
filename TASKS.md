@@ -159,18 +159,21 @@ Given this milestone's own repeated flagging as the highest-risk single workstre
 
 ## M16 — Email
 
-- [ ] Schema: `email_messages`, `email_suppressions` (`DATABASE.md` §7).
-- [ ] `EmailProvider` interface + `MockEmailProvider` (`EMAIL.md` §2) — full send/track/audit UI built and tested against the mock before any real account exists.
+- [x] Schema: `email_messages`, `email_suppressions` (migration `20260101000040`, 2026-07-31, `DATABASE.md` §7). RLS: org-staff SELECT only, zero client write policy on either table (writes are server-only via `service_role`).
+- [x] `EmailProvider` interface (`packages/types/src/email.ts`) + `MockEmailProvider` (`apps/admin/lib/providers/email.ts`, `EMAIL.md` §2) — always returns `status: 'queued'`, never simulates further progression, matching `EMAIL.md`'s rule that `email_messages.status` is read as delivery proof, not assumed.
 - [ ] Real provider account — **external-service blocker**, not attempted by this session.
-- **Exit criteria**: mock-provider path complete is the achievable exit criteria until a real account is provisioned.
+- [ ] Send-triggering wiring into product events (invoice issued, payment confirmed, etc.) — not started; the provider/schema layer is built but nothing calls it yet.
+- **Exit criteria**: mock-provider path (schema + interface + mock, unit-tested) is complete and execution-verified. Real send-triggering and a live vendor account remain open.
 
 ## M17 — WhatsApp
 
-- [ ] Schema: `whatsapp_messages`, `verified_phone_numbers`, `whatsapp_conversation_state` (`DATABASE.md` §7).
-- [ ] Resolution algorithm (§1.2), fixed trigger-list dispatcher (§2), `WhatsAppProvider` interface + `MockWhatsAppProvider` (`WHATSAPP.md` §5).
+- [x] Schema: `whatsapp_messages`, `verified_phone_numbers`, `whatsapp_conversation_state` (migration `20260101000040`, 2026-07-31, `DATABASE.md` §7). `verified_phone_numbers`/`whatsapp_conversation_state` have RLS enabled with zero client policies (deny-all by design — resolution is server-side only).
+- [x] Resolution algorithm (§1.2): `resolve_whatsapp_sender()` security-definer function implementing all 3 branches (0 matches = unauthenticated, 1 = resolved, 2+ = ambiguous), verified with a real two-owner-type-same-number fixture, not assumed. **Security fix required and applied before shipping** — see `DECISIONS.md` 2026-07-31 and `RISK_REGISTER.md`: `EXECUTE` was revoked from `anon`/`authenticated`, closing a cross-tenant phone-number-lookup vulnerability inherited from migration 024's default-privilege grant.
+- [x] `WhatsAppProvider` interface (`packages/types/src/whatsapp.ts`) + `MockWhatsAppProvider` (`apps/admin/lib/providers/whatsapp.ts`, `WHATSAPP.md` §5) — deterministic synchronous responses; the timer-based queued→sent→delivered lifecycle simulation `WHATSAPP.md` §5 describes is deliberately not implemented since nothing consumes it yet (no webhook route or scheduled job wired in).
+- [ ] Fixed trigger-list dispatcher (§2) — not started; `WhatsAppNotificationType` enum (16 values, `packages/types/src/enums.ts`) is defined but no dispatcher calls it.
 - [ ] OTP verification flow populating `verified_phone_numbers` — flagged as not yet designed (`WHATSAPP.md` Unresolved).
-- [ ] Real BSP account — **external-service blocker**, not attempted by this session.
-- **Exit criteria**: mock-provider path + resolution algorithm complete is the achievable exit criteria until a real account is provisioned.
+- [ ] Real BSP account and webhook signature verification — **external-service blocker**, not attempted by this session.
+- **Exit criteria**: mock-provider path + resolution algorithm (schema, RLS, resolution function with its security fix, mock provider, unit- and pgTAP-tested) is complete and execution-verified. Dispatcher wiring, OTP flow, and a live BSP account remain open.
 
 ## M18 — AI
 
