@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { requireRole } from '@/lib/auth';
 import { getServiceRoleClient } from '@/lib/supabase/server';
+import { getPlatformOrganizationDetail } from '@/lib/superAdmin';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 import { DEMO_CUSTOMERS } from '@/lib/demo/adminMockData';
 
@@ -75,60 +76,69 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
   }
 
   const supabase = getServiceRoleClient();
-  const { data: profile } = await supabase.from('profiles').select('*').eq('id', id).maybeSingle();
-  if (!profile) notFound();
-
-  const [{ count: propertyCount }, { count: documentCount }, { data: subscription }] =
-    await Promise.all([
-      supabase
-        .from('properties')
-        .select('id', { count: 'exact', head: true })
-        .eq('owner_user_id', id),
-      supabase
-        .from('documents')
-        .select('id', { count: 'exact', head: true })
-        .eq('owner_user_id', id),
-      supabase.from('subscriptions').select('*').eq('owner_user_id', id).maybeSingle(),
-    ]);
+  const detail = await getPlatformOrganizationDetail(supabase, id);
+  if (!detail) notFound();
 
   return (
     <div>
       <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">
-        {profile.display_name || 'Customer'}
+        {detail.legalName}
       </h1>
-      <p className="mt-1 text-xs text-light-textMuted dark:text-dark-textMuted">{profile.id}</p>
+      <p className="mt-1 text-xs text-light-textMuted dark:text-dark-textMuted">{detail.orgId}</p>
 
       <dl className="mt-6 grid grid-cols-2 gap-4 text-sm lg:grid-cols-4">
         <div>
           <dt className="text-light-textMuted dark:text-dark-textMuted">Registered</dt>
           <dd className="text-light-textPrimary dark:text-dark-textPrimary">
-            {new Date(profile.created_at).toLocaleDateString()}
+            {new Date(detail.createdAt).toLocaleDateString()}
           </dd>
         </div>
         <div>
           <dt className="text-light-textMuted dark:text-dark-textMuted">Properties</dt>
           <dd className="text-light-textPrimary dark:text-dark-textPrimary">
-            {propertyCount ?? 0}
+            {detail.propertiesCount}
           </dd>
         </div>
         <div>
-          <dt className="text-light-textMuted dark:text-dark-textMuted">Documents</dt>
+          <dt className="text-light-textMuted dark:text-dark-textMuted">Units</dt>
           <dd className="text-light-textPrimary dark:text-dark-textPrimary">
-            {documentCount ?? 0}
+            {detail.unitsCount}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-light-textMuted dark:text-dark-textMuted">Tenants</dt>
+          <dd className="text-light-textPrimary dark:text-dark-textPrimary">
+            {detail.tenantsCount}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-light-textMuted dark:text-dark-textMuted">Staff</dt>
+          <dd className="text-light-textPrimary dark:text-dark-textPrimary">
+            {detail.staffCount}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-light-textMuted dark:text-dark-textMuted">Plan</dt>
+          <dd className="text-light-textPrimary dark:text-dark-textPrimary">
+            {detail.planName ?? '—'}
           </dd>
         </div>
         <div>
           <dt className="text-light-textMuted dark:text-dark-textMuted">Subscription</dt>
           <dd className="text-light-textPrimary dark:text-dark-textPrimary">
-            {subscription?.status ?? 'unknown'}
+            {detail.subscriptionStatus ?? 'unknown'}
           </dd>
+        </div>
+        <div>
+          <dt className="text-light-textMuted dark:text-dark-textMuted">Account status</dt>
+          <dd className="text-light-textPrimary dark:text-dark-textPrimary">{detail.status}</dd>
         </div>
       </dl>
 
       <p className="mt-8 text-xs text-light-textMuted dark:text-dark-textMuted">
-        Suspend/reactivate, admin notes, and raw document access are architected
-        (ADMIN_DASHBOARD.md, SECURITY.md) but not yet wired to a mutating action in Phase 1 —
-        tracked in TODO.md.
+        Activate/suspend/archive, plan/price/discount changes, credits, and support-session entry
+        are built (TASKS.md M19) but not yet wired to buttons on this page — that UI work is
+        scoped to the post-M19 design phase, not a data-layer gap.
       </p>
     </div>
   );

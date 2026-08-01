@@ -1,52 +1,29 @@
-import Link from 'next/link';
-import { AdminDataTable } from '@/components/ui/AdminDataTable';
+import { CustomersTable, type CustomerRow } from '@/components/tables/CustomersTable';
 import { requireRole } from '@/lib/auth';
 import { getServiceRoleClient } from '@/lib/supabase/server';
+import { listPlatformOrganizations } from '@/lib/superAdmin';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 import { DEMO_CUSTOMERS } from '@/lib/demo/adminMockData';
 
-interface CustomerRow {
-  id: string;
-  displayName: string | null;
-  createdAt: string;
-  propertyCount: number;
-  subscriptionStatus?: string;
-}
-
+/**
+ * Rebuilt for TASKS.md M19 (SUPER_ADMIN.md §3): rows are client organizations, not individual
+ * owner-operator `profiles` rows. This also resolves TECHNICAL_DEBT_REGISTER.md TD-16 /
+ * RISK_REGISTER.md R-21's real, confirmed bug for this page specifically -- the old query joined
+ * on `properties.owner_user_id`, which every property created through the real M6
+ * `POST /api/v1/properties` route leaves null (properties are org-scoped now, not
+ * owner_user_id-scoped), so it silently undercounted every org's properties. The new query never
+ * references `owner_user_id` at all.
+ */
 async function getCustomers(): Promise<CustomerRow[]> {
-  const supabase = getServiceRoleClient();
-  const { data: profiles } = await supabase
-    .from('profiles')
-    .select('id, display_name, created_at')
-    .order('created_at', { ascending: false })
-    .limit(50);
-
-  if (!profiles) return [];
-
-  const rows: CustomerRow[] = [];
-  for (const profile of profiles) {
-    const { count } = await supabase
-      .from('properties')
-      .select('id', { count: 'exact', head: true })
-      .eq('owner_user_id', profile.id);
-    rows.push({
-      id: profile.id,
-      displayName: profile.display_name,
-      createdAt: profile.created_at,
-      propertyCount: count ?? 0,
-    });
-  }
-  return rows;
+  const summaries = await listPlatformOrganizations(getServiceRoleClient(), {}, { limit: 50, beforeFilter: null });
+  return summaries.map((org) => ({
+    id: org.orgId,
+    displayName: org.legalName,
+    createdAt: org.createdAt,
+    propertyCount: org.propertiesCount,
+    subscriptionStatus: org.subscriptionStatus ?? undefined,
+  }));
 }
-
-const STATUS_TONE: Record<string, string> = {
-  active: 'text-light-statusPaid dark:text-dark-statusPaid',
-  trialing: 'text-light-statusProcessing dark:text-dark-statusProcessing',
-  grace_period: 'text-light-statusNeedsReview dark:text-dark-statusNeedsReview',
-  billing_issue: 'text-light-statusOverdue dark:text-dark-statusOverdue',
-  expired: 'text-light-textMuted dark:text-dark-textMuted',
-  cancelled: 'text-light-textMuted dark:text-dark-textMuted',
-};
 
 export default async function CustomersPage() {
   await requireRole('read_only_admin');
@@ -65,7 +42,7 @@ export default async function CustomersPage() {
     <div>
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">
-          Customers
+          Client Directory
         </h1>
         {ADMIN_DEMO_MODE ? (
           <span className="rounded-full border border-light-accent px-3 py-1 text-xs font-semibold text-light-accent dark:border-dark-accent dark:text-dark-accent">
@@ -74,48 +51,11 @@ export default async function CustomersPage() {
         ) : null}
       </div>
       <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
-        {customers.length} {ADMIN_DEMO_MODE ? 'customers' : 'most recently registered customers'}.
+        {customers.length} {ADMIN_DEMO_MODE ? 'client organizations' : 'most recently registered client organizations'}.
       </p>
 
       <div className="mt-6">
-        <AdminDataTable
-          emptyMessage="No customers registered yet."
-          data={customers}
-          columns={[
-            {
-              header: 'Customer',
-              accessorKey: 'id',
-              cell: (info) => (
-                <Link
-                  href={`/customers/${info.row.original.id}`}
-                  className="text-light-accent hover:underline dark:text-dark-accent"
-                >
-                  {info.row.original.displayName || info.row.original.id.slice(0, 8)}
-                </Link>
-              ),
-            },
-            { header: 'Properties', accessorKey: 'propertyCount' },
-            {
-              header: 'Subscription',
-              accessorKey: 'subscriptionStatus',
-              cell: (info) => {
-                const status = info.getValue() as string | undefined;
-                if (!status)
-                  return <span className="text-light-textMuted dark:text-dark-textMuted">—</span>;
-                return (
-                  <span className={`text-xs font-semibold ${STATUS_TONE[status] ?? ''}`}>
-                    {status.replace('_', ' ')}
-                  </span>
-                );
-              },
-            },
-            {
-              header: 'Registered',
-              accessorKey: 'createdAt',
-              cell: (info) => new Date(info.getValue() as string).toLocaleDateString(),
-            },
-          ]}
-        />
+        <CustomersTable data={customers} />
       </div>
     </div>
   );

@@ -1,41 +1,42 @@
-import { AdminDataTable } from '@/components/ui/AdminDataTable';
+import { SubscriptionsTable, type SubscriptionRow } from '@/components/tables/SubscriptionsTable';
 import { requireRole } from '@/lib/auth';
 import { getServiceRoleClient } from '@/lib/supabase/server';
+import { listPlatformOrganizations } from '@/lib/superAdmin';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 import { DEMO_CUSTOMERS } from '@/lib/demo/adminMockData';
 
-interface SubscriptionRow {
-  id: string;
-  owner_user_id: string;
-  plan_id: string;
-  status: string;
-  platform: string;
-  renewal_or_expiry_date: string | null;
-}
-
+/**
+ * Rebuilt for TASKS.md M19 (SUPER_ADMIN.md §3/§5): reads organization_subscriptions/plans, not
+ * the old per-user `subscriptions` table -- see SubscriptionsTable.tsx's own note. Demo mode
+ * keeps using DEMO_CUSTOMERS (adapted to the new row shape here) since it's cosmetic-only demo
+ * data, not the real data path this milestone's fix targets.
+ */
 export default async function SubscriptionsPage() {
   await requireRole('read_only_admin');
 
   const data: SubscriptionRow[] = ADMIN_DEMO_MODE
     ? DEMO_CUSTOMERS.map((c) => ({
-        id: c.id,
-        owner_user_id: c.id,
-        plan_id: 'propvault_base',
-        status: c.subscriptionStatus,
-        platform: c.id.charCodeAt(5) % 2 === 0 ? 'ios' : 'android',
-        renewal_or_expiry_date: new Date(
+        orgId: c.id,
+        legalName: c.displayName,
+        planName: 'PropertyVault Base',
+        effectivePrice: 499,
+        discountPct: null,
+        subscriptionStatus: c.subscriptionStatus,
+        currentPeriodEnd: new Date(
           new Date(c.createdAt).getTime() + 30 * 24 * 60 * 60 * 1000,
         ).toISOString(),
       }))
-    : ((
-        await getServiceRoleClient()
-          .from('subscriptions')
-          .select(
-            'id, owner_user_id, plan_id, status, platform, renewal_or_expiry_date, last_synced_at',
-          )
-          .order('updated_at', { ascending: false })
-          .limit(50)
-      ).data ?? []);
+    : (
+        await listPlatformOrganizations(getServiceRoleClient(), {}, { limit: 50, beforeFilter: null })
+      ).map((org) => ({
+        orgId: org.orgId,
+        legalName: org.legalName,
+        planName: org.planName,
+        effectivePrice: org.effectivePrice,
+        discountPct: org.discountPct,
+        subscriptionStatus: org.subscriptionStatus,
+        currentPeriodEnd: org.currentPeriodEnd,
+      }));
 
   return (
     <div>
@@ -50,33 +51,11 @@ export default async function SubscriptionsPage() {
         ) : null}
       </div>
       <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
-        No admin action here can set an active paid entitlement directly — see DECISIONS.md.
+        Plan/price/discount changes and credits are issued from an organization's detail page, not
+        here — see DECISIONS.md.
       </p>
       <div className="mt-6">
-        <AdminDataTable
-          emptyMessage="No subscriptions recorded yet."
-          data={data}
-          columns={[
-            {
-              header: 'Customer',
-              accessorKey: 'owner_user_id',
-              cell: (info) => (info.getValue() as string).slice(0, 8),
-            },
-            { header: 'Plan', accessorKey: 'plan_id' },
-            {
-              header: 'Status',
-              accessorKey: 'status',
-              cell: (info) => (info.getValue() as string).replace('_', ' '),
-            },
-            { header: 'Platform', accessorKey: 'platform' },
-            {
-              header: 'Renews / expires',
-              accessorKey: 'renewal_or_expiry_date',
-              cell: (info) =>
-                info.getValue() ? new Date(info.getValue() as string).toLocaleDateString() : '—',
-            },
-          ]}
-        />
+        <SubscriptionsTable data={data} />
       </div>
     </div>
   );

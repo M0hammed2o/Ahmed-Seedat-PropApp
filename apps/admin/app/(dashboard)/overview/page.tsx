@@ -4,6 +4,7 @@ import { MiniLineChart } from '@/components/ui/MiniLineChart';
 import { MiniBarChart } from '@/components/ui/MiniBarChart';
 import { requireRole } from '@/lib/auth';
 import { getServiceRoleClient } from '@/lib/supabase/server';
+import { computePlatformMetrics } from '@/lib/superAdmin';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 import {
   DEMO_ACTIVITY,
@@ -12,25 +13,6 @@ import {
   DEMO_SIGNUP_SERIES,
   DEMO_SYSTEM_HEALTH,
 } from '@/lib/demo/adminMockData';
-
-async function getLiveCounts() {
-  const supabase = getServiceRoleClient();
-  const [customers, properties, documents, subscriptionsActive] = await Promise.all([
-    supabase.from('profiles').select('id', { count: 'exact', head: true }),
-    supabase.from('properties').select('id', { count: 'exact', head: true }),
-    supabase.from('documents').select('id', { count: 'exact', head: true }),
-    supabase
-      .from('subscriptions')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'active'),
-  ]);
-  return {
-    customers: customers.count ?? 0,
-    properties: properties.count ?? 0,
-    documents: documents.count ?? 0,
-    activeSubscriptions: subscriptionsActive.count ?? 0,
-  };
-}
 
 export default async function OverviewPage() {
   await requireRole('read_only_admin');
@@ -178,7 +160,7 @@ export default async function OverviewPage() {
     );
   }
 
-  const counts = await getLiveCounts();
+  const metrics = await computePlatformMetrics(getServiceRoleClient());
 
   return (
     <div>
@@ -186,15 +168,49 @@ export default async function OverviewPage() {
         Overview
       </h1>
       <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
-        Live counts from the database. Integrations not yet connected in Phase 1 are shown
+        Live, computed-on-read platform metrics (SUPER_ADMIN.md §2.1) — not yet backed by a
+        scheduled snapshot (TECHNICAL_DEBT_REGISTER.md TD-24), so this query re-runs on every
+        page load rather than reading a cached rollup. Integrations not yet connected are shown
         explicitly below rather than displaying fabricated numbers.
       </p>
 
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <AdminMetricCard label="Registered customers" value={counts.customers} />
-        <AdminMetricCard label="Active subscribers" value={counts.activeSubscriptions} />
-        <AdminMetricCard label="Total properties" value={counts.properties} />
-        <AdminMetricCard label="Total documents" value={counts.documents} />
+        <AdminMetricCard label="Total organizations" value={metrics.totalOrganizations} />
+        <AdminMetricCard label="New this month" value={metrics.newOrganizationsThisMonth} />
+        <AdminMetricCard label="MRR" value={`R${metrics.mrr.toLocaleString('en-ZA')}`} />
+        <AdminMetricCard label="ARR" value={`R${metrics.arr.toLocaleString('en-ZA')}`} />
+        <AdminMetricCard
+          label="Revenue this month"
+          value={`R${metrics.revenueThisMonth.toLocaleString('en-ZA')}`}
+        />
+        <AdminMetricCard
+          label="Outstanding revenue"
+          value={`R${metrics.outstandingRevenue.toLocaleString('en-ZA')}`}
+        />
+        <AdminMetricCard
+          label="Failed payments"
+          value={metrics.failedPaymentsCount}
+          hint={metrics.failedPaymentsCount > 0 ? 'Needs attention' : undefined}
+        />
+        <AdminMetricCard
+          label="Avg revenue / client"
+          value={`R${metrics.averageRevenuePerClient.toLocaleString('en-ZA')}`}
+        />
+        <AdminMetricCard label="Total properties" value={metrics.totalProperties} />
+        <AdminMetricCard label="Total units" value={metrics.totalUnits} />
+        <AdminMetricCard label="Total owners" value={metrics.totalOwners} />
+        <AdminMetricCard label="Total tenants" value={metrics.totalTenants} />
+        <AdminMetricCard label="Active staff" value={metrics.totalActiveStaff} />
+        <AdminMetricCard label="Credits issued" value={`R${metrics.totalCreditsIssued.toLocaleString('en-ZA')}`} />
+      </div>
+
+      <div className="mt-8 grid grid-cols-2 gap-3 rounded-lg border border-light-border bg-light-surfaceRaised p-4 text-sm dark:border-dark-border dark:bg-dark-surfaceRaised lg:grid-cols-4">
+        {Object.entries(metrics.organizationsByStatus).map(([status, count]) => (
+          <div key={status}>
+            <dt className="text-light-textMuted dark:text-dark-textMuted capitalize">{status}</dt>
+            <dd className="text-light-textPrimary dark:text-dark-textPrimary">{count}</dd>
+          </div>
+        ))}
       </div>
 
       <div className="mt-8 rounded-lg border border-light-border bg-light-surfaceRaised px-4 dark:border-dark-border dark:bg-dark-surfaceRaised">
