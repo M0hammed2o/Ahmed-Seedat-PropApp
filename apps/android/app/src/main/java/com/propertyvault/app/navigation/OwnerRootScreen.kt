@@ -21,6 +21,8 @@ import androidx.navigation.compose.rememberNavController
 import com.propertyvault.app.ui.dashboard.DashboardScreen
 import com.propertyvault.app.ui.properties.PropertiesListScreen
 import com.propertyvault.app.ui.properties.PropertyDetailScreen
+import com.propertyvault.app.ui.units.UnitDetailScreen
+import com.propertyvault.app.ui.units.UnitsListScreen
 
 private data class BottomNavItem(val route: String, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
 
@@ -75,8 +77,24 @@ fun OwnerRootScreen() {
                     },
                 )
             }
-            composable(Destinations.PROPERTY_DETAIL) {
-                PropertyDetailScreen(onBack = { navController.popBackStack() })
+            composable(Destinations.PROPERTY_DETAIL) { backStackEntry ->
+                val propertyId = checkNotNull(backStackEntry.arguments?.getString("propertyId"))
+                PropertyDetailScreen(
+                    onBack = { navController.popBackStack() },
+                    onViewUnits = { navController.navigate(Destinations.unitsList(propertyId)) },
+                )
+            }
+            composable(Destinations.UNITS_LIST) { backStackEntry ->
+                val propertyId = checkNotNull(backStackEntry.arguments?.getString("propertyId"))
+                UnitsListScreen(
+                    onBack = { navController.popBackStack() },
+                    onUnitClick = { unitId ->
+                        navController.navigate(Destinations.unitDetail(propertyId, unitId))
+                    },
+                )
+            }
+            composable(Destinations.UNIT_DETAIL) {
+                UnitDetailScreen(onBack = { navController.popBackStack() })
             }
         }
     }

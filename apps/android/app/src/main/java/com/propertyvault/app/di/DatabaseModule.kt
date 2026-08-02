@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import com.propertyvault.app.data.local.PropertyDao
 import com.propertyvault.app.data.local.PropertyVaultDatabase
+import com.propertyvault.app.data.local.UnitDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -17,8 +18,13 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): PropertyVaultDatabase =
-        Room.databaseBuilder(context, PropertyVaultDatabase::class.java, "propertyvault.db").build()
+        Room.databaseBuilder(context, PropertyVaultDatabase::class.java, "propertyvault.db")
+            .fallbackToDestructiveMigration()
+            .build()
 
     @Provides
     fun providePropertyDao(database: PropertyVaultDatabase): PropertyDao = database.propertyDao()
+
+    @Provides
+    fun provideUnitDao(database: PropertyVaultDatabase): UnitDao = database.unitDao()
 }

@@ -11,6 +11,10 @@ object Destinations {
     const val DASHBOARD = "dashboard"
     const val PROPERTIES_LIST = "properties"
     const val PROPERTY_DETAIL = "properties/{propertyId}"
+    const val UNITS_LIST = "properties/{propertyId}/units"
+    const val UNIT_DETAIL = "properties/{propertyId}/units/{unitId}"
 
     fun propertyDetail(propertyId: String) = "properties/$propertyId"
+    fun unitsList(propertyId: String) = "properties/$propertyId/units"
+    fun unitDetail(propertyId: String, unitId: String) = "properties/$propertyId/units/$unitId"
 }

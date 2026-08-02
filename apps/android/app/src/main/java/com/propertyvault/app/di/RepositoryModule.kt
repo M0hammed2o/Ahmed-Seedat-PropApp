@@ -7,6 +7,9 @@ import com.propertyvault.app.data.auth.SupabaseAuthRepository
 import com.propertyvault.app.data.properties.MockPropertiesRepository
 import com.propertyvault.app.data.properties.PostgrestPropertiesRepository
 import com.propertyvault.app.data.properties.PropertiesRepository
+import com.propertyvault.app.data.units.MockUnitsRepository
+import com.propertyvault.app.data.units.PostgrestUnitsRepository
+import com.propertyvault.app.data.units.UnitsRepository
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -24,6 +27,13 @@ object RepositoryModule {
         real: PostgrestPropertiesRepository,
         mock: MockPropertiesRepository,
     ): PropertiesRepository = if (BuildConfig.USE_MOCK_DATA) mock else real
+
+    @Provides
+    @Singleton
+    fun provideUnitsRepository(
+        real: PostgrestUnitsRepository,
+        mock: MockUnitsRepository,
+    ): UnitsRepository = if (BuildConfig.USE_MOCK_DATA) mock else real
 
     @Provides
     @Singleton

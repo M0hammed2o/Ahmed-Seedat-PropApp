@@ -1,5 +1,30 @@
 # Worklog
 
+## 2026-08-01 (continued, 23) — Android: Units vertical slice (priority 12)
+
+Second Android module, same one-module-at-a-time pattern Properties established. View-only
+(`MOBILE_ARCHITECTURE_DECISION.md` §6), reached from a new "View units" button on Property Detail
+rather than a bottom-nav tab -- units only make sense in a property's context, matching
+`apps/admin`'s own original build order (org-wide `/units` came later there too).
+
+Mirrored Properties' full stack: `PropertyUnit` domain model (named to dodge Kotlin's own `Unit`
+type), `UnitDto`/`UnitEntity`/`UnitDao` (Room cache scoped to `propertyId`, a `replaceForProperty()`
+transaction rather than `PropertyDao`'s whole-table `replaceAll()` since a units read never spans
+more than one property), `PostgrestUnitsRepository` (real, same write-through-cache-then-fallback
+shape as its Properties counterpart) + `MockUnitsRepository` (2 fixture units under
+`demo-property-1`, the same id the Properties fixture uses, so the demo click-through is coherent
+end to end), never mixed. `PropertyVaultDatabase` bumped 1 -> 2 with `fallbackToDestructiveMigration()`
+-- acceptable, this is a read-through cache, never a source of truth. Two new routes added to the
+existing shared NavHost in `OwnerRootScreen` (no new nested graph needed).
+
+Tests: `MockUnitsRepositoryTest` (4), `UnitsListViewModelTest` (4, same dispatcher pattern
+`PropertiesListViewModelTest` already established). Verified with real Gradle runs (not claimed
+without command output): `gradlew testDebugUnitTest` -- BUILD SUCCESSFUL, 15/15 unit tests across
+the whole module passing; `gradlew assembleDebug` -- BUILD SUCCESSFUL, real ~20.7MB debug APK;
+`gradlew lintDebug` -- 0 errors, 55 warnings, identical to the pre-existing baseline. Not run this
+pass: install/launch on a device or emulator, or a light/dark screenshot pass -- the first
+vertical slice's own bar included those; this pass's actual verification is build+test+lint.
+
 ## 2026-08-01 (continued, 22) — UI consistency audit (priority 11): loading-state gaps closed
 
 Audited every `(dashboard)`/`(super-admin)`/`(tenant)` page against `DESIGN_SYSTEM.md`'s per-module
