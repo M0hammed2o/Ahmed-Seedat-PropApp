@@ -1,5 +1,25 @@
 # Worklog
 
+## 2026-08-01 (continued, 18) — Reports module (priority 6)
+
+Built the 4 report cards `PROPVIEW_SCREENSHOT_AUDIT.md` evidences (IMG_7991-7995) exactly: Income
+vs Expense Trend, Occupancy by Property, Tenant Payment Status, Maintenance by Status, each with a
+matching empty state + CTA (moved up from its original M25 launch-checkpoint slot into this M20
+pass, per Mohammed's restated priority order).
+
+Income/expense trend uses month-bucketed sums of paid `rent_schedules`/recorded `expenses` rather
+than a `journal_lines`/`chart_of_accounts` join — Trial Balance already is the general-ledger
+report; this card is the simpler evidenced "trend" view, and building a second ledger-accurate
+report would be duplicate, unrequested complexity. Reused the existing dependency-free
+`MiniLineChart`/`MiniBarChart` components (already used by the Super Admin overview dashboard)
+rather than adding a charting library.
+
+No migrations, no new tests (read-only report page, no role gate — viewer+ already see everything
+it queries via existing RLS, same as every list page).
+
+Verified: admin typecheck/lint (clean), full test suite (103/103, unchanged as expected), real
+`next build` clean, demo-mode smoke test confirming all 4 cards render real content.
+
 ## 2026-08-01 (continued, 17) — Payments/bank-matching V1 slice (priority 4)
 
 Web UI for the M14-part-2 bank accounts/transactions API, which already existed and needed no

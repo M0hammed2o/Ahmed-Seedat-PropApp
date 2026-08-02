@@ -275,7 +275,7 @@ notifications, deep links, biometric auth, tablet behaviour) — specification o
 
 - [ ] Full security review pass against `SECURITY.md` — demo-mode bypass fix verified in production config, not just documented; rate limiting backing store wired; dependency-vulnerability scanning confirmed in CI.
 - [ ] `PRODUCT_SPEC.md` reconciled against actual shipped state (every module's V1/V2 marker and design-doc pointer still accurate).
-- [ ] Reports module (rent roll, occupancy, income/expense trend — evidenced modules from `PROPVIEW_SCREENSHOT_AUDIT.md`) not otherwise covered by an earlier milestone.
+- [x] **Reports module, 2026-08-01** (moved up to TASKS.md M20 as part of Mohammed's restated priority order): `/reports` — the 4 report cards `PROPVIEW_SCREENSHOT_AUDIT.md` evidences exactly (Income vs Expense Trend, Occupancy by Property, Tenant Payment Status, Maintenance by Status), each with a matching empty state + CTA. Income/expense is a month-bucketed sum of paid `rent_schedules`/recorded `expenses`, not a general-ledger (journal_lines) report — Trial Balance already covers that; this is the simpler evidenced "trend" view. Dependency-free `MiniLineChart`/`MiniBarChart` (already used by the Super Admin overview dashboard), no new charting library. Verified: admin typecheck/lint/test (103/103) and real `next build` clean, demo-mode smoke test confirming all 4 cards render.
 - **Exit criteria**: not started; this is the launch-readiness checkpoint, not a discrete feature.
 
 ---
