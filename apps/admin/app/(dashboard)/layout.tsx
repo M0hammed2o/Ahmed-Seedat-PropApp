@@ -1,35 +1,85 @@
 import { redirect } from 'next/navigation';
-import Link from 'next/link';
+import {
+  LayoutDashboard,
+  BarChart3,
+  Building2,
+  DoorOpen,
+  UserCog,
+  Users,
+  FileSignature,
+  ClipboardList,
+  Wrench,
+  ClipboardCheck,
+  Receipt,
+  Wallet,
+  Landmark,
+  ArrowLeftRight,
+  Scale,
+  FileText,
+  Bell,
+  Megaphone,
+} from 'lucide-react';
 import { resolvePortalSession } from '@/lib/orgSession';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
+import { AppShell, type NavSection } from '@/components/shell/AppShell';
+import { navIcon } from '@/components/shell/navIcon';
 
 // Client-org-facing route group, matching ARCHITECTURE.md's "Why one web app, not two" naming
 // exactly (`app/(dashboard)/**` for client orgs, `app/(super-admin)/**` for platform staff).
-// Originally built at `(portal)` because a then-running `next dev` process held a lock on this
-// directory (it was occupied by the Super Admin pages, built here in M19 before this naming
-// distinction was caught) -- renamed to its correct final name once that process was stopped,
-// see DECISIONS.md 2026-08-01.
 export const dynamic = 'force-dynamic';
 
-const NAV_ITEMS = [
-  { href: '/dashboard', label: 'Dashboard' },
-  { href: '/reports', label: 'Reports' },
-  { href: '/properties', label: 'Properties' },
-  { href: '/units', label: 'Units' },
-  { href: '/owners', label: 'Owners' },
-  { href: '/tenants', label: 'Tenants' },
-  { href: '/leases', label: 'Leases' },
-  { href: '/applications', label: 'Applications' },
-  { href: '/maintenance', label: 'Maintenance' },
-  { href: '/inspections', label: 'Inspections' },
-  { href: '/accounting/rent-due', label: 'Rent Due' },
-  { href: '/accounting/expenses', label: 'Expenses' },
-  { href: '/accounting/bank-accounts', label: 'Bank Accounts' },
-  { href: '/accounting/bank-transactions', label: 'Bank Transactions' },
-  { href: '/accounting/trial-balance', label: 'Trial Balance' },
-  { href: '/documents', label: 'Documents' },
-  { href: '/notifications', label: 'Notifications' },
-  { href: '/announcements', label: 'Announcements' },
+// Grouped per DESIGN_SYSTEM.md's own flag (§"Responsive rules"): the flat 18-item list was
+// already longer than PropView's own sidebar with no section structure -- first real grouping
+// pass, 2026-08-02 (UI_REDESIGN_PLAN.md). Independent per-section collapse is still future work;
+// this groups them, it doesn't yet let a section fold away.
+const NAV_SECTIONS: NavSection[] = [
+  {
+    items: [
+      { href: '/dashboard', label: 'Dashboard', icon: navIcon(LayoutDashboard) },
+      { href: '/reports', label: 'Reports', icon: navIcon(BarChart3) },
+    ],
+  },
+  {
+    label: 'Portfolio',
+    items: [
+      { href: '/properties', label: 'Properties', icon: navIcon(Building2) },
+      { href: '/units', label: 'Units', icon: navIcon(DoorOpen) },
+      { href: '/owners', label: 'Owners', icon: navIcon(UserCog) },
+    ],
+  },
+  {
+    label: 'Leasing',
+    items: [
+      { href: '/tenants', label: 'Tenants', icon: navIcon(Users) },
+      { href: '/leases', label: 'Leases', icon: navIcon(FileSignature) },
+      { href: '/applications', label: 'Applications', icon: navIcon(ClipboardList) },
+    ],
+  },
+  {
+    label: 'Operations',
+    items: [
+      { href: '/maintenance', label: 'Maintenance', icon: navIcon(Wrench) },
+      { href: '/inspections', label: 'Inspections', icon: navIcon(ClipboardCheck) },
+    ],
+  },
+  {
+    label: 'Finance',
+    items: [
+      { href: '/accounting/rent-due', label: 'Rent Due', icon: navIcon(Receipt) },
+      { href: '/accounting/expenses', label: 'Expenses', icon: navIcon(Wallet) },
+      { href: '/accounting/bank-accounts', label: 'Bank Accounts', icon: navIcon(Landmark) },
+      { href: '/accounting/bank-transactions', label: 'Bank Transactions', icon: navIcon(ArrowLeftRight) },
+      { href: '/accounting/trial-balance', label: 'Trial Balance', icon: navIcon(Scale) },
+    ],
+  },
+  {
+    label: 'Communications',
+    items: [
+      { href: '/documents', label: 'Documents', icon: navIcon(FileText) },
+      { href: '/notifications', label: 'Notifications', icon: navIcon(Bell) },
+      { href: '/announcements', label: 'Announcements', icon: navIcon(Megaphone) },
+    ],
+  },
 ];
 
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
@@ -48,32 +98,13 @@ export default async function PortalLayout({ children }: { children: React.React
   if (!activeOrg) redirect('/onboarding/create-organization');
 
   return (
-    <div className="flex min-h-screen">
-      <aside className="w-56 border-r border-light-border bg-light-surfaceRaised px-4 py-6 dark:border-dark-border dark:bg-dark-surfaceRaised">
-        <p className="px-2 text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
-          PropertyVault
-        </p>
-        {ADMIN_DEMO_MODE ? (
-          <span className="mx-2 mt-2 inline-block w-fit rounded-full border border-light-accent px-2 py-0.5 text-[10px] font-semibold text-light-accent dark:border-dark-accent dark:text-dark-accent">
-            Demo mode
-          </span>
-        ) : null}
-        <nav className="mt-6 flex flex-col gap-1">
-          {NAV_ITEMS.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="rounded-md px-2 py-2 text-sm text-light-textSecondary hover:bg-light-surface dark:text-dark-textSecondary dark:hover:bg-dark-surface"
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-        <p className="mt-8 px-2 text-xs text-light-textMuted dark:text-dark-textMuted">
-          {activeOrg.role.replace('_', ' ')}
-        </p>
-      </aside>
-      <main className="flex-1 px-8 py-8">{children}</main>
-    </div>
+    <AppShell
+      productLabel="PropertyVault"
+      navSections={NAV_SECTIONS}
+      identityLine={activeOrg.role.replace('_', ' ')}
+      demoBadge={ADMIN_DEMO_MODE}
+    >
+      {children}
+    </AppShell>
   );
 }

@@ -1,5 +1,65 @@
 # Worklog
 
+## 2026-08-02 (continued) — PWA redesign foundation: responsive AppShell, real dark mode, two more real bugs found by the new audit tooling
+
+With the CSP hydration bug fixed, moved to the redesign's own foundation step (shared tokens +
+shell/navigation, per Mohammed's specified order). The new real-browser audit script kept paying
+for itself immediately.
+
+**Bug 1: dark mode has never activated anywhere.** `tailwind.config.ts` uses `darkMode: 'class'`
+-- requires a `.dark` class on an ancestor, which nothing in this codebase has ever set (no
+`ThemeProvider`, no toggle, a bare `<html>`/`<body>` in `app/layout.tsx`). Confirmed by screenshot:
+a `prefers-color-scheme: dark`-emulated capture of `/overview`, taken *before* this fix, was
+pixel-identical to light mode. Every `dark:` utility class written across every module this session
+was correct and completely unreachable. Fixed with `next-themes` (`attribute="class"`, matching the
+existing Tailwind strategy exactly -- zero of the already-written `dark:` classes needed touching),
+wired through `app/layout.tsx` with the CSP nonce (from `proxy.ts`'s `x-nonce` header) passed to
+`ThemeProvider` so its own small no-FOUC inline script isn't blocked by the very CSP that broke
+hydration in the first place. Added `components/ui/ThemeToggle.tsx` -- a real System/Light/Dark
+three-way control, `DESIGN_SYSTEM.md` line 220 already specified one, it just never had an
+implementation.
+
+**Bug 2: the sidebar has never actually been responsive**, confirmed by an early screenshot this
+same pass at 390px width -- the full desktop sidebar just sat there unchanged, squeezing every KPI
+card into unreadable ~1-word-wide columns with heavy text wrapping. `DESIGN_SYSTEM.md`'s own
+"Responsive rules" already fully specified the fix (persistent+expanded >=lg, icon-only >=md,
+overlay drawer <md) -- it had just never been built. Built `components/shell/AppShell.tsx`, one
+shared shell for all three route groups ((dashboard)/(super-admin)/(tenant)) rather than three
+independently drifting sidebar copies -- each layout now just supplies its own `NavSection[]`.
+
+Hit two real implementation bugs building it, both caught before commit: (1) passing raw Lucide
+icon *component references* as props from a Server Component layout.tsx into the client AppShell
+produced a real runtime 500 ("Functions cannot be passed directly to Client Components") -- React
+Server Components can only serialize plain data and already-rendered elements across that boundary,
+never a function reference. Fixed by pre-rendering each icon (`navIcon(LayoutDashboard)` -> a
+`<LayoutDashboard .../>` element) in the Server Component before it ever reaches the client
+boundary. (2) `DESIGN_SYSTEM.md`'s own documented breakpoint scale (`sm 640, md 1024, lg 1280,
+xl 1536`) turned out to have never actually been configured in `tailwind.config.ts` -- it was
+silently using Tailwind's stock `md 768/lg 1024` scale the entire time, so an "icon rail at md"
+test at 1024px was actually hitting the *full-sidebar* breakpoint under the old, unconfigured
+scale. Added a real `screens` override matching the documented scale exactly.
+
+Also swapped the codebase's hand-rolled-SVG-only icon convention for `lucide-react` (shadcn's own
+default icon set, and the user's own instructions call for "high-quality icons" -- a deliberate
+design-system upgrade for this pass, not scope creep) and added `components/shell/navIcon.tsx`, a
+tiny per-icon helper so every layout.tsx doesn't repeat the same size/stroke/aria props.
+
+Verified with real screenshots at every step this time, not assumed from code review: 1440px (full
+sidebar, light and dark), 1100px (icon rail -- confirmed the mobile top bar was *also* incorrectly
+showing here on the first pass, a `lg:hidden` vs `md:hidden` mixup, fixed and re-verified), 390px
+(overlay drawer, plus a scripted click-to-open interaction confirming the drawer actually opens).
+Also caught a false alarm worth recording precisely because it wasn't a bug: a scrollable nav
+region (the (dashboard) shell's grouped list is taller than a 900px viewport) initially looked cut
+off in a static screenshot -- checked `scrollHeight`/`clientHeight`/`overflowY` directly via
+`page.evaluate()` and scrolled it programmatically to confirm it's a real, working
+`overflow-y-auto` region, not a layout bug. Distinguishing an actual bug from an artifact of how a
+static screenshot represents a scrollable region is exactly the kind of judgment this new tooling
+requires that curl never could.
+
+Verified: admin typecheck/lint/test (114/114, +2 new `ThemeToggle` tests -- needed a scoped
+`window.matchMedia` polyfil since jsdom doesn't implement it and `next-themes`' `enableSystem` path
+calls it) and a real production build, both clean.
+
 ## 2026-08-02 — Design-tooling setup surfaces a P0: the production CSP has been silently breaking hydration since the first commit
 
 Mohammed asked for a full PWA UI/UX redesign and to install real design/browser-verification

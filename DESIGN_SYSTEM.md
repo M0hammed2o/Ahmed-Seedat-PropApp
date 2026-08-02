@@ -187,13 +187,18 @@ manually). Warm, direct copy — no marketing tone.
 - **Desktop-first for the web/PWA surface** (`apps/admin`→`apps/web`), matching the existing
   `DESIGN_SYSTEM.md` decision and `DESIGN_REVIEW.md` §4 — this is the one platform with left
   navigation, a top toolbar, large data tables, and multi-column dashboards; it is not a stretched
-  phone layout. Breakpoints: `sm 640px, md 1024px, lg 1280px, xl 1536px` (Tailwind defaults,
-  already the toolchain in use — no need for a bespoke scale).
+  phone layout. Breakpoints: `sm 640px, md 1024px, lg 1280px, xl 1536px` — **real bug found and
+  fixed 2026-08-02** (`UI_REDESIGN_PLAN.md`): this scale was documented but never actually
+  configured in `tailwind.config.ts`, which silently used Tailwind's stock `md 768/lg 1024` scale
+  instead for every `md:`/`lg:` utility ever written. Now a real `screens` override.
 - Sidebar: persistent and expanded ≥`lg`; collapses to icon-only ≥`md`; becomes an overlay drawer
-  below `md`. **New requirement `DESIGN_REVIEW.md` §2 flags**: PropView's own sidebar has no
-  section-collapse mechanism and PropertyVault's nav (M4–M19) is already longer than PropView's —
-  section groups (Overview/Portfolio/Leasing/Operations/Finance/AI/Communications/Super Admin)
-  need independent collapse/expand, not just a whole-sidebar collapse.
+  below `md`. **Implemented 2026-08-02** (`UI_REDESIGN_PLAN.md`): `components/shell/AppShell.tsx`,
+  one shared shell for all three route groups — confirmed broken by screenshot before this pass
+  (a 390px capture showed the full sidebar never collapsing at all, squeezing every KPI card into
+  ~1-word-wide columns). Section groups (dashboard nav: Portfolio/Leasing/Operations/Finance/
+  Communications) are now grouped with labels; independent per-section collapse/expand
+  (`DESIGN_REVIEW.md` §2's further flag) is still future work — this groups them, it doesn't yet
+  let a section fold away.
 - Tables: horizontal scroll within their own container below `lg`, never the page itself
   scrolling horizontally.
 - Native apps (iOS/Android) are designed independently per `DESIGN_REVIEW.md` §4, following each
@@ -217,6 +222,11 @@ target, per `DESIGN_REVIEW.md` §6.
 ## Light/dark, accessibility
 
 - Every token has a light and dark value; both apps respect system theme by default, with an
-  explicit System/Light/Dark override (PropView pattern, reused).
+  explicit System/Light/Dark override (PropView pattern, reused). **Implemented 2026-08-02**
+  (`UI_REDESIGN_PLAN.md`): `next-themes` (`attribute="class"`, matching `tailwind.config.ts`'s
+  existing `darkMode: 'class'` strategy exactly) + `components/ui/ThemeToggle.tsx` — real bug
+  found and fixed in the same pass: dark mode had never actually activated anywhere before this,
+  since nothing in the codebase ever set the `.dark` class every `dark:` utility across every
+  module was written against.
 - Minimum contrast target: WCAG AA (4.5:1 body text) — must be re-verified once final brand
   colours are chosen, unchanged from the original decision.
