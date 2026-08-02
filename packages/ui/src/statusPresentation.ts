@@ -1,4 +1,4 @@
-import type { BillStatus, OrganizationStatus, UnitStatus } from '@propvault/types';
+import type { BillStatus, OrganizationStatus, TenantStatus, UnitStatus } from '@propvault/types';
 
 /**
  * Status is never signalled by colour alone (accessibility requirement in the brief) — every
@@ -50,4 +50,14 @@ export const UNIT_STATUS_PRESENTATION: Record<UnitStatus, StatusPresentation> = 
   vacant: { label: 'Vacant', icon: 'eye', colorToken: 'statusNeedsReview' },
   occupied: { label: 'Occupied', icon: 'check', colorToken: 'statusPaid' },
   maintenance: { label: 'Maintenance', icon: 'spinner', colorToken: 'statusProcessing' },
+};
+
+// TASKS.md M20 (Tenants vertical slice). `status` is server-set only (defaults to `pending` on
+// create, transitions on lease approval/expiry -- packages/validation/src/leasing.ts's
+// tenantSchema deliberately excludes it from client input), never user-editable here, but still
+// needs a presentation for the list/detail views.
+export const TENANT_STATUS_PRESENTATION: Record<TenantStatus, StatusPresentation> = {
+  pending: { label: 'Pending', icon: 'eye', colorToken: 'statusNeedsReview' },
+  active: { label: 'Active', icon: 'check', colorToken: 'statusPaid' },
+  expired: { label: 'Expired', icon: 'dot', colorToken: 'statusVoid' },
 };

@@ -14,6 +14,7 @@ export const dynamic = 'force-dynamic';
 const NAV_ITEMS = [
   { href: '/properties', label: 'Properties' },
   { href: '/units', label: 'Units' },
+  { href: '/tenants', label: 'Tenants' },
 ];
 
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
