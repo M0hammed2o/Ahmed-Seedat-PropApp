@@ -74,6 +74,8 @@ export interface TrialBalanceRow {
   balance: number;
 }
 
+export type TrustLedgerStatus = 'active' | 'released';
+
 export interface TrustLedger {
   id: string;
   orgId: string;
@@ -83,6 +85,7 @@ export interface TrustLedger {
   currentBalance: number;
   interestRatePct: number;
   lastInterestAccrualAt: string | null;
+  status: TrustLedgerStatus;
   createdAt: string;
   updatedAt: string;
 }

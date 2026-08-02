@@ -218,6 +218,7 @@ interface TrustLedgerRow {
   current_balance: number;
   interest_rate_pct: number;
   last_interest_accrual_at: string | null;
+  status: string;
   created_at: string;
   updated_at: string;
 }
@@ -232,6 +233,7 @@ export function mapTrustLedgerRow(row: TrustLedgerRow): TrustLedger {
     currentBalance: row.current_balance,
     interestRatePct: row.interest_rate_pct,
     lastInterestAccrualAt: row.last_interest_accrual_at,
+    status: row.status as TrustLedger['status'],
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

@@ -1,5 +1,40 @@
 # Worklog
 
+## 2026-08-02 (continued) — Trust deposit release and interest accrual (TD-22, item 3/8)
+
+`release_trust_deposit()` and `accrue_trust_interest()` were the two trust-money operations
+deliberately left unbuilt in M14 part 2, pending an account-mapping decision `ACCOUNTING.md` §4
+didn't specify. Resolved by adding two clearly-labeled new system accounts (`4900 Deposit
+Deduction Income`, `5950 Trust Interest Expense`, backfilled onto every existing org) rather than
+leaving the mapping unmapped -- ACCOUNTING.md's computation/gating rules were already unambiguous
+(release requires a completed move_out inspection; interest applies the org's own configured
+rate), only the GL pairing was open.
+
+`release_trust_deposit()` settles a lease's entire trust-ledger balance in one call, split into a
+deduction portion (recognised as landlord income) and a refund portion, gated on
+`inspections.inspection_type = 'move_out'` AND `status = 'completed'` specifically, one-time via a
+new `trust_ledgers.status` column (no partial/staged release in V1). `accrue_trust_interest()`
+posts simple daily-prorated interest at the org's configured rate as an explicit
+accountant-triggered action, not an unattended cron job -- no scheduler infrastructure exists yet
+(same gap as TD-20), so this ships as manual-trigger-only rather than blocking the computation
+itself on missing infrastructure.
+
+A real bug was found and fixed by the new test suite before this shipped: `SELECT ... FOR UPDATE`
+against `trust_ledgers` (which has an accountant+-only "for all" write RLS policy) silently
+requires satisfying that write policy just to lock the row -- an agent-only caller got a
+misleading "No trust ledger exists" instead of the intended "Caller does not have accountant+
+rights" message, since RLS filtered the row out before the function's own role check ever ran.
+Fixed by removing `FOR UPDATE` from both functions, matching every other posting operation in this
+codebase (none of them lock rows this way either).
+
+New `supabase/tests/trust_deposit_release_and_interest.test.sql` (21 assertions) plus one
+pre-existing test updated (system-account count 11 -> 13). Full regression: 213/213 pgTAP across
+15 files on a real `supabase db reset`. `apps/admin` typecheck/lint/vitest (123/123) clean, real
+`next build` (2 new routes: `POST /api/v1/trust-ledgers/:id/release`,
+`.../accrue-interest`) registers cleanly. No PWA screen was built for this item -- API/RPC layer
+only, per this item's scoped work; Owner Statements/Tax Pack (items 4-5) do require screens and
+come next.
+
 ## 2026-08-02 (continued) — Native Bearer-JWT authentication (TD-28, item 2/8)
 
 `getServerSupabaseClient()` (`apps/admin/lib/supabase/server.ts`) now accepts

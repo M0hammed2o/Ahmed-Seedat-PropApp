@@ -48,6 +48,8 @@ Deposits post to trust-class accounts only (§2). Interest accrual runs as a sch
 
 **Release gate** (evidenced, IMG_8039: "no deduction without findings on a completed move-out inspection"): the posting service's deposit-release operation checks `inspections.status = 'completed'` for the associated lease before it will post a `deduction`/`refund` entry — this check lives in the service, not just a UI disable, so there's no API path that bypasses it.
 
+**Implemented 2026-08-02** (`release_trust_deposit()`, migration `20260101000051`, `TASKS.md` M14 part 3): a lease's entire trust-ledger balance is settled in one call — Dr Tenant Deposits Held / Cr Trust Bank Account for the deduction+refund total (mirrors the deposit-received entry, reversed), plus Dr Business Bank Account / Cr a new system account `4900 Deposit Deduction Income` for any deduction portion specifically (the money that becomes the landlord's own funds). Additionally requires `inspections.inspection_type = 'move_out'` specifically (not any completed inspection) and settles the whole balance in one action — V1 does not support a partial/staged release. Interest accrual (`accrue_trust_interest()`, same migration) posts Dr a new system account `5950 Trust Interest Expense` / Cr Tenant Deposits Held for simple daily-prorated interest at `organizations.deposit_interest_pct` since the last accrual — an explicit accountant-triggered action in V1, not an unattended scheduled job (no cron infrastructure exists yet, `TECHNICAL_DEBT_REGISTER.md` TD-20/TD-22).
+
 ## 5. Owner Statements
 
 Generated (not hand-entered) by an application service that:

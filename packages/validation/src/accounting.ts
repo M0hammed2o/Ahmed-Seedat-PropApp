@@ -50,3 +50,13 @@ export const bankTransactionConfirmMatchSchema = z.object({
   rentScheduleId: z.string().uuid('rentScheduleId must be a valid UUID'),
 });
 export type BankTransactionConfirmMatchInput = z.infer<typeof bankTransactionConfirmMatchSchema>;
+
+// Trust deposit release (ACCOUNTING.md §4, TASKS.md M14 part 3). deductionAmount + refundAmount
+// must equal the trust ledger's current_balance -- enforced server-side by
+// release_trust_deposit() itself, not re-derived here (this schema only validates shape).
+export const trustDepositReleaseSchema = z.object({
+  deductionAmount: z.number().min(0).default(0),
+  refundAmount: z.number().min(0).default(0),
+  deductionMemo: z.string().max(500).optional().nullable(),
+});
+export type TrustDepositReleaseInput = z.infer<typeof trustDepositReleaseSchema>;

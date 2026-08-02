@@ -27,8 +27,8 @@ select is(
   (select count(*) from public.chart_of_accounts co
      join public.organizations o on o.id = co.org_id
      where o.legal_name = 'Accounting Test Org' and co.is_system),
-  11::bigint,
-  'exactly 11 system accounts were seeded for the new org'
+  13::bigint,
+  'exactly 13 system accounts were seeded for the new org (11 original + 4900 Deposit Deduction Income + 5950 Trust Interest Expense, migration 20260101000051)'
 );
 
 select is(
