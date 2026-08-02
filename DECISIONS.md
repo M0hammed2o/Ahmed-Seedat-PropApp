@@ -279,3 +279,55 @@ and portable) and documented instead in `apps/android/README.md`.
 Full command-by-command verification record (build, unit tests, lint, real emulator install/
 launch, screenshots in light and dark mode) is in `TASKS.md` M22 and `apps/android/README.md`'s
 "Toolchain status" table, not repeated here.
+
+## 2026-08-01 — M20: Units/Tenants/Leases/Maintenance vertical slices — parent-context creation, and two deliberate scope reductions
+
+Continued M20 per Mohammed's instruction to build Units/Tenants/Leases/Maintenance one module at a
+time, same vertical-slice pattern Properties proved. All four reused their existing M6/M8/M10/M13
+APIs and `apps/admin/lib/{portfolio,leasing,operations}.ts` mapping/role-check helpers completely
+unchanged — this pass is UI-layer work only, no backend logic was added or modified.
+
+**Decided: every "create" flow is reached from its parent's own page, never a standalone form with
+a picker.** Units are created from a property's page (`/properties/:id/units/new`), Leases from a
+unit's page (`/properties/:id/units/:unitId/leases/new`), Maintenance tickets from a property's
+page (`/properties/:id/maintenance/new`). This wasn't a UI-taste choice — none of `unitSchema`/
+`leaseCreateSchema`/`maintenanceTicketCreateSchema` expose a way to look up or search for a parent
+record from a bare form; the parent id has to come from somewhere, and the URL route the user
+already navigated through is the only correct source that doesn't require inventing a new
+search/autocomplete component this pass didn't otherwise need. Each parent's detail page now
+embeds a table of its children (property → units, property → maintenance tickets, unit → leases)
+so the "list" requirement is satisfied in the natural context as well as at the org-wide list page.
+
+**Decided: Tenants and Leases forms omit fields the validation schema deliberately doesn't expose
+to clients, rather than showing them disabled.** `tenantSchema` excludes `status` (server-set,
+defaults `pending`); `leaseCreateSchema` excludes `status` (always starts `draft`) and — like every
+other form this pass — excludes any field backed by a single-value enum with no real second option
+yet (`rentFrequency`, currently only `'monthly'`). A disabled/greyed-out field would imply "not
+editable right now" when the true state is "there is nothing here to legitimately submit yet" — a
+different, more honest signal, matching the same judgment already applied to `packages/validation`
+itself when those schemas were first written.
+
+**Decided: Maintenance's board is grouped-by-status, not drag-and-drop.** The reference product's
+evidenced Maintenance Board (`PROPVIEW_SCREENSHOT_AUDIT.md` IMG_7967-7968) is a real kanban with
+drag gestures between columns. Building actual drag-and-drop (a new interaction pattern, its own
+optimistic-update/rollback logic, its own test surface) was weighed against just linking each
+ticket card to its edit page, where the existing server-side `isValidMaintenanceTransition` state
+machine already enforces the same legal-transition rule a kanban drag would need to respect anyway.
+Chose the link — a confirmed, disclosed V1 scope reduction (flagged in `TASKS.md`/`WORKLOG.md`, not
+silently simplified), not a shortcut around the underlying business rule, which is enforced exactly
+the same either way.
+
+**Decided: the maintenance status `<select>` is not pre-filtered to legal next-states.**
+`MAINTENANCE_TRANSITIONS` (the `to_do → in_progress → pending_approval → completed` graph, plus one
+intentional backward step per stage) lives in `apps/admin/lib/operations.ts`, which starts with
+`import 'server-only'` and therefore cannot be imported into the `'use client'` `MaintenanceForm`.
+Rather than hand-copy the transition graph into a second, client-side version — exactly the kind of
+duplicated-source-of-truth `requireOrgRole()`'s own code comment already warns against for role
+hierarchies, guaranteed to drift the next time the graph changes — the form offers all 4 statuses
+and lets the server's existing 409 `invalid_transition` response surface through the generic error
+banner every form this pass already has. A wrong selection produces a clear rejected-with-reason
+message, not a silent no-op or a client/server mismatch bug.
+
+Full verification record (typecheck/lint/test/build/runtime-smoke-test command output for each of
+the four modules) is in `WORKLOG.md`'s four corresponding 2026-08-01 entries and each slice's own
+commit message, not repeated here.

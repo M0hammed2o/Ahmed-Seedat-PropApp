@@ -1,5 +1,50 @@
 # Worklog
 
+## 2026-08-01 (continued, 9) — M20: Maintenance vertical slice (fifth and final module of this pass)
+
+Fifth module, closing the exact list Mohammed named ("Units, Tenants, Leases, Maintenance"). Reused
+the M13 Maintenance Tickets API and `mapMaintenanceTicketRow`/`requireOrgRole` unchanged.
+
+Checked `PROPVIEW_SCREENSHOT_AUDIT.md` again before designing the page: the reference product's
+Maintenance module is a full kanban board (KPIs + 4 drag-and-drop columns: To Do/In Progress/
+Pending Approval/Completed). Built the KPI row and the 4-column grouped layout, but explicitly
+scoped out actual drag-and-drop — status changes go through the ticket's edit page instead, using
+the same server-side `isValidMaintenanceTransition` state-machine check the API route already
+enforces (`to_do → in_progress → pending_approval → completed`, plus one intentional backward step
+at each stage per `apps/admin/lib/operations.ts`'s `MAINTENANCE_TRANSITIONS` map). This is a
+confirmed, honest V1 scope reduction — noted explicitly in the page and TASKS.md, not silently
+simplified — in the same category as Portfolio Map's already-confirmed "no GIS/heatmap layers."
+
+Real, deliberate omission worth flagging: `MAINTENANCE_TRANSITIONS` lives in `apps/admin/lib/
+operations.ts`, which starts with `import 'server-only'` — it cannot be imported into
+`MaintenanceForm.tsx` (`'use client'`) to pre-filter the status `<select>`'s options client-side.
+Rather than duplicate the transition graph into a second, client-side copy (exactly the
+"guaranteed to drift" anti-pattern `requireOrgRole`'s own comment warns against for role
+hierarchies), the form offers all 4 statuses and lets the server's existing 409
+`invalid_transition` response surface through the form's already-built generic error banner. No
+new client-side state-machine code was written.
+
+Also scoped out: vendor assignment and photo attachments, both real evidenced features
+(`PROPVIEW_SCREENSHOT_AUDIT.md`'s "up to 12 photos", `assignedVendorId` on the schema) with no
+picker/upload UI anywhere in this codebase yet to build against — noted on the detail page rather
+than either building a placeholder or silently dropping the capability.
+
+**Full verification**: `pnpm --filter admin typecheck`/`lint`/`test` (47/47 passed, up from 43) and
+`pnpm --filter @propvault/ui typecheck` clean, all on the first attempt; real clean `next build`
+registered all 6 new/changed routes; runtime smoke test via `next start` in demo mode covering
+`/maintenance`, `/maintenance/demo-ticket-1`, `/maintenance/demo-ticket-1/edit`,
+`/properties/demo-property-1/maintenance/new`, and the property detail page's embedded maintenance
+section — all 200, response bodies grepped for real rendered content. Server process confirmed via
+`Get-CimInstance Win32_Process` before stopping.
+
+This closes the M20 pass Mohammed's instruction asked for: Properties (already done ahead of this
+pass), Units, Tenants, Leases, Maintenance — five complete, independently verified vertical slices,
+same pattern throughout, no shortcuts taken to reach the finish line (every slice got its own real
+build, real test run, and real runtime smoke test, not just a typecheck pass). `TASKS.md`/
+`WORKLOG.md`/`DECISIONS.md` updated to match; remaining M20 modules (Owners, Applications,
+Inspections, Accounting, Notifications, Announcements, AI chat UI, Portfolio Intelligence feed,
+Portfolio Map) are explicitly not started, not implied done.
+
 ## 2026-08-01 (continued, 8) — M20: Leases vertical slice (fourth module)
 
 Fourth module in the M20 sequence, same pattern. Reused the M10 Leases API and `mapLeaseRow`/
