@@ -3,12 +3,15 @@ import type {
   ApplicationScreeningStatus,
   ApplicationStatus,
   BillStatus,
+  ExpenseStatus,
   InspectionConditionRating,
   InspectionStatus,
+  InvoiceStatus,
   LeaseStatus,
   MaintenancePriority,
   MaintenanceStatus,
   OrganizationStatus,
+  RentScheduleStatus,
   TenantStatus,
   UnitStatus,
 } from '@propvault/types';
@@ -137,4 +140,26 @@ export const INSPECTION_CONDITION_RATING_PRESENTATION: Record<InspectionConditio
   fair: { label: 'Fair', icon: 'dot', colorToken: 'statusProcessing' },
   poor: { label: 'Poor', icon: 'alert-triangle', colorToken: 'statusNeedsReview' },
   damaged: { label: 'Damaged', icon: 'alert-triangle', colorToken: 'statusOverdue' },
+};
+
+// TASKS.md M20 (Accounting vertical slice — Rent Due / Expenses / Trial Balance).
+export const RENT_SCHEDULE_STATUS_PRESENTATION: Record<RentScheduleStatus, StatusPresentation> = {
+  pending: { label: 'Pending', icon: 'eye', colorToken: 'statusNeedsReview' },
+  invoiced: { label: 'Invoiced', icon: 'spinner', colorToken: 'statusProcessing' },
+  paid: { label: 'Paid', icon: 'check', colorToken: 'statusPaid' },
+  overdue: { label: 'Overdue', icon: 'alert-triangle', colorToken: 'statusOverdue' },
+  partial: { label: 'Partial', icon: 'dot', colorToken: 'statusNeedsReview' },
+};
+
+export const EXPENSE_STATUS_PRESENTATION: Record<ExpenseStatus, StatusPresentation> = {
+  pending: { label: 'Pending', icon: 'eye', colorToken: 'statusNeedsReview' },
+  recorded: { label: 'Recorded', icon: 'check', colorToken: 'statusPaid' },
+  reimbursed: { label: 'Reimbursed', icon: 'check', colorToken: 'statusPaid' },
+  void: { label: 'Void', icon: 'slash', colorToken: 'statusVoid' },
+};
+
+export const INVOICE_STATUS_PRESENTATION: Record<InvoiceStatus, StatusPresentation> = {
+  draft: { label: 'Draft', icon: 'eye', colorToken: 'statusNeedsReview' },
+  issued: { label: 'Issued', icon: 'spinner', colorToken: 'statusProcessing' },
+  paid: { label: 'Paid', icon: 'check', colorToken: 'statusPaid' },
 };

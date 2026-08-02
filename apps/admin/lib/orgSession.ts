@@ -112,3 +112,30 @@ export function findActiveMembership(
 ): OrgMembership | undefined {
   return session.organizations.find((m) => m.orgId === orgId && m.status === 'active');
 }
+
+/**
+ * "agent or above" UI-layer gate, matching the threshold used by every non-Accounting module's
+ * write actions this milestone (Units/Tenants/Leases/Maintenance/Owners/Applications/Inspections
+ * — PERMISSIONS.md's "Properties/Units/Leases/Tenants"/"Applications"/"Maintenance" columns all
+ * list agent as Full). Deliberately NOT a linear "rank >= agent" check — `has_org_role()`'s own
+ * comment is explicit that agent and accountant are siblings, not ordered against each other, so
+ * this checks exactly the roles PERMISSIONS.md actually grants, same as every inline check this
+ * milestone already used before this helper existed.
+ */
+export function canWriteOrgRecords(role: OrganizationMemberRole): boolean {
+  return role !== 'viewer' && role !== 'accountant';
+}
+
+/**
+ * "accountant or above" UI-layer gate (PERMISSIONS.md's "Accounting (post)" column: accountant/
+ * manager/principal = Full, agent/viewer = none) — the threshold every Accounting-module write
+ * action needs (record an expense, issue an invoice from a rent schedule, post a journal entry).
+ * Mirrors `has_org_role(org_id, 'accountant')`'s exact role list
+ * (supabase/migrations/20260101000021_org_role_helpers.sql) rather than inventing a separate
+ * "rank" -- the database function (called inside invoice_rent_schedule()/record_expense()/etc.,
+ * a security-definer function's own internal check) remains the actual enforcement regardless of
+ * what this returns; this is UX-layer only, same disclaimer as findActiveMembership above.
+ */
+export function canPostAccountingRecords(role: OrganizationMemberRole): boolean {
+  return role === 'accountant' || role === 'manager' || role === 'principal';
+}
