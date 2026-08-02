@@ -1,15 +1,17 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import type { Application } from '@propvault/types';
+import type { Application, Inspection } from '@propvault/types';
 import { UNIT_STATUS_PRESENTATION } from '@propvault/ui';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapUnitRow } from '@/lib/portfolio';
 import { mapLeaseRow, mapApplicationRow } from '@/lib/leasing';
+import { mapInspectionRow } from '@/lib/operations';
 import { resolvePortalSession, findActiveMembership } from '@/lib/orgSession';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Button } from '@/components/ui/Button';
 import { LeasesTable, type LeaseRow } from '@/components/tables/LeasesTable';
 import { ApplicationsTable } from '@/components/tables/ApplicationsTable';
+import { InspectionsTable } from '@/components/tables/InspectionsTable';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 type RouteParams = { params: Promise<{ id: string; unitId: string }> };
@@ -69,6 +71,25 @@ const DEMO_APPLICATIONS: Application[] = [
   },
 ];
 
+const DEMO_INSPECTIONS: Inspection[] = [
+  {
+    id: 'demo-inspection-1',
+    orgId: 'demo-org-1',
+    propertyId: 'demo-property-1',
+    unitId: 'demo-unit-1',
+    leaseId: 'demo-lease-1',
+    inspectionType: 'move_in',
+    scheduledAt: '2026-08-05T09:00:00Z',
+    status: 'scheduled',
+    landlordSignedAt: null,
+    tenantSignedAt: null,
+    tenantRefusalReason: null,
+    completedAt: null,
+    createdAt: '2026-08-01T00:00:00Z',
+    updatedAt: '2026-08-01T00:00:00Z',
+  },
+];
+
 export default async function UnitDetailPage({ params }: RouteParams) {
   const { id: propertyId, unitId } = await params;
 
@@ -79,6 +100,7 @@ export default async function UnitDetailPage({ params }: RouteParams) {
         unit={DEMO_UNIT}
         leases={DEMO_LEASES}
         applications={DEMO_APPLICATIONS}
+        inspections={DEMO_INSPECTIONS}
         propertyId={propertyId}
         canEdit
       />
@@ -97,26 +119,40 @@ export default async function UnitDetailPage({ params }: RouteParams) {
 
   const unit = mapUnitRow(data);
 
-  const [leasesResult, applicationsResult] = await Promise.all([
+  const [leasesResult, applicationsResult, inspectionsResult] = await Promise.all([
     supabase.from('leases').select('*').eq('unit_id', unitId).order('start_date', { ascending: false }),
     supabase
       .from('applications')
       .select('*')
       .eq('unit_id', unitId)
       .order('created_at', { ascending: false }),
+    supabase
+      .from('inspections')
+      .select('*')
+      .eq('unit_id', unitId)
+      .order('scheduled_at', { ascending: false }),
   ]);
   if (leasesResult.error) throw new Error(`Failed to load leases: ${leasesResult.error.message}`);
   if (applicationsResult.error) throw new Error(`Failed to load applications: ${applicationsResult.error.message}`);
+  if (inspectionsResult.error) throw new Error(`Failed to load inspections: ${inspectionsResult.error.message}`);
 
   const leases: LeaseRow[] = (leasesResult.data ?? []).map(mapLeaseRow);
   const applications: Application[] = (applicationsResult.data ?? []).map(mapApplicationRow);
+  const inspections: Inspection[] = (inspectionsResult.data ?? []).map(mapInspectionRow);
 
   const session = await resolvePortalSession();
   const membership = session ? findActiveMembership(session, unit.orgId) : undefined;
   const canEdit = Boolean(membership && membership.role !== 'viewer' && membership.role !== 'accountant');
 
   return (
-    <UnitDetailView unit={unit} leases={leases} applications={applications} propertyId={propertyId} canEdit={canEdit} />
+    <UnitDetailView
+      unit={unit}
+      leases={leases}
+      applications={applications}
+      inspections={inspections}
+      propertyId={propertyId}
+      canEdit={canEdit}
+    />
   );
 }
 
@@ -124,6 +160,7 @@ function UnitDetailView({
   unit,
   leases,
   applications,
+  inspections,
   propertyId,
   canEdit,
 }: {
@@ -138,6 +175,7 @@ function UnitDetailView({
   };
   leases: LeaseRow[];
   applications: Application[];
+  inspections: Inspection[];
   propertyId: string;
   canEdit: boolean;
 }) {
@@ -153,6 +191,14 @@ function UnitDetailView({
     <Link href={`/properties/${propertyId}/units/${unit.id}/applications/new`}>
       <Button variant="primary" size="sm">
         + New application
+      </Button>
+    </Link>
+  );
+
+  const addInspectionAction = (
+    <Link href={`/properties/${propertyId}/units/${unit.id}/inspections/new`}>
+      <Button variant="primary" size="sm">
+        + Schedule inspection
       </Button>
     </Link>
   );
@@ -227,10 +273,21 @@ function UnitDetailView({
         </div>
       </div>
 
+      <div className="mt-8">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+            Inspections ({inspections.length})
+          </h2>
+          {canEdit && inspections.length > 0 ? addInspectionAction : null}
+        </div>
+        <div className="mt-3">
+          <InspectionsTable data={inspections} emptyAction={canEdit ? addInspectionAction : undefined} />
+        </div>
+      </div>
+
       <p className="mt-8 text-xs text-light-textMuted dark:text-dark-textMuted">
         Tenants assigned to this unit's leases and maintenance history are managed from their own
-        pages. Inspections are built at the API layer (TASKS.md M13) but not yet wired into any
-        page.
+        pages.
       </p>
     </div>
   );

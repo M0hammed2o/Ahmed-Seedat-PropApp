@@ -3,6 +3,8 @@ import type {
   ApplicationScreeningStatus,
   ApplicationStatus,
   BillStatus,
+  InspectionConditionRating,
+  InspectionStatus,
   LeaseStatus,
   MaintenancePriority,
   MaintenanceStatus,
@@ -120,4 +122,19 @@ export const APPLICATION_SCREENING_STATUS_PRESENTATION: Record<ApplicationScreen
 export const APPLICATION_DECISION_PRESENTATION: Record<ApplicationDecision, StatusPresentation> = {
   approved: { label: 'Approved', icon: 'check', colorToken: 'statusPaid' },
   declined: { label: 'Declined', icon: 'slash', colorToken: 'statusOverdue' },
+};
+
+// TASKS.md M20 (Inspections vertical slice).
+export const INSPECTION_STATUS_PRESENTATION: Record<InspectionStatus, StatusPresentation> = {
+  scheduled: { label: 'Scheduled', icon: 'eye', colorToken: 'statusNeedsReview' },
+  in_progress: { label: 'In progress', icon: 'spinner', colorToken: 'statusProcessing' },
+  awaiting_signature: { label: 'Awaiting signature', icon: 'alert-triangle', colorToken: 'statusUnpaid' },
+  completed: { label: 'Completed', icon: 'check', colorToken: 'statusPaid' },
+};
+
+export const INSPECTION_CONDITION_RATING_PRESENTATION: Record<InspectionConditionRating, StatusPresentation> = {
+  good: { label: 'Good', icon: 'check', colorToken: 'statusPaid' },
+  fair: { label: 'Fair', icon: 'dot', colorToken: 'statusProcessing' },
+  poor: { label: 'Poor', icon: 'alert-triangle', colorToken: 'statusNeedsReview' },
+  damaged: { label: 'Damaged', icon: 'alert-triangle', colorToken: 'statusOverdue' },
 };
