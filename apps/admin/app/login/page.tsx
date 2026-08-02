@@ -34,7 +34,11 @@ export default function AdminLoginPage() {
       setSubmitError('Invalid email or password.');
       return;
     }
-    router.replace('/overview');
+    // Real bug fixed 2026-08-01 (DECISIONS.md): this used to always send every signed-in user to
+    // '/overview' (platform-admin only) -- a client-org member with no platform_admin_users row
+    // would immediately bounce back to '/login' from that route group's own auth check, with no
+    // way to ever reach their portal. '/' now checks both session types and routes accordingly.
+    router.replace('/');
     router.refresh();
   };
 

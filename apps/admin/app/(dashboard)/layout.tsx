@@ -12,6 +12,7 @@ import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 export const dynamic = 'force-dynamic';
 
 const NAV_ITEMS = [
+  { href: '/dashboard', label: 'Dashboard' },
   { href: '/reports', label: 'Reports' },
   { href: '/properties', label: 'Properties' },
   { href: '/units', label: 'Units' },

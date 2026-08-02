@@ -1,5 +1,24 @@
 # Worklog
 
+## 2026-08-01 (continued, 19) — Owner Dashboard (priority 7) + a real login-routing bug found and fixed
+
+Built `/dashboard` (KPI row: Properties/Units occupied %/Cash left this month/Units available,
+matching PROPVIEW_SCREENSHOT_AUDIT.md exactly, plus quick links) — and while wiring up "where does
+a signed-in client-org user actually land," found that they couldn't: root `/` only ever checked
+platform-admin auth and `/login` hardcoded `/overview`, so a real org member would sign in and
+immediately bounce back to `/login` in a loop. Full root-cause writeup in `DECISIONS.md` 2026-08-01
+(not repeated here) — fixed `/` to check both session types, `/login` to redirect through `/`
+instead of hardcoding a destination, demo mode left untouched on purpose.
+
+Also caught and fixed, same pass: `middleware.ts`'s protected-route list hadn't been updated since
+this session's M20 pass added 12 new route segments — every page still independently enforced its
+own auth (never a data-exposure gap), but middleware's own pre-render gate had silently stopped
+covering any of them. Added all 12 plus `/dashboard`.
+
+Verified: admin typecheck/lint/test (103/103) and real `next build` clean (middleware's `matcher`
+stayed a static array), demo-mode smoke test confirming `/` still resolves to `/overview` unchanged
+and `/dashboard` renders real content.
+
 ## 2026-08-01 (continued, 18) — Reports module (priority 6)
 
 Built the 4 report cards `PROPVIEW_SCREENSHOT_AUDIT.md` evidences (IMG_7991-7995) exactly: Income

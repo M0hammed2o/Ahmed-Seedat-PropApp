@@ -401,3 +401,46 @@ Verified with real execution, not just code review, since this touches a live mi
 Supabase reset (`supabase db reset`, Docker started for this) replayed all 47 migrations clean; the
 full pgTAP suite (176 assertions, 13 files) passed with no isolation/RLS regressions. Full
 verification detail in `WORKLOG.md` 2026-08-01.
+
+## 2026-08-01 — Real bug found while building the Owner Dashboard: no client-org user could ever reach their portal via login
+
+Building `/dashboard` (the client-org landing page) surfaced a real, pre-existing routing bug, not
+something introduced by this change: `apps/admin/app/page.tsx` (the root `/` route) only ever
+checked `getAdminSession()` (platform-admin auth) and redirected to `/overview` on any signed-in
+session, or `/login` otherwise. `/login`'s own form always did `router.replace('/overview')`
+regardless of which kind of account had just signed in. A client-org member (an
+`organization_members` row, no `platform_admin_users` row) would sign in successfully, get sent to
+`/overview`, and immediately bounce back to `/login` from that route group's own
+`getAdminSession()`-only layout check — an infinite redirect loop with no way to ever reach the
+portal this session spent all day building pages for.
+
+**Root cause**: `PERMISSIONS.md`'s "never merge role systems" principle was followed correctly at
+the page/layout level (every `(dashboard)` page checks `resolvePortalSession()`, every
+`(super-admin)` page checks `getAdminSession()`, independently) but never applied at the single
+shared entry point (`/` and `/login`) that has to decide *which* portal a given signed-in user
+should land in. Not caught earlier because every module built this session was reached directly by
+URL during its own smoke test (`/units`, `/tenants`, etc.), never through the actual login → root
+redirect chain — the first time that exact path was exercised end-to-end was building the
+Dashboard's own "where does a user land" question.
+
+**Fixed**: `/` now checks `getAdminSession()` first (unchanged priority), then — only outside demo
+mode — `resolvePortalSession()`, redirecting to `/dashboard` if the caller has an active org
+membership, else `/login`. `/login` now redirects to `/` and lets that logic decide, instead of
+hardcoding `/overview` itself. Demo mode's behavior is unchanged on purpose: `getAdminSession()`
+always returns a fixed session in demo mode, so `/` always resolves to `/overview` there, exactly
+as before — demo mode has one deliberate entry point, not two, and this fix doesn't touch that.
+
+**Also fixed in the same pass**: `middleware.ts`'s `PROTECTED_ROUTE_PREFIXES`/`config.matcher`
+(the coarse pre-render auth gate) hadn't been updated since the M20 vertical-slice pass added 12
+new `(dashboard)` route segments across 7+ commits — each of those pages independently enforces
+its own session/role check (the real enforcement, per this file's own header comment, exactly as
+designed), so this was never a data-exposure gap, but it was a real, live UX gap: an unauthenticated
+request could reach the page shell before an API call 401s, for every route added since the last
+time this list was touched. Added all 12 missing prefixes (`/units`, `/owners`, `/tenants`,
+`/leases`, `/applications`, `/maintenance`, `/inspections`, `/accounting`, `/documents`,
+`/notifications`, `/announcements`, `/reports`) plus `/dashboard`.
+
+Verified: admin typecheck/lint/test (103/103) and real `next build` clean (middleware's `matcher`
+stayed a static literal array, the exact class of failure that broke this file once before this
+session), demo-mode smoke test confirming `/` still resolves to `/overview` unchanged and
+`/dashboard` renders correctly.

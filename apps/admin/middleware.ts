@@ -8,13 +8,33 @@ type CookieToSet = { name: string; value: string; options: CookieOptions };
 // (dashboard) client-org-facing pages (ARCHITECTURE.md's "Why one web app, not two" naming, both
 // route groups now correctly named -- DECISIONS.md 2026-08-01). One shared list so the matcher
 // config below and the runtime check can't drift out of sync as more routes are added.
+// Real gap found and fixed 2026-08-01 (DECISIONS.md): this list (and its literal `matcher` twin
+// below) hadn't been updated since the M20 vertical-slice pass added 12 new (dashboard) route
+// segments across 7+ commits -- each new page/route still independently enforces its own
+// session/role check (the real enforcement per this file's own header comment), so this was never
+// a data-exposure gap, but it was a real, live UX gap (an unauthenticated request could reach the
+// page shell before an API call 401s) for every route added since. Caught while adding
+// '/dashboard' for the new Owner Dashboard landing page.
 const PROTECTED_ROUTE_PREFIXES = [
   '/overview',
   '/customers',
   '/subscriptions',
   '/processing',
   '/system',
+  '/dashboard',
   '/properties',
+  '/units',
+  '/owners',
+  '/tenants',
+  '/leases',
+  '/applications',
+  '/maintenance',
+  '/inspections',
+  '/accounting',
+  '/documents',
+  '/notifications',
+  '/announcements',
+  '/reports',
 ];
 
 /**
@@ -85,6 +105,19 @@ export const config = {
     '/subscriptions/:path*',
     '/processing/:path*',
     '/system/:path*',
+    '/dashboard/:path*',
     '/properties/:path*',
+    '/units/:path*',
+    '/owners/:path*',
+    '/tenants/:path*',
+    '/leases/:path*',
+    '/applications/:path*',
+    '/maintenance/:path*',
+    '/inspections/:path*',
+    '/accounting/:path*',
+    '/documents/:path*',
+    '/notifications/:path*',
+    '/announcements/:path*',
+    '/reports/:path*',
   ],
 };
