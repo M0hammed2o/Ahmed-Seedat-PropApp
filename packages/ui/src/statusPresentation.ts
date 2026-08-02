@@ -109,10 +109,19 @@ export const MAINTENANCE_PRIORITY_PRESENTATION: Record<MaintenancePriority, Stat
 // TASKS.md M20 (Applications vertical slice). Application.status tracks the workflow stage
 // (submitted -> screening -> decided); the eventual outcome is a separate field (`decision`),
 // since "decided" alone doesn't say approved or declined.
+// V1 simplification (2026-08-01, DECISIONS.md): 'submitted' relabeled "New" to match the
+// simplified New -> Reviewing -> Approved/Declined/Withdrawn workflow language; 'reviewing' and
+// 'withdrawn' are new values. 'screening'/'decided' remain mapped (the enum still has them,
+// 'screening' is dormant/never set by V1 UI) but callers should prefer a decision-aware display
+// helper over this map directly for 'decided' rows -- see ApplicationsTable/ApplicationActions'
+// own `applicationDisplayPresentation()`, which shows the actual decision (Approved/Declined)
+// instead of the generic "Decided" label below.
 export const APPLICATION_STATUS_PRESENTATION: Record<ApplicationStatus, StatusPresentation> = {
-  submitted: { label: 'Submitted', icon: 'eye', colorToken: 'statusNeedsReview' },
+  submitted: { label: 'New', icon: 'eye', colorToken: 'statusNeedsReview' },
+  reviewing: { label: 'Reviewing', icon: 'spinner', colorToken: 'statusProcessing' },
   screening: { label: 'Screening', icon: 'spinner', colorToken: 'statusProcessing' },
   decided: { label: 'Decided', icon: 'check', colorToken: 'statusPaid' },
+  withdrawn: { label: 'Withdrawn', icon: 'slash', colorToken: 'statusVoid' },
 };
 
 export const APPLICATION_SCREENING_STATUS_PRESENTATION: Record<ApplicationScreeningStatus, StatusPresentation> = {
@@ -126,6 +135,23 @@ export const APPLICATION_DECISION_PRESENTATION: Record<ApplicationDecision, Stat
   approved: { label: 'Approved', icon: 'check', colorToken: 'statusPaid' },
   declined: { label: 'Declined', icon: 'slash', colorToken: 'statusOverdue' },
 };
+
+/**
+ * The status badge every application list/detail view should actually render: once `decided`,
+ * shows the real outcome (Approved/Declined) via APPLICATION_DECISION_PRESENTATION instead of the
+ * generic "Decided" label APPLICATION_STATUS_PRESENTATION.decided carries (that label exists only
+ * because a Record<ApplicationStatus, ...> must cover every enum value, not because "Decided" is
+ * ever the right thing to show a user).
+ */
+export function applicationDisplayPresentation(app: {
+  status: ApplicationStatus;
+  decision: ApplicationDecision | null;
+}): StatusPresentation {
+  if (app.status === 'decided' && app.decision) {
+    return APPLICATION_DECISION_PRESENTATION[app.decision];
+  }
+  return APPLICATION_STATUS_PRESENTATION[app.status];
+}
 
 // TASKS.md M20 (Inspections vertical slice).
 export const INSPECTION_STATUS_PRESENTATION: Record<InspectionStatus, StatusPresentation> = {

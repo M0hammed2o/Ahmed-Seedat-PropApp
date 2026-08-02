@@ -1,5 +1,28 @@
 # Worklog
 
+## 2026-08-01 (continued, 15) — Applications simplified to V1 scope (product-scope correction)
+
+Mohammed corrected scope: PropertyVault V1 isn't a tenant-screening platform. Simplified the
+Applications module to New → Reviewing → Approved/Declined/Withdrawn, manual only.
+
+- Migration `20260101000047` (expand-only): added `reviewing`/`withdrawn` to `application_status`,
+  added `applications.notes`. Left `screening` status, `screening_status`/`screening_consent_at`,
+  and `TenantScreeningProvider` fully intact and dormant — moved to ROADMAP.md V2, not deleted.
+- New endpoints: `POST /applications/:id/notes` (also flips submitted→reviewing on first save),
+  `POST /applications/:id/withdraw`.
+- UI: removed screening-consent/run-screening from `ApplicationActions`; kept POPIA consent only;
+  added Notes panel + Withdraw button. Status badges now show the real outcome (Approved/Declined)
+  via a new `applicationDisplayPresentation()` helper instead of the generic "Decided" label.
+  Approve still atomically creates tenant+lease via the unchanged `approve_application()`.
+- Caught and fixed a real bug via the demo-mode smoke test: the `/applications` list page's KPI
+  row still read "Submitted/Screening/Decided" after the status-model change — updated to
+  New/Reviewing/Decided/Withdrawn.
+
+Verified: real `supabase db reset` (Docker started for this) replaying all 47 migrations clean,
+full pgTAP suite 176/176 passing (no isolation/RLS regressions), `pnpm --filter admin`
+typecheck/lint/test (89/89) and `next build` clean, demo-mode runtime check confirming no
+screening UI renders anywhere in the app.
+
 ## 2026-08-01 (continued, 14) — M20: Notifications and Announcements (tenth and eleventh modules)
 
 Two smaller, more contained modules after Accounting's heavier role-gating investigation.

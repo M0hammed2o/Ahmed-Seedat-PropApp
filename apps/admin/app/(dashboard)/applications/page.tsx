@@ -22,22 +22,25 @@ const DEMO_APPLICATIONS: Application[] = [
     decisionReason: null,
     decidedBy: null,
     decidedAt: null,
+    notes: null,
     createdAt: '2026-08-01T00:00:00Z',
     updatedAt: '2026-08-01T00:00:00Z',
   },
 ];
 
 /**
- * GET /applications -- seventh module in the M20 vertical-slice sequence (TASKS.md), matching
- * PROPVIEW_SCREENSHOT_AUDIT.md's LEASING nav section. Same direct-RLS-read pattern as every other
- * list page this milestone.
+ * GET /applications -- matching PROPVIEW_SCREENSHOT_AUDIT.md's LEASING nav section. Same
+ * direct-RLS-read pattern as every other list page this milestone. KPI row uses the V1-simplified
+ * workflow language (New/Reviewing/Decided/Withdrawn, DECISIONS.md 2026-08-01) -- 'screening'
+ * status is dormant, no V1 UI path ever sets it, so it's deliberately not counted here.
  */
 export default async function ApplicationsPage() {
   const applications: Application[] = ADMIN_DEMO_MODE ? DEMO_APPLICATIONS : await loadApplications();
 
-  const submitted = applications.filter((a) => a.status === 'submitted').length;
-  const screening = applications.filter((a) => a.status === 'screening').length;
+  const newCount = applications.filter((a) => a.status === 'submitted').length;
+  const reviewing = applications.filter((a) => a.status === 'reviewing').length;
   const decided = applications.filter((a) => a.status === 'decided').length;
+  const withdrawn = applications.filter((a) => a.status === 'withdrawn').length;
 
   return (
     <div>
@@ -46,10 +49,11 @@ export default async function ApplicationsPage() {
         Every rental application across your portfolio. Applications are submitted from a unit.
       </p>
 
-      <div className="mt-6 grid grid-cols-3 gap-4">
-        <AdminMetricCard label="Submitted" value={submitted} />
-        <AdminMetricCard label="Screening" value={screening} />
+      <div className="mt-6 grid grid-cols-4 gap-4">
+        <AdminMetricCard label="New" value={newCount} />
+        <AdminMetricCard label="Reviewing" value={reviewing} />
         <AdminMetricCard label="Decided" value={decided} />
+        <AdminMetricCard label="Withdrawn" value={withdrawn} />
       </div>
 
       <div className="mt-6">

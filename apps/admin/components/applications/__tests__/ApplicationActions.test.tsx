@@ -32,45 +32,60 @@ const BASE: Application = {
   decisionReason: null,
   decidedBy: null,
   decidedAt: null,
+  notes: null,
   createdAt: '2026-08-01T00:00:00Z',
   updatedAt: '2026-08-01T00:00:00Z',
 };
 
 describe('ApplicationActions', () => {
-  it('shows the decision summary and no action panels once decided', () => {
+  it('shows the decision outcome and no action panels once decided', () => {
     render(
       <ApplicationActions
         application={{ ...BASE, status: 'decided', decision: 'approved', decidedAt: '2026-08-02T00:00:00Z' }}
         canAct
       />,
     );
-    expect(screen.getByText(/Decided:/)).toBeTruthy();
-    expect(screen.getByText('approved')).toBeTruthy();
-    expect(screen.queryByText('Run screening')).toBeNull();
-  });
-
-  it('shows "Record" consent buttons and a disabled-by-missing-consent screening section when not yet consented', () => {
-    render(<ApplicationActions application={BASE} canAct />);
-    expect(screen.getAllByText('Record').length).toBe(2);
-    expect(screen.getByText('Screening consent must be recorded first.')).toBeTruthy();
-  });
-
-  it('shows granted consent timestamps instead of buttons once consent is recorded', () => {
-    render(
-      <ApplicationActions
-        application={{ ...BASE, popiaConsentAt: '2026-08-01T00:00:00Z', screeningConsentAt: '2026-08-01T00:00:00Z' }}
-        canAct
-      />,
-    );
-    expect(screen.getAllByText(/Granted/).length).toBe(2);
-    expect(screen.queryByText('Screening consent must be recorded first.')).toBeNull();
-  });
-
-  it('hides all action controls for a read-only (viewer/accountant) caller', () => {
-    render(<ApplicationActions application={BASE} canAct={false} />);
-    expect(screen.queryByText('Record')).toBeNull();
-    expect(screen.getAllByText('Not yet granted').length).toBe(2);
-    expect(screen.queryByText('Run screening')).toBeNull();
+    expect(screen.getByText('Approved')).toBeTruthy();
     expect(screen.queryByText('Decision')).toBeNull();
+    expect(screen.queryByText('Withdraw application')).toBeNull();
+  });
+
+  it('shows a "Withdrawn" summary and no action panels once withdrawn', () => {
+    render(<ApplicationActions application={{ ...BASE, status: 'withdrawn' }} canAct />);
+    expect(screen.getByText('Withdrawn')).toBeTruthy();
+    expect(screen.queryByText('Decision')).toBeNull();
+  });
+
+  it('shows a "Record consent" button and an editable, empty notes field for an actionable caller', () => {
+    render(<ApplicationActions application={BASE} canAct />);
+    expect(screen.getByText('Record consent')).toBeTruthy();
+    expect(screen.getByPlaceholderText(/Notes from reviewing/)).toBeTruthy();
+    expect(screen.getByText('Save notes')).toBeTruthy();
+  });
+
+  it('shows "No notes yet." instead of an editable field for a read-only caller with no notes', () => {
+    render(<ApplicationActions application={BASE} canAct={false} />);
+    expect(screen.getByText('No notes yet.')).toBeTruthy();
+    expect(screen.queryByPlaceholderText(/Notes from reviewing/)).toBeNull();
+  });
+
+  it('shows the granted consent timestamp once POPIA consent is recorded', () => {
+    render(<ApplicationActions application={{ ...BASE, popiaConsentAt: '2026-08-01T00:00:00Z' }} canAct />);
+    expect(screen.getByText(/Granted/)).toBeTruthy();
+    expect(screen.queryByText('Record consent')).toBeNull();
+  });
+
+  it('never renders any screening UI (V1 scope: screening is deferred, not exposed)', () => {
+    render(<ApplicationActions application={BASE} canAct />);
+    expect(screen.queryByText('Run screening')).toBeNull();
+    expect(screen.queryByText('Screening consent')).toBeNull();
+  });
+
+  it('hides consent/notes/decision/withdraw action controls for a read-only (viewer/accountant) caller', () => {
+    render(<ApplicationActions application={BASE} canAct={false} />);
+    expect(screen.queryByText('Record consent')).toBeNull();
+    expect(screen.getByText('Not yet granted')).toBeTruthy();
+    expect(screen.queryByText('Decision')).toBeNull();
+    expect(screen.queryByText('Withdraw application')).toBeNull();
   });
 });

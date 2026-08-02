@@ -371,3 +371,33 @@ for a pure DRY improvement with zero functional change is exactly the "refactor 
 improves maintainability without introducing risk" judgment call, not a safe zero-risk mechanical
 change given each file would need re-verification. Flagged as a candidate for a dedicated
 small cleanup pass later, not done opportunistically here.
+
+## 2026-08-01 — Applications simplified to V1 scope: manual review only, screening deferred not deleted
+
+Mohammed: PropertyVault V1 is not a tenant-screening/applicant-management platform. Landlords/staff
+review applicants and documents directly and decide manually — automated screening scores,
+applicant ranking, AI recommendations, and bureau integrations (TPN/Experian/TransUnion) are out of
+scope for V1.
+
+**Decided**: expand-only migration (`20260101000047`) adding `reviewing`/`withdrawn` to
+`application_status` and a `notes` column, rather than touching the existing `screening`
+status/columns or `TenantScreeningProvider`. The already-built screening apparatus (schema,
+provider abstraction, `POST /:id/screen`) is sound work built to spec last session — not deleted,
+just left dormant and un-surfaced in the UI, per Mohammed's explicit "do not delete sound backend
+work merely because it already exists" instruction. Moved to `ROADMAP.md` V2 so a future screening
+build resumes from this foundation instead of starting over.
+
+**Decided**: `notes` save silently transitions `submitted`→`reviewing` on first save, rather than a
+separate "start review" button. The described V1 workflow ("landlord reviews applicant and
+documents, records notes") treats opening-and-annotating as what "under review" means — a second
+button for the same moment would be friction without adding information.
+
+**Decided**: kept `approve_application()` and the approve/decline decision panel entirely
+unchanged. It already does exactly what was asked ("on approval, proceed to tenant and lease
+creation") — the correction was about what happens *before* a decision, not the decision/lease-
+creation step itself.
+
+Verified with real execution, not just code review, since this touches a live migration: local
+Supabase reset (`supabase db reset`, Docker started for this) replayed all 47 migrations clean; the
+full pgTAP suite (176 assertions, 13 files) passed with no isolation/RLS regressions. Full
+verification detail in `WORKLOG.md` 2026-08-01.

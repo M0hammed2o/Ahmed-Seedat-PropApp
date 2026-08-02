@@ -48,6 +48,7 @@ interface ApplicationRow {
   decision_reason: string | null;
   decided_by: string | null;
   decided_at: string | null;
+  notes: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -69,6 +70,7 @@ export function mapApplicationRow(row: ApplicationRow): Application {
     decisionReason: row.decision_reason,
     decidedBy: row.decided_by,
     decidedAt: row.decided_at,
+    notes: row.notes,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

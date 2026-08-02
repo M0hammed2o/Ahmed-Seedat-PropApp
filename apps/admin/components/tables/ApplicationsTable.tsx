@@ -4,10 +4,14 @@ import type { ReactNode } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import Link from 'next/link';
 import type { Application } from '@propvault/types';
-import { APPLICATION_STATUS_PRESENTATION } from '@propvault/ui';
+import { applicationDisplayPresentation } from '@propvault/ui';
 import { AdminDataTable } from '@/components/ui/AdminDataTable';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 
+// V1-simplified columns (DECISIONS.md 2026-08-01): a single status column showing the actual
+// outcome (New/Reviewing/Approved/Declined/Withdrawn) via applicationDisplayPresentation, no
+// separate raw "Decision" column -- that was redundant once the status badge itself shows the
+// decision for a decided row.
 const columns: ColumnDef<Application, unknown>[] = [
   {
     header: 'Applicant',
@@ -23,19 +27,14 @@ const columns: ColumnDef<Application, unknown>[] = [
   },
   { header: 'Email', accessorKey: 'applicantEmail', cell: (info) => (info.getValue() as string | null) ?? '—' },
   {
-    header: 'Status',
-    accessorKey: 'status',
-    cell: (info) => (
-      <StatusBadge presentation={APPLICATION_STATUS_PRESENTATION[info.getValue() as Application['status']]} />
-    ),
+    header: 'Applied',
+    accessorKey: 'createdAt',
+    cell: (info) => new Date(info.getValue() as string).toLocaleDateString('en-ZA'),
   },
   {
-    header: 'Decision',
-    accessorKey: 'decision',
-    cell: (info) => {
-      const decision = info.getValue() as Application['decision'];
-      return decision ? <span className="text-xs capitalize">{decision}</span> : '—';
-    },
+    header: 'Status',
+    id: 'displayStatus',
+    cell: (info) => <StatusBadge presentation={applicationDisplayPresentation(info.row.original)} />,
   },
 ];
 

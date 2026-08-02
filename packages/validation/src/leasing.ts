@@ -59,6 +59,14 @@ export const applicationDecisionSchema = z.discriminatedUnion('decision', [
 ]);
 export type ApplicationDecisionInput = z.infer<typeof applicationDecisionSchema>;
 
+// POST /api/v1/applications/:id/notes -- V1 simplification (2026-08-01, DECISIONS.md): internal
+// staff notes, the "landlord reviews and records notes" step. Also transitions submitted ->
+// reviewing on first save (apps/admin/lib/leasing.ts).
+export const applicationNotesUpdateSchema = z.object({
+  notes: z.string().max(5000, 'Notes must be 5000 characters or fewer'),
+});
+export type ApplicationNotesUpdateInput = z.infer<typeof applicationNotesUpdateSchema>;
+
 // Leases API (apps/admin/app/api/v1/leases/** -- API_SPEC.md §4, TASKS.md M10). Manual creation
 // only -- `source` is always 'manual' here; 'application_approved' only ever comes from
 // approve_application(), 'pdf_parsed' only from the not-yet-built upload-and-parse flow (M12).

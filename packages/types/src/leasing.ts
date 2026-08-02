@@ -45,6 +45,8 @@ export interface Application {
   decisionReason: string | null;
   decidedBy: string | null;
   decidedAt: string | null;
+  /** Internal landlord/staff notes -- V1 simplification, 2026-08-01. Never applicant-visible. */
+  notes: string | null;
   createdAt: string;
   updatedAt: string;
 }

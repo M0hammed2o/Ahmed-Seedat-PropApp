@@ -140,7 +140,9 @@ export type TenantStatus = (typeof TENANT_STATUSES)[number];
 export const APPLICATION_SCREENING_STATUSES = ['not_started', 'in_progress', 'passed', 'failed'] as const;
 export type ApplicationScreeningStatus = (typeof APPLICATION_SCREENING_STATUSES)[number];
 
-export const APPLICATION_STATUSES = ['submitted', 'screening', 'decided'] as const;
+// 'screening' is retained (dormant, V2 candidate -- ROADMAP.md) but no V1 UI path sets it.
+// 'reviewing'/'withdrawn' added 2026-08-01 for the simplified V1 applications workflow.
+export const APPLICATION_STATUSES = ['submitted', 'reviewing', 'screening', 'decided', 'withdrawn'] as const;
 export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
 
 export const APPLICATION_DECISIONS = ['approved', 'declined'] as const;

@@ -3,28 +3,29 @@
 import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Application } from '@propvault/types';
-import { APPLICATION_SCREENING_STATUS_PRESENTATION } from '@propvault/ui';
+import { applicationDisplayPresentation } from '@propvault/ui';
 import { Button } from '@/components/ui/Button';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 
-// Workflow actions for a single application (API_SPEC.md §4: consent -> screen -> decide). Each
-// action is its own fetch to its own dedicated endpoint -- there is no generic PATCH for
-// applications, this component IS the "edit" surface for this resource, shaped around the real
-// state machine instead of a generic field-editing form.
+// V1-simplified workflow action panel (DECISIONS.md 2026-08-01): New -> Reviewing (implicit, on
+// first note save) -> Approve/Decline/Withdraw. Screening (consent + provider call) is deferred
+// to ROADMAP.md and deliberately not surfaced here -- see the removed screening UI's history in
+// git log if that work is ever resumed. POPIA consent is the only consent capture kept, per the
+// "basic privacy consent where personal information is collected" V1 requirement.
 
 export function ApplicationActions({ application, canAct }: { application: Application; canAct: boolean }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  async function recordConsent(kind: 'popiaConsent' | 'screeningConsent') {
+  async function recordPopiaConsent() {
     setBusy(true);
     setError(null);
     try {
       const response = await fetch(`/api/v1/applications/${application.id}/consent`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ [kind]: true }),
+        body: JSON.stringify({ popiaConsent: true }),
       });
       const body = await response.json();
       if (!response.ok) {
@@ -39,34 +40,41 @@ export function ApplicationActions({ application, canAct }: { application: Appli
     }
   }
 
-  async function runScreening() {
+  async function withdraw() {
     setBusy(true);
     setError(null);
     try {
-      const response = await fetch(`/api/v1/applications/${application.id}/screen`, { method: 'POST' });
+      const response = await fetch(`/api/v1/applications/${application.id}/withdraw`, { method: 'POST' });
       const body = await response.json();
       if (!response.ok) {
-        setError(body.error?.message ?? 'Failed to run screening.');
+        setError(body.error?.message ?? 'Failed to withdraw application.');
         return;
       }
       router.refresh();
     } catch {
-      setError('Failed to run screening — check your connection and try again.');
+      setError('Failed to withdraw application — check your connection and try again.');
     } finally {
       setBusy(false);
     }
   }
 
-  if (application.status === 'decided') {
+  const isFinal = application.status === 'decided' || application.status === 'withdrawn';
+
+  if (isFinal) {
     return (
-      <div className="mt-6 rounded-lg border border-light-border p-4 dark:border-dark-border">
-        <p className="text-sm text-light-textPrimary dark:text-dark-textPrimary">
-          Decided: <span className="font-medium capitalize">{application.decision}</span>
-          {application.decisionReason ? ` — ${application.decisionReason}` : ''}
-        </p>
-        <p className="mt-1 text-xs text-light-textMuted dark:text-dark-textMuted">
-          {application.decidedAt ? new Date(application.decidedAt).toLocaleString('en-ZA') : ''}
-        </p>
+      <div className="mt-6 space-y-4">
+        <div className="rounded-lg border border-light-border p-4 dark:border-dark-border">
+          <StatusBadge presentation={applicationDisplayPresentation(application)} />
+          {application.status === 'decided' ? (
+            <>
+              <p className="mt-2 text-xs text-light-textMuted dark:text-dark-textMuted">
+                {application.decisionReason ? `${application.decisionReason} — ` : ''}
+                {application.decidedAt ? new Date(application.decidedAt).toLocaleString('en-ZA') : ''}
+              </p>
+            </>
+          ) : null}
+        </div>
+        {application.notes ? <NotesDisplay notes={application.notes} /> : null}
       </div>
     );
   }
@@ -80,78 +88,116 @@ export function ApplicationActions({ application, canAct }: { application: Appli
       ) : null}
 
       <div className="rounded-lg border border-light-border p-4 dark:border-dark-border">
-        <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">Consent</h2>
-        <div className="mt-3 flex flex-wrap gap-3">
-          <ConsentRow
-            label="POPIA consent"
-            grantedAt={application.popiaConsentAt}
-            canAct={canAct}
-            busy={busy}
-            onGrant={() => recordConsent('popiaConsent')}
-          />
-          <ConsentRow
-            label="Screening consent"
-            grantedAt={application.screeningConsentAt}
-            canAct={canAct}
-            busy={busy}
-            onGrant={() => recordConsent('screeningConsent')}
-          />
+        <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+          Privacy (POPIA) consent
+        </h2>
+        <div className="mt-3">
+          {application.popiaConsentAt ? (
+            <span className="text-xs text-light-statusPaid dark:text-dark-statusPaid">
+              Granted {new Date(application.popiaConsentAt).toLocaleDateString('en-ZA')}
+            </span>
+          ) : canAct ? (
+            <Button size="sm" disabled={busy} onClick={recordPopiaConsent}>
+              Record consent
+            </Button>
+          ) : (
+            <span className="text-xs text-light-textMuted dark:text-dark-textMuted">Not yet granted</span>
+          )}
         </div>
       </div>
 
-      <div className="rounded-lg border border-light-border p-4 dark:border-dark-border">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">Screening</h2>
-          <StatusBadge presentation={APPLICATION_SCREENING_STATUS_PRESENTATION[application.screeningStatus]} />
-        </div>
-        {canAct ? (
-          <Button
-            className="mt-3"
-            size="sm"
-            disabled={busy || !application.screeningConsentAt}
-            onClick={runScreening}
-          >
-            Run screening
-          </Button>
-        ) : null}
-        {!application.screeningConsentAt ? (
-          <p className="mt-2 text-xs text-light-textMuted dark:text-dark-textMuted">
-            Screening consent must be recorded first.
-          </p>
-        ) : null}
-      </div>
+      <NotesPanel applicationId={application.id} notes={application.notes} canAct={canAct} onSaved={() => router.refresh()} />
 
-      {canAct ? <DecisionPanel applicationId={application.id} busy={busy} setBusy={setBusy} setError={setError} /> : null}
+      {canAct ? (
+        <>
+          <DecisionPanel applicationId={application.id} busy={busy} setBusy={setBusy} setError={setError} />
+          <div className="rounded-lg border border-light-border p-4 dark:border-dark-border">
+            <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">Withdraw</h2>
+            <p className="mt-1 text-xs text-light-textMuted dark:text-dark-textMuted">
+              Record that the applicant pulled out, without approving or declining.
+            </p>
+            <Button className="mt-2" variant="destructive" size="sm" disabled={busy} onClick={withdraw}>
+              Withdraw application
+            </Button>
+          </div>
+        </>
+      ) : null}
     </div>
   );
 }
 
-function ConsentRow({
-  label,
-  grantedAt,
-  canAct,
-  busy,
-  onGrant,
-}: {
-  label: string;
-  grantedAt: string | null;
-  canAct: boolean;
-  busy: boolean;
-  onGrant: () => void;
-}) {
+function NotesDisplay({ notes }: { notes: string }) {
   return (
-    <div className="flex items-center gap-2 text-xs">
-      <span className="text-light-textSecondary dark:text-dark-textSecondary">{label}:</span>
-      {grantedAt ? (
-        <span className="text-light-statusPaid dark:text-dark-statusPaid">
-          Granted {new Date(grantedAt).toLocaleDateString('en-ZA')}
-        </span>
-      ) : canAct ? (
-        <Button size="sm" disabled={busy} onClick={onGrant}>
-          Record
-        </Button>
+    <div className="rounded-lg border border-light-border p-4 dark:border-dark-border">
+      <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">Notes</h2>
+      <p className="mt-2 whitespace-pre-wrap text-sm text-light-textSecondary dark:text-dark-textSecondary">
+        {notes}
+      </p>
+    </div>
+  );
+}
+
+function NotesPanel({
+  applicationId,
+  notes,
+  canAct,
+  onSaved,
+}: {
+  applicationId: string;
+  notes: string | null;
+  canAct: boolean;
+  onSaved: () => void;
+}) {
+  const [value, setValue] = useState(notes ?? '');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/v1/applications/${applicationId}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes: value }),
+      });
+      if (!response.ok) {
+        const body = await response.json();
+        setError(body.error?.message ?? 'Failed to save notes.');
+        return;
+      }
+      onSaved();
+    } catch {
+      setError('Failed to save notes — check your connection and try again.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-light-border p-4 dark:border-dark-border">
+      <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">Notes</h2>
+      {error ? <p className="mt-1 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">{error}</p> : null}
+      {canAct ? (
+        <>
+          <textarea
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            rows={4}
+            maxLength={5000}
+            placeholder="Notes from reviewing the applicant and their documents…"
+            className="mt-2 block w-full rounded-md border border-light-border bg-transparent px-3 py-2 text-sm text-light-textPrimary dark:border-dark-border dark:text-dark-textPrimary"
+          />
+          <Button className="mt-2" size="sm" disabled={saving} onClick={save}>
+            {saving ? 'Saving…' : 'Save notes'}
+          </Button>
+        </>
+      ) : notes ? (
+        <p className="mt-2 whitespace-pre-wrap text-sm text-light-textSecondary dark:text-dark-textSecondary">
+          {notes}
+        </p>
       ) : (
-        <span className="text-light-textMuted dark:text-dark-textMuted">Not yet granted</span>
+        <p className="mt-2 text-xs text-light-textMuted dark:text-dark-textMuted">No notes yet.</p>
       )}
     </div>
   );
@@ -272,7 +318,7 @@ function DecisionPanel({
               <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className={inputClass} />
             </label>
             <p className="text-xs text-light-textMuted dark:text-dark-textMuted">
-              Approving atomically creates the tenant, lease, and first rent-schedule row.
+              Approving creates the tenant and lease, and continues straight to lease setup.
             </p>
           </>
         ) : (
