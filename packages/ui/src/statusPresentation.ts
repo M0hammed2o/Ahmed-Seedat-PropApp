@@ -12,6 +12,7 @@ import type {
   MaintenancePriority,
   MaintenanceStatus,
   OrganizationStatus,
+  OwnerStatementStatus,
   RentScheduleStatus,
   TenantStatus,
   UnitStatus,
@@ -196,4 +197,11 @@ export const BANK_TRANSACTION_MATCH_STATUS_PRESENTATION: Record<BankTransactionM
   unmatched: { label: 'Unmatched', icon: 'eye', colorToken: 'statusNeedsReview' },
   matched: { label: 'Matched', icon: 'check', colorToken: 'statusPaid' },
   ignored: { label: 'Ignored', icon: 'slash', colorToken: 'statusVoid' },
+};
+
+// TASKS.md M14 part 3 (Owner Statements), same draft/issued/paid shape as InvoiceStatus.
+export const OWNER_STATEMENT_STATUS_PRESENTATION: Record<OwnerStatementStatus, StatusPresentation> = {
+  draft: { label: 'Draft', icon: 'eye', colorToken: 'statusNeedsReview' },
+  issued: { label: 'Issued', icon: 'spinner', colorToken: 'statusProcessing' },
+  paid: { label: 'Paid', icon: 'check', colorToken: 'statusPaid' },
 };

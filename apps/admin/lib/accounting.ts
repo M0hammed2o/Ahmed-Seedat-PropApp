@@ -7,6 +7,7 @@ import type {
   Expense,
   Invoice,
   JournalEntry,
+  OwnerStatement,
   TrustLedger,
 } from '@propvault/types';
 
@@ -234,6 +235,42 @@ export function mapTrustLedgerRow(row: TrustLedgerRow): TrustLedger {
     interestRatePct: row.interest_rate_pct,
     lastInterestAccrualAt: row.last_interest_accrual_at,
     status: row.status as TrustLedger['status'],
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+interface OwnerStatementRow {
+  id: string;
+  org_id: string;
+  owner_id: string;
+  period_start: string;
+  period_end: string;
+  rent_collected: number;
+  expenses_total: number;
+  management_fee: number;
+  net_payable: number;
+  status: string;
+  payout_matched_transaction_id: string | null;
+  pdf_document_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export function mapOwnerStatementRow(row: OwnerStatementRow): OwnerStatement {
+  return {
+    id: row.id,
+    orgId: row.org_id,
+    ownerId: row.owner_id,
+    periodStart: row.period_start,
+    periodEnd: row.period_end,
+    rentCollected: row.rent_collected,
+    expensesTotal: row.expenses_total,
+    managementFee: row.management_fee,
+    netPayable: row.net_payable,
+    status: row.status as OwnerStatement['status'],
+    payoutMatchedTransactionId: row.payout_matched_transaction_id,
+    pdfDocumentId: row.pdf_document_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

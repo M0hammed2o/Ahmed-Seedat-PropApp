@@ -60,3 +60,18 @@ export const trustDepositReleaseSchema = z.object({
   deductionMemo: z.string().max(500).optional().nullable(),
 });
 export type TrustDepositReleaseInput = z.infer<typeof trustDepositReleaseSchema>;
+
+// Owner statements (ACCOUNTING.md §5/§10, API_SPEC.md §6). "draft" is the month-scoped batch
+// generation endpoint -- orgId + a period, never a client-supplied owner/amount (the service
+// derives everything from the ledger, ACCOUNTING.md §5's "generated, not hand-entered" rule).
+export const ownerStatementDraftSchema = z.object({
+  orgId: z.string().uuid('orgId must be a valid UUID'),
+  periodStart: z.string().min(1, 'periodStart is required (YYYY-MM-DD)'),
+  periodEnd: z.string().min(1, 'periodEnd is required (YYYY-MM-DD)'),
+});
+export type OwnerStatementDraftInput = z.infer<typeof ownerStatementDraftSchema>;
+
+export const ownerStatementConfirmPayoutSchema = z.object({
+  bankTransactionId: z.string().uuid('bankTransactionId must be a valid UUID'),
+});
+export type OwnerStatementConfirmPayoutInput = z.infer<typeof ownerStatementConfirmPayoutSchema>;

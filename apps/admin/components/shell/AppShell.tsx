@@ -83,8 +83,10 @@ export function AppShell({ productLabel, navSections, identityLine, demoBadge, c
 
   return (
     <div className="flex min-h-screen">
-      {/* Mobile top bar: <md only -- the icon rail takes over from md upward */}
-      <div className="fixed inset-x-0 top-0 z-30 flex h-14 items-center gap-3 border-b border-light-border bg-light-surfaceRaised px-4 md:hidden dark:border-dark-border dark:bg-dark-surfaceRaised">
+      {/* Mobile top bar: <md only -- the icon rail takes over from md upward. print:hidden on
+          every chrome element below (top bar, both sidebars) -- lets any (dashboard) page double
+          as a clean print/save-as-PDF view (e.g. Owner Statements) with zero extra route needed. */}
+      <div className="fixed inset-x-0 top-0 z-30 flex h-14 items-center gap-3 border-b border-light-border bg-light-surfaceRaised px-4 md:hidden print:hidden dark:border-dark-border dark:bg-dark-surfaceRaised">
         <button
           type="button"
           aria-label="Open navigation"
@@ -127,18 +129,18 @@ export function AppShell({ productLabel, navSections, identityLine, demoBadge, c
       {/* Desktop: icon-only rail md-lg, full sidebar >=lg. Two separately-rendered <aside>s (one
           hidden at each breakpoint) rather than one dynamically relabeled sidebar -- avoids a
           content flash/reflow as labels would otherwise mount and unmount at the breakpoint. */}
-      <aside className="sticky top-0 hidden h-screen w-[68px] shrink-0 flex-col items-center border-r border-light-border bg-light-surfaceRaised py-5 md:flex lg:hidden dark:border-dark-border dark:bg-dark-surfaceRaised">
+      <aside className="sticky top-0 hidden h-screen w-[68px] shrink-0 flex-col items-center border-r border-light-border bg-light-surfaceRaised py-5 md:flex lg:hidden print:hidden dark:border-dark-border dark:bg-dark-surfaceRaised">
         <NavContent showLabels={false} />
         <ShellFooter identityLine={identityLine} showLabels={false} />
       </aside>
-      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-light-border bg-light-surfaceRaised px-4 py-5 lg:flex dark:border-dark-border dark:bg-dark-surfaceRaised">
+      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-light-border bg-light-surfaceRaised px-4 py-5 lg:flex print:hidden dark:border-dark-border dark:bg-dark-surfaceRaised">
         <p className="px-1 text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">{productLabel}</p>
         {demoBadge ? <DemoBadge /> : null}
         <NavContent showLabels onNavigate={undefined} />
         <ShellFooter identityLine={identityLine} showLabels />
       </aside>
 
-      <main className="min-w-0 flex-1 px-5 py-6 pt-20 md:px-8 md:py-8 md:pt-8">{children}</main>
+      <main className="min-w-0 flex-1 px-5 py-6 pt-20 md:px-8 md:py-8 md:pt-8 print:p-0">{children}</main>
     </div>
   );
 }

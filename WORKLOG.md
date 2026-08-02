@@ -1,5 +1,32 @@
 # Worklog
 
+## 2026-08-02 (continued) — Owner Statements (item 4/8)
+
+`generate_owner_statements()` batch-drafts one statement per owner per period across their whole
+portfolio, splitting each property's rent/expenses by `property_owners.ownership_pct` and applying
+ACCOUNTING.md §10's rounding-remainder-to-last-owner rule -- verified with a real two-owner,
+60/40-split-property test: the sum of both owners' shares equals the true combined total to the
+cent (20001.00), never a cent short or over from independent per-owner rounding. `management_fee`
+uses a new `organizations.management_fee_pct`, mirroring the existing `deposit_interest_pct`
+pattern rather than inventing a fee schedule ACCOUNTING.md never specified.
+
+`issue_owner_statement()` freezes a draft (ACCOUNTING.md §5's snapshot rule -- verified: 
+regenerating the same period after issuing leaves the issued statement's numbers untouched).
+`confirm_owner_statement_payout()` posts the owner_payout journal entry only once issued and
+matched to a real outgoing bank transaction, the same confirm-only principle as rent-schedule
+matching.
+
+Web UI: `/accounting/owner-statements` (list + generate-for-period), `/accounting/owner-statements/:id`
+(detail + issue/confirm-payout actions), and a `.../print` view. The "printable/downloadable PDF"
+requirement is met via the browser's own print-to-PDF (`window.print()` on a print-styled page) --
+deliberately not a new server-side PDF-generation dependency for V1. AppShell's sidebars/top bar
+gained `print:hidden` so this works for any (dashboard) page going forward, not just this one.
+
+New `supabase/tests/owner_statements.test.sql` (20 assertions) + `OwnerStatementsTable.test.tsx`
+(2 cases). Full regression: 233/233 pgTAP across 16 files. Full monorepo typecheck (6/6 non-mobile
+packages), apps/admin lint/vitest (125/125), real `next build` (8 new routes) all clean, plus a
+real demo-mode smoke test (next build && next start, all three new pages 200 with real content).
+
 ## 2026-08-02 (continued) — Trust deposit release and interest accrual (TD-22, item 3/8)
 
 `release_trust_deposit()` and `accrue_trust_interest()` were the two trust-money operations
