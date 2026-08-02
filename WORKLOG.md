@@ -1,5 +1,23 @@
 # Worklog
 
+## 2026-08-01 (continued, 24) — Android: Tenants vertical slice (priority 12, continued)
+
+Third Android module. Org-wide list + detail, not property-nested (mirrors `apps/admin`'s own
+Tenants module shape, unlike Units which is correctly property-scoped) -- added as a real third
+bottom-nav tab now that there's real content behind it, same discipline against stubbing dead tabs
+that kept the nav to 2 items until now.
+
+Identical stack to the Units slice, same file-for-file shape: `Tenant` domain model (`idNumberRef`
+deliberately left out -- an `encrypted_secrets` pointer with no view-only-screen use), DTO/Entity/
+Dao/real-repository/mock-repository, `PropertyVaultDatabase` bumped 2 -> 3. Tests:
+`MockTenantsRepositoryTest` (3), `TenantsListViewModelTest` (4).
+
+Verified with one real Gradle run (`testDebugUnitTest assembleDebug lintDebug` together, since the
+toolchain is now warmed up and each task shares compiled output with the others): BUILD SUCCESSFUL,
+22/22 unit tests across the whole module (6 new, 16 pre-existing, none broken), real ~20.8MB debug
+APK, lint 0 errors / 55 warnings (identical to the pre-existing baseline, no new warnings). Not run:
+device/emulator install or a screenshot pass, same disclosed gap as the Units slice.
+
 ## 2026-08-01 (continued, 23) — Android: Units vertical slice (priority 12)
 
 Second Android module, same one-module-at-a-time pattern Properties established. View-only

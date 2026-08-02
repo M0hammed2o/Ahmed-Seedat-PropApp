@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.People
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -21,6 +22,8 @@ import androidx.navigation.compose.rememberNavController
 import com.propertyvault.app.ui.dashboard.DashboardScreen
 import com.propertyvault.app.ui.properties.PropertiesListScreen
 import com.propertyvault.app.ui.properties.PropertyDetailScreen
+import com.propertyvault.app.ui.tenants.TenantDetailScreen
+import com.propertyvault.app.ui.tenants.TenantsListScreen
 import com.propertyvault.app.ui.units.UnitDetailScreen
 import com.propertyvault.app.ui.units.UnitsListScreen
 
@@ -29,6 +32,7 @@ private data class BottomNavItem(val route: String, val label: String, val icon:
 private val OWNER_BOTTOM_NAV_ITEMS = listOf(
     BottomNavItem(Destinations.DASHBOARD, "Dashboard", Icons.Filled.Dashboard),
     BottomNavItem(Destinations.PROPERTIES_LIST, "Properties", Icons.Filled.Home),
+    BottomNavItem(Destinations.TENANTS_LIST, "Tenants", Icons.Filled.People),
     // Operations/Finance/More tabs (NATIVE_ANDROID_SPEC.md §2) follow once their modules exist
     // (TASKS.md M20/M22) -- not stubbed here with dead placeholder tabs, matching this codebase's
     // established discipline against building UI surface that does nothing.
@@ -95,6 +99,14 @@ fun OwnerRootScreen() {
             }
             composable(Destinations.UNIT_DETAIL) {
                 UnitDetailScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Destinations.TENANTS_LIST) {
+                TenantsListScreen(
+                    onTenantClick = { tenantId -> navController.navigate(Destinations.tenantDetail(tenantId)) },
+                )
+            }
+            composable(Destinations.TENANT_DETAIL) {
+                TenantDetailScreen(onBack = { navController.popBackStack() })
             }
         }
     }

@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import com.propertyvault.app.data.local.PropertyDao
 import com.propertyvault.app.data.local.PropertyVaultDatabase
+import com.propertyvault.app.data.local.TenantDao
 import com.propertyvault.app.data.local.UnitDao
 import dagger.Module
 import dagger.Provides
@@ -27,4 +28,7 @@ object DatabaseModule {
 
     @Provides
     fun provideUnitDao(database: PropertyVaultDatabase): UnitDao = database.unitDao()
+
+    @Provides
+    fun provideTenantDao(database: PropertyVaultDatabase): TenantDao = database.tenantDao()
 }

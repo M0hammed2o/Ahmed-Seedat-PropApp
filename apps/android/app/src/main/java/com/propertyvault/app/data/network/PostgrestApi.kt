@@ -2,6 +2,7 @@ package com.propertyvault.app.data.network
 
 import com.propertyvault.app.data.network.dto.OrganizationMemberDto
 import com.propertyvault.app.data.network.dto.PropertyDto
+import com.propertyvault.app.data.network.dto.TenantDto
 import com.propertyvault.app.data.network.dto.UnitDto
 import retrofit2.Response
 import retrofit2.http.GET
@@ -48,4 +49,16 @@ interface PostgrestApi {
         @Query("select") select: String = "*",
         @Query("id") idFilter: String,
     ): Response<List<UnitDto>>
+
+    @GET("rest/v1/tenants")
+    suspend fun getTenants(
+        @Query("select") select: String = "*",
+        @Query("order") order: String = "full_name.asc",
+    ): Response<List<TenantDto>>
+
+    @GET("rest/v1/tenants")
+    suspend fun getTenantById(
+        @Query("select") select: String = "*",
+        @Query("id") idFilter: String,
+    ): Response<List<TenantDto>>
 }
