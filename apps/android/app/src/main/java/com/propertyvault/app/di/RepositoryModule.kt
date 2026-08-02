@@ -4,6 +4,9 @@ import com.propertyvault.app.BuildConfig
 import com.propertyvault.app.data.auth.AuthRepository
 import com.propertyvault.app.data.auth.MockAuthRepository
 import com.propertyvault.app.data.auth.SupabaseAuthRepository
+import com.propertyvault.app.data.leases.LeasesRepository
+import com.propertyvault.app.data.leases.MockLeasesRepository
+import com.propertyvault.app.data.leases.PostgrestLeasesRepository
 import com.propertyvault.app.data.properties.MockPropertiesRepository
 import com.propertyvault.app.data.properties.PostgrestPropertiesRepository
 import com.propertyvault.app.data.properties.PropertiesRepository
@@ -44,6 +47,13 @@ object RepositoryModule {
         real: PostgrestTenantsRepository,
         mock: MockTenantsRepository,
     ): TenantsRepository = if (BuildConfig.USE_MOCK_DATA) mock else real
+
+    @Provides
+    @Singleton
+    fun provideLeasesRepository(
+        real: PostgrestLeasesRepository,
+        mock: MockLeasesRepository,
+    ): LeasesRepository = if (BuildConfig.USE_MOCK_DATA) mock else real
 
     @Provides
     @Singleton

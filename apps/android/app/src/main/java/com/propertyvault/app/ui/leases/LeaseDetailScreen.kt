@@ -1,11 +1,10 @@
-package com.propertyvault.app.ui.units
+package com.propertyvault.app.ui.leases
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -21,22 +20,20 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.propertyvault.app.ui.common.EmptyStateView
 import com.propertyvault.app.ui.common.LoadingView
-import com.propertyvault.app.ui.common.formatArea
 import com.propertyvault.app.ui.common.formatCurrency
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun UnitDetailScreen(
+fun LeaseDetailScreen(
     onBack: () -> Unit,
-    onViewLeases: () -> Unit,
-    viewModel: UnitDetailViewModel = hiltViewModel(),
+    viewModel: LeaseDetailViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Unit") },
+                title = { Text("Lease") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -46,21 +43,22 @@ fun UnitDetailScreen(
         },
     ) { padding ->
         when (val state = uiState) {
-            is UnitDetailUiState.Loading -> LoadingView(modifier = Modifier.padding(padding))
-            is UnitDetailUiState.NotFound -> EmptyStateView(
-                title = "Unit not found",
+            is LeaseDetailUiState.Loading -> LoadingView(modifier = Modifier.padding(padding))
+            is LeaseDetailUiState.NotFound -> EmptyStateView(
+                title = "Lease not found",
                 modifier = Modifier.padding(padding),
             )
-            is UnitDetailUiState.Loaded -> Column(modifier = Modifier.padding(padding).padding(16.dp)) {
-                Text(state.unit.unitLabel, style = MaterialTheme.typography.headlineMedium)
-                DetailRow(label = "Status", value = state.unit.status.replace('_', ' '))
-                DetailRow(label = "Bedrooms", value = state.unit.bedrooms?.toString() ?: "—")
-                DetailRow(label = "Bathrooms", value = state.unit.bathrooms?.toString() ?: "—")
-                DetailRow(label = "Size", value = state.unit.sizeSqm?.let { "${formatArea(it)} m²" } ?: "—")
-                DetailRow(label = "Market rent", value = state.unit.marketRent?.let { "R${formatCurrency(it)}" } ?: "—")
-                Button(onClick = onViewLeases, modifier = Modifier.padding(top = 12.dp)) {
-                    Text("View leases")
-                }
+            is LeaseDetailUiState.Loaded -> Column(modifier = Modifier.padding(padding).padding(16.dp)) {
+                Text(
+                    "${state.lease.startDate} — ${state.lease.endDate ?: "Ongoing"}",
+                    style = MaterialTheme.typography.headlineMedium,
+                )
+                DetailRow(label = "Status", value = state.lease.status.replace('_', ' '))
+                DetailRow(
+                    label = "Rent",
+                    value = "R${formatCurrency(state.lease.rentAmount)} / ${state.lease.rentFrequency}",
+                )
+                DetailRow(label = "Deposit", value = "R${formatCurrency(state.lease.depositAmount)}")
             }
         }
     }

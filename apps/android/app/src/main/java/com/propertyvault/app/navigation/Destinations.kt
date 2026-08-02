@@ -15,9 +15,14 @@ object Destinations {
     const val UNIT_DETAIL = "properties/{propertyId}/units/{unitId}"
     const val TENANTS_LIST = "tenants"
     const val TENANT_DETAIL = "tenants/{tenantId}"
+    const val LEASES_LIST = "properties/{propertyId}/units/{unitId}/leases"
+    const val LEASE_DETAIL = "properties/{propertyId}/units/{unitId}/leases/{leaseId}"
 
     fun propertyDetail(propertyId: String) = "properties/$propertyId"
     fun unitsList(propertyId: String) = "properties/$propertyId/units"
     fun unitDetail(propertyId: String, unitId: String) = "properties/$propertyId/units/$unitId"
     fun tenantDetail(tenantId: String) = "tenants/$tenantId"
+    fun leasesList(propertyId: String, unitId: String) = "properties/$propertyId/units/$unitId/leases"
+    fun leaseDetail(propertyId: String, unitId: String, leaseId: String) =
+        "properties/$propertyId/units/$unitId/leases/$leaseId"
 }

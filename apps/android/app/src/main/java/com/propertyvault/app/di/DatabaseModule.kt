@@ -2,6 +2,7 @@ package com.propertyvault.app.di
 
 import android.content.Context
 import androidx.room.Room
+import com.propertyvault.app.data.local.LeaseDao
 import com.propertyvault.app.data.local.PropertyDao
 import com.propertyvault.app.data.local.PropertyVaultDatabase
 import com.propertyvault.app.data.local.TenantDao
@@ -31,4 +32,7 @@ object DatabaseModule {
 
     @Provides
     fun provideTenantDao(database: PropertyVaultDatabase): TenantDao = database.tenantDao()
+
+    @Provides
+    fun provideLeaseDao(database: PropertyVaultDatabase): LeaseDao = database.leaseDao()
 }

@@ -1,5 +1,30 @@
 # Worklog
 
+## 2026-08-01 (continued, 26) — Android: Leases vertical slice (priority 12, continued), device-verified in the same pass
+
+Fourth Android module. Unit-scoped (a lease only makes sense for a specific unit), reached from
+Unit Detail's new "View leases" button -- no new bottom-nav tab, same reasoning as Units.
+File-for-file the same shape as Units/Tenants: `Lease` domain model (provenance fields
+`source`/`sourceDocumentId`/`sourceApplicationId` left out, same call as `Tenant.idNumberRef`),
+DTO/Entity/Dao/real-repository/mock-repository, `PropertyVaultDatabase` bumped 3 -> 4.
+
+Extracted `formatCurrency()`/`formatArea()` out of `UnitDetailScreen` (where they were private,
+added during the last entry's bug fix) into a shared `ui/common/NumberFormatting.kt`, since Lease
+Detail needs identical formatting for rent/deposit and copy-pasting the exact logic that just
+caused a real bug would be asking for the same bug twice.
+
+Tests: `MockLeasesRepositoryTest` (4), `LeasesListViewModelTest` (4). Verified with a real Gradle
+run: `gradlew testDebugUnitTest assembleDebug lintDebug` -- BUILD SUCCESSFUL, 30/30 unit tests (8
+new, 22 pre-existing, none broken), lint 0 errors/55 warnings (unchanged).
+
+Given the previous entry's device pass caught a real bug that no unit test could have, repeated the
+same device verification here rather than treating it as optional now that the toolchain is warm:
+booted the AVD, installed the APK, drove Property -> Unit -> View leases -> Leases list -> Lease
+Detail by hand via `adb`, confirmed via `logcat` (no crash) and screenshots in light and dark mode.
+The formatted values ("R10,650" for rent and deposit) render correctly, confirming the extracted
+shared formatter carried the earlier fix over cleanly rather than silently reintroducing it.
+Reverted dark mode and shut the emulator down cleanly afterward.
+
 ## 2026-08-01 (continued, 25) — Android: real device verification, one bug found and fixed
 
 Mohammed installed a current Android Studio and asked for the previously-disclosed device/emulator

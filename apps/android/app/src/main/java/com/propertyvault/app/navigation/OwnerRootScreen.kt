@@ -20,6 +20,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.propertyvault.app.ui.dashboard.DashboardScreen
+import com.propertyvault.app.ui.leases.LeaseDetailScreen
+import com.propertyvault.app.ui.leases.LeasesListScreen
 import com.propertyvault.app.ui.properties.PropertiesListScreen
 import com.propertyvault.app.ui.properties.PropertyDetailScreen
 import com.propertyvault.app.ui.tenants.TenantDetailScreen
@@ -97,8 +99,26 @@ fun OwnerRootScreen() {
                     },
                 )
             }
-            composable(Destinations.UNIT_DETAIL) {
-                UnitDetailScreen(onBack = { navController.popBackStack() })
+            composable(Destinations.UNIT_DETAIL) { backStackEntry ->
+                val propertyId = checkNotNull(backStackEntry.arguments?.getString("propertyId"))
+                val unitId = checkNotNull(backStackEntry.arguments?.getString("unitId"))
+                UnitDetailScreen(
+                    onBack = { navController.popBackStack() },
+                    onViewLeases = { navController.navigate(Destinations.leasesList(propertyId, unitId)) },
+                )
+            }
+            composable(Destinations.LEASES_LIST) { backStackEntry ->
+                val propertyId = checkNotNull(backStackEntry.arguments?.getString("propertyId"))
+                val unitId = checkNotNull(backStackEntry.arguments?.getString("unitId"))
+                LeasesListScreen(
+                    onBack = { navController.popBackStack() },
+                    onLeaseClick = { leaseId ->
+                        navController.navigate(Destinations.leaseDetail(propertyId, unitId, leaseId))
+                    },
+                )
+            }
+            composable(Destinations.LEASE_DETAIL) {
+                LeaseDetailScreen(onBack = { navController.popBackStack() })
             }
             composable(Destinations.TENANTS_LIST) {
                 TenantsListScreen(

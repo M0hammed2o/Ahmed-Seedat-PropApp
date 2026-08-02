@@ -1,5 +1,6 @@
 package com.propertyvault.app.data.network
 
+import com.propertyvault.app.data.network.dto.LeaseDto
 import com.propertyvault.app.data.network.dto.OrganizationMemberDto
 import com.propertyvault.app.data.network.dto.PropertyDto
 import com.propertyvault.app.data.network.dto.TenantDto
@@ -61,4 +62,17 @@ interface PostgrestApi {
         @Query("select") select: String = "*",
         @Query("id") idFilter: String,
     ): Response<List<TenantDto>>
+
+    @GET("rest/v1/leases")
+    suspend fun getLeasesByUnit(
+        @Query("select") select: String = "*",
+        @Query("unit_id") unitIdFilter: String,
+        @Query("order") order: String = "start_date.desc",
+    ): Response<List<LeaseDto>>
+
+    @GET("rest/v1/leases")
+    suspend fun getLeaseById(
+        @Query("select") select: String = "*",
+        @Query("id") idFilter: String,
+    ): Response<List<LeaseDto>>
 }
