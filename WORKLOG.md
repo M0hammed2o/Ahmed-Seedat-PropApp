@@ -1,5 +1,47 @@
 # Worklog
 
+## 2026-08-01 (continued, 13) — M20: first Accounting vertical slice (Rent Due, Expenses, Trial Balance) — ninth module
+
+Mohammed's broader instruction explicitly named Accounting as real financial-correctness surface
+("Protect accounting integrity" under Database, "never weaken security to make implementation
+easier" under Security) — approached this one more carefully than the CRUD modules rather than
+copy-pasting the established pattern blindly.
+
+**Before writing any UI, read the actual posting functions rather than assuming the same agent+
+gate applied.** `PERMISSIONS.md`'s table has separate "Accounting (view)" and "Accounting (post)"
+columns; agent gets View only, none for post. Confirmed this is really enforced, not just
+documented, by reading `invoice_rent_schedule()` and `record_expense()`
+(`supabase/migrations/20260101000038_accounting_posting_operations.sql`) directly — both call
+`has_org_role(org_id, 'accountant')` as an internal check before doing anything, which (per
+`has_org_role()`'s own code comment) admits exactly `{accountant, manager, principal}` — agent is
+excluded, deliberately, not a linear-rank artifact. Every prior module's inline
+`role !== 'viewer' && role !== 'accountant'` check would have been wrong here — it would let an
+`agent` see and click an "Issue invoice"/"Record expense" button that the database would then
+correctly reject, but that's still a real UX/trust bug (and a smaller version of the exact
+"expected behavior contradicts audited behavior" pattern this project's security review already
+flagged once before, R-22 in `RISK_REGISTER.md`, for a different reason). Added
+`canWriteOrgRecords()`/`canPostAccountingRecords()` as two explicit, named, unit-tested checks
+(`orgSession.test.ts`) rather than silently reusing the wrong one.
+
+Scoped this pass to exactly three screens with a straightforward, already-shipped API: Rent Due
+(list + Issue invoice), Expenses (list/create/detail + Record expense), Trial Balance (read-only
+report). Explicitly did NOT attempt bank transaction matching (a genuine propose-then-confirm UI
+around `calculateMatchScore`), owner statements (a batch-draft workflow), or the tax pack (PDF
+export) in the same pass — each is its own multi-step workflow deserving focused attention, not
+something to rush alongside a role-gating correction in the same batch.
+
+Verified the "paid immediately" checkbox's copy against `record_expense()`'s actual behavior
+(`Cr Bank` if true, `Cr Accounts Payable` if false) rather than writing a plausible-sounding label
+from the field name alone — got it right on the first read, but confirmed rather than assumed.
+
+**Full verification**: `pnpm --filter admin typecheck`/`lint`/`test` (75/75 passed, up from 64,
+including the new `orgSession.test.ts` role-gate tests) and `pnpm --filter @propvault/ui typecheck`
+clean, all on the first attempt; real clean `next build` registered all 5 new routes; runtime smoke
+test via `next start` in demo mode covering all 7 route/query-param combinations (both status
+filters on Rent Due, both ledger_class filters on Trial Balance, the expense detail/create/list
+pages) — all 200, response bodies grepped for real rendered content including the action-button
+states. Server process confirmed via `Get-CimInstance Win32_Process` before stopping.
+
 ## 2026-08-01 (continued, 12) — M20: Inspections vertical slice (eighth module) — CRUD/workflow-shaped modules now complete
 
 Same no-generic-PATCH shape as Applications, reused the same design pattern deliberately:

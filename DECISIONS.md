@@ -331,3 +331,43 @@ message, not a silent no-op or a client/server mismatch bug.
 Full verification record (typecheck/lint/test/build/runtime-smoke-test command output for each of
 the four modules) is in `WORKLOG.md`'s four corresponding 2026-08-01 entries and each slice's own
 commit message, not repeated here.
+
+## 2026-08-01 — M20 Accounting: the agent+ UI role-gate used by every prior module is wrong for Accounting; added a dedicated accountant+ check instead of reusing it
+
+Every M20 module built before Accounting (Units, Tenants, Leases, Maintenance, Owners,
+Applications, Inspections) gated its write actions with the same inline check:
+`role !== 'viewer' && role !== 'accountant'` — i.e. "agent or above." That's correct for those
+modules specifically because `PERMISSIONS.md`'s "Properties/Units/Leases/Tenants"/"Applications"/
+"Maintenance" columns all list `agent` as Full. It does not generalize: the same table's
+"Accounting (post)" column grants Full to `accountant`/`manager`/`principal` and explicitly
+nothing to `agent`.
+
+Confirmed this is real enforcement, not just a documentation intent, before writing any UI: read
+`invoice_rent_schedule()` and `record_expense()`
+(`supabase/migrations/20260101000038_accounting_posting_operations.sql`) directly. Both open with
+`if not public.has_org_role(v_schedule.org_id, 'accountant') then raise exception ...` — a hard
+database-level rejection, independent of anything the API route or UI does. `has_org_role()`'s own
+code comment (`supabase/migrations/20260101000021_org_role_helpers.sql`) is explicit that `agent`
+and `accountant` are siblings, not points on one linear scale — `min_role: 'accountant'` resolves
+to exactly `{accountant, manager, principal}`, and `min_role: 'agent'` resolves to exactly
+`{agent, manager, principal}`. Reusing the agent+ inline check for Accounting would have shown an
+`agent`-role user an "Issue invoice"/"Record expense" button that the database would then reject —
+still safe (the real enforcement holds), but a real trust/UX bug: a button that lies about what it
+can do.
+
+**Decided**: added two small, explicitly named, non-overlapping checks to
+`apps/admin/lib/orgSession.ts` — `canWriteOrgRecords()` (the existing agent+ semantics, now named
+and centralized rather than re-typed as a literal inline expression in every new file) and
+`canPostAccountingRecords()` (the new accountant+ semantics). Did not attempt to unify these into
+one ranked permission system — that would misrepresent the real, sibling-role structure
+`has_org_role()` itself deliberately preserves. Unit tested both, including an explicit assertion
+that they're non-overlapping on exactly `agent`/`accountant` (`orgSession.test.ts`), since a wrong
+role list here is a silent security-relevant UI bug, not a cosmetic one, and the kind of mistake
+that's easy to introduce by copy-pasting a working pattern into a context where it doesn't apply.
+
+Did not retroactively refactor the 8 already-shipped modules' inline agent+ checks to call the new
+`canWriteOrgRecords()` — those checks are correct as written, and touching 8 already-verified files
+for a pure DRY improvement with zero functional change is exactly the "refactor only when it
+improves maintainability without introducing risk" judgment call, not a safe zero-risk mechanical
+change given each file would need re-verification. Flagged as a candidate for a dedicated
+small cleanup pass later, not done opportunistically here.
