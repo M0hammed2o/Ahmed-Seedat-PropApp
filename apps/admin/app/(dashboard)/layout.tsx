@@ -16,6 +16,7 @@ import {
   ArrowLeftRight,
   Scale,
   HandCoins,
+  FileSpreadsheet,
   FileText,
   Bell,
   Megaphone,
@@ -72,6 +73,7 @@ const NAV_SECTIONS: NavSection[] = [
       { href: '/accounting/bank-transactions', label: 'Bank Transactions', icon: navIcon(ArrowLeftRight) },
       { href: '/accounting/owner-statements', label: 'Owner Statements', icon: navIcon(HandCoins) },
       { href: '/accounting/trial-balance', label: 'Trial Balance', icon: navIcon(Scale) },
+      { href: '/accounting/tax-pack', label: 'Tax Pack', icon: navIcon(FileSpreadsheet) },
     ],
   },
   {

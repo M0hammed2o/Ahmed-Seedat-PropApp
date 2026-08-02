@@ -1,5 +1,29 @@
 # Worklog
 
+## 2026-08-02 (continued) — South African Tax Pack (item 5/8)
+
+`compute_tax_pack()` is a live report, same "computed on demand, never stored" pattern as Trial
+Balance -- sums journal_lines for the SA tax year (1 March - end of February), grouped
+per-property and per-account. Grouping by account IS grouping by category: record_expense()
+already matches an expense's category to a same-named chart_of_accounts row, so there's no
+separate category concept to build. No SARS classification beyond account name is invented.
+
+The SA tax-year window is computed as `make_date(tax_year, 3, 1) - 1` for the end date rather than
+hardcoding Feb 28, so leap years resolve correctly automatically. Verified with a real
+out-of-year entry: since journal_entries is permanently immutable (a post-then-backdate attempt in
+the test correctly failed against that trigger, confirming the enforcement itself works), the test
+posts the old entry directly via post_journal_entry() at a controlled entry_date instead, then
+confirms it's excluded from the current year's pack.
+
+record_tax_pack_export() writes an audit row only when a real export/download happens, not on
+every on-screen view -- the CSV download route triggers it as a side effect. CSV chosen over a
+server-rendered PDF (no new dependency for V1, same call as Owner Statements' print-to-PDF); the
+disclaimer ships as the CSV's first line and as a JSON field the UI renders verbatim.
+
+New tax_pack.test.sql (12 assertions) + TaxPackClient.test.tsx (2 cases). Full regression:
+245/245 pgTAP across 17 files. Full monorepo typecheck (6/6 non-mobile), apps/admin lint/vitest
+(127/127), real next build, and a real demo-mode smoke test all clean.
+
 ## 2026-08-02 (continued) — Owner Statements (item 4/8)
 
 `generate_owner_statements()` batch-drafts one statement per owner per period across their whole

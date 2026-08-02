@@ -168,3 +168,15 @@ export interface OwnerStatement {
   createdAt: string;
   updatedAt: string;
 }
+
+// ACCOUNTING.md §7 -- one line per property/account for a given SA tax year, computed live from
+// journal_lines (never stored). propertyName is resolved at the API layer (compute_tax_pack()
+// itself only returns property_id), null for lines with no property attribution.
+export interface TaxPackLine {
+  propertyId: string | null;
+  propertyName: string | null;
+  accountType: 'income' | 'expense';
+  accountCode: string;
+  accountName: string;
+  amount: number;
+}
