@@ -1,5 +1,53 @@
 # Worklog
 
+## 2026-08-02 — Design-tooling setup surfaces a P0: the production CSP has been silently breaking hydration since the first commit
+
+Mohammed asked for a full PWA UI/UX redesign and to install real design/browser-verification
+tooling first (shadcn MCP, 21st.dev Magic MCP, the Anthropic frontend-design plugin, Chrome
+DevTools MCP, plus Vercel's skills CLI and a plain markdown design-guidelines reference).
+
+**Tooling reality check**: this environment has no `claude` CLI and no mechanism to register a new
+MCP server mid-session (MCP servers connect at client startup, not dynamically) -- wrote
+`.mcp.json` at the project root configuring `shadcn` and `chrome-devtools` (both installable
+without a paid account) so they're live after a reload; `21st.dev` Magic MCP needs a fresh API key
+from their own signup flow, a real external-account requirement, so it's flagged blocked rather
+than worked around. The Anthropic frontend-design plugin turned out to be a prompting methodology
+("Claude automatically uses this skill for frontend work"), not a registrable tool -- applying its
+documented principles directly rather than chasing a formal install step. Since Chrome DevTools MCP
+couldn't be live this session either, built a small standalone substitute: `puppeteer-core`
+pointed at the already-installed system Chrome, giving real screenshots + console/network error
+capture without needing the MCP wrapper.
+
+**First real-browser check found something much bigger than a styling problem.** Pointed the new
+audit script at the running `/overview` page and got back a screenshot of nothing but grey skeleton
+bars -- every KPI card, chart, and activity feed frozen in its `loading.tsx` fallback state, plus a
+wall of `Content-Security-Policy` console errors blocking inline scripts. `next.config.ts`'s static
+CSP (`script-src 'self'`, no nonce, no `'unsafe-inline'`) had been blocking every one of Next.js's
+own inline hydration `<script>` tags in every real browser -- since this project's literal first
+commit (`ce0f389`). Every "demo-mode smoke test... 200 with real content" claim made across this
+entire session was a `curl | grep` against raw HTML bytes, which doesn't execute JavaScript or
+enforce CSP at all, so it was structurally blind to this exact class of bug the whole time.
+
+Fixed properly, not patched around: migrated `middleware.ts` -> `proxy.ts` (Next.js 16 renamed the
+convention; deprecated but still working, migrated anyway since this file needed touching regardless)
+and implemented Next's own documented nonce-based CSP -- a fresh nonce generated per request, set as
+the `Content-Security-Policy` response header, which Next.js automatically applies to its own
+framework/hydration scripts. This requires dynamic rendering everywhere a nonce needs to exist;
+`/login` and `/onboarding/create-organization` were the only two static pages (single-file
+`'use client'` components with nowhere to attach `export const dynamic`) -- split each into a thin
+dynamic `page.tsx` wrapper plus an unchanged, relocated client form component.
+
+Verified with the same real-browser tooling that caught the bug: `/overview` (light + dark),
+`/login`, `/dashboard` all now render fully hydrated real content with zero CSP violations --
+confirmed by screenshot, not just a curl status code. `pnpm typecheck`/`lint`/`test` (112/112) and a
+real production build all clean afterward. Full narrative in `DECISIONS.md` 2026-08-02 -- this is
+disclosed there as a real gap in this session's own past verification depth (the curl checks that
+ran did run and did return what was reported; they were just never sufficient to catch a
+client-hydration failure), not a retraction of anything specific that was claimed.
+
+Now moving on to the actual UI/UX redesign work this was meant to set up for, with real
+browser-based verification as the standard going forward rather than curl alone.
+
 ## 2026-08-01 (continued, 27) — Android: Maintenance vertical slice (priority 12, continued) -- and a real, pre-existing API gap found while scoping ticket submission
 
 Fifth Android module. Started by re-reading `MOBILE_ARCHITECTURE_DECISION.md` §6/§7, which is explicit

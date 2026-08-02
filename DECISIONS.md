@@ -505,3 +505,52 @@ guarantee audit-trail writes and business-rule validation on every mutation). Fi
 instead; ticket submission stays deferred until TD-28 is deliberately paid down. Same judgment
 already applied to support-mode's TD-25 for the same underlying reason — a real, security-adjacent
 gap correctly flagged rather than silently patched.
+
+## 2026-08-02 — Found and fixed: the production CSP has been blocking hydration on every admin page since the first commit
+
+Mohammed asked for a full UI/UX redesign and to install real browser-verification tooling
+(Chrome DevTools) for the work. No mechanism exists in this environment to register a new MCP
+server mid-session (no `claude` CLI, and MCP servers connect at client startup, not dynamically) —
+`.mcp.json` was written for shadcn/chrome-devtools so they're available after a reload, and a
+standalone `puppeteer-core` script (pointed at the already-installed system Chrome) was built as a
+working substitute for this session. The very first real-browser check against the running PWA
+(`/overview`, production build, demo mode) surfaced something far more important than a visual
+gap: every KPI card and chart was a permanently frozen `loading.tsx` skeleton — actual React
+hydration was never completing.
+
+**Root cause**: `next.config.ts`'s static `Content-Security-Policy` header
+(`script-src 'self'`) has been present, unchanged, since this project's very first commit
+(`ce0f389`, "Phase 0 + Phase 1: PropVault monorepo foundation") — it never included
+`'unsafe-inline'` or a nonce for scripts. Next.js's own App Router streams page content to the
+browser via several inline `<script>` tags (`self.__next_f.push(...)`) that deliver the RSC
+payload and trigger hydration; CSP was blocking every one of them, in every real browser, on every
+page, this entire project. This was never caught because every "demo-mode smoke test" claim made
+across this whole session (dozens of commits) was verified with `curl | grep` against raw response
+bytes — `curl` doesn't execute JavaScript or enforce CSP at all, so a page whose initial HTML
+happens to contain the right text greps identically whether or not a real browser would ever
+actually render it. This is a real, disclosed gap in this session's own past verification depth,
+not a fabricated result — the curl checks that were run did run and did return what was reported —
+but they were never sufficient to catch a client-hydration failure, and are documented here so
+future verification for this app always includes a real browser, not just `curl`.
+
+**Fix**: Next.js 16 deprecated `middleware.ts` in favor of `proxy.ts` (renaming only, same
+mechanism) — migrated in the same pass since the CSP fix required touching this file anyway.
+Implemented the officially documented nonce pattern (nextjs.org/docs/app/guides/content-security-policy):
+`proxy.ts` generates a fresh nonce per request, sets it as the `Content-Security-Policy` response
+header (`script-src 'self' 'nonce-<value>' 'strict-dynamic'`) and forwards it via an `x-nonce`
+request header; Next.js automatically parses its own nonce back out of the response CSP header and
+applies it to every framework/hydration script it injects, no per-component wiring needed. This
+requires every page to render dynamically (a nonce can't exist at build time) — every route
+group's layout and the root `/page.tsx` already forced this; `/login` and
+`/onboarding/create-organization` didn't (both are single-file `'use client'` pages with nowhere
+to attach the `dynamic` export) — split each into a thin Server Component `page.tsx`
+(`export const dynamic = 'force-dynamic'`) plus an unchanged, relocated client `*Form.tsx`.
+`next.config.ts`'s own CSP entry was removed (a static header can't carry a per-request value).
+
+**Verified with the real browser tooling that caught this**, not just curl: `/overview` (light and
+dark), `/login`, `/dashboard` all render real, fully hydrated content with zero CSP console errors
+— confirmed via screenshot, not just an HTTP 200. Also: `pnpm typecheck`/`lint`/`test` (112/112) and
+a real production build, all clean. The rest of this session's already-shipped functionality (RLS,
+API business logic, Android) is unaffected — this bug was specifically about client-side script
+execution in a browser, which none of the backend/pgTAP/pnpm-test verification this session relied
+on would ever exercise.

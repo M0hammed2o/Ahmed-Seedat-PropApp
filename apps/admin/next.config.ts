@@ -1,18 +1,16 @@
 import path from 'node:path';
 import type { NextConfig } from 'next';
 
-// Secure headers on the admin dashboard (SECURITY.md release-blocking requirement). CSP is
-// intentionally restrictive; loosen only for a specific, documented asset host once chosen.
+// Secure headers on the admin dashboard (SECURITY.md release-blocking requirement).
+// Content-Security-Policy is deliberately NOT set here: it needs a fresh nonce on every request
+// (proxy.ts, 2026-08-02 fix) and a static value returned from headers() can't carry that --
+// setting it both here and in proxy.ts would leave this stale, unenforced copy in place with no
+// nonce, silently blocking every inline hydration script again.
 const securityHeaders = [
   { key: 'X-Content-Type-Options', value: 'nosniff' },
   { key: 'X-Frame-Options', value: 'DENY' },
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
   { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
-  {
-    key: 'Content-Security-Policy',
-    value:
-      "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' https://*.supabase.co;",
-  },
 ];
 
 const nextConfig: NextConfig = {

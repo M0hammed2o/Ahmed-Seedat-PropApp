@@ -8,13 +8,6 @@ type CookieToSet = { name: string; value: string; options: CookieOptions };
 // (dashboard) client-org-facing pages (ARCHITECTURE.md's "Why one web app, not two" naming, both
 // route groups now correctly named -- DECISIONS.md 2026-08-01). One shared list so the matcher
 // config below and the runtime check can't drift out of sync as more routes are added.
-// Real gap found and fixed 2026-08-01 (DECISIONS.md): this list (and its literal `matcher` twin
-// below) hadn't been updated since the M20 vertical-slice pass added 12 new (dashboard) route
-// segments across 7+ commits -- each new page/route still independently enforces its own
-// session/role check (the real enforcement per this file's own header comment), so this was never
-// a data-exposure gap, but it was a real, live UX gap (an unauthenticated request could reach the
-// page shell before an API call 401s) for every route added since. Caught while adding
-// '/dashboard' for the new Owner Dashboard landing page.
 const PROTECTED_ROUTE_PREFIXES = [
   '/overview',
   '/customers',
@@ -42,22 +35,71 @@ const PROTECTED_ROUTE_PREFIXES = [
 ];
 
 /**
- * Coarse gate: redirects unauthenticated sessions away from protected routes. This is
- * defense-in-depth only — per SECURITY.md, every mutating route handler re-checks
- * `requireRole()`/`requireOrgRole()` itself rather than trusting middleware having run
- * (middleware can be bypassed in some deployment configurations, and doesn't itself check
+ * Real bug found and fixed 2026-08-02 (DECISIONS.md): `next.config.ts`'s static
+ * Content-Security-Policy header (`script-src 'self'`, no `'unsafe-inline'` or nonce) has been
+ * silently blocking every one of Next.js's own inline hydration/streaming-RSC `<script>` tags
+ * since this project's first commit -- confirmed with a real Chrome browser check (this session's
+ * curl-based smoke tests never caught it; curl doesn't execute JavaScript or enforce CSP at all,
+ * so a page whose HTML *contains* the right text but whose React tree never actually hydrates
+ * looks identical to a working one from curl's point of view). Every page was rendering as a
+ * permanently frozen `loading.tsx` skeleton in any real browser.
+ *
+ * Fixed per Next.js's own documented nonce pattern
+ * (nextjs.org/docs/app/guides/content-security-policy): generate a fresh nonce per request here,
+ * forward it via the `x-nonce` request header (Next.js reads this automatically off the request
+ * and applies it to its own framework/hydration scripts -- no per-component wiring needed), and
+ * set the same value as the `Content-Security-Policy` response header. `next.config.ts`'s own
+ * Content-Security-Policy entry was removed in the same change -- a header returned statically
+ * from `headers()` can't carry a value that has to be different on every request.
+ *
+ * This requires every page to be dynamically rendered (Next.js can only inject a nonce at
+ * request time) -- already true for every route group's layout and the root `/page.tsx`
+ * (`export const dynamic = 'force-dynamic'`); `/login` and `/onboarding/create-organization`
+ * needed the same treatment, done in the same change.
+ */
+function buildCspHeader(nonce: string): string {
+  const isDev = process.env.NODE_ENV === 'development';
+  return [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ''}`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: https:",
+    "font-src 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+    "connect-src 'self' https://*.supabase.co",
+    'upgrade-insecure-requests',
+  ].join('; ');
+}
+
+/**
+ * Coarse auth gate (unchanged behavior, just folded into the same pass as the CSP nonce so this
+ * file makes one `NextResponse` per request instead of two): redirects unauthenticated sessions
+ * away from protected routes. Defense-in-depth only — per SECURITY.md, every mutating route
+ * handler re-checks `requireRole()`/`requireOrgRole()` itself rather than trusting proxy having
+ * run (proxy can be bypassed in some deployment configurations, and doesn't itself check
  * `platform_admin_users`/`organization_members` here to avoid an extra round trip on every
  * request).
  */
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
+  const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
+  const cspHeader = buildCspHeader(nonce);
+
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-nonce', nonce);
+  requestHeaders.set('Content-Security-Policy', cspHeader);
+
+  const response = NextResponse.next({ request: { headers: requestHeaders } });
+  response.headers.set('Content-Security-Policy', cspHeader);
+
   // Demo mode has no Supabase project to check a session against — lib/auth.ts's
   // getAdminSession() always returns the fixed demo admin session instead, so there's nothing
-  // for this coarse gate to do (see DECISIONS.md, Phase 2 entry).
+  // for the auth gate below to do (see DECISIONS.md, Phase 2 entry).
   if (ADMIN_DEMO_MODE) {
-    return NextResponse.next();
+    return response;
   }
-
-  const response = NextResponse.next();
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL as string,
@@ -85,47 +127,18 @@ export async function middleware(request: NextRequest) {
 
   if (isProtectedRoute && !user) {
     const loginUrl = new URL('/login', request.url);
-    return NextResponse.redirect(loginUrl);
+    const redirectResponse = NextResponse.redirect(loginUrl);
+    redirectResponse.headers.set('Content-Security-Policy', cspHeader);
+    return redirectResponse;
   }
 
   return response;
 }
 
-// Next.js's build-time config parser statically analyzes this file without executing it, so
-// `matcher` must be a literal array, never a computed expression (confirmed by a real
-// `next build` failure: "Next.js can't recognize the exported `config` field... matcher needs to
-// be a static string or array of static strings"). Kept in sync with PROTECTED_ROUTE_PREFIXES by
-// hand -- if this list falls behind (a new protected prefix added to PROTECTED_ROUTE_PREFIXES but
-// not here), middleware simply never runs for that path, so this coarse gate silently stops
-// covering it. Not a security hole on its own -- this file's own header comment already treats
-// middleware as defense-in-depth only, with every route handler re-checking `requireRole()`/
-// `requireOrgRole()` itself as the real enforcement -- but it is a real UX gap (an unauthenticated
-// user could reach the page shell before an API call 401s) worth keeping these two lists aligned
-// whenever a new protected route is added.
+// The nonce must be set on every page request, not just protected ones (an unauthenticated visitor
+// on /login still needs Next.js's own hydration scripts to run) -- excludes only static assets,
+// matching Next.js's own documented CSP-nonce matcher example. `PROTECTED_ROUTE_PREFIXES` above
+// (checked at runtime, not via this matcher) is what actually narrows the auth-redirect behavior.
 export const config = {
-  matcher: [
-    '/overview/:path*',
-    '/customers/:path*',
-    '/subscriptions/:path*',
-    '/processing/:path*',
-    '/system/:path*',
-    '/dashboard/:path*',
-    '/properties/:path*',
-    '/units/:path*',
-    '/owners/:path*',
-    '/tenants/:path*',
-    '/leases/:path*',
-    '/applications/:path*',
-    '/maintenance/:path*',
-    '/inspections/:path*',
-    '/accounting/:path*',
-    '/documents/:path*',
-    '/notifications/:path*',
-    '/announcements/:path*',
-    '/reports/:path*',
-    '/my-lease/:path*',
-    '/my-payments/:path*',
-    '/my-maintenance/:path*',
-    '/notices/:path*',
-  ],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 };
