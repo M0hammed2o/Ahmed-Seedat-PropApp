@@ -24,6 +24,7 @@ const NAV_ITEMS = [
   { href: '/accounting/expenses', label: 'Expenses' },
   { href: '/accounting/trial-balance', label: 'Trial Balance' },
   { href: '/notifications', label: 'Notifications' },
+  { href: '/announcements', label: 'Announcements' },
 ];
 
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
