@@ -1,5 +1,22 @@
 # Worklog
 
+## 2026-08-01 (continued, 17) — Payments/bank-matching V1 slice (priority 4)
+
+Web UI for the M14-part-2 bank accounts/transactions API, which already existed and needed no
+schema changes. Bank Accounts (list/create) and Bank Transactions (list/create + inline "Match"
+control) round out the Accounting section alongside the already-shipped Rent Due/Expenses/Trial
+Balance pages.
+
+Matching stays confirm-only per TD-22 (already-documented, deliberate gap: no `calculateMatchScore`
+propose step wired in yet) — the UI has staff pick the specific pending/overdue rent_schedule row
+to match a transaction against from a plain dropdown, rather than fabricating a scored-suggestion
+UI around a feature that isn't built. Simpler, and matches the "don't over-engineer" instruction.
+
+No migrations this pass (existing schema/RPCs only), so no `supabase db reset`/pgTAP re-run needed.
+
+Verified: admin typecheck/lint/test (103/103) and `next build` clean, demo-mode smoke test across
+all 4 new routes.
+
 ## 2026-08-01 (continued, 16) — Documents + OCR review V1 slice (priorities 2-3)
 
 First real Documents module implementation — M11 (2026-07-31) only did the schema/RLS org-scoping

@@ -22,6 +22,8 @@ const NAV_ITEMS = [
   { href: '/inspections', label: 'Inspections' },
   { href: '/accounting/rent-due', label: 'Rent Due' },
   { href: '/accounting/expenses', label: 'Expenses' },
+  { href: '/accounting/bank-accounts', label: 'Bank Accounts' },
+  { href: '/accounting/bank-transactions', label: 'Bank Transactions' },
   { href: '/accounting/trial-balance', label: 'Trial Balance' },
   { href: '/documents', label: 'Documents' },
   { href: '/notifications', label: 'Notifications' },

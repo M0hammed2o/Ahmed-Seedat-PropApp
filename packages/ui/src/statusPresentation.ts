@@ -2,6 +2,7 @@ import type {
   ApplicationDecision,
   ApplicationScreeningStatus,
   ApplicationStatus,
+  BankTransactionMatchStatus,
   BillStatus,
   ExpenseStatus,
   InspectionConditionRating,
@@ -188,4 +189,11 @@ export const INVOICE_STATUS_PRESENTATION: Record<InvoiceStatus, StatusPresentati
   draft: { label: 'Draft', icon: 'eye', colorToken: 'statusNeedsReview' },
   issued: { label: 'Issued', icon: 'spinner', colorToken: 'statusProcessing' },
   paid: { label: 'Paid', icon: 'check', colorToken: 'statusPaid' },
+};
+
+// TASKS.md M20 (Payments/bank-matching vertical slice).
+export const BANK_TRANSACTION_MATCH_STATUS_PRESENTATION: Record<BankTransactionMatchStatus, StatusPresentation> = {
+  unmatched: { label: 'Unmatched', icon: 'eye', colorToken: 'statusNeedsReview' },
+  matched: { label: 'Matched', icon: 'check', colorToken: 'statusPaid' },
+  ignored: { label: 'Ignored', icon: 'slash', colorToken: 'statusVoid' },
 };
