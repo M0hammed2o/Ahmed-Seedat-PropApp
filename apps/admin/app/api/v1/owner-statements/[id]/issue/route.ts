@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { mapOwnerStatementRow } from '@/lib/accounting';
+import { dispatchEmail } from '@/lib/emailDispatch';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -34,6 +35,23 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       { error: { code: 'owner_statement_fetch_failed', message: fetchError.message } },
       { status: 500 },
     );
+  }
+
+  try {
+    const serviceClient = getServiceRoleClient();
+    const { data: owner } = await serviceClient.from('owners').select('email').eq('id', data.owner_id).maybeSingle();
+
+    await dispatchEmail(serviceClient, {
+      orgId: data.org_id,
+      toAddress: owner?.email ?? null,
+      templateName: 'owner_statement_ready',
+      templateVars: { period: `${data.period_start} – ${data.period_end}`, netPayable: data.net_payable },
+      relatedEntityType: 'owner_statement',
+      relatedEntityId: data.id,
+      actorUserId: user.id,
+    });
+  } catch (err) {
+    console.error('[emailDispatch] owner_statement_ready dispatch failed', err);
   }
 
   return NextResponse.json({ ownerStatement: mapOwnerStatementRow(data) });

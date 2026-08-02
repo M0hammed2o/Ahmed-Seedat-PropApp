@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { mapInvoiceRow } from '@/lib/accounting';
+import { dispatchEmail } from '@/lib/emailDispatch';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -46,6 +47,33 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       { error: { code: 'invoice_fetch_failed', message: fetchError.message } },
       { status: 500 },
     );
+  }
+
+  // Email dispatch never blocks or fails the invoice response -- a notification-side error
+  // (bad address, provider hiccup) must not roll back or mask a write that already succeeded,
+  // same "log, don't throw" boundary writeAuditEvent() already uses for the identical reason.
+  try {
+    const serviceClient = getServiceRoleClient();
+    const { data: tenant } = await serviceClient.from('tenants').select('email').eq('id', data.tenant_id).maybeSingle();
+    const { data: property } = await serviceClient
+      .from('leases')
+      .select('units(properties(nickname))')
+      .eq('id', data.lease_id)
+      .maybeSingle();
+    const propertyAddress = (property as { units?: { properties?: { nickname?: string } } } | null)?.units?.properties
+      ?.nickname;
+
+    await dispatchEmail(serviceClient, {
+      orgId: data.org_id,
+      toAddress: tenant?.email ?? null,
+      templateName: 'invoice_issued',
+      templateVars: { propertyAddress, amount: data.amount, period: data.period },
+      relatedEntityType: 'invoice',
+      relatedEntityId: data.id,
+      actorUserId: user.id,
+    });
+  } catch (err) {
+    console.error('[emailDispatch] invoice_issued dispatch failed', err);
   }
 
   return NextResponse.json({ invoice: mapInvoiceRow(data) }, { status: 201 });

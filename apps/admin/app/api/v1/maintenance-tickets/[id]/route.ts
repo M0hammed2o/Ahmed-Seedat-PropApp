@@ -1,8 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { maintenanceTicketUpdateSchema } from '@propvault/validation';
-import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { requireOrgRole } from '@/lib/portfolio';
 import { mapMaintenanceTicketRow, isValidMaintenanceTransition } from '@/lib/operations';
+import { dispatchEmail } from '@/lib/emailDispatch';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -139,6 +140,32 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       { error: { code: 'maintenance_ticket_update_failed', message: error.message } },
       { status: 500 },
     );
+  }
+
+  if (parsed.data.status !== undefined && data.tenant_id) {
+    try {
+      const serviceClient = getServiceRoleClient();
+      const { data: tenant } = await serviceClient.from('tenants').select('email').eq('id', data.tenant_id).maybeSingle();
+
+      // relatedEntityType carries the new status (it's a plain text column, unlike
+      // relatedEntityId which is uuid) -- a ticket legitimately moves through several distinct
+      // statuses (To Do -> In Progress -> Completed), each one a real, separate event worth its
+      // own notification; entity-only dedup would wrongly treat the second transition as a
+      // duplicate of the first, and relatedEntityId must stay the ticket's real uuid (it's what
+      // the entity's own page would query email_messages by, EMAIL.md §5).
+      await dispatchEmail(serviceClient, {
+        orgId: data.org_id,
+        toAddress: tenant?.email ?? null,
+        toUserId: null,
+        templateName: 'maintenance_update',
+        templateVars: { summary: data.summary, status: data.status },
+        relatedEntityType: `maintenance_ticket:${data.status}`,
+        relatedEntityId: data.id,
+        actorUserId: user.id,
+      });
+    } catch (err) {
+      console.error('[emailDispatch] maintenance_update dispatch failed', err);
+    }
   }
 
   return NextResponse.json({ maintenanceTicket: mapMaintenanceTicketRow(data) });

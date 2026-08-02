@@ -1,6 +1,7 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getBillingGatewayProvider } from './providers/billing';
+import { dispatchEmail } from './emailDispatch';
 
 // Organization-level SaaS billing service (SUBSCRIPTIONS.md) -- the one place subscription
 // business logic lives, calling BillingGatewayProvider as its only dependency on a real vendor.
@@ -154,6 +155,37 @@ export async function processBillingWebhookEvent(
       await serviceClient.from('organizations').update({ status: 'active' }).eq('id', orgId);
     } else if (event.type === 'payment_failed') {
       await serviceClient.from('organizations').update({ status: 'overdue' }).eq('id', orgId);
+
+      // Notify the org's principal -- a failed subscription charge is exactly the kind of event
+      // EMAIL.md §1's "Billing (platform)" category names ("payment failed"). Never blocks/fails
+      // the webhook response -- same "log, don't throw" boundary as every other dispatch site.
+      try {
+        const { data: principal } = await serviceClient
+          .from('organization_members')
+          .select('user_id')
+          .eq('org_id', orgId)
+          .eq('role', 'principal')
+          .eq('status', 'active')
+          .limit(1)
+          .maybeSingle();
+        if (principal) {
+          const { data: authUser } = await serviceClient.auth.admin.getUserById(principal.user_id);
+          await dispatchEmail(serviceClient, {
+            orgId,
+            toAddress: authUser?.user?.email ?? null,
+            templateName: 'subscription_payment_issue',
+            templateVars: { providerReference: event.providerReference },
+            // relatedEntityType carries the specific event id (text column) since orgId is the
+            // only real uuid available here -- one failed-payment email per distinct gateway
+            // event, not one ever per org.
+            relatedEntityType: `billing_event:${event.providerEventId}`,
+            relatedEntityId: orgId,
+            actorUserId: null,
+          });
+        }
+      } catch (err) {
+        console.error('[emailDispatch] subscription_payment_issue dispatch failed', err);
+      }
     } else if (event.type === 'subscription_cancelled') {
       await serviceClient.from('organization_subscriptions').update({ status: 'cancelled' }).eq('id', payment.subscription_id);
       await serviceClient.from('organizations').update({ status: 'cancelled' }).eq('id', orgId);

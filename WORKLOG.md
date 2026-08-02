@@ -1,5 +1,27 @@
 # Worklog
 
+## 2026-08-02 (continued) — Email notification dispatch wiring (TD-23 email half, item 7/8)
+
+The email provider/schema layer (M16) existed with nothing calling it. dispatchEmail()
+(apps/admin/lib/emailDispatch.ts) is the one place every trigger site now calls into --
+idempotent (one email per (related_entity_type, related_entity_id, template_name)), suppression-
+checked, and preference-gated for non-transactional categories only (EMAIL.md's own rule:
+transactional mail is never user-suppressible). Wired into 5 real, already-existing trigger
+points: rent-schedule invoicing, bank-transaction payment confirmation, owner-statement issuance,
+maintenance-ticket status changes, and the billing webhook's payment_failed event.
+
+A real bug was caught by the new test suite before it shipped: email_messages.related_entity_id
+is a uuid column, and an early draft tried to encode a maintenance ticket's status into it as a
+composite string (so repeated distinct status transitions on the same ticket each get counted as
+a separate, real event rather than deduped as "already sent") -- failed with "invalid input syntax
+for type uuid" against a real ticket id. Fixed by moving that extra context into
+related_entity_type instead (a plain text column), keeping related_entity_id a real entity uuid
+throughout. The same fix was needed in the billing webhook's subscription_payment_issue dispatch.
+
+New emailDispatch.test.ts (6 real integration tests against local Supabase). Full monorepo
+typecheck (6/6 non-mobile packages), apps/admin lint/vitest (145/145), real next build, and
+252/252 pgTAP (unaffected, no schema change) all clean.
+
 ## 2026-08-02 (continued) — Payment gateway abstraction (item 6/8)
 
 Organization-level SaaS billing was entirely unbuilt -- distinct from the mobile app's already-

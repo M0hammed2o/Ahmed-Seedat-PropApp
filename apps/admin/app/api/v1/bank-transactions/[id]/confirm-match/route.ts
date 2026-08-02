@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { bankTransactionConfirmMatchSchema } from '@propvault/validation';
-import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { mapBankTransactionRow } from '@/lib/accounting';
+import { dispatchEmail } from '@/lib/emailDispatch';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -73,6 +74,36 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       { error: { code: 'bank_transaction_fetch_failed', message: fetchError.message } },
       { status: 500 },
     );
+  }
+
+  try {
+    const serviceClient = getServiceRoleClient();
+    const { data: schedule } = await serviceClient
+      .from('rent_schedules')
+      .select('org_id, amount, lease_id')
+      .eq('id', parsed.data.rentScheduleId)
+      .maybeSingle();
+    if (schedule) {
+      const { data: primaryTenant } = await serviceClient
+        .from('lease_tenants')
+        .select('tenants(email)')
+        .eq('lease_id', schedule.lease_id)
+        .eq('is_primary', true)
+        .maybeSingle();
+      const tenantEmail = (primaryTenant as { tenants?: { email?: string } } | null)?.tenants?.email ?? null;
+
+      await dispatchEmail(serviceClient, {
+        orgId: schedule.org_id,
+        toAddress: tenantEmail,
+        templateName: 'payment_recorded',
+        templateVars: { amount: Math.abs(data.amount) },
+        relatedEntityType: 'bank_transaction',
+        relatedEntityId: data.id,
+        actorUserId: user.id,
+      });
+    }
+  } catch (err) {
+    console.error('[emailDispatch] payment_recorded dispatch failed', err);
   }
 
   return NextResponse.json({ bankTransaction: mapBankTransactionRow(data) });
