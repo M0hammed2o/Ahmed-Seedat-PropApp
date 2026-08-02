@@ -1,5 +1,41 @@
 # Worklog
 
+## 2026-08-01 (continued, 11) — M20: Applications vertical slice (seventh module)
+
+Applications is the first module this pass with no generic PATCH endpoint — `API_SPEC.md` §4
+exposes only `POST .../consent`, `POST .../screen`, and `POST .../decide`, each a distinct
+workflow action with its own validation and state-machine guard. Built `ApplicationActions` (the
+detail page's action panel) around that real shape rather than forcing a generic edit form onto a
+resource that doesn't have one: independent POPIA/screening consent buttons (each becomes a
+permanent "Granted [date]" once set, matching the API's own "never un-set" design), a Run Screening
+button disabled until screening consent exists (mirroring the API's 400 `consent_required` guard
+client-side, not duplicating server logic — just reflecting the same precondition in the UI), and
+an Approve/Decline decision panel that disappears once the application reaches `decided`, replaced
+by a read-only summary.
+
+Real, useful bug caught by writing a real test rather than just eyeballing the component: the first
+`ApplicationActions.test.tsx` run failed every case with "invariant expected app router to be
+mounted" — `useRouter()` (used for `.refresh()` after each action) requires an App Router context
+that plain RTL rendering doesn't provide. Every earlier form component that also calls `useRouter()`
+(`NewPropertyForm`, `UnitForm`, `TenantForm`, `LeaseForm`, `MaintenanceForm`, `OwnerForm`,
+`ApplicationForm`) was never itself under test — only the presentational Table/Board components
+were, which don't touch routing. Fixed by mocking `next/navigation`'s `useRouter` in the test file
+(`vi.mock`), not by changing the component — this is a test-environment gap, not a real bug in
+`ApplicationActions` itself.
+
+**Full verification**: `pnpm --filter admin typecheck`/`lint`/`test` (57/57 passed, up from 50) and
+`pnpm --filter @propvault/ui typecheck` clean; real clean `next build` registered all 3 new routes;
+runtime smoke test via `next start` in demo mode covering `/applications`,
+`/applications/demo-application-1` (confirmed both the "Record" consent buttons and the
+"Screening consent must be recorded first" guard message actually render), `/properties/
+demo-property-1/units/demo-unit-1/applications/new`, and the unit detail page's embedded
+applications section — all 200, response bodies grepped for real content. Server process confirmed
+via `Get-CimInstance Win32_Process` before stopping.
+
+Next: Inspections (M13, the last CRUD-shaped module with a straightforward API before the
+remaining M20 scope shifts to genuinely different UI shapes — Accounting screens, Notifications,
+Announcements, an AI Assistant chat interface, and the Portfolio Intelligence feed).
+
 ## 2026-08-01 (continued, 10) — M20: Owners vertical slice (sixth module); Mohammed's broader continue-to-completion instruction received
 
 Mohammed sent a much larger standing instruction: continue autonomously through every remaining
