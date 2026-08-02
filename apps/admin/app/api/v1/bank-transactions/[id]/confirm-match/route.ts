@@ -3,6 +3,7 @@ import { bankTransactionConfirmMatchSchema } from '@propvault/validation';
 import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { mapBankTransactionRow } from '@/lib/accounting';
 import { dispatchEmail } from '@/lib/emailDispatch';
+import { dispatchWhatsApp } from '@/lib/whatsappDispatch';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -86,24 +87,34 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     if (schedule) {
       const { data: primaryTenant } = await serviceClient
         .from('lease_tenants')
-        .select('tenants(email)')
+        .select('tenants(email, phone)')
         .eq('lease_id', schedule.lease_id)
         .eq('is_primary', true)
         .maybeSingle();
-      const tenantEmail = (primaryTenant as { tenants?: { email?: string } } | null)?.tenants?.email ?? null;
+      const tenant = (primaryTenant as { tenants?: { email?: string; phone?: string } } | null)?.tenants;
 
       await dispatchEmail(serviceClient, {
         orgId: schedule.org_id,
-        toAddress: tenantEmail,
+        toAddress: tenant?.email ?? null,
         templateName: 'payment_recorded',
         templateVars: { amount: Math.abs(data.amount) },
         relatedEntityType: 'bank_transaction',
         relatedEntityId: data.id,
         actorUserId: user.id,
       });
+
+      await dispatchWhatsApp(serviceClient, {
+        orgId: schedule.org_id,
+        toPhone: tenant?.phone ?? null,
+        templateName: 'payment_accepted',
+        variables: { amount: String(Math.abs(data.amount)) },
+        relatedEntityType: 'bank_transaction',
+        relatedEntityId: data.id,
+        actorUserId: user.id,
+      });
     }
   } catch (err) {
-    console.error('[emailDispatch] payment_recorded dispatch failed', err);
+    console.error('[notificationDispatch] payment confirmation dispatch failed', err);
   }
 
   return NextResponse.json({ bankTransaction: mapBankTransactionRow(data) });

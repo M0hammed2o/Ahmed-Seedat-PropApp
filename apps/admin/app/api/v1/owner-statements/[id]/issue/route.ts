@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { mapOwnerStatementRow } from '@/lib/accounting';
 import { dispatchEmail } from '@/lib/emailDispatch';
+import { dispatchWhatsApp } from '@/lib/whatsappDispatch';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -39,7 +40,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
 
   try {
     const serviceClient = getServiceRoleClient();
-    const { data: owner } = await serviceClient.from('owners').select('email').eq('id', data.owner_id).maybeSingle();
+    const { data: owner } = await serviceClient.from('owners').select('email, phone').eq('id', data.owner_id).maybeSingle();
 
     await dispatchEmail(serviceClient, {
       orgId: data.org_id,
@@ -50,8 +51,18 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       relatedEntityId: data.id,
       actorUserId: user.id,
     });
+
+    await dispatchWhatsApp(serviceClient, {
+      orgId: data.org_id,
+      toPhone: owner?.phone ?? null,
+      templateName: 'owner_statement_available',
+      variables: { period: `${data.period_start} – ${data.period_end}`, netPayable: String(data.net_payable) },
+      relatedEntityType: 'owner_statement',
+      relatedEntityId: data.id,
+      actorUserId: user.id,
+    });
   } catch (err) {
-    console.error('[emailDispatch] owner_statement_ready dispatch failed', err);
+    console.error('[notificationDispatch] owner_statement_ready dispatch failed', err);
   }
 
   return NextResponse.json({ ownerStatement: mapOwnerStatementRow(data) });

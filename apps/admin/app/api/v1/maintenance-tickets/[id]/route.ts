@@ -4,6 +4,7 @@ import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/se
 import { requireOrgRole } from '@/lib/portfolio';
 import { mapMaintenanceTicketRow, isValidMaintenanceTransition } from '@/lib/operations';
 import { dispatchEmail } from '@/lib/emailDispatch';
+import { dispatchWhatsApp } from '@/lib/whatsappDispatch';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -145,7 +146,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   if (parsed.data.status !== undefined && data.tenant_id) {
     try {
       const serviceClient = getServiceRoleClient();
-      const { data: tenant } = await serviceClient.from('tenants').select('email').eq('id', data.tenant_id).maybeSingle();
+      const { data: tenant } = await serviceClient.from('tenants').select('email, phone').eq('id', data.tenant_id).maybeSingle();
 
       // relatedEntityType carries the new status (it's a plain text column, unlike
       // relatedEntityId which is uuid) -- a ticket legitimately moves through several distinct
@@ -163,8 +164,23 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         relatedEntityId: data.id,
         actorUserId: user.id,
       });
+
+      // WhatsApp reserved for the "critical/urgent" case only (WHATSAPP.md §2:
+      // maintenance_update_critical) -- a routine To Do -> In Progress update on a normal-priority
+      // ticket stays email-only, matching "WhatsApp should be limited to important events."
+      if (data.priority === 'urgent') {
+        await dispatchWhatsApp(serviceClient, {
+          orgId: data.org_id,
+          toPhone: tenant?.phone ?? null,
+          templateName: 'maintenance_update_critical',
+          variables: { summary: data.summary, status: data.status },
+          relatedEntityType: `maintenance_ticket:${data.status}`,
+          relatedEntityId: data.id,
+          actorUserId: user.id,
+        });
+      }
     } catch (err) {
-      console.error('[emailDispatch] maintenance_update dispatch failed', err);
+      console.error('[notificationDispatch] maintenance_update dispatch failed', err);
     }
   }
 

@@ -1,5 +1,30 @@
 # Worklog
 
+## 2026-08-02 (continued) — WhatsApp notification dispatch wiring (TD-23 fully closed, item 8/8 — all 8 functional-completion priorities now done)
+
+dispatchWhatsApp() (apps/admin/lib/whatsappDispatch.ts) mirrors dispatchEmail()'s exact shape:
+idempotent, preference-gated (notification_preferences.whatsapp_enabled), audit-logged. WHATSAPP.md
+§2 is explicit that no code path may free-text through the platform's single shared WhatsApp
+number outside this one dispatcher, and that the trigger list is closed -- deliberately wired only
+3 of the 16 WhatsAppNotificationType values (payment_accepted, owner_statement_available,
+maintenance_update_critical), each backed by a real synchronous trigger already in the codebase.
+The other 13 (rent overdue, lease expiring, ...) all need a scheduled-detection job this codebase
+doesn't have -- same missing cron infrastructure as TD-20, correctly left unwired rather than
+inventing an ad-hoc "check on every request" trigger. maintenance_update_critical only fires when
+a ticket's priority is 'urgent' -- routine updates stay email-only, matching "don't overuse
+WhatsApp." Outbound sends use tenants.phone/owners.phone directly, not verified_phone_numbers
+(that table is for inbound identity resolution only, per WHATSAPP.md §1.1 -- unverified numbers
+are explicitly valid for outbound).
+
+New whatsappDispatch.test.ts (6 real integration tests against local Supabase, all passed on the
+first run this time -- the uuid-column lesson from the email pass was applied up front). Full
+monorepo typecheck (6/6 non-mobile packages), apps/admin lint/vitest (151/151), real next build,
+and 252/252 pgTAP (unaffected) all clean.
+
+This closes the eighth and final item of Mohammed's ordered functional-completion list. A new
+repository-based audit follows next, per his own closing instruction, before any return to the
+paused UI redesign.
+
 ## 2026-08-02 (continued) — Email notification dispatch wiring (TD-23 email half, item 7/8)
 
 The email provider/schema layer (M16) existed with nothing calling it. dispatchEmail()
