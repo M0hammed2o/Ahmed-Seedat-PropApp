@@ -1,13 +1,15 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import type { Application } from '@propvault/types';
 import { UNIT_STATUS_PRESENTATION } from '@propvault/ui';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapUnitRow } from '@/lib/portfolio';
-import { mapLeaseRow } from '@/lib/leasing';
+import { mapLeaseRow, mapApplicationRow } from '@/lib/leasing';
 import { resolvePortalSession, findActiveMembership } from '@/lib/orgSession';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Button } from '@/components/ui/Button';
 import { LeasesTable, type LeaseRow } from '@/components/tables/LeasesTable';
+import { ApplicationsTable } from '@/components/tables/ApplicationsTable';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 type RouteParams = { params: Promise<{ id: string; unitId: string }> };
@@ -45,12 +47,42 @@ const DEMO_LEASES: LeaseRow[] = [
   },
 ];
 
+const DEMO_APPLICATIONS: Application[] = [
+  {
+    id: 'demo-application-1',
+    orgId: 'demo-org-1',
+    propertyId: 'demo-property-1',
+    unitId: 'demo-unit-1',
+    applicantName: 'Sipho Nkosi',
+    applicantEmail: 'sipho@example.com',
+    applicantPhone: '+27 84 555 0177',
+    popiaConsentAt: null,
+    screeningConsentAt: null,
+    screeningStatus: 'not_started',
+    status: 'submitted',
+    decision: null,
+    decisionReason: null,
+    decidedBy: null,
+    decidedAt: null,
+    createdAt: '2026-08-01T00:00:00Z',
+    updatedAt: '2026-08-01T00:00:00Z',
+  },
+];
+
 export default async function UnitDetailPage({ params }: RouteParams) {
   const { id: propertyId, unitId } = await params;
 
   if (ADMIN_DEMO_MODE) {
     if (propertyId !== 'demo-property-1' || unitId !== 'demo-unit-1') notFound();
-    return <UnitDetailView unit={DEMO_UNIT} leases={DEMO_LEASES} propertyId={propertyId} canEdit />;
+    return (
+      <UnitDetailView
+        unit={DEMO_UNIT}
+        leases={DEMO_LEASES}
+        applications={DEMO_APPLICATIONS}
+        propertyId={propertyId}
+        canEdit
+      />
+    );
   }
 
   const supabase = await getServerSupabaseClient();
@@ -65,24 +97,33 @@ export default async function UnitDetailPage({ params }: RouteParams) {
 
   const unit = mapUnitRow(data);
 
-  const { data: leaseRows, error: leasesError } = await supabase
-    .from('leases')
-    .select('*')
-    .eq('unit_id', unitId)
-    .order('start_date', { ascending: false });
-  if (leasesError) throw new Error(`Failed to load leases: ${leasesError.message}`);
-  const leases: LeaseRow[] = (leaseRows ?? []).map(mapLeaseRow);
+  const [leasesResult, applicationsResult] = await Promise.all([
+    supabase.from('leases').select('*').eq('unit_id', unitId).order('start_date', { ascending: false }),
+    supabase
+      .from('applications')
+      .select('*')
+      .eq('unit_id', unitId)
+      .order('created_at', { ascending: false }),
+  ]);
+  if (leasesResult.error) throw new Error(`Failed to load leases: ${leasesResult.error.message}`);
+  if (applicationsResult.error) throw new Error(`Failed to load applications: ${applicationsResult.error.message}`);
+
+  const leases: LeaseRow[] = (leasesResult.data ?? []).map(mapLeaseRow);
+  const applications: Application[] = (applicationsResult.data ?? []).map(mapApplicationRow);
 
   const session = await resolvePortalSession();
   const membership = session ? findActiveMembership(session, unit.orgId) : undefined;
   const canEdit = Boolean(membership && membership.role !== 'viewer' && membership.role !== 'accountant');
 
-  return <UnitDetailView unit={unit} leases={leases} propertyId={propertyId} canEdit={canEdit} />;
+  return (
+    <UnitDetailView unit={unit} leases={leases} applications={applications} propertyId={propertyId} canEdit={canEdit} />
+  );
 }
 
 function UnitDetailView({
   unit,
   leases,
+  applications,
   propertyId,
   canEdit,
 }: {
@@ -96,6 +137,7 @@ function UnitDetailView({
     status: 'vacant' | 'occupied' | 'maintenance';
   };
   leases: LeaseRow[];
+  applications: Application[];
   propertyId: string;
   canEdit: boolean;
 }) {
@@ -103,6 +145,14 @@ function UnitDetailView({
     <Link href={`/properties/${propertyId}/units/${unit.id}/leases/new`}>
       <Button variant="primary" size="sm">
         + Add lease
+      </Button>
+    </Link>
+  );
+
+  const addApplicationAction = (
+    <Link href={`/properties/${propertyId}/units/${unit.id}/applications/new`}>
+      <Button variant="primary" size="sm">
+        + New application
       </Button>
     </Link>
   );
@@ -165,10 +215,22 @@ function UnitDetailView({
         </div>
       </div>
 
+      <div className="mt-8">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+            Applications ({applications.length})
+          </h2>
+          {canEdit && applications.length > 0 ? addApplicationAction : null}
+        </div>
+        <div className="mt-3">
+          <ApplicationsTable data={applications} emptyAction={canEdit ? addApplicationAction : undefined} />
+        </div>
+      </div>
+
       <p className="mt-8 text-xs text-light-textMuted dark:text-dark-textMuted">
-        Tenants assigned to this unit's leases and maintenance history are built at the API layer
-        (TASKS.md M8/M13) but not yet wired into this page — Leases is the current vertical slice,
-        Maintenance is next.
+        Tenants assigned to this unit's leases and maintenance history are managed from their own
+        pages. Inspections are built at the API layer (TASKS.md M13) but not yet wired into any
+        page.
       </p>
     </div>
   );

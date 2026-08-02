@@ -1,4 +1,7 @@
 import type {
+  ApplicationDecision,
+  ApplicationScreeningStatus,
+  ApplicationStatus,
   BillStatus,
   LeaseStatus,
   MaintenancePriority,
@@ -96,4 +99,25 @@ export const MAINTENANCE_PRIORITY_PRESENTATION: Record<MaintenancePriority, Stat
   medium: { label: 'Medium', icon: 'dot', colorToken: 'statusProcessing' },
   high: { label: 'High', icon: 'alert-triangle', colorToken: 'statusNeedsReview' },
   urgent: { label: 'Urgent', icon: 'alert-triangle', colorToken: 'statusOverdue' },
+};
+
+// TASKS.md M20 (Applications vertical slice). Application.status tracks the workflow stage
+// (submitted -> screening -> decided); the eventual outcome is a separate field (`decision`),
+// since "decided" alone doesn't say approved or declined.
+export const APPLICATION_STATUS_PRESENTATION: Record<ApplicationStatus, StatusPresentation> = {
+  submitted: { label: 'Submitted', icon: 'eye', colorToken: 'statusNeedsReview' },
+  screening: { label: 'Screening', icon: 'spinner', colorToken: 'statusProcessing' },
+  decided: { label: 'Decided', icon: 'check', colorToken: 'statusPaid' },
+};
+
+export const APPLICATION_SCREENING_STATUS_PRESENTATION: Record<ApplicationScreeningStatus, StatusPresentation> = {
+  not_started: { label: 'Not started', icon: 'dot', colorToken: 'statusVoid' },
+  in_progress: { label: 'In progress', icon: 'spinner', colorToken: 'statusProcessing' },
+  passed: { label: 'Passed', icon: 'check', colorToken: 'statusPaid' },
+  failed: { label: 'Failed', icon: 'alert-triangle', colorToken: 'statusOverdue' },
+};
+
+export const APPLICATION_DECISION_PRESENTATION: Record<ApplicationDecision, StatusPresentation> = {
+  approved: { label: 'Approved', icon: 'check', colorToken: 'statusPaid' },
+  declined: { label: 'Declined', icon: 'slash', colorToken: 'statusOverdue' },
 };
