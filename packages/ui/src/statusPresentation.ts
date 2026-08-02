@@ -1,4 +1,4 @@
-import type { BillStatus, OrganizationStatus, TenantStatus, UnitStatus } from '@propvault/types';
+import type { BillStatus, LeaseStatus, OrganizationStatus, TenantStatus, UnitStatus } from '@propvault/types';
 
 /**
  * Status is never signalled by colour alone (accessibility requirement in the brief) — every
@@ -60,4 +60,14 @@ export const TENANT_STATUS_PRESENTATION: Record<TenantStatus, StatusPresentation
   pending: { label: 'Pending', icon: 'eye', colorToken: 'statusNeedsReview' },
   active: { label: 'Active', icon: 'check', colorToken: 'statusPaid' },
   expired: { label: 'Expired', icon: 'dot', colorToken: 'statusVoid' },
+};
+
+// TASKS.md M20 (Leases vertical slice). draft = not yet started (needs attention/action before
+// it's real), active = healthy, expired = lapsed naturally, terminated = ended early/deliberately
+// -- distinguished from `expired` since it's a materially different (often adverse) outcome.
+export const LEASE_STATUS_PRESENTATION: Record<LeaseStatus, StatusPresentation> = {
+  draft: { label: 'Draft', icon: 'eye', colorToken: 'statusNeedsReview' },
+  active: { label: 'Active', icon: 'check', colorToken: 'statusPaid' },
+  expired: { label: 'Expired', icon: 'dot', colorToken: 'statusVoid' },
+  terminated: { label: 'Terminated', icon: 'flag', colorToken: 'statusDisputed' },
 };

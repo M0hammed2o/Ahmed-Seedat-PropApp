@@ -3,9 +3,11 @@ import { notFound } from 'next/navigation';
 import { UNIT_STATUS_PRESENTATION } from '@propvault/ui';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapUnitRow } from '@/lib/portfolio';
+import { mapLeaseRow } from '@/lib/leasing';
 import { resolvePortalSession, findActiveMembership } from '@/lib/orgSession';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Button } from '@/components/ui/Button';
+import { LeasesTable, type LeaseRow } from '@/components/tables/LeasesTable';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 type RouteParams = { params: Promise<{ id: string; unitId: string }> };
@@ -24,12 +26,31 @@ const DEMO_UNIT = {
   updatedAt: '2026-06-01T00:00:00Z',
 };
 
+const DEMO_LEASES: LeaseRow[] = [
+  {
+    id: 'demo-lease-1',
+    orgId: 'demo-org-1',
+    unitId: 'demo-unit-1',
+    startDate: '2026-02-01',
+    endDate: null,
+    rentAmount: 12500,
+    rentFrequency: 'monthly',
+    depositAmount: 12500,
+    status: 'active',
+    source: 'manual',
+    sourceDocumentId: null,
+    sourceApplicationId: null,
+    createdAt: '2026-02-01T00:00:00Z',
+    updatedAt: '2026-02-01T00:00:00Z',
+  },
+];
+
 export default async function UnitDetailPage({ params }: RouteParams) {
   const { id: propertyId, unitId } = await params;
 
   if (ADMIN_DEMO_MODE) {
     if (propertyId !== 'demo-property-1' || unitId !== 'demo-unit-1') notFound();
-    return <UnitDetailView unit={DEMO_UNIT} propertyId={propertyId} canEdit />;
+    return <UnitDetailView unit={DEMO_UNIT} leases={DEMO_LEASES} propertyId={propertyId} canEdit />;
   }
 
   const supabase = await getServerSupabaseClient();
@@ -44,15 +65,24 @@ export default async function UnitDetailPage({ params }: RouteParams) {
 
   const unit = mapUnitRow(data);
 
+  const { data: leaseRows, error: leasesError } = await supabase
+    .from('leases')
+    .select('*')
+    .eq('unit_id', unitId)
+    .order('start_date', { ascending: false });
+  if (leasesError) throw new Error(`Failed to load leases: ${leasesError.message}`);
+  const leases: LeaseRow[] = (leaseRows ?? []).map(mapLeaseRow);
+
   const session = await resolvePortalSession();
   const membership = session ? findActiveMembership(session, unit.orgId) : undefined;
   const canEdit = Boolean(membership && membership.role !== 'viewer' && membership.role !== 'accountant');
 
-  return <UnitDetailView unit={unit} propertyId={propertyId} canEdit={canEdit} />;
+  return <UnitDetailView unit={unit} leases={leases} propertyId={propertyId} canEdit={canEdit} />;
 }
 
 function UnitDetailView({
   unit,
+  leases,
   propertyId,
   canEdit,
 }: {
@@ -65,9 +95,18 @@ function UnitDetailView({
     marketRent: number | null;
     status: 'vacant' | 'occupied' | 'maintenance';
   };
+  leases: LeaseRow[];
   propertyId: string;
   canEdit: boolean;
 }) {
+  const addLeaseAction = (
+    <Link href={`/properties/${propertyId}/units/${unit.id}/leases/new`}>
+      <Button variant="primary" size="sm">
+        + Add lease
+      </Button>
+    </Link>
+  );
+
   return (
     <div>
       <Link
@@ -114,10 +153,22 @@ function UnitDetailView({
         </div>
       </dl>
 
+      <div className="mt-8">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+            Leases ({leases.length})
+          </h2>
+          {canEdit && leases.length > 0 ? addLeaseAction : null}
+        </div>
+        <div className="mt-3">
+          <LeasesTable data={leases} emptyAction={canEdit ? addLeaseAction : undefined} />
+        </div>
+      </div>
+
       <p className="mt-8 text-xs text-light-textMuted dark:text-dark-textMuted">
-        Leases, tenants, and maintenance for this unit are built at the API layer (TASKS.md
-        M8-M13) but not yet wired into this page — Units is the current vertical slice; the same
-        pattern is repeated for those modules next.
+        Tenants assigned to this unit's leases and maintenance history are built at the API layer
+        (TASKS.md M8/M13) but not yet wired into this page — Leases is the current vertical slice,
+        Maintenance is next.
       </p>
     </div>
   );
