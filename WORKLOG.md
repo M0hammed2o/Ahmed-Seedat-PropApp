@@ -1,5 +1,42 @@
 # Worklog
 
+## 2026-08-01 (continued, 8) — M20: Leases vertical slice (fourth module)
+
+Fourth module in the M20 sequence, same pattern. Reused the M10 Leases API and `mapLeaseRow`/
+`requireOrgRole` unchanged.
+
+Leases sit one level deeper than Tenants: `leaseCreateSchema` requires a `unitId` and there's no
+unit-picker UI anywhere yet, so — same reasoning as Units being created from a property's own
+context — a lease is always created from its unit's own page
+(`/properties/:id/units/:unitId/leases/new`), and the unit detail page now embeds a Leases section
+the same way the property detail page embeds Units. The org-wide `/leases` list still exists
+separately (matches `PROPVIEW_SCREENSHOT_AUDIT.md`'s LEASING nav section), joined against
+`units`→`properties` in one PostgREST query for the unit/property context columns.
+
+Read `leaseCreateSchema`/`leaseUpdateSchema` closely before building the form: create has no
+`status` field (always starts `draft` server-side) but edit does (the update schema allows moving
+a lease through draft/active/expired/terminated) — the form's status `<select>` is conditionally
+rendered only in edit mode, not just disabled in create mode, so there's nothing misleading shown
+before it would ever apply. Also no `rentFrequency` field in either mode: `RENT_FREQUENCIES`
+currently has exactly one value (`'monthly'`), a DB default, matching the same "don't build UI for
+an option that doesn't functionally exist yet" judgment already applied elsewhere this session.
+
+Added `LEASE_STATUS_PRESENTATION` to `packages/ui/src/statusPresentation.ts` — `terminated` mapped
+to `statusDisputed` rather than reusing `expired`'s `statusVoid`, since an early/deliberate
+termination is a materially different (often adverse) outcome from a lease simply running its
+course, and the design system's rule is never to signal that distinction by colour alone (paired
+with the `flag` icon and the "Terminated" label either way).
+
+**Full verification**: `pnpm --filter admin typecheck`/`lint`/`test` (43/43 passed, up from 39) and
+`pnpm --filter @propvault/ui typecheck` clean, all on the first attempt this time (no bugs found
+building this slice, unlike Units' locale-formatting and `@/`-alias fixes); real clean `next build`
+registered all 6 new/changed routes; runtime smoke test via `next start` in demo mode covering
+`/leases`, `/leases/demo-lease-1`, `/leases/demo-lease-1/edit`,
+`/properties/demo-property-1/units/demo-unit-1/leases/new`, and the unit detail page's embedded
+leases section — all 200, response bodies grepped for real rendered content. Server process
+confirmed via `Get-CimInstance Win32_Process` before stopping, same discipline as every prior
+port-owning process this session.
+
 ## 2026-08-01 (continued, 7) — M20: Tenants vertical slice (third module)
 
 Third module in the M20 sequence, same pattern as Properties/Units. Reused the M8 Tenants API and
