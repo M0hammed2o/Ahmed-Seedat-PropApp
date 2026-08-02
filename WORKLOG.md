@@ -1,5 +1,38 @@
 # Worklog
 
+## 2026-08-01 (continued, 12) — M20: Inspections vertical slice (eighth module) — CRUD/workflow-shaped modules now complete
+
+Same no-generic-PATCH shape as Applications, reused the same design pattern deliberately:
+`InspectionActions` is the edit surface (items + independent landlord/tenant signatures +
+gated Complete), not a generic form, because the API genuinely doesn't have a generic form's shape
+to match (`API_SPEC.md` §5 exposes only `items`/`sign`/`complete`, all workflow actions). No
+`GET /api/v1/inspections/:id` route exists at all (only list) — confirmed this doesn't matter for
+the detail page's own read, since every detail page this milestone reads directly via the caller's
+RLS-scoped client regardless of whether a matching GET/:id API route exists (Property/Unit/Lease/
+Application detail pages all already did this too).
+
+Real bug caught by the test suite, in the test not the component: `InspectionsTable.test.tsx`'s
+first run failed `getByText('Scheduled')` with "found multiple elements" — the table legitimately
+renders "Scheduled" twice (the "Scheduled" date column header, and the status badge's "Scheduled"
+label when a row's status happens to be `scheduled`). Not a component bug; fixed the assertion to
+`getAllByText('Scheduled').length === 2`.
+
+This closes out every M20 module with a straightforward CRUD-or-workflow-shaped API (Properties,
+Units, Tenants, Leases, Maintenance, Owners, Applications, Inspections — 8 vertical slices, all
+built and verified today). What's left in M20 (Accounting screens, Notifications, Announcements,
+an AI Assistant chat interface, the Portfolio Intelligence feed, Portfolio Map) are each a
+genuinely different UI shape — ledger/statement views, a chat interface, a rules-driven insights
+feed, a map — not more of the same list/detail/create-edit pattern. Reassessing scope and sequencing
+before picking the next one, per Mohammed's standing instruction to keep moving without waiting for
+a prompt between milestones, but also not to leave anything half-built.
+
+**Full verification**: `pnpm --filter admin typecheck`/`lint`/`test` (64/64 passed, up from 57) and
+`pnpm --filter @propvault/ui typecheck` clean; real clean `next build` registered all 3 new routes;
+runtime smoke test via `next start` in demo mode covering `/inspections`, `/inspections/
+demo-inspection-1`, `/properties/demo-property-1/units/demo-unit-1/inspections/new`, and the unit
+detail page's embedded inspections section — all 200, response bodies grepped for real content.
+Server process confirmed via `Get-CimInstance Win32_Process` before stopping.
+
 ## 2026-08-01 (continued, 11) — M20: Applications vertical slice (seventh module)
 
 Applications is the first module this pass with no generic PATCH endpoint — `API_SPEC.md` §4
