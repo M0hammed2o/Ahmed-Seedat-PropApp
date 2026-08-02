@@ -1,5 +1,33 @@
 # Worklog
 
+## 2026-08-01 (continued, 25) — Android: real device verification, one bug found and fixed
+
+Mohammed installed a current Android Studio and asked for the previously-disclosed device/emulator
+verification gap (Units + Tenants slices) to actually be closed. Booted the pre-existing
+`PropertyVault_Pixel7_API35` AVD (created during the M22 toolchain setup), installed the real debug
+APK via `adb install -r`, and drove the whole flow by hand via `adb shell input`/`screencap`:
+sign-in (mock auth, any non-blank credentials) -> Dashboard/Properties/Tenants bottom-nav (all 3
+tabs, confirming the new Tenants tab is really there) -> Property Detail -> "View units" -> Units
+list (both fixture units, correct labels/status) -> Unit Detail -> back to Tenants tab -> Tenant
+Detail. Confirmed via `adb logcat` (`Displayed com.propertyvault.app/.MainActivity`, zero
+`AndroidRuntime`/`FATAL` lines across the whole session) and real screenshots at every step, then
+repeated the key screens with `adb shell cmd uimode night yes` for dark mode.
+
+**Real bug caught on-device, not by any of the earlier unit tests**: Unit Detail showed "Market
+rent: R10650.0" and "Size: 65.0 m²" -- Kotlin's default `Double.toString()` always keeps a trailing
+`.0`/decimal, which none of `MockUnitsRepositoryTest`/`UnitsListViewModelTest` would ever catch
+since they assert on the `PropertyUnit` domain value, not the rendered string. Fixed with two small
+formatting helpers in `UnitDetailScreen.kt` (`formatCurrency()`/`formatArea()` -- whole numbers
+print without a decimal, e.g. "R10,650"/"65 m²"). Rebuilt (`gradlew testDebugUnitTest assembleDebug`
+-- BUILD SUCCESSFUL, 22/22 still passing), reinstalled on the same emulator, re-verified the fixed
+screen with a fresh screenshot before considering this closed. Reverted dark mode and shut the
+emulator down cleanly (`adb emu kill`, confirmed `adb devices` empty) afterward.
+
+This is exactly the kind of bug format/rendering unit tests structurally can't catch (they check
+domain values, not what actually lands on screen) -- concrete evidence for why this session's
+"install and screenshot on a real device" bar exists as a separate verification step, not a
+formality superseded by a green test suite.
+
 ## 2026-08-01 (continued, 24) — Android: Tenants vertical slice (priority 12, continued)
 
 Third Android module. Org-wide list + detail, not property-nested (mirrors `apps/admin`'s own

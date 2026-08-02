@@ -52,8 +52,8 @@ fun UnitDetailScreen(
                 DetailRow(label = "Status", value = state.unit.status.replace('_', ' '))
                 DetailRow(label = "Bedrooms", value = state.unit.bedrooms?.toString() ?: "—")
                 DetailRow(label = "Bathrooms", value = state.unit.bathrooms?.toString() ?: "—")
-                DetailRow(label = "Size", value = state.unit.sizeSqm?.let { "$it m²" } ?: "—")
-                DetailRow(label = "Market rent", value = state.unit.marketRent?.let { "R${it}" } ?: "—")
+                DetailRow(label = "Size", value = state.unit.sizeSqm?.let { "${formatArea(it)} m²" } ?: "—")
+                DetailRow(label = "Market rent", value = state.unit.marketRent?.let { "R${formatCurrency(it)}" } ?: "—")
             }
         }
     }
@@ -66,3 +66,11 @@ private fun DetailRow(label: String, value: String) {
         Text(value, style = MaterialTheme.typography.bodyLarge)
     }
 }
+
+// Real bug caught on-device (2026-08-01): a raw Double rendered as "R10650.0"/"65.0 m²" -- Kotlin's
+// default Double.toString() always keeps at least one decimal place, even for whole numbers.
+private fun formatCurrency(value: Double): String =
+    if (value % 1.0 == 0.0) "%,d".format(value.toLong()) else "%,.2f".format(value)
+
+private fun formatArea(value: Double): String =
+    if (value % 1.0 == 0.0) value.toLong().toString() else "%.1f".format(value)
