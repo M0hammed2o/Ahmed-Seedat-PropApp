@@ -1,5 +1,39 @@
 # Worklog
 
+## 2026-08-01 (continued, 14) — M20: Notifications and Announcements (tenth and eleventh modules)
+
+Two smaller, more contained modules after Accounting's heavier role-gating investigation.
+
+**Notifications** is the first module this milestone with no org-role gate at all — it's a personal
+inbox (`notifications_select_own`/`notifications_update_own` RLS), not org data, so
+`canWriteOrgRecords()`/`canPostAccountingRecords()` don't apply; every authenticated user manages
+only their own rows. Built `/notifications` (list + mark-as-read) and `/notifications/preferences`
+(one row per `NOTIFICATION_CATEGORIES` value, three independent channel checkboxes, each PATCHing
+immediately as a per-category upsert — no batch Save button, since the endpoint itself is already a
+complete atomic unit of change per checkbox). Checked the actual migration
+(`20260101000039_notifications.sql`) for what a category with no preference row yet should default
+to, rather than guessing a UI default: `email_enabled`/`push_enabled`/`whatsapp_enabled` are all
+`not null default true`, so the "no row yet" UI state renders every channel checked, matching the
+real DB default exactly.
+
+**Announcements** is intentionally list-and-create only — checked `API_SPEC.md` §5 before assuming
+a detail/edit page was needed and confirmed there's genuinely no PATCH endpoint for announcements
+at all (only `GET/POST` and a tenant-only `acknowledge` action, out of scope with no tenant portal
+in V1). First slice publishes org-wide only; a per-property announcement is evidenced as possible
+in the schema (`propertyId` optional) but there's no reference UI pattern for picking one
+target property to copy, so it's deliberately deferred rather than invented. Used the
+`canWriteOrgRecords()` helper introduced during the Accounting slice for the first time in a
+brand-new file (rather than another inline `role !== 'viewer' && role !== 'accountant'` copy) —
+exactly the kind of small, low-risk win TD-27 flagged as available going forward without needing to
+touch the 8 already-shipped files that still use the inline form.
+
+**Full verification, both modules**: `pnpm --filter admin typecheck`/`lint`/`test` clean on every
+attempt (81/81 after Notifications, 84/84 after Announcements) and `pnpm --filter @propvault/ui
+typecheck` clean; real clean `next build` after each, registering all new routes; runtime smoke
+tests via `next start` in demo mode covering every new route — all 200, response bodies grepped for
+real rendered content. Server processes confirmed via `Get-CimInstance Win32_Process` before
+stopping, same discipline as every prior port-owning process this session.
+
 ## 2026-08-01 (continued, 13) — M20: first Accounting vertical slice (Rent Due, Expenses, Trial Balance) — ninth module
 
 Mohammed's broader instruction explicitly named Accounting as real financial-correctness surface
