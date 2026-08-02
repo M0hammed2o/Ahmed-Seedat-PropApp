@@ -14,6 +14,7 @@ export const dynamic = 'force-dynamic';
 const NAV_ITEMS = [
   { href: '/properties', label: 'Properties' },
   { href: '/units', label: 'Units' },
+  { href: '/owners', label: 'Owners' },
   { href: '/tenants', label: 'Tenants' },
   { href: '/leases', label: 'Leases' },
   { href: '/maintenance', label: 'Maintenance' },
