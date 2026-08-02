@@ -23,6 +23,7 @@ const NAV_ITEMS = [
   { href: '/accounting/rent-due', label: 'Rent Due' },
   { href: '/accounting/expenses', label: 'Expenses' },
   { href: '/accounting/trial-balance', label: 'Trial Balance' },
+  { href: '/documents', label: 'Documents' },
   { href: '/notifications', label: 'Notifications' },
   { href: '/announcements', label: 'Announcements' },
 ];

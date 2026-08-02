@@ -1,5 +1,31 @@
 # Worklog
 
+## 2026-08-01 (continued, 16) — Documents + OCR review V1 slice (priorities 2-3)
+
+First real Documents module implementation — M11 (2026-07-31) only did the schema/RLS org-scoping
+cutover and explicitly left API/UI unbuilt. Also closed TD-21 (storage bucket still per-user, not
+per-org) as part of the same pass, since it's a real prerequisite for a safe upload.
+
+- Migration `20260101000048`: storage bucket policies now check `has_org_role()` against a
+  `{org_id}/{property_id}/{uuid}{ext}` path (was `{user_id}/...`); `extraction_results` gained
+  `reviewed_at`/`reviewed_by`.
+- `POST /api/v1/documents`: real multipart upload, server-parsed, SHA-256 hashed, uploaded via the
+  caller's own session client (RLS-protected write, no service-role) — orphan-cleanup on insert
+  failure. `GET /documents`, `GET /documents/:id` (+ signed URL).
+- `POST /api/v1/documents/:id/extract` generalizes M12's lease-upload-and-parse pattern (service-
+  role for extraction_jobs/extraction_results only) to any bill/lease document.
+  `POST /api/v1/documents/:id/review` records human confirmation only — no field-correction/auto-
+  apply, since a generic Documents module has no single business record to apply onto.
+- UI: `/documents` list, `/documents/new` upload form, `/documents/:id` detail with an OcrPanel
+  (Extract fields / view results / Confirm reviewed, only shown for bill/lease types).
+- Caught and fixed a real bug in code review before running: `overallConfidence ?? 0 * 100` parsed
+  as `?? (0*100)` due to operator precedence, would have shown a raw 0-1 fraction instead of a
+  percentage — fixed to `(x ?? 0) * 100` before the first test run.
+
+Verified: real `supabase db reset` replaying all 48 migrations clean, full pgTAP 176/176 (no
+regressions), admin typecheck/lint/test (96/96) and `next build` clean, demo-mode smoke test
+confirming upload form, list, and OCR panel all render real content.
+
 ## 2026-08-01 (continued, 15) — Applications simplified to V1 scope (product-scope correction)
 
 Mohammed corrected scope: PropertyVault V1 isn't a tenant-screening platform. Simplified the

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { ALLOWED_MIME_TYPES, DOCUMENT_TYPES } from '@propvault/types';
 
 export const documentUploadMetadataSchema = z.object({
+  orgId: z.string().uuid('orgId must be a valid UUID'),
   propertyId: z.string().uuid(),
   categoryId: z.string().uuid(),
   documentType: z.enum(DOCUMENT_TYPES),
@@ -12,6 +13,15 @@ export const documentUploadMetadataSchema = z.object({
   fileSizeBytes: z.number().int().positive(),
 });
 export type DocumentUploadMetadataInput = z.infer<typeof documentUploadMetadataSchema>;
+
+// POST /api/v1/documents/:id/review -- V1 OCR review (TASKS.md M20): a human confirms the
+// extraction is accurate. No field-correction here (that's each business record's own
+// PATCH -- e.g. leases already has this via upload-and-parse's confirm-through-PATCH-lease
+// pattern) -- this endpoint only ever sets reviewed_at/reviewed_by.
+export const extractionReviewSchema = z.object({
+  confirmed: z.literal(true),
+});
+export type ExtractionReviewInput = z.infer<typeof extractionReviewSchema>;
 
 export const billCorrectionSchema = z.object({
   supplierName: z.string().max(160).optional().nullable(),

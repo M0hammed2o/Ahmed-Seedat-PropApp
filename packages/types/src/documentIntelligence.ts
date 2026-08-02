@@ -81,11 +81,30 @@ export interface DocumentIntelligenceProvider {
 export interface ExtractionJob {
   id: string;
   documentId: string;
-  ownerUserId: string;
+  ownerUserId: string | null;
+  orgId: string | null;
   status: 'queued' | 'processing' | 'succeeded' | 'failed' | 'needs_review';
   attempt: number;
   providerName: string | null;
   errorMessage: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/**
+ * Persisted counterpart of FieldExtractionResult (TASKS.md M20 Documents/OCR review slice).
+ * `reviewedAt`/`reviewedBy` are set by POST /api/v1/documents/:id/review -- a human confirming
+ * (not necessarily correcting) the extraction is accurate, never an auto-apply onto a business
+ * record (DOCUMENT_INTELLIGENCE.md's "always confirm before treating as final" rule).
+ */
+export interface ExtractionResult {
+  id: string;
+  extractionJobId: string;
+  ownerUserId: string | null;
+  orgId: string | null;
+  rawProviderOutput: FieldExtractionResult;
+  overallConfidence: number | null;
+  reviewedAt: string | null;
+  reviewedBy: string | null;
+  createdAt: string;
 }

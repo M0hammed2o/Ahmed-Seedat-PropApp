@@ -11,7 +11,9 @@ export interface DocumentCategory {
 
 export interface DocumentRecord {
   id: string;
-  ownerUserId: string;
+  /** Legacy PropVault-era rows may have this null; every org-scoped upload (TASKS.md M11/V1) always sets it. */
+  ownerUserId: string | null;
+  orgId: string | null;
   propertyId: string;
   categoryId: string;
   documentType: DocumentType;
