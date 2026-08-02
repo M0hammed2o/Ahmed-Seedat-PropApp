@@ -1,5 +1,37 @@
 # Worklog
 
+## 2026-08-01 (continued, 10) — M20: Owners vertical slice (sixth module); Mohammed's broader continue-to-completion instruction received
+
+Mohammed sent a much larger standing instruction: continue autonomously through every remaining
+milestone (backend and UI/UX) toward a production-ready commercial SaaS, stopping only for the
+short list of genuine blockers (business/legal decisions, third-party credentials, app-store
+submission, production payment/WhatsApp/email credentials) — explicitly not pausing after every
+milestone. Continued directly into the next M20 module rather than stopping to acknowledge.
+
+Built Owners the same way as every prior module this pass: reused the M7 API and `mapOwnerRow`/
+`requireOrgRole` unchanged, org-wide `/owners` list (matches `PROPVIEW_SCREENSHOT_AUDIT.md`'s
+PORTFOLIO section), detail/create/edit pages, role-gated agent+ writes, loading states, tests.
+
+One small, deliberate deviation from the established `packages/ui` `StatusPresentation` pattern:
+`Owner.status` (`'active' | 'inactive'`) is a plain inline TS union on the `Owner` type in
+`packages/types/src/portfolio.ts`, not a named exported enum type the way
+`UnitStatus`/`TenantStatus`/`LeaseStatus`/`MaintenanceStatus` all are. Growing
+`StatusPresentation`'s `Record<T, ...>` pattern for a type that isn't separately named/exported
+would need exporting a new type just to hang a presentation record off it, for a two-value field
+with exactly one consumer (`OwnersTable`). Used a small local badge component instead — same visual
+language (dot + label, colour never alone), just not routed through the shared map.
+
+**Full verification**: `pnpm --filter admin typecheck`/`lint`/`test` (50/50 passed, up from 47) all
+clean; real clean `next build` registered all 4 new routes; runtime smoke test via `next start` in
+demo mode covering `/owners`, `/owners/demo-owner-1`, `/owners/new`, `/owners/demo-owner-1/edit` —
+all 200, response bodies grepped for real content. Server process confirmed via
+`Get-CimInstance Win32_Process` before stopping, same discipline maintained throughout.
+
+Next up per the broader instruction and `TASKS.md`'s own M20 list: Applications (screening/decision
+flow, more complex than the CRUD-shaped modules so far — decision approval calls
+`approve_application()` which atomically creates a lease), then Inspections, then a reassessment of
+what's left before committing to the next batch.
+
 ## 2026-08-01 (continued, 9) — M20: Maintenance vertical slice (fifth and final module of this pass)
 
 Fifth module, closing the exact list Mohammed named ("Units, Tenants, Leases, Maintenance"). Reused
