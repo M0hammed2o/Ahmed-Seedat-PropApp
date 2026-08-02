@@ -1,4 +1,4 @@
-import type { BillStatus, OrganizationStatus } from '@propvault/types';
+import type { BillStatus, OrganizationStatus, UnitStatus } from '@propvault/types';
 
 /**
  * Status is never signalled by colour alone (accessibility requirement in the brief) — every
@@ -41,4 +41,13 @@ export const ORGANIZATION_STATUS_PRESENTATION: Record<OrganizationStatus, Status
   suspended: { label: 'Suspended', icon: 'slash', colorToken: 'statusOverdue' },
   cancelled: { label: 'Cancelled', icon: 'slash', colorToken: 'statusVoid' },
   archived: { label: 'Archived', icon: 'dot', colorToken: 'statusVoid' },
+};
+
+// TASKS.md M20 (Units vertical slice). vacant = needs attention (revenue not being collected),
+// occupied = healthy/generating revenue, maintenance = active work in progress -- same semantic
+// mapping as BILL_STATUS_PRESENTATION's needs_review/paid/processing.
+export const UNIT_STATUS_PRESENTATION: Record<UnitStatus, StatusPresentation> = {
+  vacant: { label: 'Vacant', icon: 'eye', colorToken: 'statusNeedsReview' },
+  occupied: { label: 'Occupied', icon: 'check', colorToken: 'statusPaid' },
+  maintenance: { label: 'Maintenance', icon: 'spinner', colorToken: 'statusProcessing' },
 };

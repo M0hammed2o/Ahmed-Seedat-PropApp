@@ -11,7 +11,10 @@ import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 // see DECISIONS.md 2026-08-01.
 export const dynamic = 'force-dynamic';
 
-const NAV_ITEMS = [{ href: '/properties', label: 'Properties' }];
+const NAV_ITEMS = [
+  { href: '/properties', label: 'Properties' },
+  { href: '/units', label: 'Units' },
+];
 
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
   const session = ADMIN_DEMO_MODE
