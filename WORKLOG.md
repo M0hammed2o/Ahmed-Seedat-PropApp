@@ -1,5 +1,31 @@
 # Worklog
 
+## 2026-08-02 (continued) — Native Bearer-JWT authentication (TD-28, item 2/8)
+
+`getServerSupabaseClient()` (`apps/admin/lib/supabase/server.ts`) now accepts
+`Authorization: Bearer <supabase-jwt>` in addition to the existing `@supabase/ssr` cookie
+session, through one shared abstraction rather than editing every route handler. Checks for a
+bearer header first (via `next/headers`); when present, builds a client whose every REST/RPC call
+carries that JWT, and overrides `auth.getUser()` to default to it when called with no argument --
+this is what lets every existing route's unchanged `await supabase.auth.getUser()` keep working
+for both caller types. Falls back to the byte-for-byte original cookie code path otherwise.
+
+Verified against the real local Supabase Auth server, not mocked: created two real test users via
+the Auth admin API, signed in for real access tokens, and ran a live `next build && next start`
+against the local instance. `POST /api/v1/maintenance-tickets` and `POST /api/v1/device-push-tokens`
+both succeeded end to end with a genuine Bearer token and no cookie at all; an invalid token,
+missing token, cross-org token, and a role-downgraded (viewer) token all produced the correct
+401/403, matching pre-change behaviour for every case that should still be denied. New
+`apps/admin/lib/supabase/__tests__/server.test.ts` (9 cases, 4 of them real integration tests
+against `supabase start`) makes this repeatable in CI/dev without hand-run curl. One side-check
+was inconclusive and is disclosed rather than glossed over: a full browser-driven login through the
+React `LoginForm` (to prove zero regression on the *cookie* path specifically, not just the bearer
+path) hit a pre-existing Turbopack/HMR dev-artifact in this sandbox (client bundle never hydrates,
+same symptom on both `next dev` and a real `next build && next start`) — unrelated to this change
+(the cookie branch is verbatim-unchanged code), but not independently re-verified live in a
+browser this pass. Full monorepo `apps/admin` `tsc --noEmit`/`eslint --max-warnings=0` clean,
+`vitest run` 123/123, real `next build` clean, 192/192 pgTAP unaffected (schema untouched).
+
 ## 2026-08-02 (continued) — Functional-completion checkpoint begins: recurring rent-schedule generation (TD-20, item 1/8)
 
 Full repository implementation audit delivered (per-module status, 20 special-attention items,

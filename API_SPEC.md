@@ -4,7 +4,7 @@ REST over HTTPS, JSON bodies, served from Next.js Route Handlers (`apps/web/app/
 
 ## 0. Conventions
 
-- **Auth**: `Authorization: Bearer <supabase-jwt>` on every request. No endpoint accepts a client-supplied `org_id` as authoritative — it's always re-derived server-side from the caller's `organization_members`/`tenants`/`owners` rows (`PERMISSIONS.md`).
+- **Auth**: `Authorization: Bearer <supabase-jwt>` on every request (native Android/iOS callers) or an equivalent `@supabase/ssr` session cookie (the PWA) — `getServerSupabaseClient()` (`apps/admin/lib/supabase/server.ts`) accepts either through one abstraction, 2026-08-02, `TASKS.md` M10/TD-28. No endpoint accepts a client-supplied `org_id` as authoritative — it's always re-derived server-side from the caller's `organization_members`/`tenants`/`owners` rows (`PERMISSIONS.md`).
 - **Base path**: `/api/v1/...`. Versioned from day one — a breaking change ships as `/api/v2` alongside `/v1`, never an in-place breaking change to a shipped mobile app's contract.
 - **Pagination**: cursor-based (`?cursor=<opaque>&limit=<n, default 25, max 100>`), response includes `next_cursor: string | null`. Offset pagination is not used — it degrades under concurrent writes, which this system has plenty of (rent schedules, journal entries).
 - **Filtering**: `?filter[status]=active&filter[property_id]=<uuid>` — explicit allow-listed filter fields per endpoint, never arbitrary query passthrough to the database.
