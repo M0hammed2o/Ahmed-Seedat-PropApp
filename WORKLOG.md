@@ -1,5 +1,27 @@
 # Worklog
 
+## 2026-08-01 (continued, 22) — UI consistency audit (priority 11): loading-state gaps closed
+
+Audited every `(dashboard)`/`(super-admin)`/`(tenant)` page against `DESIGN_SYSTEM.md`'s per-module
+conventions (loading states, shared table/empty-state/badge components, dark-mode class coverage).
+Checked: which list/detail pages lack a `loading.tsx` sibling, whether every table component
+reuses `AdminDataTable` (17/17 do), whether any component has color styling with no `dark:`
+variant (one false positive — `BankAccountsTable`'s only class is `capitalize`, not a color, no
+fix needed), whether Super Admin pages use hand-rolled colors instead of the shared
+`StatusBadge`/`HealthStatusIndicator` components (none found).
+
+**Real gaps found and fixed**: `/properties` (the very first vertical slice built this session,
+predating the explicit per-module loading-state convention M20 later established) and all six
+`(super-admin)` pages (`/overview`, `/customers`, `/customers/[id]`, `/subscriptions`,
+`/processing`, `/system` — the whole M19 milestone predates that convention too) had no
+`loading.tsx`. Added all seven, same `PageLoading` skeleton pattern every other module uses.
+Confirmed the apparent gap on every `new`/`edit` create-form page is not an inconsistency — zero
+create/edit pages anywhere in the app have a `loading.tsx`, a consistently-applied (if implicit)
+scope choice, not something this pass needed to touch.
+
+Verified: admin typecheck/lint/test (112/112, unchanged -- no new logic, loading.tsx has nothing
+to unit-test) and real `next build` clean.
+
 ## 2026-08-01 (continued, 21) — Super Admin PWA completion pass (priority 10): plan-change UI wired, support-session UI deliberately held back
 
 Reviewed M19's open items for "Super Admin PWA completion." Two categories: small bounded UI gaps
