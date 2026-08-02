@@ -1,0 +1,203 @@
+import 'server-only';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { getBillingGatewayProvider } from './providers/billing';
+
+// Organization-level SaaS billing service (SUBSCRIPTIONS.md) -- the one place subscription
+// business logic lives, calling BillingGatewayProvider as its only dependency on a real vendor.
+// Swapping the mock for a real PayFast/Yoco/Stitch provider means changing
+// getBillingGatewayProvider()'s return value, never anything in this file.
+
+export interface StartCheckoutResult {
+  checkoutUrl: string;
+  providerSubscriptionId: string;
+  subscriptionPaymentId: string;
+}
+
+/**
+ * Creates (or reuses, via a deterministic idempotencyKey) a pending subscription + its first
+ * subscription_payments row, then returns a checkout URL for staff to complete payment setup.
+ * Always writes an organization_subscriptions row with status='trial' pending confirmation --
+ * the webhook (processBillingWebhookEvent) is what ever moves it to 'active', never this call
+ * itself (never trust the checkout-initiation response as proof of payment).
+ */
+export async function startSubscriptionCheckout(
+  serviceClient: SupabaseClient,
+  input: { orgId: string; planId: string; idempotencyKey: string },
+): Promise<StartCheckoutResult> {
+  const provider = getBillingGatewayProvider();
+
+  const { data: org, error: orgError } = await serviceClient
+    .from('organizations')
+    .select('id, legal_name')
+    .eq('id', input.orgId)
+    .single();
+  if (orgError || !org) throw new Error(orgError?.message ?? 'Organization not found');
+
+  const { data: plan, error: planError } = await serviceClient
+    .from('plans')
+    .select('*')
+    .eq('id', input.planId)
+    .single();
+  if (planError || !plan) throw new Error(planError?.message ?? 'Plan not found');
+
+  const customer = await provider.createCustomer({ orgId: org.id, legalName: org.legal_name, email: `billing+${org.id}@propertyvault.example` });
+  const subscription = await provider.createSubscription({
+    orgId: org.id,
+    providerCustomerId: customer.providerCustomerId,
+    planCode: plan.code,
+    amount: plan.base_price,
+    currency: plan.currency,
+    billingCycle: plan.billing_cycle,
+    idempotencyKey: input.idempotencyKey,
+  });
+
+  const periodStart = new Date().toISOString().slice(0, 10);
+  const periodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+  const { data: orgSubscription, error: subInsertError } = await serviceClient
+    .from('organization_subscriptions')
+    .insert({
+      org_id: org.id,
+      plan_id: plan.id,
+      billing_cycle: plan.billing_cycle,
+      current_period_start: periodStart,
+      current_period_end: periodEnd,
+      next_payment_date: periodEnd,
+      status: 'trial',
+    })
+    .select('id')
+    .single();
+  if (subInsertError || !orgSubscription) throw new Error(subInsertError?.message ?? 'Failed to create subscription');
+
+  const { data: payment, error: paymentInsertError } = await serviceClient
+    .from('subscription_payments')
+    .insert({
+      org_id: org.id,
+      subscription_id: orgSubscription.id,
+      amount: plan.base_price,
+      currency: plan.currency,
+      status: 'pending',
+      provider_reference: subscription.providerSubscriptionId,
+    })
+    .select('id')
+    .single();
+  if (paymentInsertError || !payment) throw new Error(paymentInsertError?.message ?? 'Failed to create pending payment');
+
+  return {
+    checkoutUrl: subscription.checkoutUrl,
+    providerSubscriptionId: subscription.providerSubscriptionId,
+    subscriptionPaymentId: payment.id,
+  };
+}
+
+export interface ProcessWebhookResult {
+  alreadyProcessed: boolean;
+  eventType?: string;
+}
+
+/**
+ * The idempotent webhook receiver: verifies the signature, parses the event, and inserts into
+ * billing_events first -- if that insert hits the (provider_name, provider_event_id) unique
+ * constraint, the event was already processed (a gateway retry) and this returns immediately
+ * without touching subscription_payments/organization_subscriptions/organizations a second time.
+ */
+export async function processBillingWebhookEvent(
+  serviceClient: SupabaseClient,
+  input: { rawBody: string; signatureHeader: string | null },
+): Promise<ProcessWebhookResult> {
+  const provider = getBillingGatewayProvider();
+
+  if (!provider.verifyWebhookSignature(input.rawBody, input.signatureHeader)) {
+    throw new Error('Invalid webhook signature');
+  }
+
+  const event = provider.parseWebhookEvent(input.rawBody);
+
+  const { data: payment } = await serviceClient
+    .from('subscription_payments')
+    .select('id, org_id, subscription_id')
+    .eq('provider_reference', event.providerReference)
+    .maybeSingle();
+
+  const orgId = event.orgId ?? payment?.org_id;
+  if (!orgId) throw new Error(`Cannot resolve org_id for billing event ${event.providerEventId}`);
+
+  const { error: insertError } = await serviceClient.from('billing_events').insert({
+    org_id: orgId,
+    provider_name: provider.providerName,
+    provider_event_id: event.providerEventId,
+    event_type: event.type,
+    payload: event.raw,
+  });
+
+  if (insertError) {
+    // 23505 = unique_violation -- this exact event was already processed, a gateway retry.
+    // Anything else is a real error and must propagate.
+    if (insertError.code === '23505') {
+      return { alreadyProcessed: true };
+    }
+    throw new Error(insertError.message);
+  }
+
+  if (payment) {
+    const paymentStatus =
+      event.type === 'payment_succeeded' ? 'paid' : event.type === 'refund_processed' ? 'refunded' : event.type === 'payment_failed' ? 'failed' : null;
+    if (paymentStatus) {
+      await serviceClient
+        .from('subscription_payments')
+        .update({ status: paymentStatus, paid_at: paymentStatus === 'paid' ? new Date().toISOString() : null })
+        .eq('id', payment.id);
+    }
+
+    if (event.type === 'payment_succeeded') {
+      await serviceClient.from('organization_subscriptions').update({ status: 'active' }).eq('id', payment.subscription_id);
+      await serviceClient.from('organizations').update({ status: 'active' }).eq('id', orgId);
+    } else if (event.type === 'payment_failed') {
+      await serviceClient.from('organizations').update({ status: 'overdue' }).eq('id', orgId);
+    } else if (event.type === 'subscription_cancelled') {
+      await serviceClient.from('organization_subscriptions').update({ status: 'cancelled' }).eq('id', payment.subscription_id);
+      await serviceClient.from('organizations').update({ status: 'cancelled' }).eq('id', orgId);
+    }
+  }
+
+  return { alreadyProcessed: false, eventType: event.type };
+}
+
+/** Explicit, staff-triggered cancellation (as opposed to a gateway-reported one via webhook). */
+export async function cancelOrgSubscription(serviceClient: SupabaseClient, input: { orgId: string; providerSubscriptionId: string }): Promise<void> {
+  const provider = getBillingGatewayProvider();
+  await provider.cancelSubscription(input.providerSubscriptionId);
+
+  const { data: current } = await serviceClient
+    .from('organization_subscriptions')
+    .select('id')
+    .eq('org_id', input.orgId)
+    .order('current_period_start', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (current) {
+    await serviceClient.from('organization_subscriptions').update({ status: 'cancelled' }).eq('id', current.id);
+  }
+  await serviceClient.from('organizations').update({ status: 'cancelled' }).eq('id', input.orgId);
+}
+
+/** Explicit, staff-triggered refund of a specific payment. */
+export async function refundSubscriptionPayment(
+  serviceClient: SupabaseClient,
+  input: { subscriptionPaymentId: string; idempotencyKey: string },
+): Promise<void> {
+  const provider = getBillingGatewayProvider();
+
+  const { data: payment, error } = await serviceClient
+    .from('subscription_payments')
+    .select('*')
+    .eq('id', input.subscriptionPaymentId)
+    .single();
+  if (error || !payment) throw new Error(error?.message ?? 'Payment not found');
+  if (payment.status !== 'paid') throw new Error(`Payment ${input.subscriptionPaymentId} is not paid (status: ${payment.status})`);
+  if (!payment.provider_reference) throw new Error('Payment has no provider_reference to refund against');
+
+  await provider.refundPayment({ providerPaymentReference: payment.provider_reference, idempotencyKey: input.idempotencyKey });
+
+  await serviceClient.from('subscription_payments').update({ status: 'refunded' }).eq('id', input.subscriptionPaymentId);
+}

@@ -14,3 +14,4 @@ export * from './email';
 export * from './whatsapp';
 export * from './ai';
 export * from './superAdmin';
+export * from './billing';

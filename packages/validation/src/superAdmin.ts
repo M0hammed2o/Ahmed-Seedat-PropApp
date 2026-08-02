@@ -8,6 +8,23 @@ export const organizationPlanUpdateSchema = z.object({
   priceOverride: z.number().nonnegative().nullable().optional(),
   discountPct: z.number().min(0).max(100).nullable().optional(),
 });
+
+// Organization-level SaaS billing (SUBSCRIPTIONS.md, apps/admin/lib/billing.ts).
+export const billingCheckoutSchema = z.object({
+  planId: z.string().uuid('planId must be a valid UUID'),
+  idempotencyKey: z.string().min(1, 'idempotencyKey is required').max(200),
+});
+export type BillingCheckoutInput = z.infer<typeof billingCheckoutSchema>;
+
+export const billingCancelSchema = z.object({
+  providerSubscriptionId: z.string().min(1, 'providerSubscriptionId is required'),
+});
+export type BillingCancelInput = z.infer<typeof billingCancelSchema>;
+
+export const billingRefundSchema = z.object({
+  idempotencyKey: z.string().min(1, 'idempotencyKey is required').max(200),
+});
+export type BillingRefundInput = z.infer<typeof billingRefundSchema>;
 export type OrganizationPlanUpdateInput = z.infer<typeof organizationPlanUpdateSchema>;
 
 export const creditIssueSchema = z.object({

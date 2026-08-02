@@ -39,7 +39,7 @@ describe('TaxPackClient', () => {
     await waitFor(() => expect(screen.getByText('Sunset Villas')).toBeTruthy());
     expect(screen.getByText('Rent Income')).toBeTruthy();
     expect(screen.getByText('This tax pack is not tax advice.')).toBeTruthy();
-    expect((fetch as ReturnType<typeof vi.fn>).mock.calls[0][0]).toContain('org_id=org-1');
+    expect((fetch as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]).toContain('org_id=org-1');
   });
 
   it('shows an empty-state row when there is no activity for the selected year', async () => {

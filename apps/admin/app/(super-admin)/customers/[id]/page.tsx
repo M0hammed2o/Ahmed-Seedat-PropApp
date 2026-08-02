@@ -4,6 +4,7 @@ import { requireRole } from '@/lib/auth';
 import { getServiceRoleClient } from '@/lib/supabase/server';
 import { getPlatformOrganizationDetail } from '@/lib/superAdmin';
 import { OrganizationActionsPanel } from '@/components/organizations/OrganizationActionsPanel';
+import { BillingPanel } from '@/components/organizations/BillingPanel';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 import { DEMO_CUSTOMERS } from '@/lib/demo/adminMockData';
@@ -144,6 +145,8 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
         status={detail.status}
         currentUserRole={session.role}
       />
+
+      <BillingPanel orgId={detail.orgId} currentUserRole={session.role} />
 
       <p className="mt-4 text-xs text-light-textMuted dark:text-dark-textMuted">
         Support-session entry is built (TASKS.md M19) but deliberately not wired to this page yet —

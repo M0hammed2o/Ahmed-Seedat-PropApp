@@ -1,5 +1,34 @@
 # Worklog
 
+## 2026-08-02 (continued) — Payment gateway abstraction (item 6/8)
+
+Organization-level SaaS billing was entirely unbuilt -- distinct from the mobile app's already-
+decided RevenueCat entitlement flow (SUBSCRIPTIONS.md), this is the org (agency/landlord customer)
+paying PropertyVault for its own subscription. Built the abstraction before touching any specific
+gateway, per the instruction: BillingGatewayProvider (createCustomer/createSubscription/
+getPaymentStatus/cancelSubscription/refundPayment/verifyWebhookSignature/parseWebhookEvent),
+MockBillingGatewayProvider as the only implementation, and a billing service
+(apps/admin/lib/billing.ts) that only ever talks to the interface.
+
+The real idempotency guard is a DB constraint, not application logic: billing_events has
+unique(provider_name, provider_event_id), so a gateway's retried webhook delivery (which every
+real gateway does on any non-2xx response) hits 23505 and is treated as already-processed, not
+reprocessed. Verified with a real replayed-webhook integration test against local Supabase, not
+just asserted.
+
+Kept explicitly mock-only -- no real PayFast/Yoco/Stitch account exists, and none was activated.
+Documented in SUBSCRIPTIONS.md that the existing Capitec business bank account can keep receiving
+settlements regardless of which gateway is chosen later (settlement destination vs. collection
+method are separate decisions).
+
+New API: POST .../billing/checkout, .../billing/cancel, GET .../billing/payments, POST
+/api/v1/admin/subscription-payments/:id/refund, POST /api/v1/billing/webhook (unauthenticated,
+signature-verified). New Super Admin UI: a Billing panel on the customer detail page.
+
+12 new vitest cases (6 real integration tests against local Supabase) + 7 new pgTAP assertions.
+Full regression 252/252 pgTAP across 18 files. Full monorepo typecheck (6/6 non-mobile packages),
+apps/admin lint/vitest (139/139), real next build all clean.
+
 ## 2026-08-02 (continued) — South African Tax Pack (item 5/8)
 
 `compute_tax_pack()` is a live report, same "computed on demand, never stored" pattern as Trial
