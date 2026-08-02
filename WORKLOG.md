@@ -1,5 +1,61 @@
 # Worklog
 
+## 2026-08-01 (continued, 6) — M20: Units vertical slice (second module, same pattern as Properties)
+
+Continued M20 per Mohammed's instruction to build Units/Tenants/Leases/Maintenance one module at
+a time, same vertical-slice approach proven by Properties. Reused the M6 Units API and
+`apps/admin/lib/portfolio.ts`'s `mapUnitRow`/`requireOrgRole` unchanged — no new backend logic,
+this is UI-layer work end to end.
+
+Checked `PROPVIEW_SCREENSHOT_AUDIT.md` before designing the navigation rather than inventing a
+structure: the reference product's own sidebar has Units as its own top-level PORTFOLIO nav item
+(not only reachable through a property), with a KPI row ("0 Units / 0 Occupied / 0 Vacant") and a
+"No units yet" empty state pointing back at Properties (units are created from a property, no
+top-level bulk-create). Built both: an org-wide `/units` list (KPI row + table, direct RLS-scoped
+read joined against `properties` for the nickname column — no `GET /api/v1/units` endpoint exists,
+`API_SPEC.md` only has the property-scoped list/create, same "plain RLS-protected read" pattern
+the Properties page itself already uses) and a per-property embedded Units section on the property
+detail page (list, natural context, "+ Add unit" role-gated). Detail, create, and edit pages
+follow at `/properties/:id/units/:unitId[/edit]`, sharing one `UnitForm` component between create
+and edit exactly the way `NewPropertyForm` established the field/error convention.
+
+Added `UNIT_STATUS_PRESENTATION` to `packages/ui/src/statusPresentation.ts` (vacant/occupied/
+maintenance), following `BILL_STATUS_PRESENTATION`'s exact shape — no unit-status presentation
+existed yet.
+
+**Loading state, a small step beyond the Properties precedent**: Properties' own vertical slice
+didn't ship a `loading.tsx` for any of its routes (it predates the explicit per-module
+loading-state requirement in Mohammed's later instruction). Built a shared `PageLoading` skeleton
+and added `loading.tsx` to the three data-fetching routes this slice touches (units list, property
+detail, unit detail) — small, self-contained, and consistent with the instruction actually
+received for this pass rather than merely copying the earlier precedent verbatim.
+
+**Real, small test-infrastructure gap found and fixed**: `UnitsTable.test.tsx` is the first
+component test in this codebase to exercise a component that itself imports `@/...`-aliased
+modules (`AdminDataTable`, `StatusBadge`). `apps/admin/vitest.config.ts` only aliased
+`server-only` — Vite/Vitest doesn't read `tsconfig.json`'s `paths` on its own, so the test failed
+module resolution until a `@` alias (mirroring `"@/*": ["./*"]`) was added to `vitest.config.ts`.
+Every existing admin test used only relative imports, so this gap was real but latent until now.
+
+**Real test-assertion bug in my own test, not the component**: first `pnpm --filter admin test`
+run failed on `expect(screen.getByText('R12,500'))` — `Number.prototype.toLocaleString('en-ZA')`
+groups thousands with a space (ZA convention), not a comma, so the component's rendered output
+(`R12 500`) was correct and the test's assumption was wrong. Fixed the assertion to a loose regex
+rather than hardcoding the exact whitespace character Node's ICU data produces.
+
+**Full verification**: `pnpm --filter admin typecheck`/`lint`/`test` (36/36 passed, up from 32) and
+`pnpm --filter @propvault/ui typecheck` all clean; a real clean `next build` (`.next` removed
+first) registered all 6 new/changed routes with no errors; runtime smoke test via `next start` in
+demo mode (`NEXT_PUBLIC_DEMO_MODE`/`ALLOW_DEMO_MODE` both set, plus placeholder Supabase env vars —
+the build's Zod env-schema validation requires them present even in demo mode, a real gap from the
+first attempt's 500s that placeholder values resolved) covering `/properties`,
+`/properties/demo-property-1`, `/properties/demo-property-1/units/demo-unit-1`,
+`/properties/demo-property-1/units/new`, `/properties/demo-property-1/units/demo-unit-1/edit`,
+`/units` — all 200, response bodies grepped for real rendered content (unit rows, KPI values, form
+field labels), not just status codes. Server process (PID confirmed via
+`Get-CimInstance Win32_Process` before stopping, matching this session's established
+verify-then-stop discipline for any process on a shared port) stopped cleanly afterward.
+
 ## 2026-08-01 (continued, 5) — M22: Android toolchain verified end-to-end, real native project foundation + first vertical slice, built and run on an emulator
 
 Mohammed confirmed Android Studio was installed and instructed a full, unassuming verification of
