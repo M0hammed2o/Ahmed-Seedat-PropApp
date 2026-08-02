@@ -11,7 +11,7 @@ type CookieToSet = { name: string; value: string; options: CookieOptions };
 // not require production secrets to be present. A missing/malformed required variable still
 // fails fast, just at request time instead of build time.
 let cachedEnv: AdminServerEnv | null = null;
-function getAdminServerEnv(): AdminServerEnv {
+export function getAdminServerEnv(): AdminServerEnv {
   if (!cachedEnv) {
     cachedEnv = parseAdminServerEnv({
       NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -20,6 +20,7 @@ function getAdminServerEnv(): AdminServerEnv {
       ADMIN_SESSION_COOKIE_SECRET: process.env.ADMIN_SESSION_COOKIE_SECRET,
       REVENUECAT_WEBHOOK_SECRET: process.env.REVENUECAT_WEBHOOK_SECRET,
       DOCUMENT_INTELLIGENCE_WEBHOOK_SECRET: process.env.DOCUMENT_INTELLIGENCE_WEBHOOK_SECRET,
+      CRON_JOB_SECRET: process.env.CRON_JOB_SECRET,
     });
   }
   return cachedEnv;

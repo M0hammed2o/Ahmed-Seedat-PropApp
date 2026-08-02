@@ -32,6 +32,11 @@ export const adminServerEnvSchema = z.object({
   ADMIN_SESSION_COOKIE_SECRET: z.string().min(16).optional(),
   REVENUECAT_WEBHOOK_SECRET: z.string().optional(),
   DOCUMENT_INTELLIGENCE_WEBHOOK_SECRET: z.string().optional(),
+  // Shared secret for server-to-server scheduled-job callers (e.g. a hosting-platform cron
+  // trigger) that have no platform-admin user session to authenticate with. Optional -- when
+  // unset, the scheduled-job endpoints accept only an authenticated platform-admin session
+  // (TASKS.md M24 wires the real production scheduler; this is the callable surface it will call).
+  CRON_JOB_SECRET: z.string().optional(),
 });
 export type AdminServerEnv = z.infer<typeof adminServerEnvSchema>;
 

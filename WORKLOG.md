@@ -1,5 +1,30 @@
 # Worklog
 
+## 2026-08-02 (continued) — Functional-completion checkpoint begins: recurring rent-schedule generation (TD-20, item 1/8)
+
+Full repository implementation audit delivered (per-module status, 20 special-attention items,
+Android/iOS breakdown, completion percentages) — verdict: continue functional work before the
+full UI redesign resumes. Mohammed ordered 8 launch-critical gaps, starting with the highest
+priority: recurring `rent_schedules` generation (TD-20), since without it the Rent Due dashboard
+silently goes blank after any lease's first month.
+
+Migration `20260101000050`: `generate_rent_schedules_for_lease()`/
+`generate_rent_schedules_for_active_leases()`, both `security definer`/`service_role`-only
+(matching `resolve_whatsapp_sender()`'s lockdown pattern), plus a real `(lease_id, due_date)`
+unique constraint so duplicate prevention is a DB guarantee, not application logic. Anchored every
+period's due date to the lease's own `start_date` rather than chaining off the previous row --
+Postgres's `date + interval 'N months'` clamps a day that doesn't exist in the target month
+(`2026-01-31 + 1 month = 2026-02-28`), and a naive running total would have permanently lost the
+31st for every later period on any lease starting on the 29th-31st. No proration invented for
+mid-month starts (none is documented; matches `approve_application()`'s existing full-amount
+behaviour). Callable via new `POST /api/v1/system/generate-rent-schedules` (super_admin session or
+`CRON_JOB_SECRET` bearer) until a real production scheduler is wired against it in M24.
+
+Verified: real `supabase db reset`, new `recurring_rent_schedules.test.sql` (16 assertions covering
+first/subsequent months, idempotent retry, lease-ends-mid-horizon, terminated-lease no-op,
+partially-paid row preservation, cross-org bulk isolation, privilege lockdown) — full regression
+suite 192/192 pgTAP across 14 files. `apps/admin` `tsc --noEmit`/`eslint` on changed files clean.
+
 ## 2026-08-02 (continued) — PWA redesign foundation: responsive AppShell, real dark mode, two more real bugs found by the new audit tooling
 
 With the CSP hydration bug fixed, moved to the redesign's own foundation step (shared tokens +
