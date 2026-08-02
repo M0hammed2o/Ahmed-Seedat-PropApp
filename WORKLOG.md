@@ -1,5 +1,50 @@
 # Worklog
 
+## 2026-08-01 (continued, 20) — Tenant portal: V1 scope correction (priority 9), a real RLS recursion bug found and fixed before commit
+
+Priority 9 ("Tenant-facing experience") directly conflicted with this project's standing "no
+tenant portal in V1" decision, applied consistently across every earlier module (Applications,
+Maintenance ticket submission, Announcement acknowledgement all deliberately excluded tenant UI on
+that basis). Asked Mohammed how to proceed; answer: treat it like the Applications V1
+simplification — build a basic tenant portal now, update `PERMISSIONS.md`/
+`MOBILE_ARCHITECTURE_DECISION.md` to match. Full narrative in `DECISIONS.md` 2026-08-01.
+
+Built: `supabase/migrations/20260101000049_tenant_portal_rls.sql` (RLS for
+leases/lease_tenants/rent_schedules/invoices/maintenance_tickets/documents/units/properties, all
+keyed on the same `tenants.user_id = auth.uid()` predicate `tenants`/`announcements` already used),
+`lib/tenantSession.ts` (`resolveTenantSession()`, a third independent identity system alongside
+org-staff/platform-admin), a third branch on `/`'s routing, and a `(tenant)` route group:
+`/my-lease`, `/my-payments`, `/my-maintenance` (+ `/new`, posting through a new tenant-scoped
+`POST /api/v1/tenant-portal/maintenance-tickets` route that derives property/unit/lease context
+server-side rather than trusting the client), `/notices` (reusing the already-existing
+`POST /api/v1/announcements/:id/acknowledge` endpoint).
+
+**Real bug found and fixed before any commit**: the first draft of the migration wrote
+`leases`/`documents`/`rent_schedules`'s tenant-self policies as raw subqueries into
+`lease_tenants`. `lease_tenants` already has its own policy that queries back into `leases` to
+resolve `org_id` — the two together produced `42P17: infinite recursion detected in policy for
+relation "leases"`, caught by `npx supabase test db` failing 3 of 13 suites. Fixed the same way
+`has_org_role()` already solves this identical class of problem: wrapped the cross-table checks in
+`SECURITY DEFINER` functions (`caller_is_tenant_of_lease()`, and while building the tenant UI's
+unit/property-name lookups, `caller_is_tenant_of_unit()`/`caller_is_tenant_of_property()` for the
+same reason — `units`/`properties` are org-member-only by default and the tenant UI needs to read
+through them). Re-ran `db reset` + `test db` after the fix: clean 176/176, same count as before
+this migration.
+
+Deliberately not built (same "basic, not a platform" instruction the Applications correction
+used): tenant messaging, tenant document upload, profile/settings editing, native tenant app.
+Documents stay staff/owner-only by default — tenant-visible only when a staff member explicitly
+tags one with the new `documents.lease_id` column, not a blanket property-scoped grant (owner-only
+paperwork must stay invisible to tenants).
+
+Tests: `NoticesList.test.tsx` (3), `TenantMaintenanceTicketForm.test.tsx` (2). Verified: full pgTAP
+(176/176), admin typecheck/lint/test (108/108), real `next build` clean, demo-mode smoke test
+across all 5 new routes with real rendered content (lease/unit/property names, rand-formatted
+balances via `en-ZA` locale, ticket summaries, notice acknowledgement state). Not verified: a live
+authenticated tenant session end-to-end over HTTP (no live Supabase project/test tenant user in
+this environment) — RLS correctness rests on pgTAP, UI rendering rests on the demo-mode smoke test,
+same split every other RLS-touching module this session used.
+
 ## 2026-08-01 (continued, 19) — Owner Dashboard (priority 7) + a real login-routing bug found and fixed
 
 Built `/dashboard` (KPI row: Properties/Units occupied %/Cash left this month/Units available,

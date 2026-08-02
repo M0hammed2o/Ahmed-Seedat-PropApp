@@ -444,3 +444,40 @@ Verified: admin typecheck/lint/test (103/103) and real `next build` clean (middl
 stayed a static literal array, the exact class of failure that broke this file once before this
 session), demo-mode smoke test confirming `/` still resolves to `/overview` unchanged and
 `/dashboard` renders correctly.
+
+## 2026-08-01 — V1 scope corrected: a basic web tenant portal is now in scope, not deferred
+
+Every module built earlier this session (Applications, Maintenance ticket submission, Announcement
+acknowledgement, `TASKS.md`/`WORKLOG.md`'s own M8 tenant-table entry) deliberately excluded any
+tenant-facing UI on the standing basis "no tenant portal in V1." Reaching priority 9 of the
+remaining-work list ("Tenant-facing experience") surfaced a direct conflict with that standing
+decision. Asked the user how to proceed; answer was to treat this the same way the Applications
+module's scope was corrected mid-session: build a basic tenant portal now, updating
+`PERMISSIONS.md`/`MOBILE_ARCHITECTURE_DECISION.md` to reflect the change rather than leaving them
+describing a decision no longer in effect.
+
+**Scope built**: own lease, payment balance/history, maintenance (view + submit own), notices
+(view + acknowledge). Deliberately not built (same "basic, not a platform" instruction the
+Applications correction used): no tenant messaging, no document upload by tenants, no profile/
+settings editing, no native tenant app. Documents are tenant-visible only when a staff member
+explicitly tags one with `documents.lease_id` — a narrower grant than "all of a property's
+documents," since owner-only paperwork (municipal bills, insurance, compliance docs) lives in the
+same table and must stay invisible to tenants (`PERMISSIONS.md` §4's "never: owner financials").
+
+**Real bug found and fixed while building this**: the first draft of
+`supabase/migrations/20260101000049_tenant_portal_rls.sql` wrote the new `leases`/`documents`/
+`rent_schedules` tenant-self policies as raw `exists (select ... from lease_tenants ...)`
+subqueries. `lease_tenants` already has its own policy (`lease_tenants_select_org_member`,
+migration `20260101000030`) that queries back into `leases` to resolve `org_id` (the join is
+required — `lease_tenants` has no `org_id` column of its own). Querying `leases` therefore
+triggered `lease_tenants`'s RLS, which queried `leases` again — `42P17: infinite recursion detected
+in policy for relation "leases"`, caught by `npx supabase test db` failing 3 of 13 suites before
+any commit. Fixed the same way `has_org_role()` already solves this identical class of problem
+elsewhere in the schema: added `caller_is_tenant_of_lease(p_lease_id uuid)`, a `SECURITY DEFINER`
+function whose internal query runs as the function owner and so does not re-trigger
+`lease_tenants`'s own RLS, breaking the cycle. Re-ran `npx supabase db reset` + `npx supabase test
+db` after the fix: clean 176/176 pass, same count as before this migration.
+
+Verified: full pgTAP suite (176/176) after the recursion fix; admin typecheck/lint/test and a real
+build/demo-mode smoke test are recorded in `WORKLOG.md`'s corresponding entry once that pass
+completes.

@@ -35,6 +35,13 @@ Not code — **reference**. `apps/mobile/src/design/components/` (design tokens,
 
 **Where the master-prompt's role split still applies**: within each app, `PortalMode` (Landlord/Owner vs Tenant) drives navigation exactly as specified in §10.1/§10.2 — the tenant surface stays intentionally simple (Home, Lease, Payments, Documents, Maintenance, Meter Readings when enabled, Announcements, Notifications, Notices, Profile) and never renders other tenants, unrelated properties, owner financials, staff data, portfolio data, or accounting data, enforced server-side per role/org-membership.
 
+**Web tenant portal, added 2026-08-01** (V1 scope correction, DECISIONS.md/PERMISSIONS.md §4):
+a basic tenant self-service surface now exists on the web app (`apps/admin/app/(tenant)/**`) —
+own lease, payments, maintenance (view + submit), notices. This doesn't change the native-app
+scope-split decision below; a tenant identity was already accounted for in the native "who uses
+this app" framing (§6), it just wasn't reachable from the web app until now. Native tenant-facing
+screens remain future work, not built this session.
+
 ## 6. Scope carried into native apps vs. web-only (per master prompt §10.1, cross-checked against the screenshot audit's desktop-to-mobile mapping)
 
 **In the native apps** (owner/landlord + tenant, evidenced as reachable on PropView's own mobile-web surface and consistent with §10.1's "oversight, approvals, visibility, critical actions, portfolio monitoring" framing): Dashboard/KPIs, Properties (view/light edit), Units (view), Tenants (view), Leases (view + key actions), Rent status, Payments (log/view, approve EFT claims), Owner Statements (view, not draft), Documents (view/upload), Maintenance (full flow both directions — this is the master prompt's explicit native-app priority), Approvals (maintenance, applications), Announcements, Notifications, Tasks, Settings.

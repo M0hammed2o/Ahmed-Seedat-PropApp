@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getAdminSession } from '@/lib/auth';
 import { resolvePortalSession } from '@/lib/orgSession';
+import { resolveTenantSession } from '@/lib/tenantSession';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 export const dynamic = 'force-dynamic';
@@ -11,8 +12,11 @@ export const dynamic = 'force-dynamic';
  * platform_admin_users row) fell through to '/login', and even if sent to '/overview' directly,
  * that route group's own layout requires `getAdminSession()` too and would bounce them straight
  * back to '/login'. There was no reachable landing page for a client-org user at all. Now checks
- * both independent session types (PERMISSIONS.md's "never merge role systems" — checked here,
+ * every independent session type (PERMISSIONS.md's "never merge role systems" — checked here,
  * not merged into one lookup) and routes to whichever applies.
+ *
+ * Extended 2026-08-01 (DECISIONS.md, tenant portal V1 scope correction) with a third check for a
+ * tenant-portal identity, same pattern as the org-staff check added just above it.
  *
  * Demo mode is unchanged: `getAdminSession()` always returns a fixed session in demo mode (no
  * live Supabase project to check), so this always resolves to '/overview' there, exactly as
@@ -26,6 +30,9 @@ export default async function RootPage() {
     const portalSession = await resolvePortalSession();
     const hasActiveOrg = portalSession?.organizations.some((m) => m.status === 'active');
     if (hasActiveOrg) redirect('/dashboard');
+
+    const tenantSession = await resolveTenantSession();
+    if (tenantSession) redirect('/my-lease');
   }
 
   redirect('/login');

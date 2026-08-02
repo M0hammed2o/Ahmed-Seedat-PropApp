@@ -29,6 +29,7 @@ Multi-tenancy → Authentication and security → Properties and Units → Owner
 - Standalone Tasks & Reminders module, if inline task workflows prove insufficient
 - Portfolio Map GIS layers, heat maps, map-based analytics
 - **Automated tenant screening** (deferred 2026-08-01, product-scope correction — DECISIONS.md): external credit-bureau integrations (TPN/Experian/TransUnion or similar), automated screening scores, applicant ranking, AI applicant recommendations, automatic approve/decline, and applicant-messaging automation. The `application_screening_status`/`screening_consent_at` columns, the `screening` application status, and the mock-first `TenantScreeningProvider`/`MockTenantScreeningProvider` (`apps/admin/lib/providers/tenantScreening.ts`) already exist and are left dormant/intact, not deleted — a real V2 build would wire a production provider behind that same interface and re-surface the already-built `POST /api/v1/applications/:id/screen` endpoint in the UI, not start over.
+- **Tenant portal — beyond V1's basic scope** (V1 shipped 2026-08-01, `(tenant)/**` — DECISIONS.md): tenant-to-staff messaging, tenant document upload (V1 documents are staff-tagged-visible only, via `documents.lease_id`, never tenant-uploaded), tenant profile/settings self-editing, meter-reading submission, and a native (iOS/Android) tenant surface — `MOBILE_ARCHITECTURE_DECISION.md`'s native scope split already accounted for a tenant identity conceptually but no native tenant screens were built this session.
 
 ## Sequencing rationale
 

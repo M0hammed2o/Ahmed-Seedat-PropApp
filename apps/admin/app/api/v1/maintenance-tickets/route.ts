@@ -6,11 +6,12 @@ import { mapMaintenanceTicketRow } from '@/lib/operations';
 import { parseListQuery, encodeCursor, beforeCursorFilter } from '@/lib/cursorPagination';
 
 /**
- * GET/POST /api/v1/maintenance-tickets (API_SPEC.md §5, TASKS.md M13). Submitter is always staff
- * (`submitted_by_user_id`) on create -- there is no tenant portal in V1 (confirmed product
- * decision), so a client-submitted `submitted_by_tenant_id` path has no real caller yet; the
- * schema supports it (migration 20260101000034's exactly-one-submitter constraint), this route
- * just never exercises that branch.
+ * GET/POST /api/v1/maintenance-tickets (API_SPEC.md §5, TASKS.md M13). This route is staff-only --
+ * submitter is always `submitted_by_user_id` on create. Tenant-submitted tickets
+ * (`submitted_by_tenant_id`) go through the separate
+ * `POST /api/v1/tenant-portal/maintenance-tickets` route instead (V1 scope correction, 2026-08-01
+ * -- DECISIONS.md), which derives org/property/unit/lease context from the caller's own tenant
+ * session rather than accepting it from the request body the way this staff route does.
  */
 export async function GET(request: NextRequest) {
   const supabase = await getServerSupabaseClient();

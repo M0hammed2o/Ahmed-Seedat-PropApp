@@ -53,6 +53,20 @@ A `tenants` record with `user_id` set can log in and see/do only what's scoped t
 - Announcements targeted at their property.
 - Never: other tenants, other properties, owner financials, staff data, portfolio/accounting data — enforced by RLS predicates keyed on `tenants.user_id = auth.uid()` joined through `lease_tenants`/`rent_schedules`/`maintenance_tickets.tenant_id`, matching the master prompt's explicit tenant-isolation requirement (§10.2) and the hard rule that tenant-isolation protections are never waived.
 
+**Implemented 2026-08-01** (V1 scope correction, DECISIONS.md — a basic web tenant portal is now in
+scope, superseding every earlier note in this codebase that said "no tenant portal in V1"): the RLS
+predicates above are real, in `supabase/migrations/20260101000049_tenant_portal_rls.sql`
+(`caller_tenant_ids()`/`caller_is_tenant_of_lease()` — SECURITY DEFINER helpers, same pattern as
+`has_org_role()`, needed to avoid RLS-policy recursion across `leases`/`lease_tenants`), and a
+minimal `(tenant)` route group (`apps/admin/app/(tenant)/**`, `resolveTenantSession()` in
+`lib/tenantSession.ts`) exposes exactly this list: `/my-lease`, `/my-payments`, `/my-maintenance`
+(view + submit), `/notices` (view + acknowledge). Documents are tenant-visible only when a staff
+member explicitly tags one with the lease it belongs to (`documents.lease_id`) — not a blanket
+per-property grant, since a property's documents include owner-only paperwork (municipal bills,
+insurance, compliance docs) a tenant must never see. Nothing beyond this list is tenant-accessible;
+this remains a "basic" portal by deliberate V1 scope, same reasoning as the Applications module's
+own V1 simplification (§ROADMAP.md).
+
 ## 5. Permission enforcement layers
 
 1. **RLS** (`DATABASE.md` §12) — the ground truth; every table's policy is written assuming the API layer could be buggy or bypassed.

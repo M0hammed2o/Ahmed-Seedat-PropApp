@@ -35,6 +35,10 @@ const PROTECTED_ROUTE_PREFIXES = [
   '/notifications',
   '/announcements',
   '/reports',
+  '/my-lease',
+  '/my-payments',
+  '/my-maintenance',
+  '/notices',
 ];
 
 /**
@@ -119,5 +123,9 @@ export const config = {
     '/notifications/:path*',
     '/announcements/:path*',
     '/reports/:path*',
+    '/my-lease/:path*',
+    '/my-payments/:path*',
+    '/my-maintenance/:path*',
+    '/notices/:path*',
   ],
 };

@@ -19,8 +19,10 @@ export type VendorCreateInput = z.infer<typeof vendorCreateSchema>;
 export const vendorUpdateSchema = vendorSchema.partial();
 export type VendorUpdateInput = z.infer<typeof vendorUpdateSchema>;
 
-// Maintenance tickets API. Submitter is always staff for now (no tenant portal in V1) -- see
-// apps/admin/app/api/v1/maintenance-tickets/route.ts.
+// Maintenance tickets API (staff-submitted) -- apps/admin/app/api/v1/maintenance-tickets/route.ts.
+// Tenant-submitted tickets use tenantMaintenanceTicketCreateSchema below instead (narrower --
+// org/property/unit/lease/tenant context is derived server-side from the caller's own tenant
+// session, never client-supplied, see apps/admin/app/api/v1/tenant-portal/maintenance-tickets/route.ts).
 export const maintenanceTicketCreateSchema = z.object({
   orgId: z.string().uuid('orgId must be a valid UUID'),
   propertyId: z.string().uuid('propertyId must be a valid UUID'),
@@ -43,6 +45,18 @@ export const maintenanceTicketUpdateSchema = z.object({
   status: z.enum(['to_do', 'in_progress', 'pending_approval', 'completed']).optional(),
 });
 export type MaintenanceTicketUpdateInput = z.infer<typeof maintenanceTicketUpdateSchema>;
+
+// Tenant-portal maintenance ticket submission (V1 scope correction, 2026-08-01 -- DECISIONS.md).
+// Deliberately just summary/description/priority: org_id/property_id/unit_id/lease_id/tenant_id
+// are all derived server-side from the caller's own active lease, never accepted from the client
+// (API_SPEC.md §0's "no endpoint accepts a client-supplied org_id/identity as authoritative" rule
+// extended to a tenant submitting against their own lease).
+export const tenantMaintenanceTicketCreateSchema = z.object({
+  summary: z.string().min(1, 'Summary is required').max(200),
+  description: z.string().max(5000).optional().nullable(),
+  priority: z.enum(MAINTENANCE_PRIORITIES).default('medium'),
+});
+export type TenantMaintenanceTicketCreateInput = z.infer<typeof tenantMaintenanceTicketCreateSchema>;
 
 // Inspections API.
 export const inspectionCreateSchema = z.object({
