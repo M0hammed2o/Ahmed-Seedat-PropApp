@@ -25,4 +25,9 @@ object Destinations {
     fun leasesList(propertyId: String, unitId: String) = "properties/$propertyId/units/$unitId/leases"
     fun leaseDetail(propertyId: String, unitId: String, leaseId: String) =
         "properties/$propertyId/units/$unitId/leases/$leaseId"
+
+    const val MAINTENANCE_LIST = "maintenance"
+    const val MAINTENANCE_DETAIL = "maintenance/{ticketId}"
+
+    fun maintenanceDetail(ticketId: String) = "maintenance/$ticketId"
 }

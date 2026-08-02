@@ -481,3 +481,27 @@ db` after the fix: clean 176/176 pass, same count as before this migration.
 Verified: full pgTAP suite (176/176) after the recursion fix; admin typecheck/lint/test and a real
 build/demo-mode smoke test are recorded in `WORKLOG.md`'s corresponding entry once that pass
 completes.
+
+## 2026-08-01 — Android Maintenance ticket submission deferred: a real gap between API_SPEC.md's contract and the actual server implementation
+
+While scoping the Android Maintenance vertical slice, `MOBILE_ARCHITECTURE_DECISION.md` §6/§7 was
+explicit that ticket *submission* (not just viewing) is the native-app write-path priority. Checked
+what wiring a real `POST /api/v1/maintenance-tickets` call from Android would take before building
+it, and found `apps/admin`'s API routes authenticate exclusively via `getServerSupabaseClient()`
+(cookie-session-only) — they never read an `Authorization: Bearer` header, despite `API_SPEC.md`
+§0 stating that contract explicitly "so native mobile apps consume the same API surface as the web
+app." A native call with a valid JWT would 401 today, for every mutating admin route, not just this
+one — every route was built and verified against the web client's cookie session, the only caller
+that existed until a native write path was actually attempted.
+
+**Decision**: don't fix it as a side effect of this Android slice, and don't route around it. Fixing
+it means changing the shared auth-resolution helper (`getServerSupabaseClient()`) every existing API
+route depends on — an `auth`-classified, high-risk change per this project's own task-routing rules,
+deserving its own explicit pass and verification, not something to fold into a UI feature slice.
+Routing around it (a direct Postgrest insert from the native client) would violate this project's
+own established API-layer-writes-only discipline (`API_SPEC.md` §0's reads-only carve-out exists to
+guarantee audit-trail writes and business-rule validation on every mutation). Filed as
+`TECHNICAL_DEBT_REGISTER.md` TD-28. The Android Maintenance slice shipped view-only (list + detail)
+instead; ticket submission stays deferred until TD-28 is deliberately paid down. Same judgment
+already applied to support-mode's TD-25 for the same underlying reason — a real, security-adjacent
+gap correctly flagged rather than silently patched.

@@ -1,5 +1,42 @@
 # Worklog
 
+## 2026-08-01 (continued, 27) — Android: Maintenance vertical slice (priority 12, continued) -- and a real, pre-existing API gap found while scoping ticket submission
+
+Fifth Android module. Started by re-reading `MOBILE_ARCHITECTURE_DECISION.md` §6/§7, which is explicit
+that Maintenance ticket *submission* -- not just viewing -- is the master prompt's own native-app
+write-path priority ("full flow both directions," the one write action that gets a real offline
+queue in V1). So before building the read-only list this pass planned to start with, checked what
+wiring a real POST would actually take.
+
+Found a real gap: `apps/admin/lib/supabase/server.ts`'s `getServerSupabaseClient()` -- the one auth
+resolution helper every API route handler in the app calls -- only ever reads the caller's session
+from cookies (`@supabase/ssr`'s `createServerClient`). It never inspects an `Authorization: Bearer`
+header at all. `API_SPEC.md` §0 itself says the contract is `Authorization: Bearer <supabase-jwt>`
+on every request, specifically so native apps can "consume the same API surface as the web app" --
+but the actual server-side implementation never grew to match that stated contract, because every
+API route built this session was verified against the web client's own cookie session, the only
+caller that has existed until now. A native Android POST with a valid JWT in a Bearer header would
+still get an unconditional 401 today, for every mutating route in `apps/admin/app/api/v1/**`, not
+just maintenance-tickets.
+
+Filed as `TECHNICAL_DEBT_REGISTER.md` TD-28 rather than either (a) quietly patching around it with
+a direct-Postgrest insert (violates this project's own established API-layer-writes-only discipline
+-- `API_SPEC.md` §0's carve-out is reads-only, for good reason: audit-trail writes, business-rule
+validation), or (b) building the write call anyway and letting it 401 in the first real use. Fixing
+TD-28 properly means changing the shared auth-resolution path every existing route depends on -- an
+`auth`-classified, high-risk change per this project's own task-routing rules, not something to
+fold into an Android UI slice without it being asked for. Support-mode's TD-25 got the same
+treatment for the same underlying reason (a security-relevant gap correctly flagged, not silently
+routed around).
+
+Scoped this slice down to view-only accordingly (list + detail, org-wide, same shape as the Tenants
+slice) -- a new fourth bottom-nav tab, `MaintenanceTicket` domain model, DTO/Entity/Dao/repository
+pair. `PropertyVaultDatabase` bumped 4 -> 5. Tests: `MockMaintenanceRepositoryTest` (3),
+`MaintenanceListViewModelTest` (4). Verified: real `gradlew testDebugUnitTest assembleDebug
+lintDebug` -- BUILD SUCCESSFUL, 37/37 unit tests (7 new, 30 pre-existing, none broken), lint 0
+errors/55 warnings (unchanged). Device-verified same as every prior slice this pass: AVD, sign-in,
+tap through to the ticket list and detail, light and dark mode, `logcat` confirmed no crash.
+
 ## 2026-08-01 (continued, 26) — Android: Leases vertical slice (priority 12, continued), device-verified in the same pass
 
 Fourth Android module. Unit-scoped (a lease only makes sense for a specific unit), reached from

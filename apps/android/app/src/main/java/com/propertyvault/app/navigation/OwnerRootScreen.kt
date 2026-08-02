@@ -2,6 +2,7 @@ package com.propertyvault.app.navigation
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.People
@@ -22,6 +23,8 @@ import androidx.navigation.compose.rememberNavController
 import com.propertyvault.app.ui.dashboard.DashboardScreen
 import com.propertyvault.app.ui.leases.LeaseDetailScreen
 import com.propertyvault.app.ui.leases.LeasesListScreen
+import com.propertyvault.app.ui.maintenance.MaintenanceDetailScreen
+import com.propertyvault.app.ui.maintenance.MaintenanceListScreen
 import com.propertyvault.app.ui.properties.PropertiesListScreen
 import com.propertyvault.app.ui.properties.PropertyDetailScreen
 import com.propertyvault.app.ui.tenants.TenantDetailScreen
@@ -35,6 +38,7 @@ private val OWNER_BOTTOM_NAV_ITEMS = listOf(
     BottomNavItem(Destinations.DASHBOARD, "Dashboard", Icons.Filled.Dashboard),
     BottomNavItem(Destinations.PROPERTIES_LIST, "Properties", Icons.Filled.Home),
     BottomNavItem(Destinations.TENANTS_LIST, "Tenants", Icons.Filled.People),
+    BottomNavItem(Destinations.MAINTENANCE_LIST, "Maintenance", Icons.Filled.Build),
     // Operations/Finance/More tabs (NATIVE_ANDROID_SPEC.md §2) follow once their modules exist
     // (TASKS.md M20/M22) -- not stubbed here with dead placeholder tabs, matching this codebase's
     // established discipline against building UI surface that does nothing.
@@ -127,6 +131,14 @@ fun OwnerRootScreen() {
             }
             composable(Destinations.TENANT_DETAIL) {
                 TenantDetailScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Destinations.MAINTENANCE_LIST) {
+                MaintenanceListScreen(
+                    onTicketClick = { ticketId -> navController.navigate(Destinations.maintenanceDetail(ticketId)) },
+                )
+            }
+            composable(Destinations.MAINTENANCE_DETAIL) {
+                MaintenanceDetailScreen(onBack = { navController.popBackStack() })
             }
         }
     }
