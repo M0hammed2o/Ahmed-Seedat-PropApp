@@ -16,6 +16,7 @@ const NAV_ITEMS = [
   { href: '/units', label: 'Units' },
   { href: '/tenants', label: 'Tenants' },
   { href: '/leases', label: 'Leases' },
+  { href: '/maintenance', label: 'Maintenance' },
 ];
 
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {

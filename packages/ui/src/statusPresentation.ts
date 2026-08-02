@@ -1,4 +1,12 @@
-import type { BillStatus, LeaseStatus, OrganizationStatus, TenantStatus, UnitStatus } from '@propvault/types';
+import type {
+  BillStatus,
+  LeaseStatus,
+  MaintenancePriority,
+  MaintenanceStatus,
+  OrganizationStatus,
+  TenantStatus,
+  UnitStatus,
+} from '@propvault/types';
 
 /**
  * Status is never signalled by colour alone (accessibility requirement in the brief) — every
@@ -70,4 +78,22 @@ export const LEASE_STATUS_PRESENTATION: Record<LeaseStatus, StatusPresentation> 
   active: { label: 'Active', icon: 'check', colorToken: 'statusPaid' },
   expired: { label: 'Expired', icon: 'dot', colorToken: 'statusVoid' },
   terminated: { label: 'Terminated', icon: 'flag', colorToken: 'statusDisputed' },
+};
+
+// TASKS.md M20 (Maintenance vertical slice). Mirrors the evidenced Maintenance Board's 4-column
+// kanban order (PROPVIEW_SCREENSHOT_AUDIT.md IMG_7967-7968) exactly -- to_do/in_progress/
+// pending_approval/completed, same order as MAINTENANCE_STATUSES and MAINTENANCE_TRANSITIONS
+// (apps/admin/lib/operations.ts).
+export const MAINTENANCE_STATUS_PRESENTATION: Record<MaintenanceStatus, StatusPresentation> = {
+  to_do: { label: 'To do', icon: 'eye', colorToken: 'statusNeedsReview' },
+  in_progress: { label: 'In progress', icon: 'spinner', colorToken: 'statusProcessing' },
+  pending_approval: { label: 'Pending approval', icon: 'alert-triangle', colorToken: 'statusUnpaid' },
+  completed: { label: 'Completed', icon: 'check', colorToken: 'statusPaid' },
+};
+
+export const MAINTENANCE_PRIORITY_PRESENTATION: Record<MaintenancePriority, StatusPresentation> = {
+  low: { label: 'Low', icon: 'dot', colorToken: 'statusVoid' },
+  medium: { label: 'Medium', icon: 'dot', colorToken: 'statusProcessing' },
+  high: { label: 'High', icon: 'alert-triangle', colorToken: 'statusNeedsReview' },
+  urgent: { label: 'Urgent', icon: 'alert-triangle', colorToken: 'statusOverdue' },
 };

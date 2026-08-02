@@ -1,10 +1,12 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import type { Property } from '@propvault/types';
+import type { MaintenanceTicket, Property } from '@propvault/types';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapPropertyRow, mapUnitRow } from '@/lib/portfolio';
+import { mapMaintenanceTicketRow } from '@/lib/operations';
 import { resolvePortalSession, findActiveMembership } from '@/lib/orgSession';
 import { UnitsTable, type UnitRow } from '@/components/tables/UnitsTable';
+import { MaintenanceTable } from '@/components/tables/MaintenanceTable';
 import { Button } from '@/components/ui/Button';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
@@ -47,12 +49,40 @@ const DEMO_UNITS: UnitRow[] = [
   },
 ];
 
+const DEMO_TICKETS: MaintenanceTicket[] = [
+  {
+    id: 'demo-ticket-1',
+    orgId: 'demo-org-1',
+    propertyId: 'demo-property-1',
+    unitId: 'demo-unit-1',
+    leaseId: 'demo-lease-1',
+    tenantId: null,
+    submittedByUserId: 'demo-user-1',
+    submittedByTenantId: null,
+    summary: 'Leaking kitchen tap',
+    description: 'Constant drip from the cold tap, worsening over the past week.',
+    priority: 'medium',
+    status: 'to_do',
+    assignedVendorId: null,
+    createdAt: '2026-08-01T00:00:00Z',
+    updatedAt: '2026-08-01T00:00:00Z',
+    resolvedAt: null,
+  },
+];
+
 export default async function PropertyDetailPage({ params }: RouteParams) {
   const { id } = await params;
 
   if (ADMIN_DEMO_MODE) {
     if (id !== 'demo-property-1') notFound();
-    return <PropertyDetailView property={DEMO_PROPERTY} units={DEMO_UNITS} canManageUnits />;
+    return (
+      <PropertyDetailView
+        property={DEMO_PROPERTY}
+        units={DEMO_UNITS}
+        maintenanceTickets={DEMO_TICKETS}
+        canManage
+      />
+    );
   }
 
   const supabase = await getServerSupabaseClient();
@@ -61,34 +91,50 @@ export default async function PropertyDetailPage({ params }: RouteParams) {
   if (!data) notFound();
   const property = mapPropertyRow(data);
 
-  const { data: unitRows, error: unitsError } = await supabase
-    .from('units')
-    .select('*')
-    .eq('property_id', id)
-    .order('unit_label', { ascending: true });
-  if (unitsError) throw new Error(`Failed to load units: ${unitsError.message}`);
-  const units: UnitRow[] = (unitRows ?? []).map(mapUnitRow);
+  const [unitsResult, ticketsResult] = await Promise.all([
+    supabase.from('units').select('*').eq('property_id', id).order('unit_label', { ascending: true }),
+    supabase
+      .from('maintenance_tickets')
+      .select('*')
+      .eq('property_id', id)
+      .order('created_at', { ascending: false }),
+  ]);
+  if (unitsResult.error) throw new Error(`Failed to load units: ${unitsResult.error.message}`);
+  if (ticketsResult.error) throw new Error(`Failed to load maintenance tickets: ${ticketsResult.error.message}`);
+
+  const units: UnitRow[] = (unitsResult.data ?? []).map(mapUnitRow);
+  const maintenanceTickets: MaintenanceTicket[] = (ticketsResult.data ?? []).map(mapMaintenanceTicketRow);
 
   const session = await resolvePortalSession();
   const membership = session ? findActiveMembership(session, property.orgId) : undefined;
-  const canManageUnits = Boolean(membership && membership.role !== 'viewer' && membership.role !== 'accountant');
+  const canManage = Boolean(membership && membership.role !== 'viewer' && membership.role !== 'accountant');
 
-  return <PropertyDetailView property={property} units={units} canManageUnits={canManageUnits} />;
+  return <PropertyDetailView property={property} units={units} maintenanceTickets={maintenanceTickets} canManage={canManage} />;
 }
 
 function PropertyDetailView({
   property,
   units,
-  canManageUnits,
+  maintenanceTickets,
+  canManage,
 }: {
   property: Property;
   units: UnitRow[];
-  canManageUnits: boolean;
+  maintenanceTickets: MaintenanceTicket[];
+  canManage: boolean;
 }) {
   const addUnitAction = (
     <Link href={`/properties/${property.id}/units/new`}>
       <Button variant="primary" size="sm">
         + Add unit
+      </Button>
+    </Link>
+  );
+
+  const reportIssueAction = (
+    <Link href={`/properties/${property.id}/maintenance/new`}>
+      <Button variant="primary" size="sm">
+        + Report issue
       </Button>
     </Link>
   );
@@ -138,17 +184,28 @@ function PropertyDetailView({
           <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
             Units ({units.length})
           </h2>
-          {canManageUnits && units.length > 0 ? addUnitAction : null}
+          {canManage && units.length > 0 ? addUnitAction : null}
         </div>
         <div className="mt-3">
-          <UnitsTable data={units} emptyAction={canManageUnits ? addUnitAction : undefined} />
+          <UnitsTable data={units} emptyAction={canManage ? addUnitAction : undefined} />
+        </div>
+      </div>
+
+      <div className="mt-8">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+            Maintenance ({maintenanceTickets.length})
+          </h2>
+          {canManage && maintenanceTickets.length > 0 ? reportIssueAction : null}
+        </div>
+        <div className="mt-3">
+          <MaintenanceTable data={maintenanceTickets} emptyAction={canManage ? reportIssueAction : undefined} />
         </div>
       </div>
 
       <p className="mt-8 text-xs text-light-textMuted dark:text-dark-textMuted">
-        Leases, tenants, and maintenance for this property are built at the API layer (TASKS.md
-        M8-M13) but not yet wired into this page — Units is the current vertical slice, the same
-        pattern is repeated for those modules next.
+        Leases and tenants for this property's units are managed from each unit's own page.
+        Owners are built at the API layer (TASKS.md M7) but not yet wired into any page.
       </p>
     </div>
   );
