@@ -1,5 +1,31 @@
 # Worklog
 
+## 2026-08-01 (continued, 7) — M20: Tenants vertical slice (third module)
+
+Third module in the M20 sequence, same pattern as Properties/Units. Reused the M8 Tenants API and
+`apps/admin/lib/leasing.ts`'s `mapTenantRow`/`requireOrgRole` unchanged.
+
+Unlike Units, Tenants aren't scoped to a single property (a tenant can occupy a unit across a
+lease, but the tenant record itself belongs to the org) — checked `PROPVIEW_SCREENSHOT_AUDIT.md`'s
+sidebar again rather than assuming: Tenants is its own top-level LEASING-section nav item, not
+nested under Properties. Built `/tenants` as an org-wide list, same direct-RLS-read pattern as
+`/properties` itself.
+
+Noticed while reading `packages/validation/src/leasing.ts` that `tenantSchema` deliberately
+excludes `status` from client input (server-set only, defaults `pending`, transitions on lease
+approval/expiry) — the form correctly has no status field at all, not a disabled/read-only one,
+since there's nothing for a user to ever legitimately submit there yet.
+
+Reused the `PageLoading` skeleton component built for Units rather than duplicating it.
+
+**Full verification**: `pnpm --filter admin typecheck`/`lint`/`test` (39/39 passed, up from 36) and
+`pnpm --filter @propvault/ui typecheck` clean; real clean `next build` registered all 4 new routes;
+runtime smoke test via `next start` in demo mode covering `/tenants`, `/tenants/demo-tenant-1`,
+`/tenants/new`, `/tenants/demo-tenant-1/edit` — all 200, response bodies grepped for real content
+(tenant name/email/status, form field labels). Server process confirmed via
+`Get-CimInstance Win32_Process` before stopping, same discipline as every prior port-owning process
+this session.
+
 ## 2026-08-01 (continued, 6) — M20: Units vertical slice (second module, same pattern as Properties)
 
 Continued M20 per Mohammed's instruction to build Units/Tenants/Leases/Maintenance one module at
