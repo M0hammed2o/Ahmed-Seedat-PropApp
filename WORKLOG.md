@@ -1,5 +1,35 @@
 # Worklog
 
+## 2026-08-01 (continued, 21) — Super Admin PWA completion pass (priority 10): plan-change UI wired, support-session UI deliberately held back
+
+Reviewed M19's open items for "Super Admin PWA completion." Two categories: small bounded UI gaps
+(safe to close now) and one genuinely unbuilt authorization mechanism (not safe to build
+speculatively). Also committed `apps/admin/app/error.tsx`/`global-error.tsx`/
+`components/tables/ProcessingTable.tsx` — all three already existed on disk and are required by
+already-committed code (the `/processing` page literally can't build without `ProcessingTable`),
+just never got `git add`ed in an earlier pass; the repo would not have built from a fresh clone
+until this fix.
+
+**Closed**: `OrganizationActionsPanel` gained a "Change plan" section (plan picker fetched from
+`GET /api/v1/admin/plans`, optional discount %, PATCH to the already-built, already-audited
+`.../organizations/:orgId/plan` endpoint) — a straightforward UI-to-existing-endpoint gap, same
+category as the activate/suspend/archive/credit controls the design phase already wired.
+
+**Deliberately not closed**: support-mode's "read-only by default, explicit escalation per write"
+enforcement (`SUPER_ADMIN.md` §6). The session lifecycle (start/end, reason, audit trail) is real
+and tested, but there is no RLS/API-layer mechanism anywhere in this schema that grants a platform
+admin viewer-equivalent read access into a target org — building one is a real, cross-tenant
+authorization change, not a wiring task, and PropertyVault's tenant-isolation protections are never
+waived without an explicit go-ahead. Left the "start support session" control unwired rather than
+surface a control that would imply a scoping guarantee the system doesn't actually enforce yet.
+
+Tests: `OrganizationActionsPanel.test.tsx` (4 cases, including a fetch-mocked plan-list render).
+Verified: admin typecheck/lint/test (112/112) and real `next build` clean. Not verified via a
+demo-mode click-through — `customers/[id]/page.tsx`'s demo-mode branch is a separate, simpler
+read-only view that never renders `OrganizationActionsPanel` at all (true for every action this
+panel already had, not a new gap); the component test suite is the real verification here, same as
+every prior pass on this component.
+
 ## 2026-08-01 (continued, 20) — Tenant portal: V1 scope correction (priority 9), a real RLS recursion bug found and fixed before commit
 
 Priority 9 ("Tenant-facing experience") directly conflicted with this project's standing "no

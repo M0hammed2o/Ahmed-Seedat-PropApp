@@ -146,8 +146,12 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
       />
 
       <p className="mt-4 text-xs text-light-textMuted dark:text-dark-textMuted">
-        Plan/price/discount changes and support-session entry are built (TASKS.md M19) but not yet
-        wired to this page — activate/suspend/archive and credits are, above.
+        Support-session entry is built (TASKS.md M19) but deliberately not wired to this page yet —
+        the session lifecycle (reason, audit trail, start/end) is real, but the read-only-by-default
+        scoping and per-write escalation `SUPER_ADMIN.md` §6 requires has no enforcement mechanism
+        built (no RLS/API-layer check anywhere grants a platform admin viewer-equivalent access to a
+        target org). Surfacing a "start support session" control before that exists would imply a
+        access boundary this system doesn't actually enforce yet.
       </p>
     </div>
   );

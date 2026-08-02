@@ -42,6 +42,11 @@ export function OrganizationActionsPanel({
   const [creditAmount, setCreditAmount] = useState('');
   const [creditReason, setCreditReason] = useState('');
   const [creditMessage, setCreditMessage] = useState<string | null>(null);
+  const [planOpen, setPlanOpen] = useState(false);
+  const [plans, setPlans] = useState<{ id: string; name: string }[] | null>(null);
+  const [planId, setPlanId] = useState('');
+  const [discountPct, setDiscountPct] = useState('');
+  const [planMessage, setPlanMessage] = useState<string | null>(null);
 
   async function runStatusAction(action: 'activate' | 'suspend' | 'archive', nextStatus: OrganizationStatus) {
     if (action === 'archive' && !window.confirm(`Archive ${legalName}? This removes it from active billing/usage.`)) {
@@ -98,6 +103,53 @@ export function OrganizationActionsPanel({
     }
   }
 
+  async function openPlanChange() {
+    setPlanOpen(true);
+    if (plans !== null) return;
+    try {
+      const response = await fetch('/api/v1/admin/plans');
+      const body = await response.json();
+      if (response.ok) {
+        setPlans(body.plans.map((p: { id: string; name: string }) => ({ id: p.id, name: p.name })));
+      }
+    } catch {
+      // Plan list is a convenience picker only -- leaving it empty just means the select has no
+      // options yet; the change action itself still surfaces its own error on submit.
+    }
+  }
+
+  async function submitPlanChange() {
+    if (!planId && discountPct.trim() === '') {
+      setError('Choose a plan or enter a discount to apply a change.');
+      return;
+    }
+    setPending('plan');
+    setError(null);
+    try {
+      const response = await fetch(`/api/v1/admin/organizations/${orgId}/plan`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...(planId ? { planId } : {}),
+          ...(discountPct.trim() !== '' ? { discountPct: Number(discountPct) } : {}),
+        }),
+      });
+      const body = await response.json();
+      if (!response.ok) {
+        setError(body.error?.message ?? 'Failed to change plan.');
+        return;
+      }
+      setPlanMessage('Plan updated.');
+      setPlanOpen(false);
+      setPlanId('');
+      setDiscountPct('');
+    } catch {
+      setError('Failed to change plan -- check your connection and try again.');
+    } finally {
+      setPending(null);
+    }
+  }
+
   return (
     <div className="mt-6 rounded-lg border border-light-border bg-light-surfaceRaised p-4 dark:border-dark-border dark:bg-dark-surfaceRaised">
       <h2 className="text-sm font-medium text-light-textPrimary dark:text-dark-textPrimary">Actions</h2>
@@ -111,6 +163,11 @@ export function OrganizationActionsPanel({
       {creditMessage ? (
         <p className="mt-3 rounded-md border border-light-statusPaid bg-light-statusPaid/10 px-3 py-2 text-xs text-light-statusPaid dark:border-dark-statusPaid dark:bg-dark-statusPaid/10 dark:text-dark-statusPaid">
           {creditMessage}
+        </p>
+      ) : null}
+      {planMessage ? (
+        <p className="mt-3 rounded-md border border-light-statusPaid bg-light-statusPaid/10 px-3 py-2 text-xs text-light-statusPaid dark:border-dark-statusPaid dark:bg-dark-statusPaid/10 dark:text-dark-statusPaid">
+          {planMessage}
         </p>
       ) : null}
 
@@ -185,6 +242,52 @@ export function OrganizationActionsPanel({
               </div>
             </div>
           )}
+
+          <div className="mt-4 border-t border-light-border pt-4 dark:border-dark-border">
+            {!planOpen ? (
+              <Button size="sm" onClick={openPlanChange}>
+                Change plan
+              </Button>
+            ) : (
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                <label className="text-xs">
+                  <span className="text-light-textMuted dark:text-dark-textMuted">New plan (optional)</span>
+                  <select
+                    value={planId}
+                    onChange={(e) => setPlanId(e.target.value)}
+                    className="mt-1 block w-40 rounded-md border border-light-border bg-transparent px-2 py-1.5 text-sm text-light-textPrimary dark:border-dark-border dark:text-dark-textPrimary"
+                  >
+                    <option value="">No change</option>
+                    {(plans ?? []).map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-xs">
+                  <span className="text-light-textMuted dark:text-dark-textMuted">Discount % (optional)</span>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={discountPct}
+                    onChange={(e) => setDiscountPct(e.target.value)}
+                    className="mt-1 block w-24 rounded-md border border-light-border bg-transparent px-2 py-1.5 text-sm text-light-textPrimary dark:border-dark-border dark:text-dark-textPrimary"
+                  />
+                </label>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="primary" disabled={pending !== null} onClick={submitPlanChange}>
+                    {pending === 'plan' ? 'Saving…' : 'Save'}
+                  </Button>
+                  <Button size="sm" onClick={() => setPlanOpen(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       ) : null}
     </div>
