@@ -5,6 +5,8 @@ import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapDocumentRow, mapExtractionResultRow } from '@/lib/documents';
 import { resolvePortalSession, findActiveMembership, canWriteOrgRecords } from '@/lib/orgSession';
 import { OcrPanel } from '@/components/documents/OcrPanel';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { Panel } from '@/components/ui/Panel';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -86,47 +88,52 @@ function DocumentDetailView({
   canAct: boolean;
 }) {
   return (
-    <div>
-      <Link href="/documents" className="text-xs text-light-textSecondary hover:underline dark:text-dark-textSecondary">
-        ← Back to documents
-      </Link>
-
-      <div className="mt-2 flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">
-          {document.originalFileName}
-        </h1>
-        {signedUrl ? (
-          <a
-            href={signedUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="text-xs text-light-accent hover:underline dark:text-dark-accent"
-          >
-            View / download
-          </a>
-        ) : null}
+    <div className="space-y-6 animate-rise">
+      <div>
+        <Link href="/documents" className="text-xs text-light-textSecondary hover:underline dark:text-dark-textSecondary">
+          ← Back to documents
+        </Link>
+        <div className="mt-2">
+          <PageHeader
+            title={document.originalFileName}
+            actions={
+              signedUrl ? (
+                <a
+                  href={signedUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-sm font-medium text-light-accent hover:underline dark:text-dark-accent"
+                >
+                  View / download
+                </a>
+              ) : undefined
+            }
+          />
+        </div>
       </div>
 
-      <dl className="mt-6 grid grid-cols-2 gap-4 text-sm lg:grid-cols-4">
-        <div>
-          <dt className="text-light-textMuted dark:text-dark-textMuted">Type</dt>
-          <dd className="capitalize text-light-textPrimary dark:text-dark-textPrimary">
-            {document.documentType.replace('_', ' ')}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-light-textMuted dark:text-dark-textMuted">Size</dt>
-          <dd className="text-light-textPrimary dark:text-dark-textPrimary">
-            {(document.fileSizeBytes / 1024 / 1024).toFixed(2)} MB
-          </dd>
-        </div>
-        <div>
-          <dt className="text-light-textMuted dark:text-dark-textMuted">Uploaded</dt>
-          <dd className="text-light-textPrimary dark:text-dark-textPrimary">
-            {new Date(document.createdAt).toLocaleString('en-ZA')}
-          </dd>
-        </div>
-      </dl>
+      <Panel title="Document details">
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-5 text-sm lg:grid-cols-4">
+          <div>
+            <dt className="text-light-textMuted dark:text-dark-textMuted">Type</dt>
+            <dd className="mt-0.5 capitalize text-light-textPrimary dark:text-dark-textPrimary">
+              {document.documentType.replace('_', ' ')}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-light-textMuted dark:text-dark-textMuted">Size</dt>
+            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">
+              {(document.fileSizeBytes / 1024 / 1024).toFixed(2)} MB
+            </dd>
+          </div>
+          <div>
+            <dt className="text-light-textMuted dark:text-dark-textMuted">Uploaded</dt>
+            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">
+              {new Date(document.createdAt).toLocaleString('en-ZA')}
+            </dd>
+          </div>
+        </dl>
+      </Panel>
 
       <OcrPanel
         documentId={document.id}

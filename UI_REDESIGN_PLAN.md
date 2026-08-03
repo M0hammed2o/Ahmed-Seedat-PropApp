@@ -83,6 +83,21 @@ This closes out the Properties/Units/Owners/Tenants/Leases module group (list, d
 all now on the shared `PageHeader`/`Panel`/`AdminDataTable` card language) before moving on to
 Documents/OCR review.
 
+## 2026-08-03 update — Documents and OCR review
+
+| | |
+|---|---|
+| **Route/module** | `/documents/[id]` (detail + `OcrPanel`), `/documents/new` (`DocumentUploadForm`) |
+| **Functional purpose** | View a document's metadata and run/review its OCR extraction; upload a new document — no extraction/review API or auto-apply behaviour changes (`DOCUMENT_INTELLIGENCE.md`'s "always confirm before treating as final" rule untouched) |
+| **PropView pattern retained** | Document metadata as a compact key-facts block, extracted-field grid below it, explicit human "Confirm reviewed" action |
+| **Lovable pattern adapted** | `Panel` (with header `title`/`description`/`actions` slots) for both the metadata block and the OCR panel itself; reviewed-state now uses the same dot+label status-badge convention as everywhere else instead of a plain green sentence |
+| **Weakness found** | `OcrPanel` was a flat `rounded-lg border p-4` div, inconsistent with every other card on the page; confidence percentages were parenthetical grey text with no visual grouping; the "Reviewed" state and the "Extracted fields" heading had no relationship to each other |
+| **Improvement made** | `OcrPanel` rebuilt as a `Panel` — header row carries the title, the "always confirmed by a human" caption as `description`, and (once reviewed) a dot+label "Reviewed {date}" badge as the header `actions` slot; each extracted field's confidence score is now a small neutral pill next to the value rather than parenthetical text. No confidence-based colour-coding introduced — no documented confidence threshold exists in `DOCUMENT_INTELLIGENCE.md` to justify a red/amber/green semantic, so the pill stays neutral rather than inventing one. `DocumentUploadForm` gained the same `PageHeader`+`Panel` treatment as the other 5 forms (including its "no properties yet" empty-state branch) |
+| **Reusable components built** | None new — fourth/fifth reuse of `Panel`'s header-actions slot |
+| **Responsive** | Unchanged layout shape, inherits `Panel`'s existing responsive behaviour |
+| **Accessibility** | Reviewed-state badge keeps the same dot+text (never colour-alone) convention as `StatusBadge`; extraction-error message unchanged (still an inline text alert, not a toast, so it stays in the tab order) |
+| **Verification** | `tsc --noEmit` clean, targeted `eslint --max-warnings=0` clean on all 3 files, full `vitest` 153/153 (including `OcrPanel.test.tsx`'s existing 5 cases, unmodified and still passing against the restyled markup), real `next build` clean. Real-browser check (puppeteer + system Chrome, demo mode) on `/documents/demo-document-1` light+dark and `/documents/new` light — zero console errors beyond the pre-existing favicon 404. |
+
 
 Concise by design (per Mohammed's instruction) — full detail already lives in `DESIGN_SYSTEM.md`
 (the target visual language, mostly already specified) and `DESIGN_REVIEW.md` (the PropView/Envato

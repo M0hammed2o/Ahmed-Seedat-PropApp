@@ -1,5 +1,28 @@
 # Worklog
 
+## 2026-08-03 — Documents and OCR review redesign
+
+Module 8 of the redesign order. /documents/[id]'s bare metadata dl moved into a Panel, matching
+every other detail page. The real work was OcrPanel itself: it was still a flat rounded-lg border
+div, the one leftover flat card in the whole document flow. Rebuilt as a Panel -- title/description
+in the header, and once a document's been reviewed, a dot+label "Reviewed {date}" badge sits in the
+header's actions slot instead of a plain green sentence below the content, matching StatusBadge's
+established dot+text convention (never colour alone).
+
+Each extracted field's OCR confidence score changed from parenthetical grey text to a small neutral
+pill next to the value. Deliberately did NOT colour-code by confidence (red/amber/green) -- checked
+DOCUMENT_INTELLIGENCE.md for a documented threshold first and found none, so inventing one would
+have been exactly the kind of unsupported-metric fabrication the redesign instructions warn against.
+DocumentUploadForm got the same PageHeader+Panel treatment as the other 5 forms, including its
+"no properties yet" empty-state branch.
+
+No extraction/review API changes -- OcrPanel.test.tsx's existing 5 cases were left untouched and
+still pass against the restyled markup, confirming the human-confirms-first OCR workflow itself
+(DOCUMENT_INTELLIGENCE.md) is unaffected. Verified: typecheck/lint clean on all 3 files, full
+vitest 153/153, real next build clean. Real-browser check (puppeteer + system Chrome, demo mode)
+on the document detail page light+dark and the upload form light -- zero console errors beyond the
+pre-existing favicon 404.
+
 ## 2026-08-03 — Properties/Units/Owners/Tenants/Leases create/edit form consistency pass
 
 Finished the Properties/Units/Owners/Tenants/Leases module group: NewPropertyForm, UnitForm,

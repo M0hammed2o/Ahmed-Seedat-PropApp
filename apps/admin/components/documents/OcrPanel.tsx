@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { ExtractionResult, FieldExtractionResult } from '@propvault/types';
 import { Button } from '@/components/ui/Button';
+import { Panel } from '@/components/ui/Panel';
 
 const SUPPORTED_TYPES = new Set(['bill', 'lease']);
 
@@ -85,30 +86,38 @@ export function OcrPanel({
   }
 
   return (
-    <div className="mt-6 rounded-lg border border-light-border p-4 dark:border-dark-border">
-      <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
-        Extracted fields (OCR)
-      </h2>
+    <Panel
+      title="Extracted fields (OCR)"
+      description="Never applied automatically — always confirmed by a human first."
+      actions={
+        extractionResult?.reviewedAt ? (
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-light-statusPaid dark:text-dark-statusPaid">
+            <span className="h-1.5 w-1.5 rounded-full bg-light-statusPaid dark:bg-dark-statusPaid" />
+            Reviewed {new Date(extractionResult.reviewedAt).toLocaleDateString('en-ZA')}
+          </span>
+        ) : undefined
+      }
+    >
       {error ? (
-        <p className="mt-2 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">{error}</p>
+        <p className="mb-3 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">{error}</p>
       ) : null}
 
       {!extractionResult ? (
         canAct ? (
           <>
-            <p className="mt-1 text-xs text-light-textMuted dark:text-dark-textMuted">
+            <p className="text-xs text-light-textMuted dark:text-dark-textMuted">
               No extraction yet. This never applies fields automatically — you'll review them here first.
             </p>
-            <Button className="mt-2" size="sm" disabled={busy} onClick={extract}>
+            <Button className="mt-3" size="sm" disabled={busy} onClick={extract}>
               {busy ? 'Extracting…' : 'Extract fields'}
             </Button>
           </>
         ) : (
-          <p className="mt-1 text-xs text-light-textMuted dark:text-dark-textMuted">No extraction yet.</p>
+          <p className="text-xs text-light-textMuted dark:text-dark-textMuted">No extraction yet.</p>
         )
       ) : (
         <>
-          <dl className="mt-3 grid grid-cols-2 gap-3 text-sm lg:grid-cols-3">
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-5 text-sm lg:grid-cols-3">
             {Object.entries(FIELD_LABELS).map(([key, label]) => {
               const field = extractionResult.rawProviderOutput[key as keyof FieldExtractionResult] as
                 | { value: unknown; confidence: number }
@@ -117,32 +126,30 @@ export function OcrPanel({
               return (
                 <div key={key}>
                   <dt className="text-light-textMuted dark:text-dark-textMuted">{label}</dt>
-                  <dd className="text-light-textPrimary dark:text-dark-textPrimary">
-                    {String(field.value)}{' '}
-                    <span className="text-[11px] text-light-textMuted dark:text-dark-textMuted">
-                      ({Math.round(field.confidence * 100)}%)
+                  <dd className="mt-0.5 flex items-baseline gap-1.5 text-light-textPrimary dark:text-dark-textPrimary">
+                    {String(field.value)}
+                    <span className="rounded-pill bg-light-surfaceStrong px-1.5 py-0.5 text-[10px] font-medium text-light-textMuted dark:bg-dark-surfaceStrong dark:text-dark-textMuted">
+                      {Math.round(field.confidence * 100)}%
                     </span>
                   </dd>
                 </div>
               );
             })}
           </dl>
-          <p className="mt-3 text-xs text-light-textMuted dark:text-dark-textMuted">
+          <p className="mt-5 border-t border-light-border pt-4 text-xs text-light-textMuted dark:border-dark-border dark:text-dark-textMuted">
             Overall confidence: {Math.round((extractionResult.overallConfidence ?? 0) * 100)}%
           </p>
-          {extractionResult.reviewedAt ? (
-            <p className="mt-2 text-xs text-light-statusPaid dark:text-dark-statusPaid">
-              Reviewed {new Date(extractionResult.reviewedAt).toLocaleString('en-ZA')}
-            </p>
-          ) : canAct ? (
-            <Button className="mt-3" variant="primary" size="sm" disabled={busy} onClick={confirmReviewed}>
-              {busy ? 'Saving…' : 'Confirm reviewed'}
-            </Button>
-          ) : (
-            <p className="mt-2 text-xs text-light-textMuted dark:text-dark-textMuted">Not yet reviewed.</p>
-          )}
+          {!extractionResult.reviewedAt ? (
+            canAct ? (
+              <Button className="mt-3" variant="primary" size="sm" disabled={busy} onClick={confirmReviewed}>
+                {busy ? 'Saving…' : 'Confirm reviewed'}
+              </Button>
+            ) : (
+              <p className="mt-2 text-xs text-light-textMuted dark:text-dark-textMuted">Not yet reviewed.</p>
+            )
+          ) : null}
         </>
       )}
-    </div>
+    </Panel>
   );
 }

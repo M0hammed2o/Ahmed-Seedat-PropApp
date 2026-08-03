@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import type { DocumentType } from '@propvault/types';
 import { DOCUMENT_TYPES } from '@propvault/types';
 import { Button } from '@/components/ui/Button';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { Panel } from '@/components/ui/Panel';
 
 interface DocumentUploadFormProps {
   orgId: string;
@@ -57,17 +59,21 @@ export function DocumentUploadForm({ orgId, properties, categories }: DocumentUp
 
   if (properties.length === 0) {
     return (
-      <p className="text-sm text-light-textSecondary dark:text-dark-textSecondary">
-        Add a property first — documents must be linked to one.
-      </p>
+      <div className="space-y-6 animate-rise">
+        <PageHeader title="Upload document" />
+        <p className="text-sm text-light-textSecondary dark:text-dark-textSecondary">
+          Add a property first — documents must be linked to one.
+        </p>
+      </div>
     );
   }
 
   return (
-    <div>
-      <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">Upload document</h1>
+    <div className="space-y-6 animate-rise">
+      <PageHeader title="Upload document" />
 
-      <form onSubmit={handleSubmit} className="mt-6 max-w-xl space-y-4">
+      <Panel className="max-w-xl">
+      <form onSubmit={handleSubmit} className="space-y-4">
         {error ? (
           <p className="rounded-md border border-light-danger bg-light-danger/10 px-3 py-2 text-xs text-light-danger dark:border-dark-danger dark:bg-dark-danger/10 dark:text-dark-danger">
             {error}
@@ -134,6 +140,7 @@ export function DocumentUploadForm({ orgId, properties, categories }: DocumentUp
           </Button>
         </div>
       </form>
+      </Panel>
     </div>
   );
 }
