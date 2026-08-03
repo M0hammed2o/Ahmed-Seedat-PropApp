@@ -27,7 +27,7 @@ describe('OAuthButtons', () => {
     fireEvent.click(screen.getByText('Continue with Google'));
 
     await waitFor(() => expect(signInWithOAuth).toHaveBeenCalledTimes(1));
-    const call = signInWithOAuth.mock.calls[0][0];
+    const call = signInWithOAuth.mock.calls[0]![0];
     expect(call.provider).toBe('google');
     expect(call.options.redirectTo).toContain('/auth/callback?next=');
     expect(call.options.redirectTo).toContain(encodeURIComponent('/invitations/accept?token=abc'));

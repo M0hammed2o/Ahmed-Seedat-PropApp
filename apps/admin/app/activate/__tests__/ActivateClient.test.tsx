@@ -54,8 +54,8 @@ describe('ActivateClient', () => {
     await waitFor(() => expect(screen.getByText('Activate')).toBeTruthy());
 
     const inputs = document.querySelectorAll('input');
-    fireEvent.change(inputs[0], { target: { value: 'WRONGCODE' } });
-    fireEvent.change(inputs[1], { target: { value: 'tenant@example.com' } });
+    fireEvent.change(inputs[0]!, { target: { value: 'WRONGCODE' } });
+    fireEvent.change(inputs[1]!, { target: { value: 'tenant@example.com' } });
     fireEvent.click(screen.getByText('Activate'));
 
     await waitFor(() => expect(screen.getByText(/doesn’t match/)).toBeTruthy());

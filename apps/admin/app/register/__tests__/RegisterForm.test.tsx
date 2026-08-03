@@ -24,11 +24,11 @@ function fillAndSubmit(overrides: Partial<{ email: string; password: string; con
   const values = { email: 'new-user@example.com', password: 'a-real-password-1', confirmPassword: 'a-real-password-1', terms: true, privacy: true, ...overrides };
   fireEvent.change(document.querySelector('input[type="email"]')!, { target: { value: values.email } });
   const passwordInputs = document.querySelectorAll('input[type="password"]');
-  fireEvent.change(passwordInputs[0], { target: { value: values.password } });
-  fireEvent.change(passwordInputs[1], { target: { value: values.confirmPassword } });
+  fireEvent.change(passwordInputs[0]!, { target: { value: values.password } });
+  fireEvent.change(passwordInputs[1]!, { target: { value: values.confirmPassword } });
   const checkboxes = document.querySelectorAll('input[type="checkbox"]');
-  if (values.terms) fireEvent.click(checkboxes[0]);
-  if (values.privacy) fireEvent.click(checkboxes[1]);
+  if (values.terms) fireEvent.click(checkboxes[0]!);
+  if (values.privacy) fireEvent.click(checkboxes[1]!);
   fireEvent.click(screen.getByText('Create account'));
 }
 
