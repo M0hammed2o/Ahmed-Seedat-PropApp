@@ -8,6 +8,7 @@ import type {
   LeaseSource,
   RentScheduleStatus,
   LeaseTemplateStatus,
+  TenantInvitationDeliveryChannel,
 } from './enums';
 
 // Leasing-domain types (DATABASE.md §4). `Tenant` is the first of this family (TASKS.md M8);
@@ -93,6 +94,34 @@ export interface LeaseTemplate {
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+}
+
+// PRODUCT DECISION 2 (2026-08-03). Never carries token_hash/short_code_hash -- those exist only
+// in the DB and are never returned to any client except the one-time plaintext at creation
+// (CreateTenantInvitationResult below).
+export interface TenantInvitation {
+  id: string;
+  orgId: string;
+  tenantId: string;
+  deliveryChannel: TenantInvitationDeliveryChannel;
+  destinationHint: string | null;
+  expiresAt: string;
+  acceptedAt: string | null;
+  acceptedByUserId: string | null;
+  revokedAt: string | null;
+  createdByUserId: string;
+  failedAttemptCount: number;
+  resendCount: number;
+  createdAt: string;
+}
+
+// The one-time plaintext response from create_tenant_invitation()/regenerate_tenant_invitation()
+// -- shortCode is null unless it was explicitly requested.
+export interface CreateTenantInvitationResult {
+  invitationId: string;
+  token: string;
+  shortCode: string | null;
+  expiresAt: string;
 }
 
 export interface RentSchedule {

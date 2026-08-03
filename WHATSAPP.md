@@ -91,8 +91,11 @@ type WhatsAppNotificationType =
   | 'lease_expiring_soon_owner'
   | 'maintenance_approval_urgent'
   | 'account_security_event' // e.g. new device login, password/phone changed
-  | 'owner_statement_available';
+  | 'owner_statement_available'
+  | 'tenant_invitation'; // added 2026-08-03, PRODUCT DECISION 2 — activation link/code, AUTHENTICATION.md §5
 ```
+
+**`tenant_invitation`, added 2026-08-03** (`DECISIONS.md`, full design `AUTHENTICATION.md` §5): sent from the same shared platform number as every other trigger above, through a pre-approved transactional template — the secure activation link and/or short code only, never lease terms, balances, or other financial/sensitive detail (matching `tenant_invitations.destination_hint`'s own masked-display discipline, `SECURITY.md`). Wired into `POST /api/v1/tenants/:id/invitations` via `dispatchWhatsApp`, but — same as every other trigger in this table — still running against `MockWhatsAppProvider` (§5), no real delivery has been sent for this or any template (`TECHNICAL_DEBT_REGISTER.md` TD-30, same root cause as TD-23). Manual delivery (staff reads the short code aloud/copies it, no message sent at all) needs no provider and works today regardless of that gap.
 
 Each value maps 1:1 to exactly one pre-approved WhatsApp message template (§3) and is the _only_ accepted input to the send function — there is no `sendWhatsApp(freeformText)` entry point on the dispatcher. Adding a new trigger means adding an enum value, a template, and a code review, mirroring how `plans`/`feature_limits` and other fixed-vocabulary product surfaces in this codebase are deliberately closed rather than string-typed (`DATABASE.md` §1). This is what keeps the shared number from becoming a firehose: nothing outside the dispatcher can originate a WhatsApp send, so a bug in, say, the announcements feature can't accidentally blast every tenant's WhatsApp.
 
@@ -110,6 +113,7 @@ Everything else — routine reminders, marketing, non-urgent status updates — 
 | `document_missing_required`, `id_document_expiring`                                                                                                 | `lease` (identity/lease-compliance documents)                                                                           |
 | `account_security_event`                                                                                                                            | `security` — **not gated by `whatsapp_enabled`**, sent regardless of preference, per the "not optional" rule above      |
 | `owner_statement_available`                                                                                                                         | `rent` (financial-statement family; no dedicated "accounting" category exists yet — revisit if the category list grows) |
+| `tenant_invitation`                                                                                                                                 | `lease` (identity/lease-onboarding family, same category as `document_missing_required`/`id_document_expiring` above)  |
 
 ## 3. Personalization — templates, not generic text
 

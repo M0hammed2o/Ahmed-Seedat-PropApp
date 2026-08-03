@@ -48,13 +48,15 @@ Deferred/External items (**#15–18, 20, 22**) are unchanged from the plan's ori
 
 **I have not built anything for this.** It's a real scope/product decision (does V1 need a web signup form? What about terms/privacy acceptance and email verification?), not a mechanical fix, and I did not want to silently ship a new auth surface without confirming that's actually wanted. Flagging it here rather than deciding unilaterally.
 
+**Resolved, same day (2026-08-03)**: Mohammed answered this exact question with two explicit product decisions, recorded in full in `DECISIONS.md`'s 2026-08-03 entry — web account creation is in scope for V1 (email/password + Google + Apple OAuth), and tenants link to landlord-captured records via secure invitations/activation codes rather than re-entering their own data. Built and verified the same session (`WORKLOG.md` 2026-08-03, "Web account creation + tenant activation-code system"); full design in the new `AUTHENTICATION.md`. This closes the gap this section identifies — see the corresponding update to workflow #1 in §3 below.
+
 ## 3. Workflow verification — confidence and evidence
 
 I could not locate the original literal "22 mandatory end-to-end workflows" enumeration anywhere in this repo — it's referenced by `PWA_V1_COMPLETION_PLAN.md` but the itemized list itself isn't persisted in any file, only in an earlier conversation's original instructions that aren't available to me now. The list below is my own reconstruction from the codebase's documented module scope (`TASKS.md` milestones M4–M19, `PERMISSIONS.md` §3–4), not a recovery of the literal original wording.
 
 | # | Workflow | Confidence | Evidence |
 |---|---|---|---|
-| 1 | Sign up (web) | **Blocked** | See §2 — no code path exists |
+| 1 | Sign up (web) | `Verified` (email/password + tenant activation) / `Unknown` (Google/Apple live round trip) | **Resolved 2026-08-03**, same day this report was written — see §2's resolution note. `/register` + `RegisterForm.tsx` built; email/password registration and tenant activation verified end-to-end against real local Supabase (real email round trip, real PKCE exchange). Google/Apple OAuth buttons and `/auth/callback` are built but never completed a live provider round trip — no real credentials in this environment (`TECHNICAL_DEBT_REGISTER.md` TD-29). Full detail: `AUTHENTICATION.md` |
 | 2 | Sign in (web) | `Likely` | `LoginForm.tsx` calls real `supabase.auth.signInWithPassword`; a live non-demo click-through was attempted this session but blocked by the app's own `upgrade-insecure-requests` CSP header (correct for production HTTPS, breaks browser-driven testing against a plain-HTTP local server — see §4) |
 | 3 | Create organization | `Likely` | `create_organization()` RPC exists and is atomic (org + principal membership in one transaction); RLS around it pgTAP-covered; not live-clicked this session (same HTTPS constraint) |
 | 4 | Invite staff → accept → active membership | `Likely` | Both API routes reviewed directly this session; `organization_members`/invite RLS pgTAP-covered; UI page exists (built in an earlier session per commit `1b39f4e`, not personally re-verified live by me this session) |
@@ -90,5 +92,5 @@ This blocked live non-demo-mode browser click-throughs for login and the support
 
 ## 5. Recommendation
 
-1. **Decide on web signup** (§2): build a `/register` page + `POST /api/v1/auth/signup` (spec already exists in `API_SPEC.md` §1, schema already exists in `packages/validation`), or explicitly document "mobile-first signup, web is existing-account-only by design" so this isn't rediscovered as a surprise later. I'd suggest asking before either — it's a product-shape question, not an engineering one.
+1. ~~**Decide on web signup** (§2): build a `/register` page...~~ — **Resolved 2026-08-03**, same day: Mohammed decided (PRODUCT DECISION 1/2, `DECISIONS.md`) and it was built and verified the same session (`WORKLOG.md` 2026-08-03, `AUTHENTICATION.md`). Remaining open item from this recommendation: Google/Apple OAuth's live provider round trip is still unverified pending real credentials (TD-29) — not an engineering gap, an external-provisioning one.
 2. Everything else in `PWA_V1_COMPLETION_PLAN.md`'s Pilot/Blocker scope is closed and verified to the standard described above. Deferred/External items are correctly parked, not silently dropped.

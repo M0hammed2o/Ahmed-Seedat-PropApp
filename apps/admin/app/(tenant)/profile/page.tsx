@@ -1,4 +1,5 @@
 import { AccountSettingsForm } from '@/components/settings/AccountSettingsForm';
+import { LinkedAccountsPanel } from '@/components/settings/LinkedAccountsPanel';
 import { TenantContactForm } from '@/components/tenant-portal/TenantContactForm';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
@@ -17,6 +18,7 @@ export default async function TenantProfilePage() {
       <div className="space-y-5 animate-rise">
         <PageHeader title="My Profile" />
         <AccountSettingsForm initialDisplayName="Demo Tenant" initialEmail="demo-tenant@example.com" />
+        <LinkedAccountsPanel />
         <TenantContactForm fullName="Demo Tenant" initialEmail="demo-tenant@example.com" initialPhone="+27 82 555 0100" />
       </div>
     );
@@ -47,6 +49,7 @@ export default async function TenantProfilePage() {
         initialDisplayName={profileResult.data?.display_name ?? ''}
         initialEmail={userResult.data.user?.email ?? ''}
       />
+      <LinkedAccountsPanel />
       <TenantContactForm
         fullName={tenantResult.data.full_name}
         initialEmail={tenantResult.data.email ?? ''}

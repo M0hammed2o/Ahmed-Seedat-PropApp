@@ -42,17 +42,27 @@ export default async function AcceptInvitePage({ searchParams }: SearchParams) {
   } = await supabase.auth.getUser();
 
   if (!user) {
+    // PRODUCT DECISION 1 (2026-08-03): "invitation continuation after authentication" -- carry
+    // this exact invitation URL through sign-in/registration via ?next=, rather than the bare
+    // /login this used to link to (which silently dropped the token, stranding the invitee on a
+    // generic dashboard after signing in with no way back to this page except re-finding the
+    // original email).
+    const currentPath = `/invitations/accept?token=${encodeURIComponent(token)}`;
     return (
       <CenteredCard title="Sign in to accept this invitation">
         <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
-          You need to be signed in with the email address this invitation was sent to. Sign in, then
-          come back to this exact link.
+          You need to be signed in with the email address this invitation was sent to.
         </p>
-        <Link href="/login" className="mt-6 block">
-          <Button variant="primary" className="w-full">
-            Sign in
-          </Button>
-        </Link>
+        <div className="mt-6 space-y-2">
+          <Link href={`/login?next=${encodeURIComponent(currentPath)}`} className="block">
+            <Button variant="primary" className="w-full">
+              Sign in
+            </Button>
+          </Link>
+          <Link href={`/register?next=${encodeURIComponent(currentPath)}`} className="block">
+            <Button className="w-full">Create an account</Button>
+          </Link>
+        </div>
       </CenteredCard>
     );
   }

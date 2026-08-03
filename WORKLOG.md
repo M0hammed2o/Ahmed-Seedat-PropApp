@@ -1,5 +1,54 @@
 # Worklog
 
+## 2026-08-03 — Web account creation + tenant activation-code system
+
+`PWA_V1_READINESS_REPORT.md` (this session's own earlier finding, same day) surfaced that no web
+signup flow existed anywhere in `apps/admin` — every module so far assumed an org/account already
+existed. Mohammed's instruction specified two product decisions explicitly rather than leaving them
+inferable (full text: `DECISIONS.md`, this date): web registration is in scope for V1
+(email/password + Google + Apple), and tenants must link to landlord-captured records via secure
+invitations/activation codes rather than re-entering their own data.
+
+**Audited first**: read the existing `organization_invites` flow, `has_org_role()`, and
+`resolvePortalSession()` before designing anything new, to avoid duplicating working architecture.
+Confirmed `organization_invites` and the new tenant-invitation requirement have different enough
+lifecycle/security needs (short code + email/phone cross-check, failed-attempt lockout, masked
+destinations) to warrant a dedicated table rather than a shared, ambiguous one.
+
+**Built**: `tenant_invitations` schema + RLS + `create_tenant_invitation()`/
+`accept_tenant_invitation()` (migration `20260101000059`); web registration (`/register` +
+`RegisterForm.tsx`) with email verification; Google/Apple OAuth buttons + `/auth/callback`
+(code and token_hash exchange, provider-error redirect); `LinkedAccountsPanel` (identity
+linking/unlinking via Supabase's native `linkIdentity`/`unlinkIdentity`); tenant activation UI
+(`/activate` — sign-in/create-account, secure-link auto-confirm, manual code+email entry, clear
+success/error states, never renders lease/property data pre-activation); staff-facing
+`TenantInvitationPanel` (generate/resend/revoke, one-time plaintext token/code display, masked
+destination, status/expiry); `/forgot-password`→`/reset-password` already existed from the prior
+entry this session, `next=` continuation now threads through `/register`/`/login` so an invited
+user who registers instead of signing in still lands back on their invitation.
+
+**Real bug found by testing, not review**: `accept_tenant_invitation()` originally raised an
+exception for every recoverable failure (wrong code, expired, etc.); pgTAP proved this silently
+rolled back the `failed_attempt_count` increment made earlier in the same function call — PL/pgSQL
+rolls back all writes in an invocation the instant it raises, not just the failing statement.
+Redesigned to return a result row instead of raising for every expected failure. Full account:
+`DECISIONS.md` 2026-08-03.
+
+**Verified**: full pgTAP (26 new assertions in `tenant_invitations.test.sql`, covering cross-org
+attack rejection, replay prevention, lockout, expired/revoked/archived/suspended-org handling,
+email-mismatch, already-linked conflicts); new vitest suites for `OAuthButtons`, `RegisterForm`,
+`TenantInvitationPanel`, `ActivateClient`, `LinkedAccountsPanel` (19 tests, all passing); admin
+typecheck/lint clean; real production build (`/register`, `/activate`, `/terms`, `/privacy`,
+`/auth/callback`, all three new API routes registered); real-browser check (Chrome via
+puppeteer-core, demo mode) across all 8 new/touched pages — zero console errors beyond the
+pre-existing benign favicon 404 on `/login`. Google/Apple OAuth could not be verified live (no real
+provider credentials exist yet — `TECHNICAL_DEBT_REGISTER.md` TD-29); email/password registration
+and tenant activation *were* verified against real local Supabase, matching this session's earlier
+password-reset entry's standard of a genuine end-to-end round trip, not just route-status checks.
+
+No Android/iOS files touched, no production deploy, no Microsoft OAuth built (documented as a later
+enhancement only, `AUTHENTICATION.md` §7).
+
 ## 2026-08-03 — PWA V1 completion phase begins: repository audit + first 3 blockers closed
 
 Mohammed approved the reviewed UI direction and asked to finish the complete PWA and its

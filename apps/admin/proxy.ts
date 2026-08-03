@@ -151,7 +151,12 @@ export async function proxy(request: NextRequest) {
   );
 
   if (isProtectedRoute && !user) {
+    // PRODUCT DECISION 1 (2026-08-03) "session expiry handling": preserve where the caller was
+    // headed so a mid-session expiry (or a cold, signed-out visit to a deep link) returns them
+    // there after signing back in, instead of dropping them at a generic dashboard -- this
+    // redirect previously discarded the original path entirely.
     const loginUrl = new URL('/login', request.url);
+    loginUrl.searchParams.set('next', request.nextUrl.pathname + request.nextUrl.search);
     const redirectResponse = NextResponse.redirect(loginUrl);
     redirectResponse.headers.set('Content-Security-Policy', cspHeader);
     return redirectResponse;

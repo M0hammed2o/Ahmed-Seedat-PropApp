@@ -554,3 +554,64 @@ a real production build, all clean. The rest of this session's already-shipped f
 API business logic, Android) is unaffected — this bug was specifically about client-side script
 execution in a browser, which none of the backend/pgTAP/pnpm-test verification this session relied
 on would ever exercise.
+
+## 2026-08-03 — PRODUCT DECISION 1: web account creation is in scope for V1; PRODUCT DECISION 2: tenants link to landlord-captured records via secure invitations, never re-enter their own data
+
+`PWA_V1_READINESS_REPORT.md` found that no web signup flow existed anywhere in `apps/admin` —
+every prior session assumed an org/account already existed before building each module's UI.
+Mohammed's instruction closed this as an intentional gap, not a design choice, and specified both
+decisions explicitly rather than leaving them inferable from code:
+
+**Web account creation**: PropertyVault supports full account creation through the PWA. V1
+authentication methods are email/password, Google OAuth, and Apple OAuth — Microsoft OAuth remains
+a documented-only later enhancement (`AUTHENTICATION.md` §7), not built, since it wasn't core-three
+and adding it wasn't negligible effort (real Azure AD app registration, a fourth provider surface
+to test). All three entry paths are distinct, non-interchangeable flows: new landlord/owner
+(create → verify → create org → principal), invited owner/staff (existing `organization_invites`
+flow, now reachable via `/register`'s `next=` continuation), and tenant (new tenant-activation
+system below). No path allows self-assignment of staff/owner/accountant/manager/platform-admin
+privileges — role always comes from an existing invitation or org-creation, never a registration
+form field.
+
+**Identity linking**: Supabase's native `linkIdentity()`/`unlinkIdentity()`/`getUserIdentities()`
+are used as-is (`LinkedAccountsPanel.tsx`) rather than a custom merge system — Supabase already
+requires the caller to be authenticated as the account being linked *to* before adding a second
+provider, which structurally satisfies "never merge based only on unverified browser-supplied
+email" without any bespoke matching logic to get wrong. No automatic cross-account merge was built.
+
+**Tenant activation** (the larger of the two decisions): landlords/staff create the
+tenant+property+unit+lease first, as they already do — a tenant must never re-enter data staff
+already captured. `tenant_invitations` (migration `20260101000059`) is a **new, dedicated table**,
+not a reuse of `organization_invites` — the two have materially different lifecycle/security
+requirements (short-code + email/phone cross-check, failed-attempt lockout, masked-destination
+display, one-active-invitation-per-tenant) that would have made a shared table ambiguous about
+which rule set applied to which row. Both token and optional short code are hashed at rest
+(`sha256` via `pgcrypto`, `extensions` schema) — plaintext is returned exactly once, at creation,
+directly in the API response, and is unrecoverable afterward; "resend" and "regenerate" in the
+staff UI are therefore the same underlying operation (revoke-and-recreate), since a literal resend
+of the original secret is cryptographically impossible by design.
+
+**Atomicity, found necessary by testing rather than assumed**: `accept_tenant_invitation()`
+originally used `raise exception` for recoverable failures (wrong code, expired, etc.) — pgTAP
+proved this silently discarded the `failed_attempt_count` increment made earlier in the same call,
+because PL/pgSQL rolls back everything in a function invocation the instant it raises, not just the
+statement that raised. Redesigned to return a result row (`success`, `error_code`, `tenant_id`)
+for every expected failure instead, reserving actual exceptions for truly unexpected states. This
+is the single most important bug this phase found — recorded here, not just in the migration
+comment, because it's a general lesson (`DECISIONS.md` 2026-08-01's `resolve_whatsapp_sender()`
+entry set the precedent of naming security-relevant bug classes explicitly for future sessions)
+about a specific, non-obvious PL/pgSQL semantic that would otherwise silently defeat a rate-limit
+control the very first time someone tried a wrong code twice.
+
+**A short code alone never discloses tenant information**: `accept_tenant_invitation()` requires
+either the full token or a short code *combined with* the email/phone already on file for that
+tenant record — a short code without a matching identity factor returns the same generic
+`invalid_code` result as a wrong code entirely, never partial confirmation that a code exists.
+
+**Scope explicitly not built**, matching the instruction's own boundaries: no Android/iOS changes,
+no Microsoft OAuth, no public tenant lookup, no numerous additional social providers, no real
+Google/Apple production credentials (impossible without Mohammed's own accounts — documented as
+`Unknown` pending external setup in `AUTHENTICATION.md` §7, tracked as `TECHNICAL_DEBT_REGISTER.md`
+TD-29), no production deploy. Full technical detail (schema, RLS, RPC signatures, API routes,
+conflict-handling matrix, external OAuth setup steps) lives in `AUTHENTICATION.md`, not duplicated
+here — this entry exists to record the *decisions*, not restate the implementation.

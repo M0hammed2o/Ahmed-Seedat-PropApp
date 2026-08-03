@@ -11,7 +11,8 @@ import { writeAuditEvent } from './audit';
 // this file is the *entire* set of call sites allowed to send, mirroring the closed-enum
 // discipline: only WhatsAppNotificationType values with a real, already-existing synchronous
 // trigger in this codebase are wired (owner_statement_available, payment_accepted,
-// maintenance_update_critical). Types requiring an unbuilt scheduled-detection job
+// maintenance_update_critical, tenant_invitation -- PRODUCT DECISION 2, 2026-08-03). Types
+// requiring an unbuilt scheduled-detection job
 // (rent_overdue_material, lease_expiring_soon, rent_overdue_significant, ...) are deliberately
 // NOT wired -- inventing an ad-hoc "check overdue on every request" trigger would be exactly the
 // kind of guessed automation TASKS.md's own TD-20 note warns against.
@@ -22,8 +23,10 @@ import { writeAuditEvent } from './audit';
 const PLATFORM_WHATSAPP_NUMBER = '+27000000000'; // TO_BE_CONFIRMED
 
 // WHATSAPP.md §2's trigger -> notification_preferences.category mapping table, restricted to the
-// subset this dispatcher actually sends.
-const TEMPLATE_CATEGORY: Record<DispatchableWhatsAppType, 'rent' | 'maintenance'> = {
+// subset this dispatcher actually sends. Partial (not every dispatchable type is gated) --
+// tenant_invitation is transactional, same as member_invited's email equivalent: a tenant can't
+// meaningfully "opt out" of the one message that grants them portal access in the first place.
+const TEMPLATE_CATEGORY: Partial<Record<DispatchableWhatsAppType, 'rent' | 'maintenance'>> = {
   owner_statement_available: 'rent',
   payment_accepted: 'rent',
   maintenance_update_critical: 'maintenance',
@@ -31,7 +34,7 @@ const TEMPLATE_CATEGORY: Record<DispatchableWhatsAppType, 'rent' | 'maintenance'
 
 export type DispatchableWhatsAppType = Extract<
   WhatsAppNotificationType,
-  'owner_statement_available' | 'payment_accepted' | 'maintenance_update_critical'
+  'owner_statement_available' | 'payment_accepted' | 'maintenance_update_critical' | 'tenant_invitation'
 >;
 
 function toE164(phone: string | null | undefined): string | null {
@@ -78,7 +81,7 @@ export async function dispatchWhatsApp(
   }
 
   const category = TEMPLATE_CATEGORY[input.templateName];
-  if (input.toUserId) {
+  if (category && input.toUserId) {
     const { data: pref } = await serviceClient
       .from('notification_preferences')
       .select('whatsapp_enabled')
@@ -86,8 +89,9 @@ export async function dispatchWhatsApp(
       .eq('category', category)
       .maybeSingle();
     // Missing row = default enabled (whatsapp_enabled defaults to true, WHATSAPP.md §2's "even a
-    // listed trigger is suppressed if the recipient opted out" rule -- none of this dispatcher's
-    // three wired types is the exempt account_security_event).
+    // listed trigger is suppressed if the recipient opted out" rule -- this only runs for
+    // categorized types; tenant_invitation has no category above, so it skips this block
+    // entirely, same as the exempt account_security_event).
     if (pref && pref.whatsapp_enabled === false) {
       return { sent: false, reason: 'preference_disabled' };
     }

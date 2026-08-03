@@ -23,6 +23,8 @@ POST   /api/v1/auth/password-reset
 GET    /api/v1/me                      → profile + all org memberships + owner/tenant records (portal-switch data)
 ```
 
+The `/api/v1/auth/**` surface above is still aspirational, not implemented (`AUTHENTICATION.md` §1) — login/register/reset all call Supabase Auth directly, client-side, matching the pattern established before this document was written. `AUTHENTICATION.md` is the authoritative record of what was actually built for web account creation and OAuth (2026-08-03).
+
 ## 2. Organizations & billing (Super Admin scope marked)
 
 ```
@@ -76,6 +78,9 @@ POST               /api/v1/leases/:id/upload-and-parse  (PDF → OCR → prefill
 GET/POST           /api/v1/tenants
 GET/PATCH          /api/v1/tenants/:id
 GET                /api/v1/leases/:id/rent-schedule
+GET/POST           /api/v1/tenants/:id/invitations               (list + create; staff-only, rate-limited 20/min per user; POST always issues a fresh invitation, revoking any prior unaccepted one — "resend" and "regenerate" in the UI are the same call, AUTHENTICATION.md §5)
+POST               /api/v1/tenants/:id/invitations/:invitationId/revoke
+POST               /api/v1/tenant-invitations/accept               (requires auth; dual rate-limited per-user + per-IP; maps accept_tenant_invitation()'s error_code to a friendly message)
 ```
 
 ## 5. Operations

@@ -1,15 +1,17 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Mail, Phone } from 'lucide-react';
-import type { Tenant } from '@propvault/types';
+import type { Tenant, TenantInvitation } from '@propvault/types';
 import { TENANT_STATUS_PRESENTATION } from '@propvault/ui';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapTenantRow } from '@/lib/leasing';
+import { mapTenantInvitationRow } from '@/lib/tenantInvitations';
 import { resolvePortalSession, findActiveMembership } from '@/lib/orgSession';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { Panel } from '@/components/ui/Panel';
+import { TenantInvitationPanel } from '@/components/tenants/TenantInvitationPanel';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 function initialsFor(name: string): string {
@@ -52,10 +54,32 @@ export default async function TenantDetailPage({ params }: RouteParams) {
   const membership = session ? findActiveMembership(session, tenant.orgId) : undefined;
   const canEdit = Boolean(membership && membership.role !== 'viewer' && membership.role !== 'accountant');
 
-  return <TenantDetailView tenant={tenant} canEdit={canEdit} />;
+  const canInvite = Boolean(membership && membership.role !== 'viewer' && membership.role !== 'accountant');
+  let invitations: TenantInvitation[] = [];
+  if (canInvite) {
+    const { data: inviteRows, error: inviteError } = await supabase
+      .from('tenant_invitations')
+      .select('*')
+      .eq('tenant_id', id)
+      .order('created_at', { ascending: false });
+    if (inviteError) throw new Error(`Failed to load tenant invitations: ${inviteError.message}`);
+    invitations = (inviteRows ?? []).map(mapTenantInvitationRow);
+  }
+
+  return <TenantDetailView tenant={tenant} canEdit={canEdit} canInvite={canInvite} invitations={invitations} />;
 }
 
-function TenantDetailView({ tenant, canEdit }: { tenant: Tenant; canEdit: boolean }) {
+function TenantDetailView({
+  tenant,
+  canEdit,
+  canInvite = false,
+  invitations = [],
+}: {
+  tenant: Tenant;
+  canEdit: boolean;
+  canInvite?: boolean;
+  invitations?: TenantInvitation[];
+}) {
   return (
     <div className="space-y-6 animate-rise">
       <Link
@@ -102,6 +126,19 @@ function TenantDetailView({ tenant, canEdit }: { tenant: Tenant; canEdit: boolea
           ) : null}
         </div>
       </Panel>
+
+      {tenant.userId ? (
+        <p className="text-xs text-light-statusPaid dark:text-dark-statusPaid">
+          This tenant's portal account is linked and active.
+        </p>
+      ) : canInvite ? (
+        <TenantInvitationPanel
+          tenantId={tenant.id}
+          hasEmail={Boolean(tenant.email)}
+          hasPhone={Boolean(tenant.phone)}
+          invitations={invitations}
+        />
+      ) : null}
 
       <p className="text-xs text-light-textMuted dark:text-dark-textMuted">
         Leases and maintenance history for this tenant are built at the API layer (TASKS.md

@@ -287,6 +287,10 @@ export const WHATSAPP_NOTIFICATION_TYPES = [
   'maintenance_approval_urgent',
   'account_security_event',
   'owner_statement_available',
+  // PRODUCT DECISION 2 (2026-08-03): tenant activation delivered via WhatsApp -- a real,
+  // synchronous trigger (staff clicks "Send invitation"), matching this list's existing
+  // "already has a real trigger" discipline (WHATSAPP.md §2).
+  'tenant_invitation',
 ] as const;
 export type WhatsAppNotificationType = (typeof WHATSAPP_NOTIFICATION_TYPES)[number];
 
@@ -310,6 +314,27 @@ export type PortfolioInsightType = (typeof PORTFOLIO_INSIGHT_TYPES)[number];
 
 export const USAGE_TYPES = ['storage_bytes', 'email_sent', 'whatsapp_sent', 'ocr_page', 'ai_token'] as const;
 export type UsageType = (typeof USAGE_TYPES)[number];
+
+// PRODUCT DECISION 2 (2026-08-03): tenant activation. Deliberately a separate enum/table from
+// organization_invites -- see supabase/migrations/20260101000059's own header comment for why.
+export const TENANT_INVITATION_DELIVERY_CHANNELS = ['email', 'whatsapp', 'manual'] as const;
+export type TenantInvitationDeliveryChannel = (typeof TENANT_INVITATION_DELIVERY_CHANNELS)[number];
+
+// Mirrors accept_tenant_invitation()'s error_code return values exactly (migration
+// 20260101000059's own comment lists them) -- the UI switches on these to show the right
+// expired/invalid/already-linked state, never a raw Postgres error string.
+export const TENANT_INVITATION_ERROR_CODES = [
+  'not_found',
+  'invalid_code',
+  'locked_out',
+  'revoked',
+  'expired',
+  'already_used',
+  'org_inactive',
+  'already_linked',
+  'email_mismatch',
+] as const;
+export type TenantInvitationErrorCode = (typeof TENANT_INVITATION_ERROR_CODES)[number];
 
 // PWA_V1_COMPLETION_PLAN.md #9. 'archived' covers both a deliberately retired template and one
 // superseded by a replacement (supersedes_id on the newer row links the chain -- no separate

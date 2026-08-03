@@ -36,6 +36,8 @@ Evidenced verbatim from the reference product (IMG_8056): "Managers run everythi
 
 Exactly one `principal` per org minimum (the account creator; org creation is atomic with a `principal` membership row — an org can never exist with zero `principal`). `manager` cannot remove or demote the last `principal`. Role checks resolve through `has_org_role(org_id, min_role)`, a `security definer` function ordering roles `viewer < accountant/agent < manager < principal` for "at least X" checks, mirroring the ranked `is_admin()` pattern already in the codebase.
 
+**Tenant invitations** (`tenant_invitations`, added 2026-08-03, PRODUCT DECISION 2 — full design `AUTHENTICATION.md` §5, `DATABASE.md` §4): generate/resend/revoke are gated at `agent`+ (`tenant_invitations_select_staff`/`_insert_staff`/`_update_staff`, all `has_org_role(org_id, 'agent')`) — this is not a new permission level, it matches the existing "Properties/Units/Leases/Tenants" row's write threshold above, since an invitation is staff-managed metadata about a tenant record, not a separate module. The tenant being invited has **no** general visibility into `tenant_invitations` at all — RLS grants staff `select`/`insert`/`update` only, with zero policy for the invitee before acceptance; a tenant's only interaction with their own invitation is through the public `/activate` flow and `accept_tenant_invitation()` (`security definer`, generic error codes, `SECURITY.md`), never a direct read of the row.
+
 ## 3. Owner permissions (not org staff)
 
 An `owners` record with `user_id` set can log in (web or native) and see, for properties they're linked to via `property_owners`:

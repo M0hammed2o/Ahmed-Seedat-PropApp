@@ -13,7 +13,8 @@ export type EmailTemplateName =
   | 'owner_statement_ready'
   | 'maintenance_update'
   | 'subscription_payment_issue'
-  | 'member_invited';
+  | 'member_invited'
+  | 'tenant_invitation';
 
 // Only categories with an existing notification_preferences row can be preference-gated
 // (DATABASE.md §7's closed enum has no 'billing'/'accounting' category) -- invoice/payment/
@@ -30,6 +31,7 @@ const TEMPLATE_SUBJECTS: Record<EmailTemplateName, (vars: Record<string, unknown
   maintenance_update: (v) => `Maintenance update: ${v.summary ?? 'your ticket'}`,
   subscription_payment_issue: () => `Action needed: subscription payment issue`,
   member_invited: (v) => `You've been invited to join ${v.orgName ?? 'a PropertyVault organization'}`,
+  tenant_invitation: (v) => `Activate your PropertyVault tenant portal for ${v.orgName ?? 'your rental'}`,
 };
 
 export interface DispatchEmailInput {

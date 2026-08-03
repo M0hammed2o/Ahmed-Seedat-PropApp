@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Building2 } from 'lucide-react';
@@ -10,9 +10,16 @@ import { loginSchema, type LoginInput } from '@propvault/validation';
 import { branding } from '@propvault/config';
 import { getBrowserSupabaseClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/Button';
+import { OAuthButtons } from '@/components/auth/OAuthButtons';
 
 export function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // Session-expiry / deep-link continuation (proxy.ts) and invitation continuation
+  // (PRODUCT DECISION 1) both land here via the same ?next= param.
+  const next = searchParams.get('next') ?? '/';
+  const providerError = searchParams.get('error');
+
   const [submitError, setSubmitError] = useState<string | null>(null);
   const {
     register,
@@ -41,7 +48,8 @@ export function LoginForm() {
     // '/overview' (platform-admin only) -- a client-org member with no platform_admin_users row
     // would immediately bounce back to '/login' from that route group's own auth check, with no
     // way to ever reach their portal. '/' now checks both session types and routes accordingly.
-    router.replace('/');
+    // `next` (session-expiry redirect or an invitation link) takes priority when present.
+    router.replace(next === '/' ? '/' : next);
     router.refresh();
   };
 
@@ -55,13 +63,27 @@ export function LoginForm() {
           <Building2 size={20} aria-hidden="true" />
         </span>
         <h1 className="mt-4 font-display text-xl font-bold text-light-textPrimary dark:text-dark-textPrimary">
-          {branding.productName} Admin
+          {branding.productName}
         </h1>
         <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
-          Sign in with your administrator account.
+          Sign in to your account.
         </p>
 
-        <label className="mt-6 block text-xs text-light-textSecondary dark:text-dark-textSecondary">
+        {providerError ? (
+          <p className="mt-3 rounded-md border border-light-danger bg-light-danger/10 px-3 py-2 text-xs text-light-danger dark:border-dark-danger dark:bg-dark-danger/10 dark:text-dark-danger">
+            {providerError}
+          </p>
+        ) : null}
+
+        <OAuthButtons next={next} />
+
+        <div className="my-4 flex items-center gap-3 text-xs text-light-textMuted dark:text-dark-textMuted">
+          <span className="h-px flex-1 bg-light-border dark:bg-dark-border" />
+          or
+          <span className="h-px flex-1 bg-light-border dark:bg-dark-border" />
+        </div>
+
+        <label className="block text-xs text-light-textSecondary dark:text-dark-textSecondary">
           Email
         </label>
         <input
@@ -100,6 +122,13 @@ export function LoginForm() {
         <Button type="submit" variant="primary" disabled={isSubmitting} className="mt-6 w-full">
           {isSubmitting ? 'Signing in…' : 'Sign in'}
         </Button>
+
+        <p className="mt-4 text-center text-xs text-light-textSecondary dark:text-dark-textSecondary">
+          Don't have an account?{' '}
+          <Link href={`/register?next=${encodeURIComponent(next)}`} className="text-light-accent hover:underline dark:text-dark-accent">
+            Create one
+          </Link>
+        </p>
       </form>
     </main>
   );

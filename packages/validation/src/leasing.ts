@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { LEASE_TEMPLATE_MIME_TYPES } from '@propvault/types';
+import { LEASE_TEMPLATE_MIME_TYPES, TENANT_INVITATION_DELIVERY_CHANNELS } from '@propvault/types';
 
 // Tenants API (apps/admin/app/api/v1/tenants, /api/v1/tenants/:id -- API_SPEC.md §4, TASKS.md
 // M8). No `status`/`idNumberRef` field here: status defaults server-side ('pending', matching the
@@ -111,3 +111,33 @@ export const leaseTemplateUpdateSchema = z.object({
   setDefault: z.boolean().optional(),
 });
 export type LeaseTemplateUpdateInput = z.infer<typeof leaseTemplateUpdateSchema>;
+
+// Tenant invitations (apps/admin/app/api/v1/tenants/[id]/invitations/**, PRODUCT DECISION 2
+// 2026-08-03). destinationHint is staff-supplied at creation time (the masked address/number
+// shown in the status list) -- the route itself derives it from the real tenant.email/phone
+// server-side when the caller doesn't supply one, never trusting an unmasked client value as the
+// thing actually delivered to.
+export const tenantInvitationCreateSchema = z.object({
+  deliveryChannel: z.enum(TENANT_INVITATION_DELIVERY_CHANNELS),
+  includeShortCode: z.boolean().default(false),
+});
+export type TenantInvitationCreateInput = z.infer<typeof tenantInvitationCreateSchema>;
+
+// Exactly one of token/shortCode; shortCode requires email (accept_tenant_invitation()'s own
+// "combine a short code with another verification factor" requirement, enforced again here so a
+// malformed request 400s with a clear field error instead of reaching the RPC at all).
+export const tenantInvitationAcceptSchema = z
+  .object({
+    token: z.string().min(1).optional(),
+    shortCode: z.string().min(1).optional(),
+    email: z.string().email('Enter a valid email address').optional(),
+  })
+  .refine((v) => (v.token ? !v.shortCode : Boolean(v.shortCode)), {
+    message: 'Provide exactly one of a token or a short code',
+    path: ['token'],
+  })
+  .refine((v) => !v.shortCode || Boolean(v.email), {
+    message: 'An email address is required alongside a short code',
+    path: ['email'],
+  });
+export type TenantInvitationAcceptInput = z.infer<typeof tenantInvitationAcceptSchema>;

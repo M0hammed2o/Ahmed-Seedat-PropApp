@@ -35,9 +35,16 @@ No real secret values are ever committed. Every variable below exists as a place
 
 ## Root
 
-| Variable               | Purpose                                    |
-| ---------------------- | ------------------------------------------ |
-| `SUPABASE_PROJECT_REF` | Used by `supabase link` for CLI operations |
+| Variable                     | Purpose                                                                                                                 | Required for Phase 1 dev?                          |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------- |
+| `SUPABASE_PROJECT_REF`        | Used by `supabase link` for CLI operations                                                                               | No                                                    |
+| `GOOGLE_OAUTH_CLIENT_ID`      | Read by the Supabase CLI's `env(...)` interpolation in `supabase/config.toml` — PRODUCT DECISION 1 (2026-08-03)          | No — Google sign-in is `enabled = false` until set  |
+| `GOOGLE_OAUTH_CLIENT_SECRET`  | Same                                                                                                                      | No — same                                            |
+| `APPLE_OAUTH_CLIENT_ID`       | Same, for Apple sign-in                                                                                                  | No — Apple sign-in is `enabled = false` until set   |
+| `APPLE_OAUTH_CLIENT_SECRET`   | Same                                                                                                                      | No — same                                            |
+
+See `AUTHENTICATION.md` for the full external setup walkthrough (Google Cloud OAuth consent
+screen + client, Apple Developer Services ID + key) these four variables come from.
 
 ## Validation
 
