@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { TaxPackClient } from '@/components/accounting/TaxPackClient';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { resolvePortalSession, findActiveMembership, canPostAccountingRecords } from '@/lib/orgSession';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
@@ -12,11 +13,8 @@ import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 export default async function TaxPackPage() {
   if (ADMIN_DEMO_MODE) {
     return (
-      <div>
-        <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">Tax Pack</h1>
-        <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
-          South African tax-year summary, computed from your ledger.
-        </p>
+      <div className="space-y-5 animate-rise">
+        <PageHeader title="Tax Pack" subtitle="South African tax-year summary, computed from your ledger." />
         <TaxPackClient orgId="demo-org-1" />
       </div>
     );
@@ -31,9 +29,9 @@ export default async function TaxPackPage() {
 
   if (!canPost) {
     return (
-      <div>
-        <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">Tax Pack</h1>
-        <p className="mt-4 text-sm text-light-textSecondary dark:text-dark-textSecondary">
+      <div className="space-y-5 animate-rise">
+        <PageHeader title="Tax Pack" />
+        <p className="text-sm text-light-textSecondary dark:text-dark-textSecondary">
           Only accountant, manager, and principal roles can view the tax pack.
         </p>
       </div>
@@ -41,11 +39,8 @@ export default async function TaxPackPage() {
   }
 
   return (
-    <div>
-      <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">Tax Pack</h1>
-      <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
-        South African tax-year summary, computed from your ledger.
-      </p>
+    <div className="space-y-5 animate-rise">
+      <PageHeader title="Tax Pack" subtitle="South African tax-year summary, computed from your ledger." />
       <TaxPackClient orgId={activeOrg.orgId} />
     </div>
   );

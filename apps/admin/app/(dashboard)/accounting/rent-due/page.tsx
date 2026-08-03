@@ -3,6 +3,7 @@ import type { RentSchedule, RentScheduleStatus } from '@propvault/types';
 import { RENT_SCHEDULE_STATUSES } from '@propvault/types';
 import { RentDueClient } from '@/components/accounting/RentDueClient';
 import { AdminMetricCard } from '@/components/ui/AdminMetricCard';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { resolvePortalSession, findActiveMembership, canPostAccountingRecords } from '@/lib/orgSession';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
@@ -43,28 +44,26 @@ export default async function RentDuePage({ searchParams }: SearchParams) {
   const paid = rentSchedule.filter((r) => r.status === 'paid').length;
 
   return (
-    <div>
-      <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">Rent Due</h1>
-      <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
-        Rent schedule rows across your portfolio, generated automatically when a lease is approved.
-      </p>
+    <div className="space-y-5 animate-rise">
+      <PageHeader
+        title="Rent Due"
+        subtitle="Rent schedule rows across your portfolio, generated automatically when a lease is approved."
+      />
 
-      <div className="mt-6 grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <AdminMetricCard label="Pending" value={pending} />
         <AdminMetricCard label="Overdue" value={overdue} />
         <AdminMetricCard label="Paid" value={paid} />
       </div>
 
-      <div className="mt-6 flex gap-2">
+      <div className="flex gap-2">
         <FilterLink label="All" active={!statusFilter} href="/accounting/rent-due" />
         {RENT_SCHEDULE_STATUSES.map((s) => (
           <FilterLink key={s} label={s} active={statusFilter === s} href={`/accounting/rent-due?status=${s}`} />
         ))}
       </div>
 
-      <div className="mt-4">
-        <RentDueClient data={rentSchedule} canPost={canPost} />
-      </div>
+      <RentDueClient data={rentSchedule} canPost={canPost} />
     </div>
   );
 }

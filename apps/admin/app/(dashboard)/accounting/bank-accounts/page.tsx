@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { BankAccount } from '@propvault/types';
 import { BankAccountsTable } from '@/components/tables/BankAccountsTable';
 import { Button } from '@/components/ui/Button';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapBankAccountRow } from '@/lib/accounting';
 import { resolvePortalSession, findActiveMembership, canPostAccountingRecords } from '@/lib/orgSession';
@@ -34,14 +35,9 @@ export default async function BankAccountsPage() {
   );
 
   return (
-    <div>
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">Bank Accounts</h1>
-        {canPost && bankAccounts.length > 0 ? addAction : null}
-      </div>
-      <div className="mt-6">
-        <BankAccountsTable data={bankAccounts} emptyAction={canPost ? addAction : undefined} />
-      </div>
+    <div className="space-y-5 animate-rise">
+      <PageHeader title="Bank Accounts" actions={canPost && bankAccounts.length > 0 ? addAction : undefined} />
+      <BankAccountsTable data={bankAccounts} emptyAction={canPost ? addAction : undefined} />
     </div>
   );
 }

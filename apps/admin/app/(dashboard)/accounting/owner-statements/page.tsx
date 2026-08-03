@@ -1,6 +1,7 @@
 import type { OwnerStatement } from '@propvault/types';
 import { OwnerStatementsTable, type OwnerStatementWithOwnerName } from '@/components/tables/OwnerStatementsTable';
 import { AdminMetricCard } from '@/components/ui/AdminMetricCard';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { GenerateOwnerStatementsButton } from '@/components/accounting/GenerateOwnerStatementsButton';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapOwnerStatementRow } from '@/lib/accounting';
@@ -44,24 +45,20 @@ export default async function OwnerStatementsPage() {
   const generateAction = orgId && canPost ? <GenerateOwnerStatementsButton orgId={orgId} /> : null;
 
   return (
-    <div>
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">Owner Statements</h1>
-        {statements.length > 0 ? generateAction : null}
-      </div>
-      <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
-        Generated from the ledger, never hand-entered — one statement per owner per period.
-      </p>
+    <div className="space-y-5 animate-rise">
+      <PageHeader
+        title="Owner Statements"
+        subtitle="Generated from the ledger, never hand-entered — one statement per owner per period."
+        actions={statements.length > 0 ? (generateAction ?? undefined) : undefined}
+      />
 
-      <div className="mt-6 grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <AdminMetricCard label="Draft" value={draft} />
         <AdminMetricCard label="Issued" value={issued} />
         <AdminMetricCard label="Paid" value={paid} />
       </div>
 
-      <div className="mt-6">
-        <OwnerStatementsTable data={statements} emptyAction={generateAction ?? undefined} />
-      </div>
+      <OwnerStatementsTable data={statements} emptyAction={generateAction ?? undefined} />
     </div>
   );
 }

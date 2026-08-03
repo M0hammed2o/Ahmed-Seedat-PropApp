@@ -1,5 +1,26 @@
 # Worklog
 
+## 2026-08-03 — Accounting section (Bank Accounts/Transactions/Expenses/Rent Due/Owner Statements/Tax Pack/Trial Balance)
+
+The whole Finance nav group had never been through the redesign -- all 7 pages still had the
+original bare `<h1>`+`<p>` header. Brought every one onto PageHeader, matching the rest of the app.
+Trial Balance's raw `<table>` (a hand-built aggregation view, not AdminDataTable-based) got its
+header row upgraded to `bg-*-surfaceStrong` and wrapped in a Panel for the same card chrome as
+everywhere else; its balanced/unbalanced banner moved from a bespoke coloured div into the header's
+actions slot as a Pill.
+
+Real-browser check surfaced a pre-existing, unrelated gap: TaxPackClient (a client component this
+pass didn't touch) fetches `/api/v1/tax-pack` directly with no demo-mode branch, so in demo mode it
+correctly shows "Sign in required" rather than crashing -- not a regression from this batch, just an
+observed limitation worth flagging. Not fixed here: fixing a client-side data-fetching gap is
+backend/business-logic work, out of scope for a presentation-layer pass per this session's own
+constraint against touching working functionality without a proven defect blocking the UI itself
+(it doesn't -- the page renders its error state correctly).
+
+No backend/API/schema changes otherwise. Verified: typecheck/lint clean, full vitest 153/153, real
+next build clean, real-browser check across all 7 pages light + Trial Balance dark -- zero console
+errors beyond the pre-existing favicon 404 and the pre-existing Tax Pack demo-mode 401 just described.
+
 ## 2026-08-03 — Maintenance board card language; Documents/Inspections checked, already current
 
 MaintenanceBoard was the one remaining flat `rounded-lg border` surface in the Operations section --

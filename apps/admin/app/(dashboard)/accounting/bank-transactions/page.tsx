@@ -3,6 +3,7 @@ import type { BankTransaction, RentSchedule } from '@propvault/types';
 import { BankTransactionsTable } from '@/components/tables/BankTransactionsTable';
 import { AdminMetricCard } from '@/components/ui/AdminMetricCard';
 import { Button } from '@/components/ui/Button';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapBankTransactionRow } from '@/lib/accounting';
 import { resolvePortalSession, findActiveMembership, canPostAccountingRecords } from '@/lib/orgSession';
@@ -58,20 +59,15 @@ export default async function BankTransactionsPage() {
   );
 
   return (
-    <div>
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">Bank Transactions</h1>
-        {canPost ? addAction : null}
-      </div>
+    <div className="space-y-5 animate-rise">
+      <PageHeader title="Bank Transactions" actions={canPost ? addAction : undefined} />
 
-      <div className="mt-6 grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-4">
         <AdminMetricCard label="Unmatched" value={unmatched} />
         <AdminMetricCard label="Matched" value={matched} />
       </div>
 
-      <div className="mt-6">
-        <BankTransactionsTable data={transactions} canPost={canPost} rentScheduleCandidates={candidates} />
-      </div>
+      <BankTransactionsTable data={transactions} canPost={canPost} rentScheduleCandidates={candidates} />
     </div>
   );
 }

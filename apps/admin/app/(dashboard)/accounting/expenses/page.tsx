@@ -3,6 +3,7 @@ import type { Expense } from '@propvault/types';
 import { ExpensesTable } from '@/components/tables/ExpensesTable';
 import { AdminMetricCard } from '@/components/ui/AdminMetricCard';
 import { Button } from '@/components/ui/Button';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapExpenseRow } from '@/lib/accounting';
 import { resolvePortalSession, findActiveMembership, canPostAccountingRecords } from '@/lib/orgSession';
@@ -45,23 +46,19 @@ export default async function ExpensesPage() {
   );
 
   return (
-    <div>
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">Expenses</h1>
-        {canPost && expenses.length > 0 ? addAction : null}
-      </div>
-      <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
-        {expenses.length} {expenses.length === 1 ? 'expense' : 'expenses'} across your portfolio.
-      </p>
+    <div className="space-y-5 animate-rise">
+      <PageHeader
+        title="Expenses"
+        subtitle={`${expenses.length} ${expenses.length === 1 ? 'expense' : 'expenses'} across your portfolio.`}
+        actions={canPost && expenses.length > 0 ? addAction : undefined}
+      />
 
-      <div className="mt-6 grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-4">
         <AdminMetricCard label="Pending" value={pending} />
         <AdminMetricCard label="Recorded" value={recorded} />
       </div>
 
-      <div className="mt-6">
-        <ExpensesTable data={expenses} emptyAction={canPost ? addAction : undefined} />
-      </div>
+      <ExpensesTable data={expenses} emptyAction={canPost ? addAction : undefined} />
     </div>
   );
 }

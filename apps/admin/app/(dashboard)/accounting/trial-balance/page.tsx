@@ -3,6 +3,9 @@ import type { LedgerClass, TrialBalanceRow } from '@propvault/types';
 import { LEDGER_CLASSES } from '@propvault/types';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { resolvePortalSession } from '@/lib/orgSession';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { Panel } from '@/components/ui/Panel';
+import { Pill } from '@/components/ui/Pill';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 type SearchParams = { searchParams: Promise<{ ledger_class?: string }> };
@@ -54,13 +57,19 @@ export default async function TrialBalancePage({ searchParams }: SearchParams) {
     : await loadTrialBalance(ledgerClass);
 
   return (
-    <div>
-      <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">Trial Balance</h1>
-      <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
-        Live SUM(debit)/SUM(credit) per account — never a stored snapshot.
-      </p>
+    <div className="space-y-5 animate-rise">
+      <PageHeader
+        title="Trial Balance"
+        subtitle="Live SUM(debit)/SUM(credit) per account — never a stored snapshot."
+        actions={
+          <Pill tone={balanced ? 'success' : 'destructive'} dot>
+            {balanced ? 'Balanced' : 'Not balanced — investigate'} (Debit R{totalDebit.toLocaleString('en-ZA')} / Credit R
+            {totalCredit.toLocaleString('en-ZA')})
+          </Pill>
+        }
+      />
 
-      <div className="mt-6 flex gap-2">
+      <div className="flex gap-2">
         <FilterLink label="All" active={!ledgerClass} href="/accounting/trial-balance" />
         {LEDGER_CLASSES.map((lc) => (
           <FilterLink
@@ -72,65 +81,56 @@ export default async function TrialBalancePage({ searchParams }: SearchParams) {
         ))}
       </div>
 
-      <div
-        className={`mt-4 rounded-md border px-3 py-2 text-xs ${
-          balanced
-            ? 'border-light-statusPaid/40 bg-light-statusPaid/10 text-light-statusPaid dark:border-dark-statusPaid/40 dark:bg-dark-statusPaid/10 dark:text-dark-statusPaid'
-            : 'border-light-statusOverdue/40 bg-light-statusOverdue/10 text-light-statusOverdue dark:border-dark-statusOverdue/40 dark:bg-dark-statusOverdue/10 dark:text-dark-statusOverdue'
-        }`}
-      >
-        {balanced ? 'Balanced' : 'Not balanced — investigate'} (Debit R{totalDebit.toLocaleString('en-ZA')} / Credit R
-        {totalCredit.toLocaleString('en-ZA')})
-      </div>
-
-      <div className="mt-4 overflow-x-auto rounded-lg border border-light-border dark:border-dark-border">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-light-border bg-light-surfaceRaised dark:border-dark-border dark:bg-dark-surfaceRaised">
-            <tr>
-              <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Code</th>
-              <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Account</th>
-              <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Type</th>
-              <th className="px-4 py-3 text-right font-medium text-light-textSecondary dark:text-dark-textSecondary">
-                Debit
-              </th>
-              <th className="px-4 py-3 text-right font-medium text-light-textSecondary dark:text-dark-textSecondary">
-                Credit
-              </th>
-              <th className="px-4 py-3 text-right font-medium text-light-textSecondary dark:text-dark-textSecondary">
-                Balance
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 ? (
+      <Panel bodyClassName="p-0">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="border-b border-light-border bg-light-surfaceStrong dark:border-dark-border dark:bg-dark-surfaceStrong">
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-light-textMuted dark:text-dark-textMuted">
-                  No accounts for this filter.
-                </td>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Code</th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Account</th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Type</th>
+                <th className="px-4 py-3 text-right font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Debit
+                </th>
+                <th className="px-4 py-3 text-right font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Credit
+                </th>
+                <th className="px-4 py-3 text-right font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Balance
+                </th>
               </tr>
-            ) : (
-              rows.map((row) => (
-                <tr key={row.accountId} className="border-b border-light-border last:border-b-0 dark:border-dark-border">
-                  <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">{row.accountCode}</td>
-                  <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">{row.accountName}</td>
-                  <td className="px-4 py-3 capitalize text-light-textSecondary dark:text-dark-textSecondary">
-                    {row.accountType}
-                  </td>
-                  <td className="px-4 py-3 text-right text-light-textPrimary dark:text-dark-textPrimary">
-                    R{row.totalDebit.toLocaleString('en-ZA')}
-                  </td>
-                  <td className="px-4 py-3 text-right text-light-textPrimary dark:text-dark-textPrimary">
-                    R{row.totalCredit.toLocaleString('en-ZA')}
-                  </td>
-                  <td className="px-4 py-3 text-right text-light-textPrimary dark:text-dark-textPrimary">
-                    R{row.balance.toLocaleString('en-ZA')}
+            </thead>
+            <tbody>
+              {rows.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-6 text-center text-light-textMuted dark:text-dark-textMuted">
+                    No accounts for this filter.
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+              ) : (
+                rows.map((row) => (
+                  <tr key={row.accountId} className="border-b border-light-border last:border-b-0 dark:border-dark-border">
+                    <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">{row.accountCode}</td>
+                    <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">{row.accountName}</td>
+                    <td className="px-4 py-3 capitalize text-light-textSecondary dark:text-dark-textSecondary">
+                      {row.accountType}
+                    </td>
+                    <td className="px-4 py-3 text-right text-light-textPrimary dark:text-dark-textPrimary">
+                      R{row.totalDebit.toLocaleString('en-ZA')}
+                    </td>
+                    <td className="px-4 py-3 text-right text-light-textPrimary dark:text-dark-textPrimary">
+                      R{row.totalCredit.toLocaleString('en-ZA')}
+                    </td>
+                    <td className="px-4 py-3 text-right text-light-textPrimary dark:text-dark-textPrimary">
+                      R{row.balance.toLocaleString('en-ZA')}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Panel>
     </div>
   );
 }
