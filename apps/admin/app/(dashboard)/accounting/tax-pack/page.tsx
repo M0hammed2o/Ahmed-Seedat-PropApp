@@ -15,7 +15,7 @@ export default async function TaxPackPage() {
     return (
       <div className="space-y-5 animate-rise">
         <PageHeader title="Tax Pack" subtitle="South African tax-year summary, computed from your ledger." />
-        <TaxPackClient orgId="demo-org-1" />
+        <TaxPackClient orgId="demo-org-1" demoMode />
       </div>
     );
   }

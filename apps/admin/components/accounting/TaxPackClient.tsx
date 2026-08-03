@@ -18,15 +18,64 @@ interface TaxPackResponse {
   disclaimer: string;
 }
 
+// Demo-mode fixture -- lib/demoMode.ts is `server-only` and cannot be imported into a client
+// component, so the parent Server Component page passes `demoMode` down as a prop (same pattern
+// every other demo-aware page/client-component pair in this codebase already uses). Without this,
+// this component always hit the real /api/v1/tax-pack route, which correctly 401s with no live
+// session in demo mode -- PWA_V1_COMPLETION_PLAN.md #2.
+function demoTaxPackResponse(taxYear: number): TaxPackResponse {
+  return {
+    taxYear,
+    lines: [
+      {
+        propertyId: 'demo-property-1',
+        propertyName: 'Sea Point Apartment',
+        accountType: 'income',
+        accountCode: '4000',
+        accountName: 'Rental Income',
+        amount: 150000,
+      },
+      {
+        propertyId: 'demo-property-1',
+        propertyName: 'Sea Point Apartment',
+        accountType: 'expense',
+        accountCode: '5100',
+        accountName: 'Municipal Rates & Levies',
+        amount: 18000,
+      },
+      {
+        propertyId: 'demo-property-1',
+        propertyName: 'Sea Point Apartment',
+        accountType: 'expense',
+        accountCode: '5200',
+        accountName: 'Repairs & Maintenance',
+        amount: 4200,
+      },
+    ],
+    totalIncome: 150000,
+    totalExpenses: 22200,
+    netIncome: 127800,
+    disclaimer:
+      'Demo mode — figures are fixture data, not a real tax computation. Not tax advice; consult a registered tax practitioner.',
+  };
+}
+
 // ACCOUNTING.md §7 -- SA tax year runs 1 March - end of February; "tax_year" labels the year it
 // ENDS in (e.g. 2027 = 1 Mar 2026 - 28/29 Feb 2027), matching compute_tax_pack()'s own convention.
-export function TaxPackClient({ orgId }: { orgId: string }) {
+export function TaxPackClient({ orgId, demoMode = false }: { orgId: string; demoMode?: boolean }) {
   const [taxYear, setTaxYear] = useState(currentSaTaxYear());
   const [data, setData] = useState<TaxPackResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (demoMode) {
+      setLoading(false);
+      setError(null);
+      setData(demoTaxPackResponse(taxYear));
+      return;
+    }
+
     let cancelled = false;
     setLoading(true);
     setError(null);
@@ -45,7 +94,7 @@ export function TaxPackClient({ orgId }: { orgId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [orgId, taxYear]);
+  }, [orgId, taxYear, demoMode]);
 
   const yearOptions = Array.from({ length: 6 }, (_, i) => currentSaTaxYear() - i);
 
@@ -66,12 +115,21 @@ export function TaxPackClient({ orgId }: { orgId: string }) {
             ))}
           </select>
         </label>
-        <a
-          href={`/api/v1/tax-pack/export?org_id=${orgId}&tax_year=${taxYear}`}
-          className="rounded-md bg-light-accent px-3 py-1.5 text-sm font-medium text-light-accentContrast dark:bg-dark-accent dark:text-dark-accentContrast"
-        >
-          Download CSV
-        </a>
+        {demoMode ? (
+          <span
+            title="CSV export requires a live session — not available in demo mode"
+            className="cursor-not-allowed rounded-md bg-light-accent px-3 py-1.5 text-sm font-medium text-light-accentContrast opacity-50 dark:bg-dark-accent dark:text-dark-accentContrast"
+          >
+            Download CSV
+          </span>
+        ) : (
+          <a
+            href={`/api/v1/tax-pack/export?org_id=${orgId}&tax_year=${taxYear}`}
+            className="rounded-md bg-light-accent px-3 py-1.5 text-sm font-medium text-light-accentContrast dark:bg-dark-accent dark:text-dark-accentContrast"
+          >
+            Download CSV
+          </a>
+        )}
       </div>
 
       {error ? (

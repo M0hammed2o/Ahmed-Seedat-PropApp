@@ -62,4 +62,16 @@ describe('TaxPackClient', () => {
 
     await waitFor(() => expect(screen.getByText('No income or expense activity for this tax year.')).toBeTruthy());
   });
+
+  it('renders fixture data with no fetch call when demoMode is true (PWA_V1_COMPLETION_PLAN.md #2)', async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
+
+    render(<TaxPackClient orgId="demo-org-1" demoMode />);
+
+    await waitFor(() => expect(screen.getByText('Rental Income')).toBeTruthy());
+    expect(screen.getAllByText('Sea Point Apartment').length).toBeGreaterThan(0);
+    expect(screen.getByText(/Demo mode/)).toBeTruthy();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
 });
