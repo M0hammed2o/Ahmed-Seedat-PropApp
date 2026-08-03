@@ -44,6 +44,36 @@
 
 Dependencies added: `@radix-ui/react-dropdown-menu`, `@radix-ui/react-popover` (MIT, small, React-19-compatible, used only by the shell's user menu/notifications). Nothing else from the Lovable `package.json` is installed — no TanStack Router/Start/Query, no `sonner`, no `vaul`, no `cmdk`, no `react-hook-form`/`zod` duplicates (PropertyVault already has its own).
 
-## Out of scope for this checkpoint
+## Status after checkpoint approval (2026-08-03)
 
-Documents, Maintenance, Inspections, Accounting, Owner Statements, Tax Pack, Payments, Reports, Notifications, Announcements, Applications, Tenant Portal, Auth/onboarding, Staff workflow, Super Admin — deferred to their place in the 19-step module order after this checkpoint is approved.
+Checkpoint approved; continued through the remainder of the Owner/Staff PWA module order in the
+same batch-verify-commit discipline. Completed, each its own commit on this branch:
+
+- Owners (avatar chips + shared `Pill`), Tenant detail (profile header)
+- Maintenance board (card language upgrade)
+- Documents/Inspections/Leases (checked — already used the shared card language from the
+  earlier `phase-7-implementation` redesign pass, no further change needed)
+- Accounting: Bank Accounts, Bank Transactions, Expenses, Rent Due, Owner Statements, Tax Pack,
+  Trial Balance (all onto `PageHeader`; Trial Balance's hand-built table onto the shared card
+  chrome + a `Pill` balanced/unbalanced indicator)
+- Reports (bespoke `ReportCard` replaced with `Panel`), Notifications, Notifications preferences,
+  Announcements
+- Applications (list + detail, V1 scope unchanged), full Tenant Portal (My Lease, My Payments, My
+  Maintenance + submit form, Notices)
+- Login and organization onboarding (brand icon badge, elevated card, shared `Button`/input focus
+  treatment — the product's actual first impression)
+
+**Deliberately not touched, per this instruction's own priority order:**
+- **Super Admin** — "may remain basic for now… do not prioritise Super Admin visual polish at this
+  stage." Confirmed still functional (all routes present in the final production build) but not
+  restyled.
+- **Android** — native Kotlin/Compose translation happens once the PWA design language is stable
+  (it now is); a distinct phase, out of scope for this Next.js branch.
+- **Staff workflow refinement** — no dedicated staff-only screens exist separately from the role
+  gates already present on every page above (`canWrite`/`canPost`/`canAct` checks, all preserved
+  unchanged throughout).
+
+Every batch above was independently typechecked, linted, tested (`vitest` 153/153 throughout),
+production-built, and real-browser verified (light/dark, multiple breakpoints) before its commit.
+A final whole-repo regression (typecheck, lint, full test suite, production build) was run after
+the last batch and is clean.
