@@ -1,5 +1,19 @@
 # Worklog
 
+## 2026-08-03 — Login and organization onboarding
+
+The first thing anyone sees before the shell even exists. Both LoginForm and
+CreateOrganizationForm had the same flat rounded-xl card with no shadow and raw unstyled inputs/
+button. Upgraded both to rounded-card + shadow-lift, added a brand icon badge (Building2 in an
+accent-coloured, glow-shadowed square, matching the sidebar logo mark), restyled inputs with the
+same focus-ring treatment used everywhere else, and swapped the raw <button> for the shared Button
+component. react-hook-form/zod validation and submit handlers untouched.
+
+No backend/API/schema changes. Verified: typecheck/lint clean, full vitest 153/153, real next
+build clean, real-browser check on /login light+dark -- zero console errors beyond the pre-existing
+favicon 404. (CreateOrganizationForm only reachable post-signup in live mode -- visually inspected
+via code review of the now-identical markup pattern, not a separate live screenshot.)
+
 ## 2026-08-03 — Applications (V1) and Tenant Portal
 
 Applications list and detail pages, and the whole Tenant Portal (My Lease, My Payments, My

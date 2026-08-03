@@ -4,9 +4,11 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Building2 } from 'lucide-react';
 import { loginSchema, type LoginInput } from '@propvault/validation';
 import { branding } from '@propvault/config';
 import { getBrowserSupabaseClient } from '@/lib/supabase/client';
+import { Button } from '@/components/ui/Button';
 
 export function LoginForm() {
   const router = useRouter();
@@ -43,12 +45,15 @@ export function LoginForm() {
   };
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-6">
+    <main className="flex min-h-screen items-center justify-center bg-light-surface px-6 dark:bg-dark-surface">
       <form
         onSubmit={handleSubmit(onSubmit)}
-        className="w-full max-w-sm rounded-xl border border-light-border bg-light-surfaceRaised p-8 dark:border-dark-border dark:bg-dark-surfaceRaised"
+        className="w-full max-w-sm rounded-card border border-light-border bg-light-surfaceRaised p-8 shadow-lift dark:border-dark-border dark:bg-dark-surfaceRaised"
       >
-        <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-light-accent text-light-accentContrast shadow-glow dark:bg-dark-accent dark:text-dark-accentContrast">
+          <Building2 size={20} aria-hidden="true" />
+        </span>
+        <h1 className="mt-4 font-display text-xl font-bold text-light-textPrimary dark:text-dark-textPrimary">
           {branding.productName} Admin
         </h1>
         <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
@@ -61,11 +66,11 @@ export function LoginForm() {
         <input
           type="email"
           autoComplete="email"
-          className="mt-1 w-full rounded-md border border-light-border bg-transparent px-3 py-2 text-sm dark:border-dark-border"
+          className="mt-1 w-full rounded-lg border border-light-border bg-transparent px-3 py-2 text-sm text-light-textPrimary outline-none focus:border-light-accent/40 focus:ring-4 focus:ring-light-accent/10 dark:border-dark-border dark:text-dark-textPrimary dark:focus:border-dark-accent/40 dark:focus:ring-dark-accent/10"
           {...register('email')}
         />
         {errors.email ? (
-          <p className="mt-1 text-xs text-light-danger">{errors.email.message}</p>
+          <p className="mt-1 text-xs text-light-danger dark:text-dark-danger">{errors.email.message}</p>
         ) : null}
 
         <label className="mt-4 block text-xs text-light-textSecondary dark:text-dark-textSecondary">
@@ -74,22 +79,18 @@ export function LoginForm() {
         <input
           type="password"
           autoComplete="current-password"
-          className="mt-1 w-full rounded-md border border-light-border bg-transparent px-3 py-2 text-sm dark:border-dark-border"
+          className="mt-1 w-full rounded-lg border border-light-border bg-transparent px-3 py-2 text-sm text-light-textPrimary outline-none focus:border-light-accent/40 focus:ring-4 focus:ring-light-accent/10 dark:border-dark-border dark:text-dark-textPrimary dark:focus:border-dark-accent/40 dark:focus:ring-dark-accent/10"
           {...register('password')}
         />
         {errors.password ? (
-          <p className="mt-1 text-xs text-light-danger">{errors.password.message}</p>
+          <p className="mt-1 text-xs text-light-danger dark:text-dark-danger">{errors.password.message}</p>
         ) : null}
 
-        {submitError ? <p className="mt-3 text-sm text-light-danger">{submitError}</p> : null}
+        {submitError ? <p className="mt-3 text-sm text-light-danger dark:text-dark-danger">{submitError}</p> : null}
 
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="mt-6 w-full rounded-md bg-light-accent py-2 text-sm font-medium text-light-accentContrast disabled:opacity-60"
-        >
+        <Button type="submit" variant="primary" disabled={isSubmitting} className="mt-6 w-full">
           {isSubmitting ? 'Signing in…' : 'Sign in'}
-        </button>
+        </Button>
       </form>
     </main>
   );
