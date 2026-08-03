@@ -1,5 +1,43 @@
 # Worklog
 
+## 2026-08-03 — PWA V1 completion phase begins: repository audit + first 3 blockers closed
+
+Mohammed approved the reviewed UI direction and asked to finish the complete PWA and its
+supporting backend to V1 pilot readiness. Wrote PWA_V1_COMPLETION_PLAN.md first -- a fresh
+repository-based audit (not trusting old percentages), evidence for every finding, classified by
+severity. Two TECHNICAL_DEBT_REGISTER.md claims turned out stale (Owner Statements/Tax Pack/Bank
+Transactions already have UI, built earlier this session).
+
+**Blocker 1 — organizations.status was never enforced by any RLS policy** (TD-17/R-22, flagged
+since 2026-07-31 as an open product decision). Closed it: `has_org_role()` now denies all access
+for archived orgs, forces read-only for suspended/cancelled, leaves trial/active/overdue
+unaffected -- inferred from SUPER_ADMIN.md's own language and universal SaaS convention, not
+guessed at. Found and fixed a real pgTAP-surfaced bug while verifying: the RLS UPDATE policy on
+`organizations` itself now depends on the same status check, so a *test* that mutated status while
+running as the `authenticated` role hit a real (and correct) circular-lockout -- once archived, no
+RLS-gated UPDATE can change status again. Confirmed this doesn't affect the real product (Super
+Admin's suspend/activate/archive routes all use the service-role client, RLS-exempt) and fixed the
+test to change status the same way the real system does. Full pgTAP now passes 254/254 (up from
+253, extended not just fixed).
+
+**Blocker 2 — Tax Pack showed "Sign in required" in demo mode.** TaxPackClient always called the
+real API with no demo branch; lib/demoMode.ts is server-only and can't be imported into a client
+component, so the parent Server Component now passes a `demoMode` prop down, matching the
+established pattern. CSV export (a live-only route) is visually disabled rather than left as a
+dead link in demo mode.
+
+**Blocker 3 — invite acceptance had no UI.** `POST /api/v1/organizations/invites/accept` existed
+and was already pgTAP-tested at the RPC level; nothing ever called it. Built `/invitations/accept`
+(public route, branches on token-present/signed-in/not-signed-in) + AcceptInviteClient. Also wired
+the "Team — Invite a team member" email (EMAIL.md §1's own approved catalogue entry, evidenced
+against PROPVIEW_SCREENSHOT_AUDIT.md) into the invite-creation route -- previously nothing sent the
+invitee anything, so they'd have no way to discover the token at all. Added a host-agnostic
+`getAppUrl()` helper for the link (no hosting platform chosen yet, same root gap as TD-20).
+
+No Android/mobile files touched. Verified per batch: typecheck/lint clean, full vitest (155/155
+after blocker 3), real `supabase db reset` + full pgTAP (254/254), real-browser check in both demo
+and live mode.
+
 ## 2026-08-03 — Login and organization onboarding
 
 The first thing anyone sees before the shell even exists. Both LoginForm and

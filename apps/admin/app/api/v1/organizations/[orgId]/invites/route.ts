@@ -1,7 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createOrganizationInviteSchema } from '@propvault/validation';
-import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { requireOrgRole } from '@/lib/portfolio';
+import { dispatchEmail } from '@/lib/emailDispatch';
+import { getAppUrl } from '@/lib/appUrl';
 
 type RouteParams = { params: Promise<{ orgId: string }> };
 
@@ -116,6 +118,32 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       { error: { code: 'invite_create_failed', message: error.message } },
       { status: 500 },
     );
+  }
+
+  // EMAIL.md §1's "Team — Invite a team member" catalogue entry (evidenced,
+  // PROPVIEW_SCREENSHOT_AUDIT.md line 637). Best-effort: an email failure must not fail invite
+  // creation itself — the invite row (and its token) is the source of truth; the admin can always
+  // re-share the link manually if the email never arrives. toUserId is null since the invitee has
+  // no account yet.
+  const { data: org } = await supabase.from('organizations').select('legal_name').eq('id', orgId).maybeSingle();
+  const serviceClient = getServiceRoleClient();
+  try {
+    await dispatchEmail(serviceClient, {
+      orgId,
+      toAddress: data.email,
+      toUserId: null,
+      templateName: 'member_invited',
+      templateVars: {
+        orgName: org?.legal_name ?? 'a PropertyVault organization',
+        role: data.role,
+        acceptUrl: `${getAppUrl()}/invitations/accept?token=${data.token}`,
+      },
+      relatedEntityType: 'organization_invites',
+      relatedEntityId: data.id,
+      actorUserId: user.id,
+    });
+  } catch {
+    // Swallow -- the invite itself succeeded and is returned below regardless.
   }
 
   return NextResponse.json(

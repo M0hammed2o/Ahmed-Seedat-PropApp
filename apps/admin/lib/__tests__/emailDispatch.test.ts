@@ -156,6 +156,25 @@ describeIfSupabase('dispatchEmail (real local Supabase integration)', () => {
     expect(result.sent).toBe(true);
   });
 
+  it('sends member_invited (Blocker #3, PWA_V1_COMPLETION_PLAN.md) for a real invite row', async () => {
+    const inviteId = crypto.randomUUID();
+    const result = await dispatchEmail(serviceClient, {
+      orgId,
+      toAddress: 'invitee@example.com',
+      toUserId: null,
+      templateName: 'member_invited',
+      templateVars: { orgName: 'Test Org', role: 'agent', acceptUrl: 'http://localhost:3000/invitations/accept?token=abc' },
+      relatedEntityType: 'organization_invites',
+      relatedEntityId: inviteId,
+      actorUserId: null,
+    });
+    expect(result.sent).toBe(true);
+
+    const { data } = await serviceClient.from('email_messages').select('*').eq('id', result.emailMessageId).single();
+    expect(data.template_name).toBe('member_invited');
+    expect(data.subject).toContain('Test Org');
+  });
+
   it('returns sent:false with reason "no_address" when the recipient has no email', async () => {
     const relatedEntityId = crypto.randomUUID();
     const result = await dispatchEmail(serviceClient, {
