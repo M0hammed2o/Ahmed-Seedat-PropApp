@@ -1,6 +1,7 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
+  AuditEvent,
   OrganizationStatus,
   PlatformDashboardMetrics,
   PlatformOrganizationDetail,
@@ -8,7 +9,7 @@ import type {
   SubscriptionPayment,
   SupportAccessSession,
 } from '@propvault/types';
-import { ORGANIZATION_STATUSES } from '@propvault/types';
+import { ORGANIZATION_STATUSES, USAGE_TYPES } from '@propvault/types';
 
 // Super Admin row mapping + read assembly (apps/admin/app/api/v1/admin/** -- SUPER_ADMIN.md,
 // TASKS.md M19). Every function here expects the SERVICE-ROLE client -- a platform admin is not
@@ -193,19 +194,42 @@ export async function getPlatformOrganizationDetail(
   if (orgError) throw new Error(`Failed to fetch organization: ${orgError.message}`);
   if (!org) return null;
 
-  const [subscriptionsByOrg, counts, usageResult, paymentsResult] = await Promise.all([
+  const monthStart = new Date();
+  monthStart.setUTCDate(1);
+  monthStart.setUTCHours(0, 0, 0, 0);
+
+  const [subscriptionsByOrg, counts, usageResult, currentEventsResult, paymentsResult, auditResult] = await Promise.all([
     fetchLatestSubscriptionsByOrg(client, [orgId]),
     fetchCountsByOrg(client, [orgId]),
     client.from('usage_snapshots').select('usage_type, period, total_quantity').eq('org_id', orgId).order('period', { ascending: false }).limit(20),
+    // usage_snapshots is empty for every org until the rollup job (TD-20) exists -- summed live
+    // from usage_events instead, same approach as lib/ai.ts's checkAiUsageCap().
+    client.from('usage_events').select('usage_type, quantity').eq('org_id', orgId).gte('recorded_at', monthStart.toISOString()),
     client
       .from('subscription_payments')
       .select('id, org_id, subscription_id, amount, currency, status, payment_method, provider_reference, paid_at, created_at')
       .eq('org_id', orgId)
       .order('created_at', { ascending: false })
       .limit(10),
+    // PWA_V1_COMPLETION_PLAN.md #14 -- audit_events existed with zero UI reading it anywhere.
+    client
+      .from('audit_events')
+      .select('id, org_id, actor_user_id, actor_type, action, entity_type, entity_id, before, after, ip_address, ai_conversation_id, ai_message_id, created_at')
+      .eq('org_id', orgId)
+      .order('created_at', { ascending: false })
+      .limit(20),
   ]);
   if (usageResult.error) throw new Error(`Failed to fetch usage_snapshots: ${usageResult.error.message}`);
+  if (currentEventsResult.error) throw new Error(`Failed to fetch usage_events: ${currentEventsResult.error.message}`);
   if (paymentsResult.error) throw new Error(`Failed to fetch subscription_payments: ${paymentsResult.error.message}`);
+  if (auditResult.error) throw new Error(`Failed to fetch audit_events: ${auditResult.error.message}`);
+
+  const currentPeriodTotals: Record<string, number> = {};
+  for (const t of USAGE_TYPES) currentPeriodTotals[t] = 0;
+  for (const row of currentEventsResult.data ?? []) {
+    const key = row.usage_type as string;
+    currentPeriodTotals[key] = (currentPeriodTotals[key] ?? 0) + (row.quantity as number);
+  }
 
   const subscription = subscriptionsByOrg.get(orgId);
   const plansById = subscription ? await fetchPlansById(client, [subscription.plan_id]) : new Map<string, PlanRow>();
@@ -223,7 +247,26 @@ export async function getPlatformOrganizationDetail(
       period: row.period as string,
       totalQuantity: row.total_quantity as number,
     })),
+    currentPeriodUsage: {
+      periodStart: monthStart.toISOString().slice(0, 10),
+      totals: currentPeriodTotals,
+    },
     recentPayments: (paymentsResult.data ?? []).map(mapSubscriptionPaymentRow),
+    recentAuditEvents: (auditResult.data ?? []).map((row) => ({
+      id: row.id,
+      orgId: row.org_id,
+      actorUserId: row.actor_user_id,
+      actorType: row.actor_type as AuditEvent['actorType'],
+      action: row.action,
+      entityType: row.entity_type,
+      entityId: row.entity_id,
+      before: row.before,
+      after: row.after,
+      ipAddress: row.ip_address,
+      aiConversationId: row.ai_conversation_id,
+      aiMessageId: row.ai_message_id,
+      createdAt: row.created_at,
+    })),
   };
 }
 

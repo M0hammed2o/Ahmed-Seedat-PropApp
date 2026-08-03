@@ -1,4 +1,5 @@
 import type { BillingCycle, OrganizationStatus, OrganizationType } from './enums';
+import type { AuditEvent } from './admin';
 
 // Super Admin domain types (SUPER_ADMIN.md, TASKS.md M19). Distinct from the client-org-facing
 // Organization type (organization.ts) -- these shapes are what the platform-admin-only
@@ -45,7 +46,13 @@ export interface PlatformOrganizationSummary {
 
 export interface PlatformOrganizationDetail extends PlatformOrganizationSummary {
   usage: Array<{ usageType: string; period: string; totalQuantity: number }>;
+  /** Real-time current-calendar-month totals summed directly from `usage_events`
+   *  (PWA_V1_COMPLETION_PLAN.md #13) -- `usage` above reads `usage_snapshots`, which stays empty
+   *  until the scheduled rollup job (TECHNICAL_DEBT_REGISTER.md TD-20) exists. */
+  currentPeriodUsage: { periodStart: string; totals: Record<string, number> };
   recentPayments: SubscriptionPayment[];
+  /** Most recent audit_events rows for this org (PWA_V1_COMPLETION_PLAN.md #14). */
+  recentAuditEvents: AuditEvent[];
 }
 
 export interface SupportAccessSession {

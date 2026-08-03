@@ -59,7 +59,7 @@ const columns: ColumnDef<CustomerRow, unknown>[] = [
   {
     header: 'Registered',
     accessorKey: 'createdAt',
-    cell: (info) => new Date(info.getValue() as string).toLocaleDateString(),
+    cell: (info) => new Date(info.getValue() as string).toLocaleDateString('en-ZA'),
   },
 ];
 

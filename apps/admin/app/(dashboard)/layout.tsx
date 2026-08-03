@@ -26,6 +26,7 @@ import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 import { AppShell, type HeaderNotification, type NavSection } from '@/components/shell/AppShell';
 import { navIcon } from '@/components/shell/navIcon';
+import { SupportModeBanner } from '@/components/organizations/SupportModeBanner';
 
 // Client-org-facing route group, matching ARCHITECTURE.md's "Why one web app, not two" naming
 // exactly (`app/(dashboard)/**` for client orgs, `app/(super-admin)/**` for platform staff).
@@ -94,6 +95,7 @@ export default async function PortalLayout({ children }: { children: React.React
         organizations: [{ orgId: 'demo-org-1', role: 'principal' as const, status: 'active' as const }],
         ownerIdentities: [],
         isPlatformAdmin: false,
+        supportSessions: [],
       }
     : await resolvePortalSession();
 
@@ -104,7 +106,14 @@ export default async function PortalLayout({ children }: { children: React.React
 
   const notifications: HeaderNotification[] = ADMIN_DEMO_MODE ? [] : await loadHeaderNotifications();
 
-  const canManageOrg = activeOrg.role === 'principal' || activeOrg.role === 'manager';
+  // A support-session-derived entry is never a real membership -- treat it as read-only
+  // regardless of the synthesized 'viewer' role (PWA_V1_COMPLETION_PLAN.md #12): hide the
+  // manage-org links entirely (UI-layer hiding is cosmetic, PATCH endpoints/RLS are the actual
+  // enforcement, but there's no reason to show a control that can only ever 403/be silently
+  // filtered).
+  const activeSupportSession = session.supportSessions.find((s) => s.orgId === activeOrg.orgId);
+  const supportSessionOrgName = activeSupportSession ? await loadOrgLegalName(activeOrg.orgId) : undefined;
+  const canManageOrg = !activeSupportSession && (activeOrg.role === 'principal' || activeOrg.role === 'manager');
   const accountMenuLinks = [
     { href: '/settings', label: 'Account settings' },
     ...(canManageOrg
@@ -119,14 +128,27 @@ export default async function PortalLayout({ children }: { children: React.React
     <AppShell
       productLabel="PropertyVault"
       navSections={NAV_SECTIONS}
-      identityLine={activeOrg.role.replace('_', ' ')}
+      identityLine={activeSupportSession ? 'support mode (read-only)' : activeOrg.role.replace('_', ' ')}
       demoBadge={ADMIN_DEMO_MODE}
       notifications={notifications}
       accountMenuLinks={accountMenuLinks}
+      banner={
+        activeSupportSession ? (
+          <SupportModeBanner session={activeSupportSession} orgName={supportSessionOrgName} />
+        ) : undefined
+      }
     >
       {children}
     </AppShell>
   );
+}
+
+// The org name for the support-mode banner -- RLS-visible via has_org_role()'s new support-session
+// branch (migration 20260101000057), so this plain caller-scoped read just works.
+async function loadOrgLegalName(orgId: string): Promise<string | undefined> {
+  const supabase = await getServerSupabaseClient();
+  const { data } = await supabase.from('organizations').select('legal_name').eq('id', orgId).maybeSingle();
+  return data?.legal_name;
 }
 
 // Small (limit 5), real, RLS-scoped to the caller's own rows (notifications_select_own) -- same

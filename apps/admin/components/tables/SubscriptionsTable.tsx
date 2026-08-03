@@ -69,7 +69,7 @@ const columns: ColumnDef<SubscriptionRow, unknown>[] = [
     header: 'Renews / expires',
     accessorKey: 'currentPeriodEnd',
     cell: (info) =>
-      info.getValue() ? new Date(info.getValue() as string).toLocaleDateString() : '—',
+      info.getValue() ? new Date(info.getValue() as string).toLocaleDateString('en-ZA') : '—',
   },
 ];
 

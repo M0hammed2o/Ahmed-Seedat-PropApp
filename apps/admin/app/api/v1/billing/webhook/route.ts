@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { RATE_LIMITS } from '@propvault/config';
 import { getServiceRoleClient } from '@/lib/supabase/server';
 import { processBillingWebhookEvent } from '@/lib/billing';
+import { rateLimitOrRespond, requestIp } from '@/lib/rateLimit';
 
 /**
  * POST /api/v1/billing/webhook -- the real gateway's own inbound webhook endpoint. Deliberately
@@ -13,10 +15,21 @@ import { processBillingWebhookEvent } from '@/lib/billing';
  * cause it to keep retrying forever.
  */
 export async function POST(request: NextRequest) {
+  const serviceClient = getServiceRoleClient();
+
+  // PWA_V1_COMPLETION_PLAN.md #19, TD-10: an unauthenticated endpoint has no user_id to key on,
+  // so this buckets by source IP -- a real gateway's retries come from a small, stable set of IPs
+  // and won't trip this; a flood/replay attempt will.
+  const limited = await rateLimitOrRespond(
+    serviceClient,
+    `billing-webhook:${requestIp(request)}`,
+    RATE_LIMITS.webhookRequestsPerMinute,
+    60,
+  );
+  if (limited) return limited;
+
   const rawBody = await request.text();
   const signatureHeader = request.headers.get('x-billing-signature');
-
-  const serviceClient = getServiceRoleClient();
 
   try {
     const result = await processBillingWebhookEvent(serviceClient, { rawBody, signatureHeader });

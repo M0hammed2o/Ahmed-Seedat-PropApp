@@ -154,7 +154,7 @@ export function BillingPanel({ orgId, currentUserRole }: { orgId: string; curren
             payments.map((p) => (
               <tr key={p.id} className="border-b border-light-border dark:border-dark-border">
                 <td className="py-1.5 text-light-textPrimary dark:text-dark-textPrimary">
-                  {new Date(p.createdAt).toLocaleDateString()}
+                  {new Date(p.createdAt).toLocaleDateString('en-ZA')}
                 </td>
                 <td className="py-1.5 text-light-textPrimary dark:text-dark-textPrimary">
                   {p.currency} {p.amount.toLocaleString('en-ZA')}

@@ -34,11 +34,23 @@ export interface OwnerIdentity {
 // TASKS.md M8. Adding an empty/always-null field now would be speculative; PortalSession gains
 // a `tenantIdentities` field in the same change that migration lands, not before.
 
+export interface ActiveSupportSession {
+  orgId: string;
+  sessionId: string;
+  startedAt: string;
+}
+
 export interface PortalSession {
   userId: string;
   organizations: OrgMembership[];
   ownerIdentities: OwnerIdentity[];
   isPlatformAdmin: boolean;
+  /** Every org the caller currently holds an open (ended_at is null) support session against
+   *  (PWA_V1_COMPLETION_PLAN.md #12, SUPER_ADMIN.md §6). Also synthesized into `organizations`
+   *  below as a viewer-role entry so every existing (dashboard) page works read-only without
+   *  each one needing its own support-mode branch -- this array exists separately so callers
+   *  (the banner, in particular) can tell a synthesized entry apart from a real membership. */
+  supportSessions: ActiveSupportSession[];
 }
 
 /**
@@ -59,9 +71,16 @@ export async function resolvePortalSession(): Promise<PortalSession | null> {
 
   if (!user) return null;
 
-  const [membershipsResult, ownersResult] = await Promise.all([
+  const [membershipsResult, ownersResult, supportSessionsResult] = await Promise.all([
     supabase.from('organization_members').select('org_id, role, status').eq('user_id', user.id),
     supabase.from('owners').select('id, org_id').eq('user_id', user.id),
+    // RLS-scoped to the caller's own rows (support_access_sessions_select_own, migration
+    // 20260101000057) -- zero rows for every non-admin caller, exactly like the platform-admin
+    // count query below. Ordinary users never pay for this beyond one extra empty-result query.
+    supabase
+      .from('support_access_sessions')
+      .select('id, org_id, started_at')
+      .is('ended_at', null),
   ]);
 
   if (membershipsResult.error) {
@@ -71,6 +90,9 @@ export async function resolvePortalSession(): Promise<PortalSession | null> {
   }
   if (ownersResult.error) {
     throw new Error(`Failed to resolve owner identities: ${ownersResult.error.message}`);
+  }
+  if (supportSessionsResult.error) {
+    throw new Error(`Failed to resolve support sessions: ${supportSessionsResult.error.message}`);
   }
 
   // Platform-admin status is checked via the existing is_platform_admin() pattern
@@ -85,18 +107,38 @@ export async function resolvePortalSession(): Promise<PortalSession | null> {
     .from('platform_admin_users')
     .select('id', { count: 'exact', head: true });
 
+  const organizations: OrgMembership[] = (membershipsResult.data ?? []).map((row) => ({
+    orgId: row.org_id as string,
+    role: row.role as OrganizationMemberRole,
+    status: row.status as 'invited' | 'active' | 'revoked',
+  }));
+
+  const supportSessions: ActiveSupportSession[] = (supportSessionsResult.data ?? []).map((row) => ({
+    orgId: row.org_id as string,
+    sessionId: row.id as string,
+    startedAt: row.started_at as string,
+  }));
+
+  // Synthesize a viewer-role membership for any support-session org the caller has no real
+  // membership in, so every existing (dashboard) page's `organizations.find(...)` keeps working
+  // unmodified (SUPER_ADMIN.md §6: "scoped as if they held the viewer org role"). Never
+  // overwrites a real membership if one somehow also exists (a platform admin who is also
+  // legitimately an org staff member keeps their real role, not a downgrade).
+  for (const s of supportSessions) {
+    if (!organizations.some((m) => m.orgId === s.orgId)) {
+      organizations.push({ orgId: s.orgId, role: 'viewer', status: 'active' });
+    }
+  }
+
   return {
     userId: user.id,
-    organizations: (membershipsResult.data ?? []).map((row) => ({
-      orgId: row.org_id as string,
-      role: row.role as OrganizationMemberRole,
-      status: row.status as 'invited' | 'active' | 'revoked',
-    })),
+    organizations,
     ownerIdentities: (ownersResult.data ?? []).map((row) => ({
       ownerId: row.id as string,
       orgId: row.org_id as string,
     })),
     isPlatformAdmin: (platformAdminCount ?? 0) > 0,
+    supportSessions,
   };
 }
 

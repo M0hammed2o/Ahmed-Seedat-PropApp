@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
+import { RATE_LIMITS } from '@propvault/config';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { rateLimitOrRespond } from '@/lib/rateLimit';
 
 const acceptInviteSchema = z.object({ token: z.string().uuid('Invalid invite token.') });
 
@@ -25,6 +27,14 @@ export async function POST(request: NextRequest) {
       { status: 401 },
     );
   }
+
+  const limited = await rateLimitOrRespond(
+    supabase,
+    `invite-accept:${user.id}`,
+    RATE_LIMITS.inviteAcceptAttemptsPerMinute,
+    60,
+  );
+  if (limited) return limited;
 
   let body: unknown;
   try {

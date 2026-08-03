@@ -56,6 +56,9 @@ export interface AppShellProps {
   notifications?: HeaderNotification[];
   notificationsHref?: string;
   accountMenuLinks?: AccountMenuLink[];
+  /** Persistent, non-dismissible strip rendered above everything else, e.g. SupportModeBanner
+   *  (SECURITY.md: "banner-visible, never silent... a hard requirement, not a nice-to-have"). */
+  banner?: ReactNode;
   children: React.ReactNode;
 }
 
@@ -110,6 +113,7 @@ export function AppShell({
   notifications = [],
   notificationsHref = '/notifications',
   accountMenuLinks = [],
+  banner,
   children,
 }: AppShellProps) {
   const pathname = usePathname();
@@ -164,7 +168,9 @@ export function AppShell({
   }
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen flex-col">
+      {banner ? <div className="sticky top-0 z-50 print:hidden">{banner}</div> : null}
+      <div className="flex min-h-0 flex-1">
       {/* Mobile top bar: <md only -- the icon rail takes over from md upward. print:hidden on
           every chrome element below (top bar, both sidebars) -- lets any (dashboard) page double
           as a clean print/save-as-PDF view (e.g. Owner Statements) with zero extra route needed. */}
@@ -311,6 +317,7 @@ export function AppShell({
         </header>
 
         <main className="min-w-0 flex-1 px-5 py-6 pt-20 md:px-8 md:py-8 md:pt-8 print:p-0">{children}</main>
+      </div>
       </div>
     </div>
   );

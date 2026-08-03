@@ -1,10 +1,14 @@
 import { notFound } from 'next/navigation';
 import { ORGANIZATION_STATUS_PRESENTATION } from '@propvault/ui';
 import { requireRole } from '@/lib/auth';
+import { isRoleAtLeast } from '@/lib/roleRank';
 import { getServiceRoleClient } from '@/lib/supabase/server';
 import { getPlatformOrganizationDetail } from '@/lib/superAdmin';
 import { OrganizationActionsPanel } from '@/components/organizations/OrganizationActionsPanel';
 import { BillingPanel } from '@/components/organizations/BillingPanel';
+import { SupportSessionControl } from '@/components/organizations/SupportSessionControl';
+import { UsagePanel } from '@/components/organizations/UsagePanel';
+import { AuditLogPanel } from '@/components/organizations/AuditLogPanel';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 import { DEMO_CUSTOMERS } from '@/lib/demo/adminMockData';
@@ -148,14 +152,11 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
 
       <BillingPanel orgId={detail.orgId} currentUserRole={session.role} />
 
-      <p className="mt-4 text-xs text-light-textMuted dark:text-dark-textMuted">
-        Support-session entry is built (TASKS.md M19) but deliberately not wired to this page yet —
-        the session lifecycle (reason, audit trail, start/end) is real, but the read-only-by-default
-        scoping and per-write escalation `SUPER_ADMIN.md` §6 requires has no enforcement mechanism
-        built (no RLS/API-layer check anywhere grants a platform admin viewer-equivalent access to a
-        target org). Surfacing a "start support session" control before that exists would imply a
-        access boundary this system doesn't actually enforce yet.
-      </p>
+      <UsagePanel periodStart={detail.currentPeriodUsage.periodStart} totals={detail.currentPeriodUsage.totals} />
+
+      <AuditLogPanel events={detail.recentAuditEvents} />
+
+      <SupportSessionControl orgId={detail.orgId} canStart={isRoleAtLeast(session.role, 'support_admin')} />
     </div>
   );
 }
