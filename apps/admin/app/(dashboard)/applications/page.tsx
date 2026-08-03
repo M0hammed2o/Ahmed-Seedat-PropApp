@@ -1,5 +1,5 @@
 import type { Application } from '@propvault/types';
-import { ApplicationsTable } from '@/components/tables/ApplicationsTable';
+import { ApplicationsFilterClient } from '@/components/tables/ApplicationsFilterClient';
 import { AdminMetricCard } from '@/components/ui/AdminMetricCard';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
@@ -57,7 +57,7 @@ export default async function ApplicationsPage() {
         <AdminMetricCard label="Withdrawn" value={withdrawn} />
       </div>
 
-      <ApplicationsTable data={applications} />
+      <ApplicationsFilterClient applications={applications} />
     </div>
   );
 }

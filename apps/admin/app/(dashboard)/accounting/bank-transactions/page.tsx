@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { BankTransaction, RentSchedule } from '@propvault/types';
-import { BankTransactionsTable } from '@/components/tables/BankTransactionsTable';
+import { BankTransactionsFilterClient } from '@/components/tables/BankTransactionsFilterClient';
 import { AdminMetricCard } from '@/components/ui/AdminMetricCard';
 import { Button } from '@/components/ui/Button';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -67,7 +67,7 @@ export default async function BankTransactionsPage() {
         <AdminMetricCard label="Matched" value={matched} />
       </div>
 
-      <BankTransactionsTable data={transactions} canPost={canPost} rentScheduleCandidates={candidates} />
+      <BankTransactionsFilterClient transactions={transactions} canPost={canPost} rentScheduleCandidates={candidates} />
     </div>
   );
 }

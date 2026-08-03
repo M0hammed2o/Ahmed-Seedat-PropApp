@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { DocumentRecord } from '@propvault/types';
-import { DocumentsTable } from '@/components/tables/DocumentsTable';
+import { DocumentsFilterClient } from '@/components/tables/DocumentsFilterClient';
 import { Button } from '@/components/ui/Button';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
@@ -52,7 +52,7 @@ export default async function DocumentsPage() {
         subtitle={`${documents.length} across your portfolio.`}
         actions={canWrite && documents.length > 0 ? addAction : undefined}
       />
-      <DocumentsTable data={documents} emptyAction={canWrite ? addAction : undefined} />
+      <DocumentsFilterClient documents={documents} emptyAction={canWrite ? addAction : undefined} />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { Owner } from '@propvault/types';
-import { OwnersTable } from '@/components/tables/OwnersTable';
+import { OwnersFilterClient } from '@/components/tables/OwnersFilterClient';
 import { Button } from '@/components/ui/Button';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
@@ -51,7 +51,7 @@ export default async function OwnersPage() {
         subtitle={`${owners.length} ${owners.length === 1 ? 'owner' : 'owners'} across your portfolio.`}
         actions={canCreate && owners.length > 0 ? addAction : undefined}
       />
-      <OwnersTable data={owners} emptyAction={canCreate ? addAction : undefined} />
+      <OwnersFilterClient owners={owners} emptyAction={canCreate ? addAction : undefined} />
     </div>
   );
 }

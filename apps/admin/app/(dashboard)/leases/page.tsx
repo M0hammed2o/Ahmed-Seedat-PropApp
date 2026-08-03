@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapLeaseRow } from '@/lib/leasing';
-import { LeasesTable, type LeaseRow } from '@/components/tables/LeasesTable';
+import { type LeaseRow } from '@/components/tables/LeasesTable';
+import { LeasesFilterClient } from '@/components/tables/LeasesFilterClient';
 import { AdminMetricCard } from '@/components/ui/AdminMetricCard';
 import { Button } from '@/components/ui/Button';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -59,9 +60,8 @@ export default async function LeasesPage() {
         <AdminMetricCard label="Draft" value={draft} />
       </div>
 
-      <LeasesTable
-        data={leases}
-        showUnit
+      <LeasesFilterClient
+        leases={leases}
         emptyMessage="No leases yet"
         emptyAction={leases.length === 0 ? addAction : undefined}
       />

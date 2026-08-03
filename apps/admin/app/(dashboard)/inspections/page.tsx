@@ -1,5 +1,5 @@
 import type { Inspection } from '@propvault/types';
-import { InspectionsTable } from '@/components/tables/InspectionsTable';
+import { InspectionsFilterClient } from '@/components/tables/InspectionsFilterClient';
 import { AdminMetricCard } from '@/components/ui/AdminMetricCard';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
@@ -50,7 +50,7 @@ export default async function InspectionsPage() {
         <AdminMetricCard label="Completed" value={completed} />
       </div>
 
-      <InspectionsTable data={inspections} />
+      <InspectionsFilterClient inspections={inspections} />
     </div>
   );
 }

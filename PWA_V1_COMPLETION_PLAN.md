@@ -13,7 +13,7 @@ Severity: **Blocker** (breaks a mandatory end-to-end workflow or a real security
 | 3 | **Invite acceptance UI** | `POST /api/v1/organizations/[orgId]/invites` and `.../invites/accept` exist. No page renders an accept-invite screen — an invited staff member has no way to accept via the web. | None | New page `/invitations/[token]` or query-param based | Confirm/decline UI, real submit to existing endpoint | Manual invite→accept→membership-active flow against local Supabase | **Blocker** (workflow #3 in the mandatory list is unachievable without it) | No |
 | 4 | **Password reset / forgot password** | No route, no form, anywhere. Supabase Auth supports it natively (`resetPasswordForEmail` / recovery link). | None (Supabase Auth feature) | `/login` "Forgot password?" link → `/forgot-password` → `/reset-password` | Real Supabase Auth call, no mock | Manual flow against local Supabase Auth | **Blocker** (named explicitly: "forgot password; password reset") | No |
 | 5 | **Not-found / permission-denied pages** | `app/error.tsx`/`app/global-error.tsx` exist (from the earlier CSP fix). No `not-found.tsx` anywhere (falls to Next's unbranded default). No dedicated permission-denied state — pages that gate access currently just render a plain sentence inline (e.g. Tax Pack's "Only accountant... roles"). | Root `not-found.tsx`; a small shared `PermissionDenied` component for the inline-sentence call sites | None | 2 small files | Visual check, 404 route, one gated page | **Pilot** | No |
-| 6 | **Search/filter coverage** | Only Properties and Units have a search box (added in the Lovable-integration pass). Owners, Tenants, Leases, Applications, Documents, Maintenance, Inspections, Rent Due, Expenses, Bank Transactions, Notifications, Super Admin Organizations/Subscriptions have none. | Client-side filter (same pattern as `UnitsFilterClient`) for every list above — all are currently small-N org-scoped datasets, server-side/trigram search (TD-19) is unjustified until real row counts exist. | None for client-side; `pg_trgm` indexes deferred (TD-19, correctly — no query would use them yet) | One filter client component per list, reusing the existing pattern | Typecheck/lint/test per batch | **Pilot** | No |
+| 6 | **Search/filter coverage** | ~~Only Properties and Units have a search box~~ **Closed 2026-08-03**: all 12 remaining lists now have client-side search (Owners, Tenants, Leases, Applications, Documents, Maintenance, Inspections, Rent Due, Expenses, Bank Transactions, Notifications, Super Admin Organizations/Subscriptions). Built as a shared `useListSearch` hook + `SearchBar` component (extracted rather than 12 copies of `UnitsFilterClient`'s markup, since a Server Component page can't pass a render-prop function to a Client Component — functions aren't serializable across that boundary) with one thin `*FilterClient` wrapper per list. | — | None for client-side; `pg_trgm` indexes still deferred (TD-19, correctly — no query would use them yet) | 12 `*FilterClient` components + `lib/useListSearch.ts` + `components/ui/SearchBar.tsx` | Typecheck/lint/full vitest (155/155) clean; real-browser check in demo mode confirmed narrow-to-empty-state and clear-restores-list on Owners, Tenants, Applications, Notifications, Maintenance, Rent Due | **Pilot** | No |
 | 7 | **User settings** | No `/settings` or `/account` route exists at all. | `email_change`/`password` via Supabase Auth; notification preferences already exist at `/notifications/preferences` (just needs linking in) | New page: name/email/password change, link to existing notification preferences | Real Supabase Auth calls | Manual flow | **Pilot** | No |
 | 8 | **Organization settings** | No settings page. `organizations` table has `legal_name`, but VAT/registration/banking/contact fields — need a schema check before claiming "missing" vs "exists but no UI." | TBD after schema check | Settings form + `PATCH /api/v1/organizations/:id` | Real update, RLS-gated to principal | Manual flow, role-gate test | **Pilot** | No |
 | 9 | **Lease templates** | No table, no API, no UI, no mention anywhere in the codebase. Full V1-scope feature per this instruction (upload, default, replace/archive, version history, don't overwrite executed leases, audit). | New table + storage convention (reuses `documents`' org-scoped bucket pattern) | New settings sub-page + picker in lease-create flow | Full CRUD test + a real lease-create using a template | **Pilot** | No |
@@ -38,18 +38,18 @@ Severity: **Blocker** (breaks a mandatory end-to-end workflow or a real security
 Closed and verified: **#1** (org status RLS), **#2** (Tax Pack demo fix), **#3** (invite
 acceptance), **#4** (password reset — surfaced and fixed two additional real bugs along the way:
 a CSP `connect-src` gap blocking all client-side Supabase calls against local Supabase, and a
-missing PKCE `exchangeCodeForSession()` call), **#5** (not-found + PermissionDenied), **#24**
-(TD-27 correction). Each closed with a focused commit, full verification (typecheck/lint/full
-vitest/pgTAP where relevant/real-browser), and updated tracking docs.
+missing PKCE `exchangeCodeForSession()` call), **#5** (not-found + PermissionDenied), **#6**
+(search/filter coverage — all 12 remaining lists), **#24** (TD-27 correction). Each closed with a
+focused commit, full verification (typecheck/lint/full vitest/pgTAP where relevant/real-browser),
+and updated tracking docs.
 
-Still open: **#6** (search/filter — only Properties/Units have it), **#7–#11** (user settings, org
-settings, lease templates, tenant My Documents/Profile — none exist), **#12–#14** (support-session
-enforcement, usage metering UI, audit log UI — all Super Admin), **#19** (rate limiting). **#15–18,
-20, 22–23** remain Deferred/External as originally classified. The 22 mandatory end-to-end
-workflows: #1–2 (sign in, create org), #3 (invite staff — now provable), and #20–21 (suspend/
-restore, cross-org isolation — now provable via the pgTAP suite) are covered by this phase's work;
-the remainder are covered by earlier sessions' functional-completion work but not yet re-walked
-end-to-end in one pass.
+Still open: **#7–#11** (user settings, org settings, lease templates, tenant My Documents/Profile
+— none exist), **#12–#14** (support-session enforcement, usage metering UI, audit log UI — all
+Super Admin), **#19** (rate limiting). **#15–18, 20, 22–23** remain Deferred/External as originally
+classified. The 22 mandatory end-to-end workflows: #1–2 (sign in, create org), #3 (invite staff —
+now provable), and #20–21 (suspend/restore, cross-org isolation — now provable via the pgTAP
+suite) are covered by this phase's work; the remainder are covered by earlier sessions'
+functional-completion work but not yet re-walked end-to-end in one pass.
 
 ## Execution order for this phase
 

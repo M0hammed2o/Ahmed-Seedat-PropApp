@@ -1,4 +1,5 @@
-import { SubscriptionsTable, type SubscriptionRow } from '@/components/tables/SubscriptionsTable';
+import { type SubscriptionRow } from '@/components/tables/SubscriptionsTable';
+import { SubscriptionsFilterClient } from '@/components/tables/SubscriptionsFilterClient';
 import { requireRole } from '@/lib/auth';
 import { getServiceRoleClient } from '@/lib/supabase/server';
 import { listPlatformOrganizations } from '@/lib/superAdmin';
@@ -55,7 +56,7 @@ export default async function SubscriptionsPage() {
         here — see DECISIONS.md.
       </p>
       <div className="mt-6">
-        <SubscriptionsTable data={data} />
+        <SubscriptionsFilterClient subscriptions={data} />
       </div>
     </div>
   );

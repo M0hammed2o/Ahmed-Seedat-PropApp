@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { Tenant } from '@propvault/types';
-import { TenantsTable } from '@/components/tables/TenantsTable';
+import { TenantsFilterClient } from '@/components/tables/TenantsFilterClient';
 import { Button } from '@/components/ui/Button';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
@@ -47,7 +47,7 @@ export default async function TenantsPage() {
         subtitle={`${tenants.length} ${tenants.length === 1 ? 'tenant' : 'tenants'} across your portfolio.`}
         actions={canCreate && tenants.length > 0 ? addAction : undefined}
       />
-      <TenantsTable data={tenants} emptyAction={canCreate ? addAction : undefined} />
+      <TenantsFilterClient tenants={tenants} emptyAction={canCreate ? addAction : undefined} />
     </div>
   );
 }

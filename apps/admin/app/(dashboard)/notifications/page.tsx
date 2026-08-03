@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { AppNotification } from '@propvault/types';
-import { NotificationsList } from '@/components/notifications/NotificationsList';
+import { NotificationsFilterClient } from '@/components/notifications/NotificationsFilterClient';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapNotificationRow } from '@/lib/notifications';
@@ -45,7 +45,7 @@ export default async function NotificationsPage() {
         }
       />
 
-      <NotificationsList notifications={notifications} />
+      <NotificationsFilterClient notifications={notifications} />
     </div>
   );
 }

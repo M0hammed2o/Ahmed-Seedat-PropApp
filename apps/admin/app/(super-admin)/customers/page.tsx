@@ -1,4 +1,5 @@
-import { CustomersTable, type CustomerRow } from '@/components/tables/CustomersTable';
+import { type CustomerRow } from '@/components/tables/CustomersTable';
+import { CustomersFilterClient } from '@/components/tables/CustomersFilterClient';
 import { requireRole } from '@/lib/auth';
 import { getServiceRoleClient } from '@/lib/supabase/server';
 import { listPlatformOrganizations } from '@/lib/superAdmin';
@@ -55,7 +56,7 @@ export default async function CustomersPage() {
       </p>
 
       <div className="mt-6">
-        <CustomersTable data={customers} />
+        <CustomersFilterClient customers={customers} />
       </div>
     </div>
   );

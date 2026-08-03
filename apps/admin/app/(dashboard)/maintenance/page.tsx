@@ -1,5 +1,5 @@
 import type { MaintenanceTicket } from '@propvault/types';
-import { MaintenanceBoard } from '@/components/maintenance/MaintenanceBoard';
+import { MaintenanceFilterClient } from '@/components/maintenance/MaintenanceFilterClient';
 import { AdminMetricCard } from '@/components/ui/AdminMetricCard';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
@@ -55,7 +55,7 @@ export default async function MaintenancePage() {
         <AdminMetricCard label="Completed" value={completed} />
       </div>
 
-      <MaintenanceBoard tickets={tickets} />
+      <MaintenanceFilterClient tickets={tickets} />
     </div>
   );
 }

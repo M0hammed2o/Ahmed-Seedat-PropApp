@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { Expense } from '@propvault/types';
-import { ExpensesTable } from '@/components/tables/ExpensesTable';
+import { ExpensesFilterClient } from '@/components/tables/ExpensesFilterClient';
 import { AdminMetricCard } from '@/components/ui/AdminMetricCard';
 import { Button } from '@/components/ui/Button';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -58,7 +58,7 @@ export default async function ExpensesPage() {
         <AdminMetricCard label="Recorded" value={recorded} />
       </div>
 
-      <ExpensesTable data={expenses} emptyAction={canPost ? addAction : undefined} />
+      <ExpensesFilterClient expenses={expenses} emptyAction={canPost ? addAction : undefined} />
     </div>
   );
 }
