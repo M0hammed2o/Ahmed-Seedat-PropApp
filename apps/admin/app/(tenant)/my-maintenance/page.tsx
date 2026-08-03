@@ -4,6 +4,7 @@ import { MAINTENANCE_STATUS_PRESENTATION, MAINTENANCE_PRIORITY_PRESENTATION } fr
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapMaintenanceTicketRow } from '@/lib/operations';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
@@ -33,56 +34,54 @@ const DEMO_TICKETS: MaintenanceTicket[] = [
 export default async function MyMaintenancePage() {
   const tickets = ADMIN_DEMO_MODE ? DEMO_TICKETS : await loadTickets();
 
+  const addAction = (
+    <Link href="/my-maintenance/new">
+      <Button variant="primary" size="sm">
+        + Submit request
+      </Button>
+    </Link>
+  );
+
   return (
-    <div>
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">My Maintenance</h1>
-          <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
-            Requests you've submitted about your home.
-          </p>
-        </div>
-        <Link href="/my-maintenance/new">
-          <Button variant="primary" size="sm">
-            + Submit request
-          </Button>
-        </Link>
-      </div>
+    <div className="space-y-5 animate-rise">
+      <PageHeader
+        title="My Maintenance"
+        subtitle="Requests you've submitted about your home."
+        actions={addAction}
+      />
 
       {tickets.length === 0 ? (
-        <div className="mt-6">
-          <EmptyState
-            icon={<span className="text-lg">🔧</span>}
-            title="No maintenance requests yet"
-            action={
-              <Link href="/my-maintenance/new">
-                <Button size="sm">+ Submit request</Button>
-              </Link>
-            }
-          />
-        </div>
+        <EmptyState
+          icon={<span className="text-lg">🔧</span>}
+          title="No maintenance requests yet"
+          action={
+            <Link href="/my-maintenance/new">
+              <Button size="sm">+ Submit request</Button>
+            </Link>
+          }
+        />
       ) : (
-        <div className="mt-6 overflow-x-auto rounded-lg border border-light-border dark:border-dark-border">
+        <div className="overflow-x-auto rounded-card border border-light-border bg-light-surfaceRaised shadow-card dark:border-dark-border dark:bg-dark-surfaceRaised">
           <table className="w-full text-left text-sm">
-            <thead className="border-b border-light-border bg-light-surfaceRaised dark:border-dark-border dark:bg-dark-surfaceRaised">
+            <thead className="border-b border-light-border bg-light-surfaceStrong dark:border-dark-border dark:bg-dark-surfaceStrong">
               <tr>
-                <th className="px-4 py-2 font-medium text-light-textMuted dark:text-dark-textMuted">Summary</th>
-                <th className="px-4 py-2 font-medium text-light-textMuted dark:text-dark-textMuted">Priority</th>
-                <th className="px-4 py-2 font-medium text-light-textMuted dark:text-dark-textMuted">Status</th>
-                <th className="px-4 py-2 font-medium text-light-textMuted dark:text-dark-textMuted">Submitted</th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Summary</th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Priority</th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Status</th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Submitted</th>
               </tr>
             </thead>
             <tbody>
               {tickets.map((t) => (
                 <tr key={t.id} className="border-b border-light-border last:border-0 dark:border-dark-border">
-                  <td className="px-4 py-2 text-light-textPrimary dark:text-dark-textPrimary">{t.summary}</td>
-                  <td className="px-4 py-2">
+                  <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">{t.summary}</td>
+                  <td className="px-4 py-3">
                     <StatusBadge presentation={MAINTENANCE_PRIORITY_PRESENTATION[t.priority]} />
                   </td>
-                  <td className="px-4 py-2">
+                  <td className="px-4 py-3">
                     <StatusBadge presentation={MAINTENANCE_STATUS_PRESENTATION[t.status]} />
                   </td>
-                  <td className="px-4 py-2 text-light-textPrimary dark:text-dark-textPrimary">
+                  <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">
                     {t.createdAt.slice(0, 10)}
                   </td>
                 </tr>

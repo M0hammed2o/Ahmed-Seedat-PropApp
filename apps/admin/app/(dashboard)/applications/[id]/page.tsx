@@ -6,6 +6,8 @@ import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapApplicationRow } from '@/lib/leasing';
 import { resolvePortalSession, findActiveMembership } from '@/lib/orgSession';
 import { StatusBadge } from '@/components/ui/StatusBadge';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { Panel } from '@/components/ui/Panel';
 import { ApplicationActions } from '@/components/applications/ApplicationActions';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
@@ -55,31 +57,34 @@ export default async function ApplicationDetailPage({ params }: RouteParams) {
 
 function ApplicationDetailView({ application, canAct }: { application: Application; canAct: boolean }) {
   return (
-    <div>
-      <Link
-        href={`/properties/${application.propertyId}/units/${application.unitId}`}
-        className="text-xs text-light-textSecondary hover:underline dark:text-dark-textSecondary"
-      >
-        ← Back to unit
-      </Link>
-
-      <div className="mt-2 flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">
-          {application.applicantName}
-        </h1>
-        <StatusBadge presentation={APPLICATION_STATUS_PRESENTATION[application.status]} />
+    <div className="space-y-6 animate-rise">
+      <div>
+        <Link
+          href={`/properties/${application.propertyId}/units/${application.unitId}`}
+          className="text-xs text-light-textSecondary hover:underline dark:text-dark-textSecondary"
+        >
+          ← Back to unit
+        </Link>
+        <div className="mt-2">
+          <PageHeader
+            title={application.applicantName}
+            actions={<StatusBadge presentation={APPLICATION_STATUS_PRESENTATION[application.status]} />}
+          />
+        </div>
       </div>
 
-      <dl className="mt-6 grid grid-cols-2 gap-4 text-sm lg:grid-cols-4">
-        <div>
-          <dt className="text-light-textMuted dark:text-dark-textMuted">Email</dt>
-          <dd className="text-light-textPrimary dark:text-dark-textPrimary">{application.applicantEmail ?? '—'}</dd>
-        </div>
-        <div>
-          <dt className="text-light-textMuted dark:text-dark-textMuted">Phone</dt>
-          <dd className="text-light-textPrimary dark:text-dark-textPrimary">{application.applicantPhone ?? '—'}</dd>
-        </div>
-      </dl>
+      <Panel title="Applicant details">
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-5 text-sm lg:grid-cols-4">
+          <div>
+            <dt className="text-light-textMuted dark:text-dark-textMuted">Email</dt>
+            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">{application.applicantEmail ?? '—'}</dd>
+          </div>
+          <div>
+            <dt className="text-light-textMuted dark:text-dark-textMuted">Phone</dt>
+            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">{application.applicantPhone ?? '—'}</dd>
+          </div>
+        </dl>
+      </Panel>
 
       <ApplicationActions application={application} canAct={canAct} />
     </div>

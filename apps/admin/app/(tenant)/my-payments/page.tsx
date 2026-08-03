@@ -3,6 +3,7 @@ import { RENT_SCHEDULE_STATUS_PRESENTATION } from '@propvault/ui';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { AdminMetricCard } from '@/components/ui/AdminMetricCard';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapRentScheduleRow } from '@/lib/leasing';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
@@ -36,28 +37,23 @@ export default async function MyPaymentsPage() {
     .reduce((sum, r) => sum + Number(r.amount), 0);
 
   return (
-    <div>
-      <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">My Payments</h1>
-      <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
-        Your rent payment schedule and history.
-      </p>
+    <div className="space-y-5 animate-rise">
+      <PageHeader title="My Payments" subtitle="Your rent payment schedule and history." />
 
-      <div className="mt-6 max-w-xs">
+      <div className="max-w-xs">
         <AdminMetricCard label="Outstanding balance" value={`R${outstanding.toLocaleString('en-ZA')}`} />
       </div>
 
       {rentSchedules.length === 0 ? (
-        <div className="mt-6">
-          <EmptyState icon={<span className="text-lg">💵</span>} title="No payment schedule yet" />
-        </div>
+        <EmptyState icon={<span className="text-lg">💵</span>} title="No payment schedule yet" />
       ) : (
-        <div className="mt-6 overflow-x-auto rounded-lg border border-light-border dark:border-dark-border">
+        <div className="overflow-x-auto rounded-card border border-light-border bg-light-surfaceRaised shadow-card dark:border-dark-border dark:bg-dark-surfaceRaised">
           <table className="w-full text-left text-sm">
-            <thead className="border-b border-light-border bg-light-surfaceRaised dark:border-dark-border dark:bg-dark-surfaceRaised">
+            <thead className="border-b border-light-border bg-light-surfaceStrong dark:border-dark-border dark:bg-dark-surfaceStrong">
               <tr>
-                <th className="px-4 py-2 font-medium text-light-textMuted dark:text-dark-textMuted">Due date</th>
-                <th className="px-4 py-2 font-medium text-light-textMuted dark:text-dark-textMuted">Amount</th>
-                <th className="px-4 py-2 font-medium text-light-textMuted dark:text-dark-textMuted">Status</th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Due date</th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Amount</th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Status</th>
               </tr>
             </thead>
             <tbody>
@@ -66,11 +62,11 @@ export default async function MyPaymentsPage() {
                 .sort((a, b) => b.dueDate.localeCompare(a.dueDate))
                 .map((r) => (
                   <tr key={r.id} className="border-b border-light-border last:border-0 dark:border-dark-border">
-                    <td className="px-4 py-2 text-light-textPrimary dark:text-dark-textPrimary">{r.dueDate}</td>
-                    <td className="px-4 py-2 text-light-textPrimary dark:text-dark-textPrimary">
+                    <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">{r.dueDate}</td>
+                    <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">
                       R{Number(r.amount).toLocaleString('en-ZA')}
                     </td>
-                    <td className="px-4 py-2">
+                    <td className="px-4 py-3">
                       <StatusBadge presentation={RENT_SCHEDULE_STATUS_PRESENTATION[r.status]} />
                     </td>
                   </tr>

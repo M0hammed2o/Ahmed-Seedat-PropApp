@@ -4,6 +4,8 @@ import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import type { MaintenancePriority } from '@propvault/types';
 import { Button } from '@/components/ui/Button';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { Panel } from '@/components/ui/Panel';
 
 const inputClass =
   'mt-1 block w-full rounded-md border border-light-border bg-transparent px-3 py-2 text-sm text-light-textPrimary dark:border-dark-border dark:text-dark-textPrimary';
@@ -41,11 +43,11 @@ export function TenantMaintenanceTicketForm() {
   }
 
   return (
-    <div>
-      <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">
-        Submit a maintenance request
-      </h1>
-      <form onSubmit={handleSubmit} className="mt-6 max-w-xl space-y-4">
+    <div className="space-y-6 animate-rise">
+      <PageHeader title="Submit a maintenance request" />
+
+      <Panel className="max-w-xl">
+      <form onSubmit={handleSubmit} className="space-y-4">
         {error ? (
           <p className="rounded-md border border-light-danger bg-light-danger/10 px-3 py-2 text-xs text-light-danger dark:border-dark-danger dark:bg-dark-danger/10 dark:text-dark-danger">
             {error}
@@ -94,6 +96,7 @@ export function TenantMaintenanceTicketForm() {
           </Button>
         </div>
       </form>
+      </Panel>
     </div>
   );
 }

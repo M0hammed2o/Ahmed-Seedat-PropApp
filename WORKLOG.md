@@ -1,5 +1,20 @@
 # Worklog
 
+## 2026-08-03 — Applications (V1) and Tenant Portal
+
+Applications list and detail pages, and the whole Tenant Portal (My Lease, My Payments, My
+Maintenance + its submit form, Notices) moved onto PageHeader/Panel and the rounded-card table
+chrome. Confirmed the tenant portal's own AppShell layout (a separate, deliberately un-merged
+identity system from org staff -- PERMISSIONS.md's "never merge role systems") already passes
+through demoBadge and renders the shared header correctly with no identityLine (falls back to a
+generic "User" avatar). No changes to the simplified V1 application-review workflow itself or to
+tenant-portal authorization -- purely presentational.
+
+No backend/API/schema changes. Verified: typecheck/lint clean, full vitest 153/153 (including
+TenantMaintenanceTicketForm.test.tsx unmodified and still green), real next build clean,
+real-browser check across all 7 pages light + My Lease dark -- zero console errors beyond the
+pre-existing favicon 404.
+
 ## 2026-08-03 — Reports, Notifications, and Announcements
 
 Reports' local ReportCard component (flat rounded-lg border) replaced outright with Panel -- same

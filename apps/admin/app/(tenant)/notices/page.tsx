@@ -1,6 +1,7 @@
 import type { Announcement } from '@propvault/types';
 import { NoticesList } from '@/components/tenant-portal/NoticesList';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapAnnouncementRow } from '@/lib/notifications';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
@@ -26,20 +27,13 @@ export default async function NoticesPage() {
     : await loadNotices();
 
   return (
-    <div>
-      <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">Notices</h1>
-      <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
-        Announcements from your landlord or property manager.
-      </p>
+    <div className="space-y-5 animate-rise">
+      <PageHeader title="Notices" subtitle="Announcements from your landlord or property manager." />
 
       {announcements.length === 0 ? (
-        <div className="mt-6">
-          <EmptyState icon={<span className="text-lg">📣</span>} title="No notices yet" />
-        </div>
+        <EmptyState icon={<span className="text-lg">📣</span>} title="No notices yet" />
       ) : (
-        <div className="mt-6">
-          <NoticesList announcements={announcements} acknowledgedIds={acknowledgedIds} />
-        </div>
+        <NoticesList announcements={announcements} acknowledgedIds={acknowledgedIds} />
       )}
     </div>
   );

@@ -1,6 +1,7 @@
 import type { Application } from '@propvault/types';
 import { ApplicationsTable } from '@/components/tables/ApplicationsTable';
 import { AdminMetricCard } from '@/components/ui/AdminMetricCard';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapApplicationRow } from '@/lib/leasing';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
@@ -43,22 +44,20 @@ export default async function ApplicationsPage() {
   const withdrawn = applications.filter((a) => a.status === 'withdrawn').length;
 
   return (
-    <div>
-      <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">Applications</h1>
-      <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
-        Every rental application across your portfolio. Applications are submitted from a unit.
-      </p>
+    <div className="space-y-5 animate-rise">
+      <PageHeader
+        title="Applications"
+        subtitle="Every rental application across your portfolio. Applications are submitted from a unit."
+      />
 
-      <div className="mt-6 grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-4 gap-4">
         <AdminMetricCard label="New" value={newCount} />
         <AdminMetricCard label="Reviewing" value={reviewing} />
         <AdminMetricCard label="Decided" value={decided} />
         <AdminMetricCard label="Withdrawn" value={withdrawn} />
       </div>
 
-      <div className="mt-6">
-        <ApplicationsTable data={applications} />
-      </div>
+      <ApplicationsTable data={applications} />
     </div>
   );
 }

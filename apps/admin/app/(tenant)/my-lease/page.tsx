@@ -2,6 +2,7 @@ import type { Lease } from '@propvault/types';
 import { LEASE_STATUS_PRESENTATION } from '@propvault/ui';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
@@ -36,26 +37,21 @@ export default async function MyLeasePage() {
   const leases = ADMIN_DEMO_MODE ? DEMO_LEASES : await loadLeases();
 
   return (
-    <div>
-      <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">My Lease</h1>
-      <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
-        Your current and past lease agreements.
-      </p>
+    <div className="space-y-5 animate-rise">
+      <PageHeader title="My Lease" subtitle="Your current and past lease agreements." />
 
       {leases.length === 0 ? (
-        <div className="mt-6">
-          <EmptyState
-            icon={<span className="text-lg">🏠</span>}
-            title="No lease on file"
-            description="Contact your landlord or property manager if you believe this is incorrect."
-          />
-        </div>
+        <EmptyState
+          icon={<span className="text-lg">🏠</span>}
+          title="No lease on file"
+          description="Contact your landlord or property manager if you believe this is incorrect."
+        />
       ) : (
-        <div className="mt-6 space-y-4">
+        <div className="space-y-4">
           {leases.map((lease) => (
             <div
               key={lease.id}
-              className="rounded-lg border border-light-border bg-light-surfaceRaised p-5 dark:border-dark-border dark:bg-dark-surfaceRaised"
+              className="rounded-card border border-light-border bg-light-surfaceRaised p-5 shadow-card dark:border-dark-border dark:bg-dark-surfaceRaised"
             >
               <div className="flex items-center justify-between">
                 <p className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
