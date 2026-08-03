@@ -33,6 +33,24 @@ Severity: **Blocker** (breaks a mandatory end-to-end workflow or a real security
 | 23 | **RLS isolation test execution** (TD-05) | Test files exist; not run in this environment (no Docker in the earlier sandbox). | — | — | Run `supabase db reset` + full pgTAP now that local Supabase is confirmed available this session (used throughout for integration tests) | **Pilot** — re-classify: this is now achievable, not environment-blocked; scheduling it as part of this phase's verification, not carrying it forward as before | No |
 | 24 | **Corrections to `TECHNICAL_DEBT_REGISTER.md`** | TD-27(2) claims Owner Statements/Tax Pack/Bank Transactions have "no UI at all yet" — **false**, all three were built in the earlier functional-completion pass this session and redesigned in the Lovable-integration pass. Register entry is stale. | — | — | Update `TECHNICAL_DEBT_REGISTER.md` to close TD-27(2) | — | **Polish** (docs only) | No |
 
+## Status (2026-08-03, mid-phase)
+
+Closed and verified: **#1** (org status RLS), **#2** (Tax Pack demo fix), **#3** (invite
+acceptance), **#4** (password reset — surfaced and fixed two additional real bugs along the way:
+a CSP `connect-src` gap blocking all client-side Supabase calls against local Supabase, and a
+missing PKCE `exchangeCodeForSession()` call), **#5** (not-found + PermissionDenied), **#24**
+(TD-27 correction). Each closed with a focused commit, full verification (typecheck/lint/full
+vitest/pgTAP where relevant/real-browser), and updated tracking docs.
+
+Still open: **#6** (search/filter — only Properties/Units have it), **#7–#11** (user settings, org
+settings, lease templates, tenant My Documents/Profile — none exist), **#12–#14** (support-session
+enforcement, usage metering UI, audit log UI — all Super Admin), **#19** (rate limiting). **#15–18,
+20, 22–23** remain Deferred/External as originally classified. The 22 mandatory end-to-end
+workflows: #1–2 (sign in, create org), #3 (invite staff — now provable), and #20–21 (suspend/
+restore, cross-org isolation — now provable via the pgTAP suite) are covered by this phase's work;
+the remainder are covered by earlier sessions' functional-completion work but not yet re-walked
+end-to-end in one pass.
+
 ## Execution order for this phase
 
 1. **Blockers first** (1–4): org-status RLS enforcement, Tax Pack demo fix, invite-acceptance page, password reset.
