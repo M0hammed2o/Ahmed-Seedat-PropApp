@@ -34,9 +34,31 @@ against PROPVIEW_SCREENSHOT_AUDIT.md) into the invite-creation route -- previous
 invitee anything, so they'd have no way to discover the token at all. Added a host-agnostic
 `getAppUrl()` helper for the link (no hosting platform chosen yet, same root gap as TD-20).
 
+**Blocker 4 — no password-reset flow existed anywhere.** Built `/forgot-password`
+(`resetPasswordForEmail`) and `/reset-password` (`updateUser`), plus a "Forgot password?" link on
+`/login`. Real end-to-end verification against local Supabase (not demo mode, not route-status-only)
+found and fixed two genuine bugs neither typecheck nor lint could have caught:
+1. **CSP blocked every client-side Supabase call against local Supabase.** `connect-src` only ever
+   allowed `'self'` and `https://*.supabase.co` -- confirmed live via a real Chrome CSP violation.
+   Never caught before because every prior real-browser pass this session ran in demo mode, which
+   never makes a real Supabase call. Fixed by deriving the allowed origin from
+   `NEXT_PUBLIC_SUPABASE_URL` when it's a local address, rather than gating on `NODE_ENV` (a
+   production build pointed at local Supabase -- the exact scenario that surfaced this -- still has
+   `NODE_ENV=production`, so that gate alone wouldn't have fixed it).
+2. **The reset-password page never actually established a session from a real link.** Supabase's
+   recovery email now uses the PKCE flow (`?code=` in the query string), which
+   `@supabase/ssr`'s `detectSessionInUrl` does NOT auto-exchange the way it auto-detects a
+   hash-fragment token. Fixed with an explicit `exchangeCodeForSession()` call.
+   Full loop proven for real: submitted a real email → real "Reset your password" message
+   arrived in local Supabase's Mailpit inbox → followed the actual link in the same browser
+   session → PKCE exchange succeeded → new-password form → "Your password has been updated" →
+   signed in with the new password successfully. (An earlier attempt using a fresh browser context
+   per step correctly failed — that's PKCE's code-verifier binding working as designed, not a bug;
+   redone in one continuous session to match how a real user actually clicks their own email link.)
+
 No Android/mobile files touched. Verified per batch: typecheck/lint clean, full vitest (155/155
 after blocker 3), real `supabase db reset` + full pgTAP (254/254), real-browser check in both demo
-and live mode.
+and live mode, and blocker 4's full real-email round trip against local Supabase.
 
 ## 2026-08-03 — Login and organization onboarding
 

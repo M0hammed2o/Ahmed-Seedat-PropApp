@@ -57,6 +57,31 @@ const PROTECTED_ROUTE_PREFIXES = [
  * (`export const dynamic = 'force-dynamic'`); `/login` and `/onboarding/create-organization`
  * needed the same treatment, done in the same change.
  */
+// Real bug found 2026-08-03 verifying password reset against local Supabase (PWA_V1_COMPLETION_
+// PLAN.md #4): connect-src only ever allowed 'self' and https://*.supabase.co, so every
+// client-side Supabase call (auth.signInWithPassword, resetPasswordForEmail, updateUser, ...) was
+// silently blocked by CSP whenever NEXT_PUBLIC_SUPABASE_URL pointed at local Supabase
+// (http://127.0.0.1:54321) -- confirmed live via a real Chrome console CSP violation, not
+// inferred. Never caught before because every prior real-browser verification pass this session
+// ran in demo mode, which never makes a real Supabase call at all. Gating on NODE_ENV (as
+// script-src's 'unsafe-eval' already does) would NOT have fixed this: a production build
+// (`next build && next start`) pointed at local Supabase -- the exact scenario that surfaced the
+// bug -- still has NODE_ENV=production. Deriving the allowed origin directly from
+// NEXT_PUBLIC_SUPABASE_URL instead handles local-dev-server, production-build-against-local, and
+// a real deployed project (still covered by the https://*.supabase.co wildcard) all correctly.
+function localSupabaseConnectSrc(): string {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!url) return '';
+  try {
+    const { hostname, protocol } = new URL(url);
+    if (hostname !== '127.0.0.1' && hostname !== 'localhost') return '';
+    const wsProtocol = protocol === 'https:' ? 'wss:' : 'ws:';
+    return ` ${url} ${wsProtocol}//${new URL(url).host}`;
+  } catch {
+    return '';
+  }
+}
+
 function buildCspHeader(nonce: string): string {
   const isDev = process.env.NODE_ENV === 'development';
   return [
@@ -69,7 +94,7 @@ function buildCspHeader(nonce: string): string {
     "base-uri 'self'",
     "form-action 'self'",
     "frame-ancestors 'none'",
-    "connect-src 'self' https://*.supabase.co",
+    `connect-src 'self' https://*.supabase.co${localSupabaseConnectSrc()}`,
     'upgrade-insecure-requests',
   ].join('; ');
 }
