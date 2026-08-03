@@ -20,6 +20,18 @@ function statusFor(invite: TenantInvitation): { label: string; tone: string } {
   return { label: 'Pending', tone: 'text-light-accent dark:text-dark-accent' };
 }
 
+/** Deterministic, obviously-fake fixture -- never a real token/code, matching TaxPackClient's
+ * demoTaxPackResponse() pattern (no live API call, no persisted state, PWA_V1_COMPLETION_PLAN.md
+ * demo-mode discipline). */
+function demoCreatedInvitation(channel: TenantInvitationDeliveryChannel, includeShortCode: boolean): CreatedInvitation {
+  return {
+    token: 'demo-mode-token-not-real',
+    shortCode: channel === 'manual' || includeShortCode ? 'DEMO1234' : null,
+    acceptUrl: 'http://localhost:3090/activate?token=demo-mode-token-not-real',
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+  };
+}
+
 /**
  * LANDLORD AND STAFF UI (PRODUCT DECISION 2, 2026-08-03). Reachable only where `canWrite` is
  * already true (agent+, same floor tenant-edit itself uses) -- the page passing that down is the
@@ -30,11 +42,13 @@ export function TenantInvitationPanel({
   hasEmail,
   hasPhone,
   invitations,
+  demoMode = false,
 }: {
   tenantId: string;
   hasEmail: boolean;
   hasPhone: boolean;
   invitations: TenantInvitation[];
+  demoMode?: boolean;
 }) {
   const router = useRouter();
   const [channel, setChannel] = useState<TenantInvitationDeliveryChannel>(hasEmail ? 'email' : hasPhone ? 'whatsapp' : 'manual');
@@ -44,14 +58,43 @@ export function TenantInvitationPanel({
   const [created, setCreated] = useState<CreatedInvitation | null>(null);
   const [copied, setCopied] = useState<'token' | 'code' | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  // Demo mode never calls the live API (SECURITY.md/PWA_V1_COMPLETION_PLAN.md demo-mode
+  // discipline) -- this local list stands in for router.refresh() re-fetching from Supabase, so
+  // "Send"/"Revoke" still visibly update the panel exactly as they would live.
+  const [demoInvitations, setDemoInvitations] = useState<TenantInvitation[]>(invitations);
 
-  const active = invitations.find((i) => !i.acceptedAt && !i.revokedAt && new Date(i.expiresAt) > new Date());
+  const effectiveInvitations = demoMode ? demoInvitations : invitations;
+  const active = effectiveInvitations.find((i) => !i.acceptedAt && !i.revokedAt && new Date(i.expiresAt) > new Date());
 
   async function send() {
     setSubmitting(true);
     setError(null);
     setCreated(null);
     try {
+      if (demoMode) {
+        await new Promise((r) => setTimeout(r, 400)); // feels like a real round trip
+        const fake = demoCreatedInvitation(channel, includeShortCode);
+        setCreated(fake);
+        setDemoInvitations((prev) => [
+          {
+            id: `demo-invite-${prev.length + 1}`,
+            orgId: 'demo-org-1',
+            tenantId,
+            deliveryChannel: channel,
+            destinationHint: channel === 'email' ? 'n***@example.com' : channel === 'whatsapp' ? '+27 ** *** *134' : null,
+            expiresAt: fake.expiresAt,
+            acceptedAt: null,
+            acceptedByUserId: null,
+            revokedAt: null,
+            createdByUserId: 'demo-user-1',
+            failedAttemptCount: 0,
+            resendCount: 0,
+            createdAt: new Date().toISOString(),
+          },
+          ...prev,
+        ]);
+        return;
+      }
       const response = await fetch(`/api/v1/tenants/${tenantId}/invitations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -75,6 +118,11 @@ export function TenantInvitationPanel({
     setBusyId(invitationId);
     setError(null);
     try {
+      if (demoMode) {
+        await new Promise((r) => setTimeout(r, 300));
+        setDemoInvitations((prev) => prev.map((i) => (i.id === invitationId ? { ...i, revokedAt: new Date().toISOString() } : i)));
+        return;
+      }
       const response = await fetch(`/api/v1/tenants/${tenantId}/invitations/${invitationId}/revoke`, { method: 'POST' });
       if (!response.ok) {
         const body = await response.json();
@@ -173,11 +221,11 @@ export function TenantInvitationPanel({
         </div>
       )}
 
-      {invitations.length > 0 ? (
+      {effectiveInvitations.length > 0 ? (
         <div className="mt-4">
           <p className="text-xs font-medium text-light-textSecondary dark:text-dark-textSecondary">History</p>
           <ul className="mt-1 space-y-1">
-            {invitations.map((invite) => {
+            {effectiveInvitations.map((invite) => {
               const status = statusFor(invite);
               return (
                 <li key={invite.id} className="flex items-center justify-between text-[11px] text-light-textMuted dark:text-dark-textMuted">

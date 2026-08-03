@@ -36,12 +36,16 @@ const DEMO_TENANT: Tenant = {
   updatedAt: '2026-06-05T00:00:00Z',
 };
 
+// Empty on purpose -- the demo click-through (DEMO_PRESENTATION_SCRIPT.md) starts from "no
+// invitation sent yet" so clicking "Send invitation" has something to actually demonstrate.
+const DEMO_INVITATIONS: TenantInvitation[] = [];
+
 export default async function TenantDetailPage({ params }: RouteParams) {
   const { id } = await params;
 
   if (ADMIN_DEMO_MODE) {
     if (id !== 'demo-tenant-1') notFound();
-    return <TenantDetailView tenant={DEMO_TENANT} canEdit />;
+    return <TenantDetailView tenant={DEMO_TENANT} canEdit canInvite invitations={DEMO_INVITATIONS} demoMode />;
   }
 
   const supabase = await getServerSupabaseClient();
@@ -74,11 +78,13 @@ function TenantDetailView({
   canEdit,
   canInvite = false,
   invitations = [],
+  demoMode = false,
 }: {
   tenant: Tenant;
   canEdit: boolean;
   canInvite?: boolean;
   invitations?: TenantInvitation[];
+  demoMode?: boolean;
 }) {
   return (
     <div className="space-y-6 animate-rise">
@@ -137,6 +143,7 @@ function TenantDetailView({
           hasEmail={Boolean(tenant.email)}
           hasPhone={Boolean(tenant.phone)}
           invitations={invitations}
+          demoMode={demoMode}
         />
       ) : null}
 
