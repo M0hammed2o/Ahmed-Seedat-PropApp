@@ -1,5 +1,24 @@
 # Worklog
 
+## 2026-08-03 — Properties/Units/Owners/Tenants/Leases create/edit form consistency pass
+
+Finished the Properties/Units/Owners/Tenants/Leases module group: NewPropertyForm, UnitForm,
+OwnerForm, TenantForm, and LeaseForm all shared the identical bare <h1> + max-w-xl <form> floating
+on the page background. Wrapped each in PageHeader (title) + Panel className="max-w-xl" (form
+body) -- the same two primitives from the foundation batch, no new components needed. Left field/
+input styling (the shared inputClass string, Field wrapper) and all validation/submit logic
+untouched -- a shared Input/FormField primitive to de-duplicate that string across 14 form files
+would be a legitimate follow-up but is out of scope for a presentation-only batch.
+
+No backend/API/schema changes. Verified: typecheck/lint clean on all 5 files, full vitest 153/153,
+real next build clean. Real-browser check (puppeteer + system Chrome, demo mode) across
+/properties/new, unit-new, owner-new, tenant-new light plus /properties/new dark -- zero console
+errors beyond the pre-existing favicon 404. Screenshot-confirmed: form now sits inside a visible
+elevated card in both themes.
+
+With this, list/detail/create/edit are all on the new card language for these five modules.
+Continuing to Documents and OCR review next per the module order.
+
 ## 2026-08-03 — Properties/Units/Owners/Tenants/Leases detail-page consistency pass
 
 Continued straight on from the list-page batch into the matching detail pages: /properties/[id],

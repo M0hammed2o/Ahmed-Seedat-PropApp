@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import type { PropertyType } from '@propvault/types';
 import { PROPERTY_TYPES } from '@propvault/types';
 import { Button } from '@/components/ui/Button';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { Panel } from '@/components/ui/Panel';
 
 // DESIGN_SYSTEM.md "Forms" -- standard inputs, label above field, inline field_errors sourced
 // directly from the API response (never a separately-invented client-side validation message).
@@ -87,10 +89,11 @@ export function NewPropertyForm({ orgId }: { orgId: string }) {
   }
 
   return (
-    <div>
-      <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">Add property</h1>
+    <div className="space-y-6 animate-rise">
+      <PageHeader title="Add property" />
 
-      <form onSubmit={handleSubmit} className="mt-6 max-w-xl space-y-4">
+      <Panel className="max-w-xl">
+      <form onSubmit={handleSubmit} className="space-y-4">
         {error ? (
           <p className="rounded-md border border-light-danger bg-light-danger/10 px-3 py-2 text-xs text-light-danger dark:border-dark-danger dark:bg-dark-danger/10 dark:text-dark-danger">
             {error}
@@ -178,6 +181,7 @@ export function NewPropertyForm({ orgId }: { orgId: string }) {
           </Button>
         </div>
       </form>
+      </Panel>
     </div>
   );
 }

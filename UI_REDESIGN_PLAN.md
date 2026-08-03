@@ -64,6 +64,25 @@ single-point fix.
 | **Accessibility** | `Panel`'s `h2` keeps the key-facts block in the heading hierarchy under `PageHeader`'s `h1`; no interactive elements changed |
 | **Verification** | `tsc --noEmit` clean, targeted `eslint --max-warnings=0` clean on all 5 files, full `vitest` 153/153, real `next build` clean. Real-browser check (puppeteer + system Chrome, demo mode) across all 5 detail pages light + Properties dark — zero console errors beyond the pre-existing favicon 404. |
 
+## 2026-08-03 update — Property/Unit/Owner/Tenant/Lease create and edit forms
+
+| | |
+|---|---|
+| **Route/module** | `NewPropertyForm`, `UnitForm`, `OwnerForm`, `TenantForm`, `LeaseForm` (backing `/properties/new`, `/properties/[id]/units/new`+`/edit`, `/owners/new`+`/[id]/edit`, `/tenants/new`+`/[id]/edit`, `/leases/[id]/edit`) |
+| **Functional purpose** | Create/edit forms for the five core record types — no field, validation, or submit-payload changes |
+| **PropView pattern retained** | Single-column field-per-row layout, label above field, primary/cancel button pair bottom-left |
+| **Lovable pattern adapted** | Form now sits inside a `Panel` (elevated card) instead of floating directly on the page background; `PageHeader` for the "Add …"/"Edit …" title |
+| **Weakness found** | All 5 forms shared the exact same bare `<h1>` + unbounded `<form className="max-w-xl">` floating on the page background — no visual containment, inconsistent with the new card language everywhere else |
+| **Improvement made** | `PageHeader` for the title, `Panel className="max-w-xl"` wrapping the `<form>` — same two primitives reused a fifth and sixth time, no new components needed. Field/input styling itself (`inputClass`, `Field`) intentionally untouched — a shared `Input`/`FormField` primitive would be a legitimate follow-up but is out of scope for a presentation-layer batch that must not touch validation/submit logic |
+| **Reusable components built** | None new |
+| **Responsive** | Unchanged from pre-redesign — `max-w-xl` single column already worked at every width; `Panel`'s own padding replaces the removed `mt-6` |
+| **Accessibility** | `PageHeader`'s `h1` restores a page-level heading these forms lacked in visual hierarchy terms (the old `h1` is now inside `PageHeader`, same semantic level, just consistently styled); labels/error association unchanged |
+| **Verification** | `tsc --noEmit` clean, targeted `eslint --max-warnings=0` clean on all 5 files, full `vitest` 153/153, real `next build` clean. Real-browser check (puppeteer + system Chrome, demo mode) across `/properties/new`, unit-new, owner-new, tenant-new (light) + `/properties/new` dark — zero console errors beyond the pre-existing favicon 404. |
+
+This closes out the Properties/Units/Owners/Tenants/Leases module group (list, detail, create, edit
+all now on the shared `PageHeader`/`Panel`/`AdminDataTable` card language) before moving on to
+Documents/OCR review.
+
 
 Concise by design (per Mohammed's instruction) — full detail already lives in `DESIGN_SYSTEM.md`
 (the target visual language, mostly already specified) and `DESIGN_REVIEW.md` (the PropView/Envato

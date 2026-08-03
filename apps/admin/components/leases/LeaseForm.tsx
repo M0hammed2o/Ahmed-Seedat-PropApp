@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import type { Lease, LeaseStatus } from '@propvault/types';
 import { LEASE_STATUSES } from '@propvault/types';
 import { Button } from '@/components/ui/Button';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { Panel } from '@/components/ui/Panel';
 
 // Same DESIGN_SYSTEM.md "Forms" conventions as UnitForm.tsx/TenantForm.tsx. No unitId field --
 // create is always reached from a unit's own context (property/[id]/units/[unitId]/leases/new),
@@ -94,12 +96,11 @@ export function LeaseForm({ mode, orgId, unitId, propertyId, lease }: LeaseFormP
   }
 
   return (
-    <div>
-      <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">
-        {mode === 'create' ? 'Add lease' : 'Edit lease'}
-      </h1>
+    <div className="space-y-6 animate-rise">
+      <PageHeader title={mode === 'create' ? 'Add lease' : 'Edit lease'} />
 
-      <form onSubmit={handleSubmit} className="mt-6 max-w-xl space-y-4">
+      <Panel className="max-w-xl">
+      <form onSubmit={handleSubmit} className="space-y-4">
         {error ? (
           <p className="rounded-md border border-light-danger bg-light-danger/10 px-3 py-2 text-xs text-light-danger dark:border-dark-danger dark:bg-dark-danger/10 dark:text-dark-danger">
             {error}
@@ -177,6 +178,7 @@ export function LeaseForm({ mode, orgId, unitId, propertyId, lease }: LeaseFormP
           </Button>
         </div>
       </form>
+      </Panel>
     </div>
   );
 }

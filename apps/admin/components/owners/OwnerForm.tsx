@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import type { Owner, OwnerType } from '@propvault/types';
 import { OWNER_TYPES } from '@propvault/types';
 import { Button } from '@/components/ui/Button';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { Panel } from '@/components/ui/Panel';
 
 // Same DESIGN_SYSTEM.md "Forms" conventions as TenantForm.tsx. No `status` field: ownerSchema
 // (packages/validation) doesn't expose it, matching the same "server-set only" judgment already
@@ -86,12 +88,11 @@ export function OwnerForm({ mode, orgId, owner }: OwnerFormProps) {
   }
 
   return (
-    <div>
-      <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">
-        {mode === 'create' ? 'Add owner' : `Edit ${owner?.name}`}
-      </h1>
+    <div className="space-y-6 animate-rise">
+      <PageHeader title={mode === 'create' ? 'Add owner' : `Edit ${owner?.name}`} />
 
-      <form onSubmit={handleSubmit} className="mt-6 max-w-xl space-y-4">
+      <Panel className="max-w-xl">
+      <form onSubmit={handleSubmit} className="space-y-4">
         {error ? (
           <p className="rounded-md border border-light-danger bg-light-danger/10 px-3 py-2 text-xs text-light-danger dark:border-dark-danger dark:bg-dark-danger/10 dark:text-dark-danger">
             {error}
@@ -150,6 +151,7 @@ export function OwnerForm({ mode, orgId, owner }: OwnerFormProps) {
           </Button>
         </div>
       </form>
+      </Panel>
     </div>
   );
 }

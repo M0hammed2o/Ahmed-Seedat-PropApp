@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import type { Unit, UnitStatus } from '@propvault/types';
 import { UNIT_STATUSES } from '@propvault/types';
 import { Button } from '@/components/ui/Button';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { Panel } from '@/components/ui/Panel';
 
 // Same DESIGN_SYSTEM.md "Forms" conventions as NewPropertyForm.tsx: label above field, inline
 // field_errors sourced from the API response, native <select> for status (3 options, under the
@@ -88,12 +90,11 @@ export function UnitForm({ mode, propertyId, unit }: UnitFormProps) {
   }
 
   return (
-    <div>
-      <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">
-        {mode === 'create' ? 'Add unit' : `Edit ${unit?.unitLabel}`}
-      </h1>
+    <div className="space-y-6 animate-rise">
+      <PageHeader title={mode === 'create' ? 'Add unit' : `Edit ${unit?.unitLabel}`} />
 
-      <form onSubmit={handleSubmit} className="mt-6 max-w-xl space-y-4">
+      <Panel className="max-w-xl">
+      <form onSubmit={handleSubmit} className="space-y-4">
         {error ? (
           <p className="rounded-md border border-light-danger bg-light-danger/10 px-3 py-2 text-xs text-light-danger dark:border-dark-danger dark:bg-dark-danger/10 dark:text-dark-danger">
             {error}
@@ -185,6 +186,7 @@ export function UnitForm({ mode, propertyId, unit }: UnitFormProps) {
           </Button>
         </div>
       </form>
+      </Panel>
     </div>
   );
 }
