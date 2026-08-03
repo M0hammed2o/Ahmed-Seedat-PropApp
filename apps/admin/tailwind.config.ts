@@ -1,5 +1,5 @@
 import type { Config } from 'tailwindcss';
-import { colorLight, colorDark, radii } from '@propvault/ui';
+import { colorLight, colorDark, radii, shadow } from '@propvault/ui';
 
 // Tailwind theme driven by packages/ui tokens — the same source of truth the mobile app uses
 // (DESIGN_SYSTEM.md) — rather than an independent, drifting colour scale.
@@ -28,7 +28,27 @@ const config: Config = {
         md: `${radii.md}px`,
         lg: `${radii.lg}px`,
         xl: `${radii.xl}px`,
+        card: `${radii.card}px`,
+        panel: `${radii.panel}px`,
         pill: `${radii.pill}px`,
+      },
+      boxShadow: {
+        card: shadow.card,
+        lift: shadow.lift,
+        glow: shadow.glow,
+      },
+      fontFamily: {
+        display: ['var(--font-display)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        sans: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+      },
+      keyframes: {
+        rise: {
+          from: { opacity: '0', transform: 'translateY(8px)' },
+          to: { opacity: '1', transform: 'none' },
+        },
+      },
+      animation: {
+        rise: 'rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both',
       },
     },
   },

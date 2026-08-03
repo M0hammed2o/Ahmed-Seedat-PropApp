@@ -1,5 +1,41 @@
 # Worklog
 
+## 2026-08-03 — Design foundation v2 + Owner Dashboard redesign (UI redesign resumed)
+
+With all 8 functional-completion priorities closed and the audit concluding remaining work is
+primarily UI/UX/deployment, resumed the paused PWA redesign. Mohammed supplied a new reference,
+reference/lovable-ui-reference/propertyvault-essence-main -- a TanStack Start + Tailwind v4 +
+shadcn/Radix project purpose-built as PropertyVault's visual direction. Audited it (styles.css's
+OKLCH design tokens, app-shell.tsx, kit.tsx's small reusable primitives, routes/index.tsx's
+dashboard composition) alongside reference/propview-screenshots and the current Owner PWA.
+
+Not literally portable (different router/build tool) -- adapted as values and patterns. Converted
+its OKLCH palette to precise hex via the real CSS Color 4 conversion matrices (not eyeballed) so
+Tailwind v3's opacity modifiers keep working. Replaced packages/ui/src/tokens.ts's colorLight/
+colorDark VALUES only, keeping every existing KEY NAME -- a blue accent (#106ADD/#4A91F8) instead
+of the old verdigris, soft near-white/near-black-blue surfaces, a 5-colour chart palette, new
+shadow and expanded radii tokens. Every pre-existing `text-light-textPrimary`-style class across
+the whole app kept working with zero edits, matching the "presentation-layer transformation, not a
+rebuild" instruction. Added Plus Jakarta Sans + Inter via self-hosted next/font (never an external
+CDN request -- the exact class of issue that broke hydration under CSP earlier this session).
+
+Built PageHeader/Panel shared components (adapted from kit.tsx's PageHeader/Panel), extended
+AdminMetricCard with optional icon/href props, and rebuilt the Owner Dashboard on top: a real
+recharts area chart (rent collected vs expenses, 6 months, real data only), a point-in-time
+occupancy donut (no fabricated trend -- no historical snapshot table exists to compute one
+honestly), a real audit_events-backed activity feed, and an icon-tile quick-actions grid. recharts
+added as a new dependency -- justified by the explicit "strong data visualization" requirement; no
+existing lightweight chart component supported gradients/tooltips/responsive containers.
+
+Real-browser verification (puppeteer + system Chrome) across 1440/1280/1024/768/390 light + 1440
+dark caught one real bug before it shipped: the chart's Y-axis labels were clipped by a margin
+value copied from the reference without adjusting for this chart's own tick width -- fixed,
+re-verified. A separate false alarm (500 + wrong-MIME-type JS chunk) turned out to be a stale dev
+server left running on the same port from an earlier verification pass, not a real defect --
+confirmed by a clean rebuild on a fresh port.
+
+apps/admin typecheck/lint/vitest (153/153) clean, real next build clean. No backend/schema changes.
+
 ## 2026-08-02 (continued) — WhatsApp notification dispatch wiring (TD-23 fully closed, item 8/8 — all 8 functional-completion priorities now done)
 
 dispatchWhatsApp() (apps/admin/lib/whatsappDispatch.ts) mirrors dispatchEmail()'s exact shape:

@@ -4,8 +4,57 @@
 
 html {
   -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'cv02', 'cv03', 'cv04';
+}
+
+/* Chart colours as CSS custom properties, redefined per theme -- lets recharts (inline SVG
+   styles, not Tailwind classes) stay theme-reactive with zero client-side colour-switching JS.
+   Values match packages/ui/src/tokens.ts's chart1-5 exactly (kept in sync manually; both are
+   generated from the same reference/lovable-ui-reference source palette). */
+:root {
+  --chart-1: #106ADD;
+  --chart-2: #00AFB8;
+  --chart-3: #169860;
+  --chart-4: #E79C27;
+  --chart-5: #966CD7;
+  --chart-grid: #E3E5E9;
+  --chart-muted: #656E7A;
+}
+
+.dark {
+  --chart-1: #4A91F8;
+  --chart-2: #24C1C9;
+  --chart-3: #3DB87C;
+  --chart-4: #F5AE4B;
+  --chart-5: #AD87ED;
+  --chart-grid: #212730;
+  --chart-muted: #98A1AD;
 }
 
 body {
   @apply bg-light-surface text-light-textPrimary dark:bg-dark-surface dark:text-dark-textPrimary;
+}
+
+h1,
+h2,
+h3,
+h4,
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+.tabular-nums-feature {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

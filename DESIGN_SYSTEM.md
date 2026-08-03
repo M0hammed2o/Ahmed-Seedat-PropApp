@@ -13,26 +13,41 @@ does not sell or rent listings). Document/paper motifs over illustration; a sing
 accent used only for primary actions and links, never "one blue for everything" the way PropView
 does it. Status is always colour + icon + label together, never colour alone.
 
-All colours, type scale, spacing and radii below are still **placeholders** — centralised in
-`packages/ui/src/tokens.ts` specifically so they can be swapped for final brand values without
-touching component code.
+Colour/shadow values below are **final v1 brand values** as of 2026-08-03 (redesigned against
+`reference/lovable-ui-reference` — see `UI_REDESIGN_PLAN.md`'s 2026-08-03 entry), superseding the
+earlier verdigris placeholder palette. Type scale/spacing/radii remain centralised in
+`packages/ui/src/tokens.ts` so any future change never touches component code.
 
 ## Tokens (`packages/ui/src/tokens.ts` — already implemented)
 
-- **Colour**: semantic names only in component code. Light: near-black ink (`#12151A`) on warm
-  off-white (`#FBFAF7`); accent `#2F5D50` (deep verdigris). Dark: `#F2F1ED` on true near-black
-  `#14161A` (not a lightened-gray "inverted light mode" — validated against the Envato dark-theme
-  kit's own near-black execution, `DESIGN_REVIEW.md` §5), accent `#5B9683`. 7 status colours
-  (`statusPaid/Unpaid/Overdue/NeedsReview/Processing/Disputed/Void`), each with a light and dark
-  value, plus `danger`.
-- **Typography**: system font per platform (SF Pro / Roboto / Inter-equivalent web stack), a
-  6-step scale — `display 32/40/700`, `title 24/32/700`, `heading 18/24/600`, `body 15/22/400`,
-  `caption 13/18/400`, `micro 11/14/500` (size/line-height/weight).
+- **Colour**: semantic names only in component code — never a raw hex in a component. Light:
+  near-black ink (`#111826`) on soft near-white (`#F9FAFB`), white raised surfaces (`#FFFFFF`);
+  accent `#106ADD` (confident, premium SaaS blue — precise sRGB conversion of the reference
+  project's OKLCH primary, not eyeballed). Dark: `#F1F4F7` on true near-black-blue `#0B0F16` (not a
+  lightened-gray "inverted light mode"), accent `#4A91F8` (lighter/less saturated, legible on a
+  dark ground). 7 status colours (`statusPaid/Unpaid/Overdue/NeedsReview/Processing/Disputed/Void`)
+  plus `danger`, each with a light and dark value, plus a 5-colour `chart1-5` palette for data
+  visualisation (also exposed as CSS custom properties in `apps/admin/app/globals.css` for
+  `recharts`, which needs live colour strings, not Tailwind classes).
+- **Typography**: Plus Jakarta Sans (display — headings only, tight `-0.02em` tracking) + Inter
+  (body), both self-hosted via `next/font/google` (build-time download, zero external request at
+  runtime — CSP-safe, matching this project's own hydration-CSP lesson). 6-step scale — `display
+  32/40/700`, `title 24/32/700`, `heading 18/24/600`, `body 15/22/400`, `caption 13/18/400`, `micro
+  11/14/500` (size/line-height/weight).
 - **Spacing**: 4px base unit, scale `[0,4,8,12,16,24,32,48,64]`.
-- **Radii**: `sm 4, md 8, lg 12, xl 16, pill 999` — cards use `md`/`lg`, pills/badges use `pill`.
-- **Elevation**: `none 0, low 1, medium 2, high 4` — usage rules in §"Cards" below.
+- **Radii**: `sm 4, md 8, lg 12, xl 16, card 20, panel 24, pill 999` — `card`/`panel` are the
+  redesign's elevated-surface radii (`rounded-card`/`rounded-panel` Tailwind utilities), `sm`-`xl`
+  remain for smaller controls, pills/badges use `pill`.
+- **Shadow**: `card`/`lift`/`glow` (`packages/ui/src/tokens.ts` `shadow` export → `shadow-card`/
+  `shadow-lift`/`shadow-glow` Tailwind utilities) — real CSS `box-shadow` values, light-mode only by
+  design (a shadow is invisible on a dark background; dark-mode elevation reads via a lighter
+  surface colour + border instead, same convention the reference project itself uses).
+- **Elevation**: `none 0, low 1, medium 2, high 4` — legacy numeric scale, superseded by the
+  `shadow` tokens above for anything that actually needs a visible shadow.
 - **Motion**: durations `fast 120, base 200, slow 320` ms; ease-out for entrances, ease-in for
-  exits.
+  exits. `animate-rise` (Tailwind keyframe, `apps/admin/tailwind.config.ts`) is the shared
+  page-entrance animation; `prefers-reduced-motion: reduce` disables all animation/transition
+  duration globally (`apps/admin/app/globals.css`).
 - **Icon sizing**: `sm 16, md 20, lg 24, xl 32`.
 
 ## Status colour + non-colour signal

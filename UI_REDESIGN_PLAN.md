@@ -1,5 +1,35 @@
 # UI Redesign Plan — 2026-08-02
 
+## 2026-08-03 update — reference/lovable-ui-reference audit + foundation/Dashboard batch
+
+`reference/lovable-ui-reference/propertyvault-essence-main` (TanStack Start + Tailwind v4 +
+shadcn/Radix, purpose-built as PropertyVault's own visual direction) audited alongside
+`reference/propview-screenshots/` and the current Owner PWA. Not literally portable (different
+router/build tool, Tailwind v4 CSS-first tokens vs this repo's Tailwind v3 JS config) — adapted as
+values and patterns, not imported as code. Its own component kit (`kit.tsx`: `PageHeader`, `Panel`,
+`Pill`, `Meter`, `Delta`, `Avatar`) and OKLCH design-token system (`styles.css`) were the two
+highest-value extracts.
+
+| | |
+|---|---|
+| **Route/module** | `/dashboard` (Owner Dashboard) + shared design tokens/shell |
+| **Functional purpose** | Landing page after portal-session resolution; portfolio-at-a-glance |
+| **PropView pattern retained** | Hero greeting + period context, "Key numbers" 4-card KPI grid (icon, big number, label, subtext), money-in/out chart with a real empty state, recent-work feed, quick-actions tile grid (`PROPVIEW_SCREENSHOT_AUDIT.md` IMG_7957-61/7986-89) |
+| **Lovable pattern adapted** | OKLCH palette (converted to precise hex, not eyeballed — see `packages/ui/src/tokens.ts` comment), `panel` card language (soft shadow + generous radius), `PageHeader`/`Panel` primitives, area-chart-with-gradient-fill money flow, link-through secondary-stat row with trailing arrow, quick-action icon tiles |
+| **Weakness found** | Flat `border p-4` divs everywhere, no shadow/elevation, no display typeface, primitive single-series bar-only charts (`MiniBarChart`), no real activity feed, KPI cards with no icon/hierarchy, quick actions were 5 plain buttons in a row |
+| **Improvement made** | New `AdminMetricCard` icon+href variant, `PageHeader`/`Panel` shared components, `recharts`-based `MoneyFlowChart` (real 6-month rent-collected-vs-expenses area chart, gradient fill, tooltip, honest empty state) + `OccupancyMeter` (donut, point-in-time only — no fabricated trend), `RecentActivityFeed` reading real `audit_events`, icon-tile quick actions. New premium palette (blue accent, soft neutrals, real shadow/radius scale), Plus Jakarta Sans display + Inter body via `next/font` (self-hosted, CSP-safe), `animate-rise` entrance |
+| **Reusable components built** | `PageHeader`, `Panel`, enhanced `AdminMetricCard` (icon/href props, backward-compatible), `MoneyFlowChart`, `OccupancyMeter`, `RecentActivityFeed` — all available to every subsequent module |
+| **Responsive** | Verified 1440/1280/1024/768/390 — 4-col KPI grid collapses to 2-col at `sm`, chart/donut/activity stack to 1 column, quick actions stay a readable 2x2 at mobile width, no horizontal overflow at any width |
+| **Accessibility** | Headings remain semantic (`h1` via `PageHeader`), icon-only elements keep adjacent text labels (no icon-only buttons introduced), `prefers-reduced-motion` respected (`animate-rise`/chart transitions disabled via new `globals.css` media query), colour never the only status signal (existing `StatusBadge` pattern untouched) |
+| **Verification** | Real `supabase`-independent (no schema touched) — `apps/admin` `tsc --noEmit`/`eslint --max-warnings=0` clean, `vitest` 153/153, real `next build` clean. Real-browser check (puppeteer + system Chrome, demo mode): screenshots at 1440/1280/1024/768/390 light + 1440 dark, zero non-prefetch console/network errors beyond a pre-existing missing-favicon 404 (unrelated, not introduced by this pass). One real bug found and fixed by the browser check itself: the money-flow chart's Y-axis labels were clipped by a copied-from-reference negative margin that didn't suit this chart's tick width — fixed, re-verified. |
+
+No backend/API/schema changes in this batch — pure presentation-layer, per the "primarily a
+presentation and interaction-layer transformation" instruction. `packages/ui/src/tokens.ts`'s
+`colorLight`/`colorDark` KEY NAMES are unchanged (only the hex values they resolve to changed), so
+every existing `text-light-textPrimary`-style class across the whole app kept working with zero
+edits required.
+
+
 Concise by design (per Mohammed's instruction) — full detail already lives in `DESIGN_SYSTEM.md`
 (the target visual language, mostly already specified) and `DESIGN_REVIEW.md` (the PropView/Envato
 comparison this session's design system was built against). This file is the audit + execution
