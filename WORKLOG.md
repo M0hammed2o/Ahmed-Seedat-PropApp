@@ -1,5 +1,18 @@
 # Worklog
 
+## 2026-08-03 — Maintenance board card language; Documents/Inspections checked, already current
+
+MaintenanceBoard was the one remaining flat `rounded-lg border` surface in the Operations section --
+upgraded its column wrapper and empty state to the same `rounded-card`/`shadow-card`/
+`bg-light-surfaceStrong` header language every other card in the app already carries, plus a pill-
+style count badge and softer ticket-card hover state. Checked DocumentsTable/InspectionsTable and
+the Documents detail/OCR pages first -- all already use StatusBadge + the card language from the
+Documents/OCR review batch earlier this session, nothing further needed there.
+
+No backend/API/schema changes. Verified: typecheck/lint clean, full vitest 153/153, real next build
+clean, real-browser check on /maintenance light+dark -- zero console errors beyond the pre-existing
+favicon 404.
+
 ## 2026-08-03 — Owners/Tenant-detail Lovable polish (continuing past the approved checkpoint)
 
 Checkpoint approved -- continuing module order. OwnersTable gained the same avatar-initial chip

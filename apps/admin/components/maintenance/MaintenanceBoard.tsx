@@ -13,7 +13,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 export function MaintenanceBoard({ tickets }: { tickets: MaintenanceTicket[] }) {
   if (tickets.length === 0) {
     return (
-      <div className="rounded-lg border border-light-border dark:border-dark-border">
+      <div className="rounded-card border border-light-border bg-light-surfaceRaised shadow-card dark:border-dark-border dark:bg-dark-surfaceRaised">
         <EmptyState icon={<span className="text-lg">🔧</span>} title="No maintenance tickets yet" />
       </div>
     );
@@ -24,10 +24,15 @@ export function MaintenanceBoard({ tickets }: { tickets: MaintenanceTicket[] }) 
       {MAINTENANCE_STATUSES.map((status) => {
         const columnTickets = tickets.filter((t) => t.status === status);
         return (
-          <div key={status} className="rounded-lg border border-light-border dark:border-dark-border">
-            <div className="flex items-center justify-between border-b border-light-border px-3 py-2 dark:border-dark-border">
+          <div
+            key={status}
+            className="overflow-hidden rounded-card border border-light-border bg-light-surfaceRaised shadow-card dark:border-dark-border dark:bg-dark-surfaceRaised"
+          >
+            <div className="flex items-center justify-between border-b border-light-border bg-light-surfaceStrong px-3.5 py-2.5 dark:border-dark-border dark:bg-dark-surfaceStrong">
               <StatusBadge presentation={MAINTENANCE_STATUS_PRESENTATION[status]} />
-              <span className="text-xs text-light-textMuted dark:text-dark-textMuted">{columnTickets.length}</span>
+              <span className="tabular-nums-feature rounded-pill bg-light-surfaceRaised px-1.5 py-0.5 text-[10px] font-semibold text-light-textMuted dark:bg-dark-surfaceRaised dark:text-dark-textMuted">
+                {columnTickets.length}
+              </span>
             </div>
             <div className="flex flex-col gap-2 p-3">
               {columnTickets.length === 0 ? (
@@ -37,10 +42,10 @@ export function MaintenanceBoard({ tickets }: { tickets: MaintenanceTicket[] }) 
                   <Link
                     key={ticket.id}
                     href={`/maintenance/${ticket.id}`}
-                    className="block rounded-md border border-light-border p-2 text-xs hover:bg-light-surfaceRaised dark:border-dark-border dark:hover:bg-dark-surfaceRaised"
+                    className="block rounded-lg border border-light-border p-2.5 text-xs transition-colors hover:border-light-accent/30 hover:bg-light-accentSoft dark:border-dark-border dark:hover:border-dark-accent/30 dark:hover:bg-dark-accentSoft"
                   >
                     <p className="font-medium text-light-textPrimary dark:text-dark-textPrimary">{ticket.summary}</p>
-                    <div className="mt-1">
+                    <div className="mt-1.5">
                       <StatusBadge presentation={MAINTENANCE_PRIORITY_PRESENTATION[ticket.priority]} />
                     </div>
                   </Link>
