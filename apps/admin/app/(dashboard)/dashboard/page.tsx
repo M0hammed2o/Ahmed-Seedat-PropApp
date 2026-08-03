@@ -30,6 +30,7 @@ interface DashboardData {
   outstandingRent: number;
   cashThisMonth: number;
   openMaintenanceCount: number;
+  expiringLeasesCount: number;
   moneyFlow: { month: string; collected: number; expenses: number }[];
   activity: ActivityItem[];
 }
@@ -44,6 +45,7 @@ const DEMO_DATA: DashboardData = {
   outstandingRent: 6200,
   cashThisMonth: 10650,
   openMaintenanceCount: 3,
+  expiringLeasesCount: 2,
   moneyFlow: [
     { month: 'Mar', collected: 78000, expenses: 12400 },
     { month: 'Apr', collected: 81500, expenses: 9800 },
@@ -121,7 +123,7 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
         <AdminMetricCard icon={<Building2 size={16} />} label="Properties" value={data.totalProperties} href="/properties" />
         <AdminMetricCard icon={<DoorOpen size={16} />} label="Units" value={data.totalUnits} href="/units" />
-        <AdminMetricCard icon={<KeyRound size={16} />} label="Vacant units" value={data.vacantUnits} href="/units" />
+        <AdminMetricCard icon={<FileSignature size={16} />} label="Expiring leases" value={data.expiringLeasesCount} href="/leases" />
         <AdminMetricCard icon={<Wrench size={16} />} label="Open maintenance" value={data.openMaintenanceCount} href="/maintenance" />
       </div>
 
@@ -176,7 +178,11 @@ export default async function DashboardPage() {
 async function loadData(): Promise<DashboardData> {
   const supabase = await getServerSupabaseClient();
 
-  const [propertiesResult, unitsResult, rentSchedulesResult, expensesResult, maintenanceResult, auditResult] =
+  const now = new Date();
+  const in45Days = new Date(now.getTime() + 45 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const todayIso = now.toISOString().slice(0, 10);
+
+  const [propertiesResult, unitsResult, rentSchedulesResult, expensesResult, maintenanceResult, auditResult, leasesResult] =
     await Promise.all([
       supabase.from('properties').select('id', { count: 'exact', head: true }).eq('status', 'active'),
       supabase.from('units').select('id, status'),
@@ -184,19 +190,20 @@ async function loadData(): Promise<DashboardData> {
       supabase.from('expenses').select('created_at, amount, status'),
       supabase.from('maintenance_tickets').select('id, status').neq('status', 'completed'),
       supabase.from('audit_events').select('id, action, entity_type, created_at').order('created_at', { ascending: false }).limit(8),
+      supabase.from('leases').select('id', { count: 'exact', head: true }).eq('status', 'active').gte('end_date', todayIso).lte('end_date', in45Days),
     ]);
   if (propertiesResult.error) throw new Error(`Failed to load properties: ${propertiesResult.error.message}`);
   if (unitsResult.error) throw new Error(`Failed to load units: ${unitsResult.error.message}`);
   if (rentSchedulesResult.error) throw new Error(`Failed to load rent schedule: ${rentSchedulesResult.error.message}`);
   if (expensesResult.error) throw new Error(`Failed to load expenses: ${expensesResult.error.message}`);
   if (maintenanceResult.error) throw new Error(`Failed to load maintenance: ${maintenanceResult.error.message}`);
+  if (leasesResult.error) throw new Error(`Failed to load leases: ${leasesResult.error.message}`);
 
   const units = unitsResult.data ?? [];
   const occupiedUnits = units.filter((u) => u.status === 'occupied').length;
   const vacantUnits = units.filter((u) => u.status === 'vacant').length;
   const occupancyPct = units.length > 0 ? Math.round((occupiedUnits / units.length) * 100) : 0;
 
-  const now = new Date();
   const monthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   const thisMonthKey = monthKey(now);
 
@@ -241,6 +248,7 @@ async function loadData(): Promise<DashboardData> {
     outstandingRent,
     cashThisMonth: rentCollectedThisMonth - expensesThisMonth,
     openMaintenanceCount: maintenanceResult.data?.length ?? 0,
+    expiringLeasesCount: leasesResult.count ?? 0,
     moneyFlow,
     activity,
   };

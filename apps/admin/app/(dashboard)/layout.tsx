@@ -22,8 +22,9 @@ import {
   Megaphone,
 } from 'lucide-react';
 import { resolvePortalSession } from '@/lib/orgSession';
+import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
-import { AppShell, type NavSection } from '@/components/shell/AppShell';
+import { AppShell, type HeaderNotification, type NavSection } from '@/components/shell/AppShell';
 import { navIcon } from '@/components/shell/navIcon';
 
 // Client-org-facing route group, matching ARCHITECTURE.md's "Why one web app, not two" naming
@@ -101,14 +102,36 @@ export default async function PortalLayout({ children }: { children: React.React
   const activeOrg = session.organizations.find((m) => m.status === 'active');
   if (!activeOrg) redirect('/onboarding/create-organization');
 
+  const notifications: HeaderNotification[] = ADMIN_DEMO_MODE ? [] : await loadHeaderNotifications();
+
   return (
     <AppShell
       productLabel="PropertyVault"
       navSections={NAV_SECTIONS}
       identityLine={activeOrg.role.replace('_', ' ')}
       demoBadge={ADMIN_DEMO_MODE}
+      notifications={notifications}
     >
       {children}
     </AppShell>
   );
+}
+
+// Small (limit 5), real, RLS-scoped to the caller's own rows (notifications_select_own) -- same
+// query shape as /notifications itself, just capped for a header popover rather than a full list.
+async function loadHeaderNotifications(): Promise<HeaderNotification[]> {
+  const supabase = await getServerSupabaseClient();
+  const { data, error } = await supabase
+    .from('notifications')
+    .select('id, title, body, created_at, read_at')
+    .order('created_at', { ascending: false })
+    .limit(5);
+  if (error) throw new Error(`Failed to load notifications: ${error.message}`);
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    title: row.title,
+    body: row.body,
+    createdAt: row.created_at,
+    readAt: row.read_at,
+  }));
 }

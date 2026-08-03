@@ -5,11 +5,12 @@ import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapPropertyRow, mapUnitRow } from '@/lib/portfolio';
 import { mapMaintenanceTicketRow } from '@/lib/operations';
 import { resolvePortalSession, findActiveMembership } from '@/lib/orgSession';
+import { Building2, MapPin } from 'lucide-react';
 import { UnitsTable, type UnitRow } from '@/components/tables/UnitsTable';
 import { MaintenanceTable } from '@/components/tables/MaintenanceTable';
 import { Button } from '@/components/ui/Button';
-import { PageHeader } from '@/components/ui/PageHeader';
 import { Panel } from '@/components/ui/Panel';
+import { Pill } from '@/components/ui/Pill';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -141,17 +142,55 @@ function PropertyDetailView({
     </Link>
   );
 
+  const occupiedCount = units.filter((u) => u.status === 'occupied').length;
+
   return (
     <div className="space-y-6 animate-rise">
-      <PageHeader
-        title={property.nickname}
-        subtitle={property.fullAddress}
-        actions={
-          <span className="rounded-pill bg-light-surfaceStrong px-2.5 py-1 text-xs font-medium capitalize text-light-textSecondary dark:bg-dark-surfaceStrong dark:text-dark-textSecondary">
-            {property.status}
-          </span>
-        }
-      />
+      {/* Hero header adapted from reference/lovable-ui-reference's properties/$propertyId.tsx
+          (UI_INTEGRATION_PLAN.md) -- image band + gradient + status pill + stat strip. No property
+          photo storage exists yet (Property.imagePath is always null in practice), so the band
+          shows a placeholder icon rather than a hotlinked/fabricated photo. Only the hero is
+          adapted; Units/Tenants/Documents/Accounting stay their own real routes, not tabs on this
+          page (see UI_INTEGRATION_PLAN.md's "deliberate adaptation decisions"). */}
+      <div className="overflow-hidden rounded-card border border-light-border bg-light-surfaceRaised shadow-card dark:border-dark-border dark:bg-dark-surfaceRaised">
+        <div className="relative flex h-[160px] items-center justify-center bg-light-accentSoft dark:bg-dark-accentSoft">
+          <Building2 size={40} className="text-light-accent/40 dark:text-dark-accent/40" aria-hidden="true" />
+          <div className="absolute right-5 bottom-4 left-5 flex flex-wrap items-end justify-between gap-3">
+            <div className="min-w-0">
+              <div className="mb-2 flex items-center gap-2">
+                <Pill tone={property.status === 'active' ? 'success' : 'neutral'} className="bg-light-surfaceRaised/90 dark:bg-dark-surfaceRaised/90">
+                  {property.status}
+                </Pill>
+                <span className="rounded-pill bg-light-surfaceRaised/90 px-2.5 py-1 text-[11px] font-medium capitalize text-light-textPrimary dark:bg-dark-surfaceRaised/90 dark:text-dark-textPrimary">
+                  {property.propertyType.replace('_', ' ')}
+                </span>
+              </div>
+              <h1 className="truncate font-display text-2xl font-bold text-light-textPrimary dark:text-dark-textPrimary">
+                {property.nickname}
+              </h1>
+              <p className="flex items-center gap-1 truncate text-[13px] text-light-textSecondary dark:text-dark-textSecondary">
+                <MapPin size={13} className="shrink-0" aria-hidden="true" /> {property.fullAddress}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 divide-y divide-light-border sm:grid-cols-4 sm:divide-x sm:divide-y-0 dark:divide-dark-border">
+          {[
+            { label: 'Units', value: String(units.length) },
+            { label: 'Occupied', value: String(occupiedCount) },
+            { label: 'City', value: property.city },
+            { label: 'Province', value: property.province ?? '—' },
+          ].map((s) => (
+            <div key={s.label} className="border-t border-light-border px-5 py-4 sm:border-t-0 dark:border-dark-border">
+              <p className="text-[11px] text-light-textMuted dark:text-dark-textMuted">{s.label}</p>
+              <p className="tabular-nums-feature mt-0.5 truncate font-display text-lg font-bold text-light-textPrimary dark:text-dark-textPrimary">
+                {s.value}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
 
       <Panel title="Property details">
         <dl className="grid grid-cols-2 gap-x-4 gap-y-5 text-sm lg:grid-cols-4">
@@ -162,18 +201,18 @@ function PropertyDetailView({
             </dd>
           </div>
           <div>
-            <dt className="text-light-textMuted dark:text-dark-textMuted">City</dt>
-            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">{property.city}</dd>
-          </div>
-          <div>
-            <dt className="text-light-textMuted dark:text-dark-textMuted">Province</dt>
-            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">{property.province ?? '—'}</dd>
-          </div>
-          <div>
             <dt className="text-light-textMuted dark:text-dark-textMuted">Municipal account</dt>
             <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">
               {property.municipalAccountNumber ?? '—'}
             </dd>
+          </div>
+          <div>
+            <dt className="text-light-textMuted dark:text-dark-textMuted">Postal code</dt>
+            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">{property.postalCode ?? '—'}</dd>
+          </div>
+          <div>
+            <dt className="text-light-textMuted dark:text-dark-textMuted">Country</dt>
+            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">{property.country}</dd>
           </div>
         </dl>
 

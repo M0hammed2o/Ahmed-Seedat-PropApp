@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapUnitRow } from '@/lib/portfolio';
 import { UnitsTable, type UnitRow } from '@/components/tables/UnitsTable';
+import { UnitsFilterClient } from '@/components/units/UnitsFilterClient';
 import { AdminMetricCard } from '@/components/ui/AdminMetricCard';
 import { Button } from '@/components/ui/Button';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -58,12 +59,11 @@ export default async function UnitsPage() {
         <AdminMetricCard label="Vacant" value={vacant} />
       </div>
 
-      <UnitsTable
-        data={units}
-        showProperty
-        emptyMessage="No units yet"
-        emptyAction={total === 0 ? addAction : undefined}
-      />
+      {total === 0 ? (
+        <UnitsTable data={[]} showProperty emptyMessage="No units yet" emptyAction={addAction} />
+      ) : (
+        <UnitsFilterClient units={units} />
+      )}
     </div>
   );
 }

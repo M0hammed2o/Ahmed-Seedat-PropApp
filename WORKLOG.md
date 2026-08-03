@@ -1,5 +1,49 @@
 # Worklog
 
+## 2026-08-03 — Lovable UI donor integration: checkpoint batch (branch propertyvault/lovable-ui-integration)
+
+Strategy change mid-redesign: instead of hand-building analogues of reference/lovable-ui-reference's
+patterns page by page, Mohammed asked for a controlled integration -- treat the Lovable project as a
+UI donor and adapt its strongest implementation directly, on a dedicated branch, strangler-style
+(new UI connected to real data and verified before anything old is removed).
+
+Full audit written to UI_INTEGRATION_PLAN.md first: framework/routing/styling/component-library/
+licence findings, then a component-by-component mapping table. Key findings: TanStack Start+Vite
+vs this repo's Next.js App Router means the framework itself isn't portable, only JSX/Tailwind
+markup; already has lucide-react and recharts installed so no new icon/chart dependency; no LICENSE
+file in the reference project but its own README embeds the original design brief Mohammed gave
+Lovable to generate "PropertyVault" specifically for this project, so copyright risk on adapting the
+code is low; added only @radix-ui/react-dropdown-menu and @radix-ui/react-popover (MIT, small) for
+the shell's user menu/notifications rather than the reference's full 46-primitive shadcn set.
+
+Checkpoint batch (7 items, per Mohammed's mandatory-checkpoint list): design tokens (already mostly
+converted in the prior pass, gaps checked, none found), a real desktop header for AppShell
+(breadcrumbs, notifications popover wired to real `notifications` rows, user menu with a real
+Supabase sign-out -- none of this existed before, the shell had no header row at all on desktop),
+Owner Dashboard (swapped "Vacant units" for a real "Expiring leases" count computed from
+`leases.end_date`), Properties (new card-grid default view with grid/list toggle, real per-property
+income/outstanding/occupancy aggregated from units+leases+rent_schedules, no property photo storage
+exists so cards show a placeholder icon rather than fabricating or hotlinking a stock photo),
+Property detail (new hero header: placeholder image band, status pill, stat strip), Units (status-
+tab filter with real counts + client-side search over the already-fetched real rows), Tenants
+(avatar-initial chips added to the existing table).
+
+Two things the reference project does that were deliberately NOT copied: `portfolioValue`/property
+valuations and a "Vault Intelligence" fabricated-AI-insight banner with an invented rand figure --
+no PropertyVault field backs either, and Mohammed's own instruction explicitly bans inventing
+portfolio values or analytics the app can't calculate. Also not copied: the Tenants page's
+client-side master-detail single-pane pattern (would have broken deep-linking to `/tenants/[id]`,
+a real server-rendered route) and the Property detail page's full tab-per-module layout (Documents/
+Accounting/Maintenance are real separate modules with their own permissions, not visual-only tabs).
+Both are documented as deliberate adaptation decisions in UI_INTEGRATION_PLAN.md, not omissions.
+
+No backend/API/schema changes. Verified: typecheck/lint clean across the whole batch, full vitest
+153/153, real next build clean. Real-browser check (puppeteer + system Chrome, demo mode) across
+dashboard/properties/property-detail/units/tenants at 1440 light+dark, 768, and 390 -- zero console
+errors beyond the pre-existing favicon 404. Screenshots confirm the new header (breadcrumbs, bell,
+avatar user menu), property cards, hero header, and status-tab units table all render correctly in
+both themes with no double borders or layout breaks.
+
 ## 2026-08-03 — Documents and OCR review redesign
 
 Module 8 of the redesign order. /documents/[id]'s bare metadata dl moved into a Panel, matching

@@ -45,5 +45,9 @@ apps/mobile/android/app/build/
 # IDE
 .idea/
 
+# Development reference material only -- never a runtime dependency, never committed
+# (UI_INTEGRATION_PLAN.md: audited and adapted from, not imported)
+/reference/
+
 # Local agent tooling state (not project source)
 .claude/

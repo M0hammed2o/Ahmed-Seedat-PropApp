@@ -2,9 +2,14 @@
 
 import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { Menu, X } from 'lucide-react';
+import { useRouter, usePathname } from 'next/navigation';
+import { Bell, ChevronRight, LogOut, Menu, X } from 'lucide-react';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
+import { Avatar } from '@/components/ui/Avatar';
+import { Pill } from '@/components/ui/Pill';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/Popover';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/DropdownMenu';
+import { getBrowserSupabaseClient } from '@/lib/supabase/client';
 
 // DESIGN_SYSTEM.md "Responsive rules": persistent+expanded >=lg, icon-only >=md, overlay drawer
 // below md -- never built until now (UI_REDESIGN_PLAN.md 2026-08-02). One shared shell for all
@@ -30,19 +35,89 @@ export interface NavSection {
   items: NavItem[];
 }
 
+export interface HeaderNotification {
+  id: string;
+  title: string;
+  body: string;
+  createdAt: string;
+  readAt: string | null;
+}
+
 export interface AppShellProps {
   productLabel: string;
   navSections: NavSection[];
   identityLine?: string;
   demoBadge?: boolean;
+  notifications?: HeaderNotification[];
+  notificationsHref?: string;
   children: React.ReactNode;
 }
 
-export function AppShell({ productLabel, navSections, identityLine, demoBadge, children }: AppShellProps) {
+// Adapted from reference/lovable-ui-reference's app-shell.tsx header row (UI_INTEGRATION_PLAN.md)
+// -- breadcrumbs, notifications, and a user menu, none of which this shell had on desktop before.
+// Global search was deliberately NOT ported: no search API exists over properties/tenants/invoices
+// yet, and a search box that doesn't search would be a broken promise, not a visual upgrade.
+function Breadcrumbs({ pathname }: { pathname: string }) {
+  const parts = pathname.split('/').filter(Boolean);
+  if (parts.length === 0) return null;
+  return (
+    <div className="hidden min-w-0 items-center gap-1.5 text-[13px] text-light-textMuted lg:flex dark:text-dark-textMuted">
+      <Link href="/dashboard" className="transition-colors hover:text-light-textPrimary dark:hover:text-dark-textPrimary">
+        Home
+      </Link>
+      {parts.map((p, i) => (
+        <span key={p + i} className="flex min-w-0 items-center gap-1.5">
+          <ChevronRight size={13} className="shrink-0 opacity-50" aria-hidden="true" />
+          <span
+            className={`truncate capitalize ${i === parts.length - 1 ? 'font-medium text-light-textPrimary dark:text-dark-textPrimary' : ''}`}
+          >
+            {p.replace(/-/g, ' ')}
+          </span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function relativeTime(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const mins = Math.round(diffMs / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.round(hours / 24)}d ago`;
+}
+
+function initialsFor(label: string): string {
+  const words = label.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return '?';
+  if (words.length === 1) return words[0]!.slice(0, 2).toUpperCase();
+  return (words[0]![0]! + words[1]![0]!).toUpperCase();
+}
+
+export function AppShell({
+  productLabel,
+  navSections,
+  identityLine,
+  demoBadge,
+  notifications = [],
+  notificationsHref = '/notifications',
+  children,
+}: AppShellProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const unreadCount = notifications.filter((n) => !n.readAt).length;
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
+
+  async function signOut() {
+    const supabase = getBrowserSupabaseClient();
+    await supabase.auth.signOut();
+    router.push('/login');
+    router.refresh();
+  }
 
   function NavContent({ showLabels, onNavigate }: { showLabels: boolean; onNavigate?: () => void }) {
     return (
@@ -140,7 +215,86 @@ export function AppShell({ productLabel, navSections, identityLine, demoBadge, c
         <ShellFooter identityLine={identityLine} showLabels />
       </aside>
 
-      <main className="min-w-0 flex-1 px-5 py-6 pt-20 md:px-8 md:py-8 md:pt-8 print:p-0">{children}</main>
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* Desktop header: breadcrumbs + notifications + user menu, md and up only -- the mobile
+            top bar above already carries the product name and nav toggle at narrower widths. */}
+        <header className="sticky top-0 z-20 hidden h-16 items-center justify-between gap-3 border-b border-light-border bg-light-surfaceRaised/85 px-6 backdrop-blur-xl md:flex print:hidden dark:border-dark-border dark:bg-dark-surfaceRaised/85">
+          <Breadcrumbs pathname={pathname} />
+
+          <div className="ml-auto flex items-center gap-1.5">
+            <ThemeToggle compact />
+
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="Notifications"
+                  className="relative flex h-9 w-9 items-center justify-center rounded-md text-light-textMuted hover:bg-light-surface hover:text-light-textSecondary dark:text-dark-textMuted dark:hover:bg-dark-surface dark:hover:text-dark-textSecondary"
+                >
+                  <Bell size={17} aria-hidden="true" />
+                  {unreadCount > 0 ? (
+                    <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-light-statusOverdue ring-2 ring-light-surfaceRaised dark:bg-dark-statusOverdue dark:ring-dark-surfaceRaised" />
+                  ) : null}
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-[340px] p-0">
+                <div className="flex items-center justify-between border-b border-light-border px-4 py-3 dark:border-dark-border">
+                  <p className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">Notifications</p>
+                  {unreadCount > 0 ? <Pill tone="primary">{unreadCount} new</Pill> : null}
+                </div>
+                {notifications.length === 0 ? (
+                  <p className="px-4 py-6 text-center text-xs text-light-textMuted dark:text-dark-textMuted">
+                    No notifications yet.
+                  </p>
+                ) : (
+                  <ul className="max-h-[320px] divide-y divide-light-border overflow-y-auto dark:divide-dark-border">
+                    {notifications.map((n) => (
+                      <li key={n.id} className="px-4 py-3">
+                        <p className="text-[13px] font-medium text-light-textPrimary dark:text-dark-textPrimary">{n.title}</p>
+                        <p className="truncate text-xs text-light-textMuted dark:text-dark-textMuted">{n.body}</p>
+                        <p className="mt-1 text-[11px] text-light-textMuted/70 dark:text-dark-textMuted/70">
+                          {relativeTime(n.createdAt)}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <Link
+                  href={notificationsHref}
+                  className="block border-t border-light-border px-4 py-2.5 text-center text-xs font-medium text-light-accent hover:underline dark:border-dark-border dark:text-dark-accent"
+                >
+                  View all
+                </Link>
+              </PopoverContent>
+            </Popover>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="ml-1 flex items-center gap-2 rounded-xl border border-light-border bg-light-surfaceRaised py-1 pr-2.5 pl-1 hover:bg-light-surface dark:border-dark-border dark:bg-dark-surfaceRaised dark:hover:bg-dark-surface"
+                >
+                  <Avatar initials={initialsFor(identityLine ?? 'User')} />
+                  {identityLine ? (
+                    <span className="hidden text-left text-[12px] leading-tight font-medium text-light-textPrimary capitalize sm:block dark:text-dark-textPrimary">
+                      {identityLine}
+                    </span>
+                  ) : null}
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {identityLine ? <DropdownMenuLabel className="capitalize">{identityLine}</DropdownMenuLabel> : null}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={signOut}>
+                  <LogOut size={15} aria-hidden="true" /> Sign out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </header>
+
+        <main className="min-w-0 flex-1 px-5 py-6 pt-20 md:px-8 md:py-8 md:pt-8 print:p-0">{children}</main>
+      </div>
     </div>
   );
 }
