@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { Announcement } from '@propvault/types';
 import { AnnouncementsTable } from '@/components/tables/AnnouncementsTable';
 import { Button } from '@/components/ui/Button';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapAnnouncementRow } from '@/lib/notifications';
 import { resolvePortalSession, findActiveMembership, canWriteOrgRecords } from '@/lib/orgSession';
@@ -39,18 +40,14 @@ export default async function AnnouncementsPage() {
   );
 
   return (
-    <div>
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">Announcements</h1>
-        {canWrite && announcements.length > 0 ? addAction : null}
-      </div>
-      <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
-        {announcements.length} published across your portfolio.
-      </p>
+    <div className="space-y-5 animate-rise">
+      <PageHeader
+        title="Announcements"
+        subtitle={`${announcements.length} published across your portfolio.`}
+        actions={canWrite && announcements.length > 0 ? addAction : undefined}
+      />
 
-      <div className="mt-6">
-        <AnnouncementsTable data={announcements} emptyAction={canWrite ? addAction : undefined} />
-      </div>
+      <AnnouncementsTable data={announcements} emptyAction={canWrite ? addAction : undefined} />
     </div>
   );
 }

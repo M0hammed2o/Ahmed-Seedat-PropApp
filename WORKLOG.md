@@ -1,5 +1,17 @@
 # Worklog
 
+## 2026-08-03 — Reports, Notifications, and Announcements
+
+Reports' local ReportCard component (flat rounded-lg border) replaced outright with Panel -- same
+title-header/body shape, one less duplicated card implementation, four report tiles now match the
+rest of the app's card language. Notifications, Notifications preferences, and Announcements all
+moved onto PageHeader (Preferences link now lives in PageHeader's actions slot instead of floating
+next to a bare h1).
+
+No backend/API/schema changes. Verified: typecheck/lint clean, full vitest 153/153, real next build
+clean, real-browser check across all 4 pages light + Reports dark -- zero console errors beyond the
+pre-existing favicon 404.
+
 ## 2026-08-03 — Accounting section (Bank Accounts/Transactions/Expenses/Rent Due/Owner Statements/Tax Pack/Trial Balance)
 
 The whole Finance nav group had never been through the redesign -- all 7 pages still had the

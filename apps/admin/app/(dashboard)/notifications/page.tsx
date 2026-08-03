@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { AppNotification } from '@propvault/types';
 import { NotificationsList } from '@/components/notifications/NotificationsList';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapNotificationRow } from '@/lib/notifications';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
@@ -30,23 +31,21 @@ export default async function NotificationsPage() {
   const unreadCount = notifications.filter((n) => !n.readAt).length;
 
   return (
-    <div>
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">Notifications</h1>
-        <Link
-          href="/notifications/preferences"
-          className="text-xs text-light-accent hover:underline dark:text-dark-accent"
-        >
-          Preferences
-        </Link>
-      </div>
-      <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
-        {unreadCount} unread of {notifications.length}.
-      </p>
+    <div className="space-y-5 animate-rise">
+      <PageHeader
+        title="Notifications"
+        subtitle={`${unreadCount} unread of ${notifications.length}.`}
+        actions={
+          <Link
+            href="/notifications/preferences"
+            className="text-sm font-medium text-light-accent hover:underline dark:text-dark-accent"
+          >
+            Preferences
+          </Link>
+        }
+      />
 
-      <div className="mt-6">
-        <NotificationsList notifications={notifications} />
-      </div>
+      <NotificationsList notifications={notifications} />
     </div>
   );
 }

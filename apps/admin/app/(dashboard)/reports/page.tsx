@@ -1,10 +1,11 @@
-import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { MAINTENANCE_STATUSES, RENT_SCHEDULE_STATUSES } from '@propvault/types';
 import { MiniBarChart } from '@/components/ui/MiniBarChart';
 import { MiniLineChart } from '@/components/ui/MiniLineChart';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { Panel } from '@/components/ui/Panel';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
@@ -34,14 +35,11 @@ export default async function ReportsPage() {
   const data = ADMIN_DEMO_MODE ? demoData() : await loadData();
 
   return (
-    <div>
-      <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">Reports</h1>
-      <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
-        A snapshot across your portfolio.
-      </p>
+    <div className="space-y-5 animate-rise">
+      <PageHeader title="Reports" subtitle="A snapshot across your portfolio." />
 
-      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <ReportCard title="Income vs Expense Trend">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <Panel title="Income vs Expense Trend">
           {data.incomeExpense.every((p) => p.income === 0 && p.expense === 0) ? (
             <EmptyState
               icon={<span className="text-lg">📈</span>}
@@ -67,9 +65,9 @@ export default async function ReportsPage() {
               </div>
             </div>
           )}
-        </ReportCard>
+        </Panel>
 
-        <ReportCard title="Occupancy by Property">
+        <Panel title="Occupancy by Property">
           {data.occupancy.length === 0 ? (
             <EmptyState
               icon={<span className="text-lg">🏠</span>}
@@ -83,9 +81,9 @@ export default async function ReportsPage() {
           ) : (
             <MiniBarChart bars={data.occupancy.map((o) => ({ label: o.label, value: o.occupiedPct }))} />
           )}
-        </ReportCard>
+        </Panel>
 
-        <ReportCard title="Tenant Payment Status">
+        <Panel title="Tenant Payment Status">
           {data.rentStatusCounts.every((c) => c.value === 0) ? (
             <EmptyState
               icon={<span className="text-lg">🧾</span>}
@@ -99,25 +97,16 @@ export default async function ReportsPage() {
           ) : (
             <MiniBarChart bars={data.rentStatusCounts} color="#2F5D50" />
           )}
-        </ReportCard>
+        </Panel>
 
-        <ReportCard title="Maintenance by Status">
+        <Panel title="Maintenance by Status">
           {data.maintenanceStatusCounts.every((c) => c.value === 0) ? (
             <EmptyState icon={<span className="text-lg">🔧</span>} title="No maintenance tickets yet" />
           ) : (
             <MiniBarChart bars={data.maintenanceStatusCounts} color="#7A5CC7" />
           )}
-        </ReportCard>
+        </Panel>
       </div>
-    </div>
-  );
-}
-
-function ReportCard({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div className="rounded-lg border border-light-border p-5 dark:border-dark-border">
-      <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">{title}</h2>
-      <div className="mt-4">{children}</div>
     </div>
   );
 }
