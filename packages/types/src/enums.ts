@@ -310,3 +310,18 @@ export type PortfolioInsightType = (typeof PORTFOLIO_INSIGHT_TYPES)[number];
 
 export const USAGE_TYPES = ['storage_bytes', 'email_sent', 'whatsapp_sent', 'ocr_page', 'ai_token'] as const;
 export type UsageType = (typeof USAGE_TYPES)[number];
+
+// PWA_V1_COMPLETION_PLAN.md #9. 'archived' covers both a deliberately retired template and one
+// superseded by a replacement (supersedes_id on the newer row links the chain -- no separate
+// 'superseded' value needed, an archived-because-replaced row and an archived-because-retired row
+// are the same "not currently offered" state from every caller's perspective).
+export const LEASE_TEMPLATE_STATUSES = ['active', 'archived'] as const;
+export type LeaseTemplateStatus = (typeof LEASE_TEMPLATE_STATUSES)[number];
+
+// Deliberately narrower than ALLOWED_MIME_TYPES -- a lease template is a document staff fill in
+// and reuse, not a scanned bill/receipt photo, so image types are out.
+export const LEASE_TEMPLATE_MIME_TYPES = [
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+] as const;
+export type LeaseTemplateMimeType = (typeof LEASE_TEMPLATE_MIME_TYPES)[number];

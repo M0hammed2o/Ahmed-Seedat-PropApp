@@ -85,18 +85,21 @@ select is(
   'the tenant themselves (user_id match, zero org memberships) can SELECT their own tenant record'
 );
 
--- No self-write policy exists (deliberate -- no tenant portal in V1); confirm the tenant cannot
--- edit their own record either, same lives_ok-then-verify pattern.
+-- tenants_update_self (migration 20260101000056, PWA_V1_COMPLETION_PLAN.md #11) closes the gap
+-- the comment above used to describe: the tenant portal is now real, so a tenant CAN update their
+-- own record via RLS. The API layer (PATCH /api/v1/tenant-portal/profile) further restricts which
+-- columns actually move (email/phone only) -- RLS itself permits the whole row, matching this
+-- table's existing "role/table checks are the enforcement, column scoping is layer 2" pattern.
 select lives_ok(
   $$ update public.tenants set full_name = 'self-edit-attempt'
      where id = '55550000-0000-0000-0000-000000000001' $$,
-  'the tenant''s own UPDATE attempt against their own record runs without error (no self-write policy exists, silently filtered, verified next)'
+  'the tenant''s own UPDATE attempt against their own record runs without error'
 );
 
 select is(
   (select full_name from public.tenants where id = '55550000-0000-0000-0000-000000000001'),
-  'Self-Access Test Tenant',
-  'the tenant''s self-edit attempt did not apply -- read-only self-access, matching the "no tenant portal in V1" decision'
+  'self-edit-attempt',
+  'the tenant''s self-edit DID apply -- tenants_update_self grants self-write now that the tenant portal is real'
 );
 
 -- === encrypted_secrets: zero client policies means deny-by-default to every authenticated user,

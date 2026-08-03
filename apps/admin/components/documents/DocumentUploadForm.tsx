@@ -12,13 +12,15 @@ interface DocumentUploadFormProps {
   orgId: string;
   properties: { id: string; nickname: string }[];
   categories: { id: string; label: string }[];
+  leases: { id: string; label: string }[];
 }
 
-export function DocumentUploadForm({ orgId, properties, categories }: DocumentUploadFormProps) {
+export function DocumentUploadForm({ orgId, properties, categories, leases }: DocumentUploadFormProps) {
   const router = useRouter();
   const [propertyId, setPropertyId] = useState(properties[0]?.id ?? '');
   const [categoryId, setCategoryId] = useState(categories[0]?.id ?? '');
   const [documentType, setDocumentType] = useState<DocumentType>('supporting_document');
+  const [leaseId, setLeaseId] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -40,6 +42,7 @@ export function DocumentUploadForm({ orgId, properties, categories }: DocumentUp
       form.set('propertyId', propertyId);
       form.set('categoryId', categoryId);
       form.set('documentType', documentType);
+      if (leaseId) form.set('leaseId', leaseId);
 
       const response = await fetch('/api/v1/documents', { method: 'POST', body: form });
       const body = await response.json();
@@ -130,6 +133,22 @@ export function DocumentUploadForm({ orgId, properties, categories }: DocumentUp
             ))}
           </select>
         </label>
+
+        {leases.length > 0 ? (
+          <label className="block text-xs">
+            <span className="text-light-textMuted dark:text-dark-textMuted">
+              Tag to a lease (makes this document visible to that tenant) — optional
+            </span>
+            <select value={leaseId} onChange={(e) => setLeaseId(e.target.value)} className={inputClass}>
+              <option value="">Not tenant-visible</option>
+              {leases.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
 
         <div className="flex gap-2 pt-2">
           <Button type="submit" variant="primary" disabled={submitting}>

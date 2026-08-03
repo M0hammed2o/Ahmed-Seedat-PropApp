@@ -23,6 +23,7 @@ const DEMO_DOCUMENTS: DocumentRecord[] = [
     checksumSha256: 'demo',
     billingYear: null,
     billingMonth: null,
+    leaseId: null,
     deletedAt: null,
     createdAt: '2026-08-01T00:00:00Z',
     updatedAt: '2026-08-01T00:00:00Z',

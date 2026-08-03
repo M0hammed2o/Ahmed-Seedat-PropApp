@@ -8,6 +8,11 @@ export const documentUploadMetadataSchema = z.object({
   documentType: z.enum(DOCUMENT_TYPES),
   billingYear: z.number().int().min(2000).max(2100).optional().nullable(),
   billingMonth: z.number().int().min(1).max(12).optional().nullable(),
+  // Tags the upload as tenant-visible via documents_select_tenant_self (migration
+  // 20260101000049) -- deliberately opt-in per upload, never a blanket property-scoped grant
+  // (PERMISSIONS.md §4: a property's documents include owner-only paperwork a tenant must never
+  // see).
+  leaseId: z.string().uuid().optional().nullable(),
   originalFileName: z.string().min(1).max(255),
   mimeType: z.enum(ALLOWED_MIME_TYPES),
   fileSizeBytes: z.number().int().positive(),

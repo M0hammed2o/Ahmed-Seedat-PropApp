@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { FileSignature, Receipt, Wrench, Megaphone } from 'lucide-react';
+import { FileSignature, Receipt, Wrench, Megaphone, FileText } from 'lucide-react';
 import { resolveTenantSession, type TenantSession } from '@/lib/tenantSession';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 import { AppShell, type NavSection } from '@/components/shell/AppShell';
@@ -22,10 +22,13 @@ const NAV_SECTIONS: NavSection[] = [
       { href: '/my-lease', label: 'My Lease', icon: navIcon(FileSignature) },
       { href: '/my-payments', label: 'My Payments', icon: navIcon(Receipt) },
       { href: '/my-maintenance', label: 'My Maintenance', icon: navIcon(Wrench) },
+      { href: '/my-documents', label: 'My Documents', icon: navIcon(FileText) },
       { href: '/notices', label: 'Notices', icon: navIcon(Megaphone) },
     ],
   },
 ];
+
+const ACCOUNT_MENU_LINKS = [{ href: '/profile', label: 'My Profile' }];
 
 export default async function TenantPortalLayout({ children }: { children: React.ReactNode }) {
   const session: TenantSession | null = ADMIN_DEMO_MODE
@@ -35,7 +38,12 @@ export default async function TenantPortalLayout({ children }: { children: React
   if (!session) redirect('/login');
 
   return (
-    <AppShell productLabel="PropertyVault" navSections={NAV_SECTIONS} demoBadge={ADMIN_DEMO_MODE}>
+    <AppShell
+      productLabel="PropertyVault"
+      navSections={NAV_SECTIONS}
+      demoBadge={ADMIN_DEMO_MODE}
+      accountMenuLinks={ACCOUNT_MENU_LINKS}
+    >
       {children}
     </AppShell>
   );

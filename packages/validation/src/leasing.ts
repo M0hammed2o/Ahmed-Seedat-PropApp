@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { LEASE_TEMPLATE_MIME_TYPES } from '@propvault/types';
 
 // Tenants API (apps/admin/app/api/v1/tenants, /api/v1/tenants/:id -- API_SPEC.md §4, TASKS.md
 // M8). No `status`/`idNumberRef` field here: status defaults server-side ('pending', matching the
@@ -88,3 +89,25 @@ export const leaseUpdateSchema = z.object({
   status: z.enum(['draft', 'active', 'expired', 'terminated']).optional(),
 });
 export type LeaseUpdateInput = z.infer<typeof leaseUpdateSchema>;
+
+// Lease templates API (apps/admin/app/api/v1/lease-templates/** -- PWA_V1_COMPLETION_PLAN.md #9).
+// Upload is multipart (file + metadata), same shape as documentUploadMetadataSchema.
+export const leaseTemplateUploadMetadataSchema = z.object({
+  orgId: z.string().uuid('orgId must be a valid UUID'),
+  name: z.string().min(1, 'Give this template a name').max(200),
+  isDefault: z.boolean().default(false),
+  supersedesId: z.string().uuid().optional().nullable(),
+  originalFileName: z.string().min(1).max(255),
+  mimeType: z.enum(LEASE_TEMPLATE_MIME_TYPES),
+  fileSizeBytes: z.number().int().positive(),
+});
+export type LeaseTemplateUploadMetadataInput = z.infer<typeof leaseTemplateUploadMetadataSchema>;
+
+export const leaseTemplateUpdateSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  status: z.enum(['active', 'archived']).optional(),
+  // Routed to the set_default_lease_template() RPC (migration 20260101000056), never a plain
+  // column update -- see apps/admin/app/api/v1/lease-templates/[id]/route.ts's PATCH handler.
+  setDefault: z.boolean().optional(),
+});
+export type LeaseTemplateUpdateInput = z.infer<typeof leaseTemplateUpdateSchema>;

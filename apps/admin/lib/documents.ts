@@ -17,6 +17,7 @@ interface DocumentRow {
   checksum_sha256: string;
   billing_year: number | null;
   billing_month: number | null;
+  lease_id: string | null;
   deleted_at: string | null;
   created_at: string;
   updated_at: string;
@@ -37,6 +38,7 @@ export function mapDocumentRow(row: DocumentRow): DocumentRecord {
     checksumSha256: row.checksum_sha256,
     billingYear: row.billing_year,
     billingMonth: row.billing_month,
+    leaseId: row.lease_id,
     deletedAt: row.deleted_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,

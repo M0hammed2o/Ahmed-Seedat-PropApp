@@ -20,6 +20,7 @@ const DOCUMENT: DocumentRecord = {
   checksumSha256: 'abc',
   billingYear: null,
   billingMonth: null,
+  leaseId: null,
   deletedAt: null,
   createdAt: '2026-08-01T00:00:00Z',
   updatedAt: '2026-08-01T00:00:00Z',

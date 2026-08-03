@@ -43,6 +43,11 @@ export interface HeaderNotification {
   readAt: string | null;
 }
 
+export interface AccountMenuLink {
+  href: string;
+  label: string;
+}
+
 export interface AppShellProps {
   productLabel: string;
   navSections: NavSection[];
@@ -50,6 +55,7 @@ export interface AppShellProps {
   demoBadge?: boolean;
   notifications?: HeaderNotification[];
   notificationsHref?: string;
+  accountMenuLinks?: AccountMenuLink[];
   children: React.ReactNode;
 }
 
@@ -103,6 +109,7 @@ export function AppShell({
   demoBadge,
   notifications = [],
   notificationsHref = '/notifications',
+  accountMenuLinks = [],
   children,
 }: AppShellProps) {
   const pathname = usePathname();
@@ -284,6 +291,16 @@ export function AppShell({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 {identityLine ? <DropdownMenuLabel className="capitalize">{identityLine}</DropdownMenuLabel> : null}
+                {accountMenuLinks.length > 0 ? (
+                  <>
+                    <DropdownMenuSeparator />
+                    {accountMenuLinks.map((link) => (
+                      <DropdownMenuItem key={link.href} onSelect={() => router.push(link.href)}>
+                        {link.label}
+                      </DropdownMenuItem>
+                    ))}
+                  </>
+                ) : null}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onSelect={signOut}>
                   <LogOut size={15} aria-hidden="true" /> Sign out

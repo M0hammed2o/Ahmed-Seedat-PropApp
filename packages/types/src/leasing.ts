@@ -7,6 +7,7 @@ import type {
   LeaseStatus,
   LeaseSource,
   RentScheduleStatus,
+  LeaseTemplateStatus,
 } from './enums';
 
 // Leasing-domain types (DATABASE.md §4). `Tenant` is the first of this family (TASKS.md M8);
@@ -73,6 +74,25 @@ export interface LeaseTenant {
   tenantId: string;
   isPrimary: boolean;
   createdAt: string;
+}
+
+// PWA_V1_COMPLETION_PLAN.md #9. supersedesId links a replacement back to the row it replaced --
+// the version-history mechanism: replacing never mutates/deletes the old row (so a lease already
+// created against it stays valid), it archives the old row and inserts a new one pointing back.
+export interface LeaseTemplate {
+  id: string;
+  orgId: string;
+  name: string;
+  storagePath: string;
+  originalFileName: string;
+  mimeType: string;
+  fileSizeBytes: number;
+  isDefault: boolean;
+  status: LeaseTemplateStatus;
+  supersedesId: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface RentSchedule {

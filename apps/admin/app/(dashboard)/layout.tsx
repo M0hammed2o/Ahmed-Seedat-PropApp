@@ -104,6 +104,17 @@ export default async function PortalLayout({ children }: { children: React.React
 
   const notifications: HeaderNotification[] = ADMIN_DEMO_MODE ? [] : await loadHeaderNotifications();
 
+  const canManageOrg = activeOrg.role === 'principal' || activeOrg.role === 'manager';
+  const accountMenuLinks = [
+    { href: '/settings', label: 'Account settings' },
+    ...(canManageOrg
+      ? [
+          { href: '/organization/settings', label: 'Organization settings' },
+          { href: '/organization/lease-templates', label: 'Lease templates' },
+        ]
+      : []),
+  ];
+
   return (
     <AppShell
       productLabel="PropertyVault"
@@ -111,6 +122,7 @@ export default async function PortalLayout({ children }: { children: React.React
       identityLine={activeOrg.role.replace('_', ' ')}
       demoBadge={ADMIN_DEMO_MODE}
       notifications={notifications}
+      accountMenuLinks={accountMenuLinks}
     >
       {children}
     </AppShell>

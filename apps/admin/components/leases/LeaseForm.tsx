@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import type { Lease, LeaseStatus } from '@propvault/types';
+import type { Lease, LeaseStatus, LeaseTemplate } from '@propvault/types';
 import { LEASE_STATUSES } from '@propvault/types';
 import { Button } from '@/components/ui/Button';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -46,6 +46,31 @@ export function LeaseForm({ mode, orgId, unitId, propertyId, lease }: LeaseFormP
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [templates, setTemplates] = useState<LeaseTemplate[]>([]);
+  const [templateId, setTemplateId] = useState('');
+  const [templateSignedUrl, setTemplateSignedUrl] = useState<string | null>(null);
+
+  // Lease-template picker (PWA_V1_COMPLETION_PLAN.md #9) -- create mode only, a reference the
+  // staff member can open while filling in the form; picking one never pre-fills form fields
+  // (a template is a document, not structured data to parse).
+  useEffect(() => {
+    if (mode !== 'create') return;
+    fetch('/api/v1/lease-templates')
+      .then((res) => res.json())
+      .then((body) => setTemplates(body.leaseTemplates ?? []))
+      .catch(() => setTemplates([]));
+  }, [mode]);
+
+  useEffect(() => {
+    if (!templateId) {
+      setTemplateSignedUrl(null);
+      return;
+    }
+    fetch(`/api/v1/lease-templates/${templateId}`)
+      .then((res) => res.json())
+      .then((body) => setTemplateSignedUrl(body.signedUrl ?? null))
+      .catch(() => setTemplateSignedUrl(null));
+  }, [templateId]);
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -147,6 +172,30 @@ export function LeaseForm({ mode, orgId, unitId, propertyId, lease }: LeaseFormP
             />
           </Field>
         </div>
+
+        {mode === 'create' && templates.length > 0 ? (
+          <Field label="Lease template (optional reference)">
+            <select value={templateId} onChange={(e) => setTemplateId(e.target.value)} className={inputClass}>
+              <option value="">None</option>
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                  {t.isDefault ? ' (default)' : ''}
+                </option>
+              ))}
+            </select>
+            {templateSignedUrl ? (
+              <a
+                href={templateSignedUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-1 inline-block text-xs text-light-accent hover:underline dark:text-dark-accent"
+              >
+                Open template in a new tab
+              </a>
+            ) : null}
+          </Field>
+        ) : null}
 
         {mode === 'edit' ? (
           <Field label="Status">
