@@ -5,28 +5,14 @@ import type { ColumnDef } from '@tanstack/react-table';
 import Link from 'next/link';
 import type { Owner } from '@propvault/types';
 import { AdminDataTable } from '@/components/ui/AdminDataTable';
+import { Avatar } from '@/components/ui/Avatar';
+import { Pill } from '@/components/ui/Pill';
 
-// Owner.status ('active' | 'inactive') is a plain inline union on the Owner type, not a named
-// enum in packages/types/src/enums.ts -- a small local badge here rather than growing
-// StatusPresentation for a two-value field with no other consumer.
-function OwnerStatusBadge({ status }: { status: Owner['status'] }) {
-  const isActive = status === 'active';
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 text-xs font-medium ${
-        isActive
-          ? 'text-light-statusPaid dark:text-dark-statusPaid'
-          : 'text-light-textMuted dark:text-dark-textMuted'
-      }`}
-    >
-      <span
-        className={`h-1.5 w-1.5 rounded-full ${
-          isActive ? 'bg-light-statusPaid dark:bg-dark-statusPaid' : 'bg-light-border dark:bg-dark-border'
-        }`}
-      />
-      {isActive ? 'Active' : 'Inactive'}
-    </span>
-  );
+function initialsFor(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return '?';
+  if (words.length === 1) return words[0]!.slice(0, 2).toUpperCase();
+  return (words[0]![0]! + words[1]![0]!).toUpperCase();
 }
 
 const columns: ColumnDef<Owner, unknown>[] = [
@@ -34,11 +20,11 @@ const columns: ColumnDef<Owner, unknown>[] = [
     header: 'Name',
     accessorKey: 'name',
     cell: (info) => (
-      <Link
-        href={`/owners/${info.row.original.id}`}
-        className="font-medium text-light-accent hover:underline dark:text-dark-accent"
-      >
-        {info.row.original.name}
+      <Link href={`/owners/${info.row.original.id}`} className="group flex items-center gap-2.5">
+        <Avatar initials={initialsFor(info.row.original.name)} tone="muted" className="h-7 w-7 text-[10px]" />
+        <span className="font-medium text-light-accent group-hover:underline dark:text-dark-accent">
+          {info.row.original.name}
+        </span>
       </Link>
     ),
   },
@@ -52,7 +38,11 @@ const columns: ColumnDef<Owner, unknown>[] = [
   {
     header: 'Status',
     accessorKey: 'status',
-    cell: (info) => <OwnerStatusBadge status={info.getValue() as Owner['status']} />,
+    cell: (info) => (
+      <Pill tone={(info.getValue() as Owner['status']) === 'active' ? 'success' : 'neutral'} dot>
+        {(info.getValue() as Owner['status']) === 'active' ? 'Active' : 'Inactive'}
+      </Pill>
+    ),
   },
 ];
 

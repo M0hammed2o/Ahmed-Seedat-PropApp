@@ -1,15 +1,23 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { Mail, Phone } from 'lucide-react';
 import type { Tenant } from '@propvault/types';
 import { TENANT_STATUS_PRESENTATION } from '@propvault/ui';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapTenantRow } from '@/lib/leasing';
 import { resolvePortalSession, findActiveMembership } from '@/lib/orgSession';
 import { StatusBadge } from '@/components/ui/StatusBadge';
+import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
-import { PageHeader } from '@/components/ui/PageHeader';
 import { Panel } from '@/components/ui/Panel';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
+
+function initialsFor(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return '?';
+  if (words.length === 1) return words[0]!.slice(0, 2).toUpperCase();
+  return (words[0]![0]! + words[1]![0]!).toUpperCase();
+}
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -50,43 +58,49 @@ export default async function TenantDetailPage({ params }: RouteParams) {
 function TenantDetailView({ tenant, canEdit }: { tenant: Tenant; canEdit: boolean }) {
   return (
     <div className="space-y-6 animate-rise">
-      <div>
-        <Link
-          href="/tenants"
-          className="text-xs text-light-textSecondary hover:underline dark:text-dark-textSecondary"
-        >
-          ← Back to tenants
-        </Link>
-        <div className="mt-2">
-          <PageHeader
-            title={tenant.fullName}
-            actions={
-              canEdit ? (
-                <Link href={`/tenants/${tenant.id}/edit`}>
-                  <Button variant="secondary" size="sm">
-                    Edit
-                  </Button>
-                </Link>
-              ) : undefined
-            }
-          />
-        </div>
-        <div className="mt-1">
-          <StatusBadge presentation={TENANT_STATUS_PRESENTATION[tenant.status]} />
-        </div>
-      </div>
+      <Link
+        href="/tenants"
+        className="text-xs text-light-textSecondary hover:underline dark:text-dark-textSecondary"
+      >
+        ← Back to tenants
+      </Link>
 
-      <Panel title="Tenant details">
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-5 text-sm lg:grid-cols-4">
-          <div>
-            <dt className="text-light-textMuted dark:text-dark-textMuted">Email</dt>
-            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">{tenant.email ?? '—'}</dd>
+      {/* Profile header adapted from reference/lovable-ui-reference's tenants/index.tsx detail
+          panel (UI_INTEGRATION_PLAN.md) -- large avatar + name + status + contact row, in place of
+          the previous bare title/status stack. */}
+      <Panel bodyClassName="p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-4">
+            <Avatar initials={initialsFor(tenant.fullName)} className="h-14 w-14 text-lg" />
+            <div className="min-w-0">
+              <h1 className="truncate font-display text-xl font-bold text-light-textPrimary dark:text-dark-textPrimary">
+                {tenant.fullName}
+              </h1>
+              <div className="mt-1">
+                <StatusBadge presentation={TENANT_STATUS_PRESENTATION[tenant.status]} />
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-light-textMuted dark:text-dark-textMuted">
+                {tenant.email ? (
+                  <span className="flex items-center gap-1.5">
+                    <Mail size={13} aria-hidden="true" /> {tenant.email}
+                  </span>
+                ) : null}
+                {tenant.phone ? (
+                  <span className="flex items-center gap-1.5">
+                    <Phone size={13} aria-hidden="true" /> {tenant.phone}
+                  </span>
+                ) : null}
+              </div>
+            </div>
           </div>
-          <div>
-            <dt className="text-light-textMuted dark:text-dark-textMuted">Phone</dt>
-            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">{tenant.phone ?? '—'}</dd>
-          </div>
-        </dl>
+          {canEdit ? (
+            <Link href={`/tenants/${tenant.id}/edit`}>
+              <Button variant="secondary" size="sm">
+                Edit
+              </Button>
+            </Link>
+          ) : null}
+        </div>
       </Panel>
 
       <p className="text-xs text-light-textMuted dark:text-dark-textMuted">

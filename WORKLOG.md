@@ -1,5 +1,19 @@
 # Worklog
 
+## 2026-08-03 — Owners/Tenant-detail Lovable polish (continuing past the approved checkpoint)
+
+Checkpoint approved -- continuing module order. OwnersTable gained the same avatar-initial chip
+TenantsTable got in the checkpoint, plus its local two-value OwnerStatusBadge replaced with the
+shared Pill component (one less duplicated badge implementation). Tenant detail's bare title/status
+stack replaced with a proper profile header (large Avatar, name, status, email/phone with icons),
+adapted from the reference's tenant profile panel -- LeasesTable was checked and left alone, it
+already uses StatusBadge/LEASE_STATUS_PRESENTATION correctly, no Lovable-style Pill needed there.
+
+No backend/API/schema changes. Verified: typecheck/lint clean, full vitest 153/153 (OwnersTable.
+test.tsx and TenantsTable.test.tsx both still green against the restyled markup), real next build
+clean, real-browser check on /owners and /tenants/[id] light+dark -- zero console errors beyond the
+pre-existing favicon 404.
+
 ## 2026-08-03 — Lovable UI donor integration: checkpoint batch (branch propertyvault/lovable-ui-integration)
 
 Strategy change mid-redesign: instead of hand-building analogues of reference/lovable-ui-reference's
