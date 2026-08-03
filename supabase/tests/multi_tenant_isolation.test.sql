@@ -16,7 +16,7 @@
 -- same fixture pattern rather than retrofitting everything into one file.
 
 begin;
-select plan(13);
+select plan(15);
 
 -- Fixtures: two organizations, one principal member each, a unit and owner in Org A only.
 insert into auth.users (id, email) values
@@ -158,21 +158,48 @@ select is(
   'Org A''s own principal cannot see a support_access_sessions row opened against their own org — by design, not a bug (SECURITY.md/support-session model: this is PropertyVault auditing itself, not org-visible data)'
 );
 
--- === organizations.status is NOT currently enforced by any RLS policy — documented as real,
---     current behavior (evidenced 2026-07-31), not asserted as a security guarantee. has_org_role()
---     only checks organization_members.status; nothing anywhere checks organizations.status.
---     Archiving/suspending/cancelling an org today has zero effect on its own members' data
---     access. Tracked as an open product decision in RISK_REGISTER.md/TECHNICAL_DEBT_REGISTER.md
---     (what SHOULD an archived/suspended org's member access look like?) rather than guessed at
---     here. If that decision is ever implemented, this assertion must flip to `false` and this
---     comment must be corrected in the same change — a silently-stale comment here would be
---     exactly the kind of documentation drift this verification pass exists to catch. ===
+-- === organizations.status IS NOW enforced by has_org_role() (migration 20260101000055, closing
+--     TECHNICAL_DEBT_REGISTER.md TD-17, 2026-08-03). This assertion previously asserted the
+--     opposite as documented current behavior, with an explicit instruction to flip it the moment
+--     enforcement landed — this is that flip.
+--
+--     Status changes below run as `postgres` (reset role), not `authenticated` — matching how the
+--     real product changes organizations.status: only Super Admin's suspend/activate/archive
+--     routes do it, exclusively via getServiceRoleClient() (RLS-bypassing), never through the
+--     org's own RLS-gated `WITH CHECK (has_org_role(id, 'manager'))` UPDATE policy. Leaving the
+--     `authenticated` role active here would hit a real, separate, and correct RLS behavior — once
+--     archived, has_org_role() denies even 'manager', so an RLS-gated UPDATE attempting to change
+--     an already-archived org's status would itself be silently rejected (0 rows) — that's not a
+--     bug, it's just not how status changes are actually performed, so the test must not simulate
+--     them that way either. ===
+reset role;
 update public.organizations set status = 'archived' where id = 'aaaaaaaa-0000-0000-0000-000000000001';
+set local role authenticated;
+set local "request.jwt.claim.sub" = 'a1000000-0000-0000-0000-000000000001';
+
+select is(
+  (select public.has_org_role('aaaaaaaa-0000-0000-0000-000000000001', 'viewer')),
+  false,
+  'An archived org''s own active principal now fails has_org_role() even at viewer level — archived grants no access at all (PWA_V1_COMPLETION_PLAN.md #1)'
+);
+
+-- === suspended: read (viewer) still passes, write-level (agent+) now fails, regardless of the
+--     member's actual stored role (the fixture principal would otherwise pass every check) ===
+reset role;
+update public.organizations set status = 'suspended' where id = 'aaaaaaaa-0000-0000-0000-000000000001';
+set local role authenticated;
+set local "request.jwt.claim.sub" = 'a1000000-0000-0000-0000-000000000001';
 
 select is(
   (select public.has_org_role('aaaaaaaa-0000-0000-0000-000000000001', 'viewer')),
   true,
-  'CURRENT BEHAVIOR (not a guarantee): an archived org''s own active principal still passes has_org_role() — organizations.status is not yet wired into any access-control check'
+  'A suspended org''s own active principal still passes has_org_role() at viewer level — suspended is read-only, not a full lockout'
+);
+
+select is(
+  (select public.has_org_role('aaaaaaaa-0000-0000-0000-000000000001', 'agent')),
+  false,
+  'A suspended org''s own active principal fails has_org_role() at agent (write) level even though their stored role is principal — suspended forces viewer-equivalent regardless of role'
 );
 
 select * from finish();
