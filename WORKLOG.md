@@ -1,5 +1,28 @@
 # Worklog
 
+## 2026-08-03 — Properties/Units/Owners/Tenants/Leases/Maintenance/Inspections/Documents list-page consistency pass
+
+Continued the module redesign order (UI_REDESIGN_PLAN.md) into the eight core list pages. Every
+page's ad hoc <h1>+<p>+button header block replaced with the shared PageHeader component built in
+the previous batch. Tried wrapping each table in the also-new Panel component first, starting with
+Properties -- reverted immediately after noticing AdminDataTable already renders its own
+rounded-lg border wrapper for every one of its 18 callers, which would have produced a visible
+double border. Fixed at the source instead: AdminDataTable's own empty-state and populated-state
+wrappers upgraded directly to rounded-card/shadow-card/bg-light-surfaceRaised with a
+bg-light-surfaceStrong header row, so all 18 table components across the app inherit the new card
+language for free, no per-page wrapper needed.
+
+No backend/API/schema changes -- pure presentation layer. Verified: apps/admin typecheck and
+targeted lint clean on all 10 changed files, full vitest suite 153/153, real next build clean.
+Real-browser check (puppeteer-core + system Chrome, demo mode) across all 8 pages at 1440px plus
+768/390/dark spot checks. First pass showed a suspicious console error on /properties; isolated it
+with a single clean navigation and confirmed it's the pre-existing missing-favicon 404, not a
+regression. All net::ERR_ABORTED entries cross-referenced against the sidebar's own Link-prefetch
+targets -- confirmed noise, not real failures. One test-script artifact caught before being
+misreported as a bug: headless Chrome's default prefers-color-scheme reads dark, so an unset
+"light" run in the batch script rendered identically to the explicit dark run -- re-verified with
+an explicit light-scheme navigation, which renders correctly.
+
 ## 2026-08-03 — Design foundation v2 + Owner Dashboard redesign (UI redesign resumed)
 
 With all 8 functional-completion priorities closed and the audit concluding remaining work is

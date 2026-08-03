@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { DocumentRecord } from '@propvault/types';
 import { DocumentsTable } from '@/components/tables/DocumentsTable';
 import { Button } from '@/components/ui/Button';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapDocumentRow } from '@/lib/documents';
 import { resolvePortalSession, findActiveMembership, canWriteOrgRecords } from '@/lib/orgSession';
@@ -45,18 +46,13 @@ export default async function DocumentsPage() {
   );
 
   return (
-    <div>
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">Documents</h1>
-        {canWrite && documents.length > 0 ? addAction : null}
-      </div>
-      <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
-        {documents.length} across your portfolio.
-      </p>
-
-      <div className="mt-6">
-        <DocumentsTable data={documents} emptyAction={canWrite ? addAction : undefined} />
-      </div>
+    <div className="space-y-5 animate-rise">
+      <PageHeader
+        title="Documents"
+        subtitle={`${documents.length} across your portfolio.`}
+        actions={canWrite && documents.length > 0 ? addAction : undefined}
+      />
+      <DocumentsTable data={documents} emptyAction={canWrite ? addAction : undefined} />
     </div>
   );
 }

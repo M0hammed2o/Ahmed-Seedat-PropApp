@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { Property } from '@propvault/types';
 import { PropertiesTable } from '@/components/tables/PropertiesTable';
 import { Button } from '@/components/ui/Button';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapPropertyRow } from '@/lib/portfolio';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
@@ -60,17 +61,13 @@ export default async function PropertiesPage() {
   );
 
   return (
-    <div>
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">Properties</h1>
-        {properties.length > 0 ? addAction : null}
-      </div>
-      <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
-        {properties.length} {properties.length === 1 ? 'property' : 'properties'} in your portfolio.
-      </p>
-      <div className="mt-6">
-        <PropertiesTable data={properties} emptyAction={addAction} />
-      </div>
+    <div className="space-y-5 animate-rise">
+      <PageHeader
+        title="Properties"
+        subtitle={`${properties.length} ${properties.length === 1 ? 'property' : 'properties'} in your portfolio.`}
+        actions={properties.length > 0 ? addAction : undefined}
+      />
+      <PropertiesTable data={properties} emptyAction={addAction} />
     </div>
   );
 }

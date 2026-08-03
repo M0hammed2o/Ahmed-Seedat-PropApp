@@ -4,6 +4,7 @@ import { mapUnitRow } from '@/lib/portfolio';
 import { UnitsTable, type UnitRow } from '@/components/tables/UnitsTable';
 import { AdminMetricCard } from '@/components/ui/AdminMetricCard';
 import { Button } from '@/components/ui/Button';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 const DEMO_UNITS: UnitRow[] = [
@@ -48,26 +49,21 @@ export default async function UnitsPage() {
   );
 
   return (
-    <div>
-      <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">Units</h1>
-      <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
-        Every unit across your portfolio. Units are added from a property.
-      </p>
+    <div className="space-y-5 animate-rise">
+      <PageHeader title="Units" subtitle="Every unit across your portfolio. Units are added from a property." />
 
-      <div className="mt-6 grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <AdminMetricCard label="Total units" value={total} />
         <AdminMetricCard label="Occupied" value={occupied} />
         <AdminMetricCard label="Vacant" value={vacant} />
       </div>
 
-      <div className="mt-6">
-        <UnitsTable
-          data={units}
-          showProperty
-          emptyMessage="No units yet"
-          emptyAction={total === 0 ? addAction : undefined}
-        />
-      </div>
+      <UnitsTable
+        data={units}
+        showProperty
+        emptyMessage="No units yet"
+        emptyAction={total === 0 ? addAction : undefined}
+      />
     </div>
   );
 }

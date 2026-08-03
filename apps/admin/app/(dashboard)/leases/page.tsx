@@ -4,6 +4,7 @@ import { mapLeaseRow } from '@/lib/leasing';
 import { LeasesTable, type LeaseRow } from '@/components/tables/LeasesTable';
 import { AdminMetricCard } from '@/components/ui/AdminMetricCard';
 import { Button } from '@/components/ui/Button';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 const DEMO_LEASES: LeaseRow[] = [
@@ -49,26 +50,21 @@ export default async function LeasesPage() {
   );
 
   return (
-    <div>
-      <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">Leases</h1>
-      <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
-        Every lease across your portfolio. Leases are added from a unit.
-      </p>
+    <div className="space-y-5 animate-rise">
+      <PageHeader title="Leases" subtitle="Every lease across your portfolio. Leases are added from a unit." />
 
-      <div className="mt-6 grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <AdminMetricCard label="Total leases" value={leases.length} />
         <AdminMetricCard label="Active" value={active} />
         <AdminMetricCard label="Draft" value={draft} />
       </div>
 
-      <div className="mt-6">
-        <LeasesTable
-          data={leases}
-          showUnit
-          emptyMessage="No leases yet"
-          emptyAction={leases.length === 0 ? addAction : undefined}
-        />
-      </div>
+      <LeasesTable
+        data={leases}
+        showUnit
+        emptyMessage="No leases yet"
+        emptyAction={leases.length === 0 ? addAction : undefined}
+      />
     </div>
   );
 }

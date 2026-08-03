@@ -29,6 +29,26 @@ presentation and interaction-layer transformation" instruction. `packages/ui/src
 every existing `text-light-textPrimary`-style class across the whole app kept working with zero
 edits required.
 
+## 2026-08-03 update — Properties/Units/Owners/Tenants/Leases/Maintenance/Inspections/Documents list pages
+
+| | |
+|---|---|
+| **Route/module** | `/properties`, `/units`, `/owners`, `/tenants`, `/leases`, `/maintenance`, `/inspections`, `/documents` (all portfolio/leasing/operations list pages) |
+| **Functional purpose** | Primary browse/entry views for each core record type — unchanged data queries, RLS, and role gating |
+| **PropView pattern retained** | Page title + one-line context subtitle + primary action top-right, KPI row above the list where the module has one (Units/Leases/Maintenance/Inspections), table as the dominant content element |
+| **Lovable pattern adapted** | `PageHeader` primitive (title/subtitle/actions) from the foundation batch, `panel` card language (radius + shadow + raised surface) applied directly to `AdminDataTable` itself rather than a wrapping `Panel` |
+| **Weakness found** | Every list page had its own ad hoc `<h1>` + `<p>` + button block (inconsistent spacing/typography across 8 modules); `AdminDataTable` rendered a flat `rounded-lg border` with no shadow or elevation, visually behind the new Dashboard's card language |
+| **Improvement made** | All 8 pages now use the shared `PageHeader`; `AdminDataTable`'s own wrapper (both empty and populated states) upgraded to `rounded-card`/`shadow-card`/`bg-light-surfaceRaised` with a `bg-light-surfaceStrong` header row — this single component change upgrades all 18 table components at once; page roots wrapped in `space-y-5 animate-rise` for consistent vertical rhythm and entrance motion |
+| **Reusable components built** | None new — this batch is `PageHeader` adoption + one foundational `AdminDataTable` styling upgrade, deliberately reused rather than duplicated per module |
+| **Responsive** | Verified 1440/768/390 (Properties at 1440/768, Documents at 390) — sidebar collapses to a hamburger menu below `md`, table remains horizontally scrollable inside its own card rather than the page, no body-level horizontal overflow |
+| **Accessibility** | `PageHeader` renders a semantic `h1`; no interactive elements lost their accessible names; `prefers-reduced-motion` still governs `animate-rise` from the foundation batch |
+| **Verification** | `tsc --noEmit` clean, targeted `eslint --max-warnings=0` clean on all 10 changed files, full `vitest` 153/153, real `next build` clean. Real-browser check (puppeteer + system Chrome, demo mode) across all 8 pages at 1440px plus spot checks at 768/390 and dark mode — zero console errors beyond the pre-existing favicon 404 (isolated and confirmed via a single clean navigation); all `net::ERR_ABORTED` entries are Next.js sidebar Link-prefetch noise, confirmed not a regression by cross-referencing every affected URL against the sidebar's own nav links. No new bugs found; a test-script artifact (headless Chrome's default `prefers-color-scheme` reads dark, not light) was caught and corrected before being misreported as a defect — re-verified with an explicit light-scheme navigation. |
+
+A `Panel`-wrapped-table approach was tried first for Properties and reverted: `AdminDataTable`
+already renders its own card chrome for every one of its 18 callers, so wrapping it in `Panel` as
+well would have produced a visible double border. Upgrading `AdminDataTable` itself was the correct
+single-point fix.
+
 
 Concise by design (per Mohammed's instruction) — full detail already lives in `DESIGN_SYSTEM.md`
 (the target visual language, mostly already specified) and `DESIGN_REVIEW.md` (the PropView/Envato

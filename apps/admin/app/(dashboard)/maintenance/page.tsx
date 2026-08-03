@@ -1,6 +1,7 @@
 import type { MaintenanceTicket } from '@propvault/types';
 import { MaintenanceBoard } from '@/components/maintenance/MaintenanceBoard';
 import { AdminMetricCard } from '@/components/ui/AdminMetricCard';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapMaintenanceTicketRow } from '@/lib/operations';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
@@ -41,22 +42,20 @@ export default async function MaintenancePage() {
   const completed = tickets.filter((t) => t.status === 'completed').length;
 
   return (
-    <div>
-      <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">Maintenance</h1>
-      <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
-        Every maintenance ticket across your portfolio. Tickets are reported from a property.
-      </p>
+    <div className="space-y-5 animate-rise">
+      <PageHeader
+        title="Maintenance"
+        subtitle="Every maintenance ticket across your portfolio. Tickets are reported from a property."
+      />
 
-      <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <AdminMetricCard label="To do" value={toDo} />
         <AdminMetricCard label="In progress" value={inProgress} />
         <AdminMetricCard label="Pending approval" value={pendingApproval} />
         <AdminMetricCard label="Completed" value={completed} />
       </div>
 
-      <div className="mt-6">
-        <MaintenanceBoard tickets={tickets} />
-      </div>
+      <MaintenanceBoard tickets={tickets} />
     </div>
   );
 }

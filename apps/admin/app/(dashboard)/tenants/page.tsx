@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { Tenant } from '@propvault/types';
 import { TenantsTable } from '@/components/tables/TenantsTable';
 import { Button } from '@/components/ui/Button';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapTenantRow } from '@/lib/leasing';
 import { resolvePortalSession, findActiveMembership } from '@/lib/orgSession';
@@ -40,17 +41,13 @@ export default async function TenantsPage() {
   );
 
   return (
-    <div>
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">Tenants</h1>
-        {canCreate && tenants.length > 0 ? addAction : null}
-      </div>
-      <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
-        {tenants.length} {tenants.length === 1 ? 'tenant' : 'tenants'} across your portfolio.
-      </p>
-      <div className="mt-6">
-        <TenantsTable data={tenants} emptyAction={canCreate ? addAction : undefined} />
-      </div>
+    <div className="space-y-5 animate-rise">
+      <PageHeader
+        title="Tenants"
+        subtitle={`${tenants.length} ${tenants.length === 1 ? 'tenant' : 'tenants'} across your portfolio.`}
+        actions={canCreate && tenants.length > 0 ? addAction : undefined}
+      />
+      <TenantsTable data={tenants} emptyAction={canCreate ? addAction : undefined} />
     </div>
   );
 }

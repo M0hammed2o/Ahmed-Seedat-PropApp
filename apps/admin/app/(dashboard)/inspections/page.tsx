@@ -1,6 +1,7 @@
 import type { Inspection } from '@propvault/types';
 import { InspectionsTable } from '@/components/tables/InspectionsTable';
 import { AdminMetricCard } from '@/components/ui/AdminMetricCard';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapInspectionRow } from '@/lib/operations';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
@@ -37,21 +38,19 @@ export default async function InspectionsPage() {
   const completed = inspections.filter((i) => i.status === 'completed').length;
 
   return (
-    <div>
-      <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">Inspections</h1>
-      <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
-        Every inspection across your portfolio. Inspections are scheduled from a unit.
-      </p>
+    <div className="space-y-5 animate-rise">
+      <PageHeader
+        title="Inspections"
+        subtitle="Every inspection across your portfolio. Inspections are scheduled from a unit."
+      />
 
-      <div className="mt-6 grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <AdminMetricCard label="Scheduled" value={scheduled} />
         <AdminMetricCard label="Awaiting signature" value={awaitingSignature} />
         <AdminMetricCard label="Completed" value={completed} />
       </div>
 
-      <div className="mt-6">
-        <InspectionsTable data={inspections} />
-      </div>
+      <InspectionsTable data={inspections} />
     </div>
   );
 }

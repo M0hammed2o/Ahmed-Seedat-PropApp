@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { Owner } from '@propvault/types';
 import { OwnersTable } from '@/components/tables/OwnersTable';
 import { Button } from '@/components/ui/Button';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapOwnerRow } from '@/lib/portfolio';
 import { resolvePortalSession, findActiveMembership } from '@/lib/orgSession';
@@ -44,17 +45,13 @@ export default async function OwnersPage() {
   );
 
   return (
-    <div>
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">Owners</h1>
-        {canCreate && owners.length > 0 ? addAction : null}
-      </div>
-      <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
-        {owners.length} {owners.length === 1 ? 'owner' : 'owners'} across your portfolio.
-      </p>
-      <div className="mt-6">
-        <OwnersTable data={owners} emptyAction={canCreate ? addAction : undefined} />
-      </div>
+    <div className="space-y-5 animate-rise">
+      <PageHeader
+        title="Owners"
+        subtitle={`${owners.length} ${owners.length === 1 ? 'owner' : 'owners'} across your portfolio.`}
+        actions={canCreate && owners.length > 0 ? addAction : undefined}
+      />
+      <OwnersTable data={owners} emptyAction={canCreate ? addAction : undefined} />
     </div>
   );
 }

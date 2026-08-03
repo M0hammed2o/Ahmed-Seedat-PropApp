@@ -37,16 +37,16 @@ export function AdminDataTable<TData>({
 
   if (data.length === 0) {
     return (
-      <div className="rounded-lg border border-light-border dark:border-dark-border">
+      <div className="rounded-card border border-light-border bg-light-surfaceRaised shadow-card dark:border-dark-border dark:bg-dark-surfaceRaised">
         <EmptyState icon={<InboxIcon />} title={emptyMessage} action={emptyAction} />
       </div>
     );
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-light-border dark:border-dark-border">
+    <div className="overflow-x-auto rounded-card border border-light-border bg-light-surfaceRaised shadow-card dark:border-dark-border dark:bg-dark-surfaceRaised">
       <table className="w-full text-left text-sm">
-        <thead className="border-b border-light-border bg-light-surfaceRaised dark:border-dark-border dark:bg-dark-surfaceRaised">
+        <thead className="border-b border-light-border bg-light-surfaceStrong dark:border-dark-border dark:bg-dark-surfaceStrong">
           {table.getHeaderGroups().map((headerGroup) => (
             <tr key={headerGroup.id}>
               {headerGroup.headers.map((header) => (
