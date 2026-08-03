@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { TaxPackClient } from '@/components/accounting/TaxPackClient';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { PermissionDenied } from '@/components/ui/PermissionDenied';
 import { resolvePortalSession, findActiveMembership, canPostAccountingRecords } from '@/lib/orgSession';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
@@ -31,9 +32,7 @@ export default async function TaxPackPage() {
     return (
       <div className="space-y-5 animate-rise">
         <PageHeader title="Tax Pack" />
-        <p className="text-sm text-light-textSecondary dark:text-dark-textSecondary">
-          Only accountant, manager, and principal roles can view the tax pack.
-        </p>
+        <PermissionDenied message="Only accountant, manager, and principal roles can view the tax pack." />
       </div>
     );
   }
