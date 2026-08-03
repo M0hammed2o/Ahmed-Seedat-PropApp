@@ -9,6 +9,8 @@ import { mapInspectionRow } from '@/lib/operations';
 import { resolvePortalSession, findActiveMembership } from '@/lib/orgSession';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Button } from '@/components/ui/Button';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { Panel } from '@/components/ui/Panel';
 import { LeasesTable, type LeaseRow } from '@/components/tables/LeasesTable';
 import { ApplicationsTable } from '@/components/tables/ApplicationsTable';
 import { InspectionsTable } from '@/components/tables/InspectionsTable';
@@ -205,52 +207,59 @@ function UnitDetailView({
   );
 
   return (
-    <div>
-      <Link
-        href={`/properties/${propertyId}`}
-        className="text-xs text-light-textSecondary hover:underline dark:text-dark-textSecondary"
-      >
-        ← Back to property
-      </Link>
-
-      <div className="mt-2 flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">{unit.unitLabel}</h1>
-        {canEdit ? (
-          <Link href={`/properties/${propertyId}/units/${unit.id}/edit`}>
-            <Button variant="secondary" size="sm">
-              Edit
-            </Button>
-          </Link>
-        ) : null}
+    <div className="space-y-6 animate-rise">
+      <div>
+        <Link
+          href={`/properties/${propertyId}`}
+          className="text-xs text-light-textSecondary hover:underline dark:text-dark-textSecondary"
+        >
+          ← Back to property
+        </Link>
+        <div className="mt-2">
+          <PageHeader
+            title={unit.unitLabel}
+            actions={
+              canEdit ? (
+                <Link href={`/properties/${propertyId}/units/${unit.id}/edit`}>
+                  <Button variant="secondary" size="sm">
+                    Edit
+                  </Button>
+                </Link>
+              ) : undefined
+            }
+          />
+        </div>
+        <div className="mt-1">
+          <StatusBadge presentation={UNIT_STATUS_PRESENTATION[unit.status]} />
+        </div>
       </div>
-      <div className="mt-1">
-        <StatusBadge presentation={UNIT_STATUS_PRESENTATION[unit.status]} />
-      </div>
 
-      <dl className="mt-6 grid grid-cols-2 gap-4 text-sm lg:grid-cols-4">
-        <div>
-          <dt className="text-light-textMuted dark:text-dark-textMuted">Bedrooms</dt>
-          <dd className="text-light-textPrimary dark:text-dark-textPrimary">{unit.bedrooms ?? '—'}</dd>
-        </div>
-        <div>
-          <dt className="text-light-textMuted dark:text-dark-textMuted">Bathrooms</dt>
-          <dd className="text-light-textPrimary dark:text-dark-textPrimary">{unit.bathrooms ?? '—'}</dd>
-        </div>
-        <div>
-          <dt className="text-light-textMuted dark:text-dark-textMuted">Size</dt>
-          <dd className="text-light-textPrimary dark:text-dark-textPrimary">
-            {unit.sizeSqm != null ? `${unit.sizeSqm} m²` : '—'}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-light-textMuted dark:text-dark-textMuted">Market rent</dt>
-          <dd className="text-light-textPrimary dark:text-dark-textPrimary">
-            {unit.marketRent != null ? `R${unit.marketRent.toLocaleString('en-ZA')}` : '—'}
-          </dd>
-        </div>
-      </dl>
+      <Panel title="Unit details">
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-5 text-sm lg:grid-cols-4">
+          <div>
+            <dt className="text-light-textMuted dark:text-dark-textMuted">Bedrooms</dt>
+            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">{unit.bedrooms ?? '—'}</dd>
+          </div>
+          <div>
+            <dt className="text-light-textMuted dark:text-dark-textMuted">Bathrooms</dt>
+            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">{unit.bathrooms ?? '—'}</dd>
+          </div>
+          <div>
+            <dt className="text-light-textMuted dark:text-dark-textMuted">Size</dt>
+            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">
+              {unit.sizeSqm != null ? `${unit.sizeSqm} m²` : '—'}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-light-textMuted dark:text-dark-textMuted">Market rent</dt>
+            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">
+              {unit.marketRent != null ? `R${unit.marketRent.toLocaleString('en-ZA')}` : '—'}
+            </dd>
+          </div>
+        </dl>
+      </Panel>
 
-      <div className="mt-8">
+      <div>
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
             Leases ({leases.length})
@@ -262,7 +271,7 @@ function UnitDetailView({
         </div>
       </div>
 
-      <div className="mt-8">
+      <div>
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
             Applications ({applications.length})
@@ -274,7 +283,7 @@ function UnitDetailView({
         </div>
       </div>
 
-      <div className="mt-8">
+      <div>
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
             Inspections ({inspections.length})
@@ -286,7 +295,7 @@ function UnitDetailView({
         </div>
       </div>
 
-      <p className="mt-8 text-xs text-light-textMuted dark:text-dark-textMuted">
+      <p className="text-xs text-light-textMuted dark:text-dark-textMuted">
         Tenants assigned to this unit's leases and maintenance history are managed from their own
         pages.
       </p>

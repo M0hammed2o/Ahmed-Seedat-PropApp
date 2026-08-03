@@ -6,6 +6,8 @@ import { mapLeaseRow } from '@/lib/leasing';
 import { resolvePortalSession, findActiveMembership } from '@/lib/orgSession';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Button } from '@/components/ui/Button';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { Panel } from '@/components/ui/Panel';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 import type { LeaseRow } from '@/components/tables/LeasesTable';
 
@@ -69,51 +71,56 @@ function LeaseDetailView({ lease, canEdit }: { lease: LeaseRow; canEdit: boolean
   const backHref = lease.propertyId ? `/properties/${lease.propertyId}/units/${lease.unitId}` : '/leases';
 
   return (
-    <div>
-      <Link href={backHref} className="text-xs text-light-textSecondary hover:underline dark:text-dark-textSecondary">
-        ← Back to {lease.propertyId ? 'unit' : 'leases'}
-      </Link>
-
-      <div className="mt-2 flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">
-          {lease.propertyNickname ? `${lease.propertyNickname} — ${lease.unitLabel}` : (lease.unitLabel ?? 'Lease')}
-        </h1>
-        {canEdit ? (
-          <Link href={`/leases/${lease.id}/edit`}>
-            <Button variant="secondary" size="sm">
-              Edit
-            </Button>
-          </Link>
-        ) : null}
+    <div className="space-y-6 animate-rise">
+      <div>
+        <Link href={backHref} className="text-xs text-light-textSecondary hover:underline dark:text-dark-textSecondary">
+          ← Back to {lease.propertyId ? 'unit' : 'leases'}
+        </Link>
+        <div className="mt-2">
+          <PageHeader
+            title={lease.propertyNickname ? `${lease.propertyNickname} — ${lease.unitLabel}` : (lease.unitLabel ?? 'Lease')}
+            actions={
+              canEdit ? (
+                <Link href={`/leases/${lease.id}/edit`}>
+                  <Button variant="secondary" size="sm">
+                    Edit
+                  </Button>
+                </Link>
+              ) : undefined
+            }
+          />
+        </div>
+        <div className="mt-1">
+          <StatusBadge presentation={LEASE_STATUS_PRESENTATION[lease.status]} />
+        </div>
       </div>
-      <div className="mt-1">
-        <StatusBadge presentation={LEASE_STATUS_PRESENTATION[lease.status]} />
-      </div>
 
-      <dl className="mt-6 grid grid-cols-2 gap-4 text-sm lg:grid-cols-4">
-        <div>
-          <dt className="text-light-textMuted dark:text-dark-textMuted">Start date</dt>
-          <dd className="text-light-textPrimary dark:text-dark-textPrimary">{lease.startDate}</dd>
-        </div>
-        <div>
-          <dt className="text-light-textMuted dark:text-dark-textMuted">End date</dt>
-          <dd className="text-light-textPrimary dark:text-dark-textPrimary">{lease.endDate ?? 'Open-ended'}</dd>
-        </div>
-        <div>
-          <dt className="text-light-textMuted dark:text-dark-textMuted">Rent</dt>
-          <dd className="text-light-textPrimary dark:text-dark-textPrimary">
-            R{lease.rentAmount.toLocaleString('en-ZA')} / {lease.rentFrequency}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-light-textMuted dark:text-dark-textMuted">Deposit</dt>
-          <dd className="text-light-textPrimary dark:text-dark-textPrimary">
-            R{lease.depositAmount.toLocaleString('en-ZA')}
-          </dd>
-        </div>
-      </dl>
+      <Panel title="Lease details">
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-5 text-sm lg:grid-cols-4">
+          <div>
+            <dt className="text-light-textMuted dark:text-dark-textMuted">Start date</dt>
+            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">{lease.startDate}</dd>
+          </div>
+          <div>
+            <dt className="text-light-textMuted dark:text-dark-textMuted">End date</dt>
+            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">{lease.endDate ?? 'Open-ended'}</dd>
+          </div>
+          <div>
+            <dt className="text-light-textMuted dark:text-dark-textMuted">Rent</dt>
+            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">
+              R{lease.rentAmount.toLocaleString('en-ZA')} / {lease.rentFrequency}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-light-textMuted dark:text-dark-textMuted">Deposit</dt>
+            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">
+              R{lease.depositAmount.toLocaleString('en-ZA')}
+            </dd>
+          </div>
+        </dl>
+      </Panel>
 
-      <p className="mt-8 text-xs text-light-textMuted dark:text-dark-textMuted">
+      <p className="text-xs text-light-textMuted dark:text-dark-textMuted">
         Tenants assigned to this lease, rent schedule, and trust deposit status are built at the
         API layer (TASKS.md M9/M10/M14) but not yet wired into this page — Leases is the current
         vertical slice, Maintenance is next.

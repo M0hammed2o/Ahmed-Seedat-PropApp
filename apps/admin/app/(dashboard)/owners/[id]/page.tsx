@@ -5,6 +5,8 @@ import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapOwnerRow } from '@/lib/portfolio';
 import { resolvePortalSession, findActiveMembership } from '@/lib/orgSession';
 import { Button } from '@/components/ui/Button';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { Panel } from '@/components/ui/Panel';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -48,37 +50,42 @@ export default async function OwnerDetailPage({ params }: RouteParams) {
 
 function OwnerDetailView({ owner, canEdit }: { owner: Owner; canEdit: boolean }) {
   return (
-    <div>
-      <Link href="/owners" className="text-xs text-light-textSecondary hover:underline dark:text-dark-textSecondary">
-        ← Back to owners
-      </Link>
-
-      <div className="mt-2 flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">{owner.name}</h1>
-        {canEdit ? (
-          <Link href={`/owners/${owner.id}/edit`}>
-            <Button variant="secondary" size="sm">
-              Edit
-            </Button>
-          </Link>
-        ) : null}
+    <div className="space-y-6 animate-rise">
+      <div>
+        <Link href="/owners" className="text-xs text-light-textSecondary hover:underline dark:text-dark-textSecondary">
+          ← Back to owners
+        </Link>
+        <div className="mt-2">
+          <PageHeader
+            title={owner.name}
+            subtitle={owner.ownerType.charAt(0).toUpperCase() + owner.ownerType.slice(1)}
+            actions={
+              canEdit ? (
+                <Link href={`/owners/${owner.id}/edit`}>
+                  <Button variant="secondary" size="sm">
+                    Edit
+                  </Button>
+                </Link>
+              ) : undefined
+            }
+          />
+        </div>
       </div>
-      <p className="mt-1 text-xs capitalize text-light-textSecondary dark:text-dark-textSecondary">
-        {owner.ownerType}
-      </p>
 
-      <dl className="mt-6 grid grid-cols-2 gap-4 text-sm lg:grid-cols-4">
-        <div>
-          <dt className="text-light-textMuted dark:text-dark-textMuted">Email</dt>
-          <dd className="text-light-textPrimary dark:text-dark-textPrimary">{owner.email ?? '—'}</dd>
-        </div>
-        <div>
-          <dt className="text-light-textMuted dark:text-dark-textMuted">Phone</dt>
-          <dd className="text-light-textPrimary dark:text-dark-textPrimary">{owner.phone ?? '—'}</dd>
-        </div>
-      </dl>
+      <Panel title="Owner details">
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-5 text-sm lg:grid-cols-4">
+          <div>
+            <dt className="text-light-textMuted dark:text-dark-textMuted">Email</dt>
+            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">{owner.email ?? '—'}</dd>
+          </div>
+          <div>
+            <dt className="text-light-textMuted dark:text-dark-textMuted">Phone</dt>
+            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">{owner.phone ?? '—'}</dd>
+          </div>
+        </dl>
+      </Panel>
 
-      <p className="mt-8 text-xs text-light-textMuted dark:text-dark-textMuted">
+      <p className="text-xs text-light-textMuted dark:text-dark-textMuted">
         Property ownership shares (`POST /api/v1/properties/:id/owners`) and owner statements are
         built at the API/accounting layer (TASKS.md M7/M14) but not yet wired into this page —
         Owners is the current vertical slice.

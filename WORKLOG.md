@@ -1,5 +1,21 @@
 # Worklog
 
+## 2026-08-03 — Properties/Units/Owners/Tenants/Leases detail-page consistency pass
+
+Continued straight on from the list-page batch into the matching detail pages: /properties/[id],
+/properties/[id]/units/[unitId], /owners/[id], /tenants/[id], /leases/[id]. Each page's bare
+<h1> + floating dl replaced with PageHeader (title, status pill or edit action) + Panel wrapping
+the key-facts dl, giving the record's top-line facts the same card language the list pages just
+got. Nested-table sections (a property's Units/Maintenance, a unit's Leases/Applications/
+Inspections) were deliberately left as lightweight header rows rather than wrapped in Panel --
+same double-border reasoning as AdminDataTable's own upgrade in the previous batch.
+
+No backend/API/schema changes. Verified: typecheck/lint clean on all 5 files, full vitest 153/153,
+real next build clean. Real-browser check (puppeteer + system Chrome, demo mode) across all 5
+pages at 1440px light plus Properties dark -- zero console errors beyond the pre-existing favicon
+404. Screenshots confirm the Panel-wrapped details block and nested tables render correctly
+side by side with no double borders.
+
 ## 2026-08-03 — Properties/Units/Owners/Tenants/Leases/Maintenance/Inspections/Documents list-page consistency pass
 
 Continued the module redesign order (UI_REDESIGN_PLAN.md) into the eight core list pages. Every

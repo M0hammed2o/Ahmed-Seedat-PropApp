@@ -7,6 +7,8 @@ import { mapTenantRow } from '@/lib/leasing';
 import { resolvePortalSession, findActiveMembership } from '@/lib/orgSession';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Button } from '@/components/ui/Button';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { Panel } from '@/components/ui/Panel';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -47,40 +49,47 @@ export default async function TenantDetailPage({ params }: RouteParams) {
 
 function TenantDetailView({ tenant, canEdit }: { tenant: Tenant; canEdit: boolean }) {
   return (
-    <div>
-      <Link
-        href="/tenants"
-        className="text-xs text-light-textSecondary hover:underline dark:text-dark-textSecondary"
-      >
-        ← Back to tenants
-      </Link>
-
-      <div className="mt-2 flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">{tenant.fullName}</h1>
-        {canEdit ? (
-          <Link href={`/tenants/${tenant.id}/edit`}>
-            <Button variant="secondary" size="sm">
-              Edit
-            </Button>
-          </Link>
-        ) : null}
-      </div>
-      <div className="mt-1">
-        <StatusBadge presentation={TENANT_STATUS_PRESENTATION[tenant.status]} />
-      </div>
-
-      <dl className="mt-6 grid grid-cols-2 gap-4 text-sm lg:grid-cols-4">
-        <div>
-          <dt className="text-light-textMuted dark:text-dark-textMuted">Email</dt>
-          <dd className="text-light-textPrimary dark:text-dark-textPrimary">{tenant.email ?? '—'}</dd>
+    <div className="space-y-6 animate-rise">
+      <div>
+        <Link
+          href="/tenants"
+          className="text-xs text-light-textSecondary hover:underline dark:text-dark-textSecondary"
+        >
+          ← Back to tenants
+        </Link>
+        <div className="mt-2">
+          <PageHeader
+            title={tenant.fullName}
+            actions={
+              canEdit ? (
+                <Link href={`/tenants/${tenant.id}/edit`}>
+                  <Button variant="secondary" size="sm">
+                    Edit
+                  </Button>
+                </Link>
+              ) : undefined
+            }
+          />
         </div>
-        <div>
-          <dt className="text-light-textMuted dark:text-dark-textMuted">Phone</dt>
-          <dd className="text-light-textPrimary dark:text-dark-textPrimary">{tenant.phone ?? '—'}</dd>
+        <div className="mt-1">
+          <StatusBadge presentation={TENANT_STATUS_PRESENTATION[tenant.status]} />
         </div>
-      </dl>
+      </div>
 
-      <p className="mt-8 text-xs text-light-textMuted dark:text-dark-textMuted">
+      <Panel title="Tenant details">
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-5 text-sm lg:grid-cols-4">
+          <div>
+            <dt className="text-light-textMuted dark:text-dark-textMuted">Email</dt>
+            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">{tenant.email ?? '—'}</dd>
+          </div>
+          <div>
+            <dt className="text-light-textMuted dark:text-dark-textMuted">Phone</dt>
+            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">{tenant.phone ?? '—'}</dd>
+          </div>
+        </dl>
+      </Panel>
+
+      <p className="text-xs text-light-textMuted dark:text-dark-textMuted">
         Leases and maintenance history for this tenant are built at the API layer (TASKS.md
         M10/M13) but not yet wired into this page — Tenants is the current vertical slice, Leases
         is next.

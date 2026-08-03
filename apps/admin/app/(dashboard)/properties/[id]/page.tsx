@@ -8,6 +8,8 @@ import { resolvePortalSession, findActiveMembership } from '@/lib/orgSession';
 import { UnitsTable, type UnitRow } from '@/components/tables/UnitsTable';
 import { MaintenanceTable } from '@/components/tables/MaintenanceTable';
 import { Button } from '@/components/ui/Button';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { Panel } from '@/components/ui/Panel';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -140,46 +142,50 @@ function PropertyDetailView({
   );
 
   return (
-    <div>
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">{property.nickname}</h1>
-        <span className="text-xs font-medium capitalize text-light-textSecondary dark:text-dark-textSecondary">
-          {property.status}
-        </span>
-      </div>
-      <p className="mt-1 text-xs text-light-textMuted dark:text-dark-textMuted">{property.fullAddress}</p>
+    <div className="space-y-6 animate-rise">
+      <PageHeader
+        title={property.nickname}
+        subtitle={property.fullAddress}
+        actions={
+          <span className="rounded-pill bg-light-surfaceStrong px-2.5 py-1 text-xs font-medium capitalize text-light-textSecondary dark:bg-dark-surfaceStrong dark:text-dark-textSecondary">
+            {property.status}
+          </span>
+        }
+      />
 
-      <dl className="mt-6 grid grid-cols-2 gap-4 text-sm lg:grid-cols-4">
-        <div>
-          <dt className="text-light-textMuted dark:text-dark-textMuted">Type</dt>
-          <dd className="capitalize text-light-textPrimary dark:text-dark-textPrimary">
-            {property.propertyType.replace('_', ' ')}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-light-textMuted dark:text-dark-textMuted">City</dt>
-          <dd className="text-light-textPrimary dark:text-dark-textPrimary">{property.city}</dd>
-        </div>
-        <div>
-          <dt className="text-light-textMuted dark:text-dark-textMuted">Province</dt>
-          <dd className="text-light-textPrimary dark:text-dark-textPrimary">{property.province ?? '—'}</dd>
-        </div>
-        <div>
-          <dt className="text-light-textMuted dark:text-dark-textMuted">Municipal account</dt>
-          <dd className="text-light-textPrimary dark:text-dark-textPrimary">
-            {property.municipalAccountNumber ?? '—'}
-          </dd>
-        </div>
-      </dl>
+      <Panel title="Property details">
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-5 text-sm lg:grid-cols-4">
+          <div>
+            <dt className="text-light-textMuted dark:text-dark-textMuted">Type</dt>
+            <dd className="mt-0.5 capitalize text-light-textPrimary dark:text-dark-textPrimary">
+              {property.propertyType.replace('_', ' ')}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-light-textMuted dark:text-dark-textMuted">City</dt>
+            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">{property.city}</dd>
+          </div>
+          <div>
+            <dt className="text-light-textMuted dark:text-dark-textMuted">Province</dt>
+            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">{property.province ?? '—'}</dd>
+          </div>
+          <div>
+            <dt className="text-light-textMuted dark:text-dark-textMuted">Municipal account</dt>
+            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">
+              {property.municipalAccountNumber ?? '—'}
+            </dd>
+          </div>
+        </dl>
 
-      {property.notes ? (
-        <div className="mt-6">
-          <h2 className="text-sm font-medium text-light-textPrimary dark:text-dark-textPrimary">Notes</h2>
-          <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">{property.notes}</p>
-        </div>
-      ) : null}
+        {property.notes ? (
+          <div className="mt-5 border-t border-light-border pt-5 dark:border-dark-border">
+            <h3 className="text-sm font-medium text-light-textPrimary dark:text-dark-textPrimary">Notes</h3>
+            <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">{property.notes}</p>
+          </div>
+        ) : null}
+      </Panel>
 
-      <div className="mt-8">
+      <div>
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
             Units ({units.length})
@@ -191,7 +197,7 @@ function PropertyDetailView({
         </div>
       </div>
 
-      <div className="mt-8">
+      <div>
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
             Maintenance ({maintenanceTickets.length})
@@ -203,7 +209,7 @@ function PropertyDetailView({
         </div>
       </div>
 
-      <p className="mt-8 text-xs text-light-textMuted dark:text-dark-textMuted">
+      <p className="text-xs text-light-textMuted dark:text-dark-textMuted">
         Leases and tenants for this property's units are managed from each unit's own page.
         Owners are built at the API layer (TASKS.md M7) but not yet wired into any page.
       </p>

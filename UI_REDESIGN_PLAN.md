@@ -49,6 +49,21 @@ already renders its own card chrome for every one of its 18 callers, so wrapping
 well would have produced a visible double border. Upgrading `AdminDataTable` itself was the correct
 single-point fix.
 
+## 2026-08-03 update — Properties/Units/Owners/Tenants/Leases detail pages
+
+| | |
+|---|---|
+| **Route/module** | `/properties/[id]`, `/properties/[id]/units/[unitId]`, `/owners/[id]`, `/tenants/[id]`, `/leases/[id]` |
+| **Functional purpose** | Single-record view with nested-record tables (units/maintenance on a property, leases/applications/inspections on a unit) — no query changes |
+| **PropView pattern retained** | Title + status pill top-right, key-facts `dl` grid, nested-table sections below with their own "N items" heading and scoped add action |
+| **Lovable pattern adapted** | `Panel` for the key-facts block (bordered header row + `dl` body) in place of a bare `dl` floating on the page background; `PageHeader` for the record title/back-link area |
+| **Weakness found** | Key facts sat directly on the page background with no visual grouping; back-link, title, status pill, and facts had inconsistent spacing across the 5 pages |
+| **Improvement made** | `PageHeader` for title/edit-action, `Panel title="… details"` wrapping each key-facts `dl` (Property/Unit/Owner/Tenant/Lease details), consistent `space-y-6 animate-rise` page rhythm; nested-table section headers left as lightweight rows (not wrapped in `Panel`, since `AdminDataTable` already supplies its own card chrome — same double-border lesson as the list-page batch) |
+| **Reusable components built** | None new — `PageHeader`/`Panel` reused from the foundation batch |
+| **Responsive** | Inherits the `AppShell`/`AdminDataTable` responsive behaviour already verified; `dl` grids collapse from 4 to 2 columns below `lg` (unchanged from pre-redesign) |
+| **Accessibility** | `Panel`'s `h2` keeps the key-facts block in the heading hierarchy under `PageHeader`'s `h1`; no interactive elements changed |
+| **Verification** | `tsc --noEmit` clean, targeted `eslint --max-warnings=0` clean on all 5 files, full `vitest` 153/153, real `next build` clean. Real-browser check (puppeteer + system Chrome, demo mode) across all 5 detail pages light + Properties dark — zero console errors beyond the pre-existing favicon 404. |
+
 
 Concise by design (per Mohammed's instruction) — full detail already lives in `DESIGN_SYSTEM.md`
 (the target visual language, mostly already specified) and `DESIGN_REVIEW.md` (the PropView/Envato
