@@ -28,10 +28,13 @@ const PROTECTED_ROUTE_PREFIXES = [
   '/notifications',
   '/announcements',
   '/reports',
+  '/portal',
   '/my-lease',
   '/my-payments',
   '/my-maintenance',
+  '/my-documents',
   '/notices',
+  '/profile',
 ];
 
 /**

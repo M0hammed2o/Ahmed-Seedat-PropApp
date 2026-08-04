@@ -32,7 +32,7 @@ export default async function RootPage() {
     if (hasActiveOrg) redirect('/dashboard');
 
     const tenantSession = await resolveTenantSession();
-    if (tenantSession) redirect('/my-lease');
+    if (tenantSession) redirect('/portal');
   }
 
   redirect('/login');

@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { FileSignature, Receipt, Wrench, Megaphone, FileText } from 'lucide-react';
+import { LayoutDashboard, FileSignature, Receipt, Wrench, Megaphone, FileText } from 'lucide-react';
 import { resolveTenantSession, type TenantSession } from '@/lib/tenantSession';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 import { AppShell, type NavSection } from '@/components/shell/AppShell';
@@ -19,6 +19,7 @@ export const dynamic = 'force-dynamic';
 const NAV_SECTIONS: NavSection[] = [
   {
     items: [
+      { href: '/portal', label: 'Home', icon: navIcon(LayoutDashboard) },
       { href: '/my-lease', label: 'My Lease', icon: navIcon(FileSignature) },
       { href: '/my-payments', label: 'My Payments', icon: navIcon(Receipt) },
       { href: '/my-maintenance', label: 'My Maintenance', icon: navIcon(Wrench) },
