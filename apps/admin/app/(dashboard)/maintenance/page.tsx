@@ -1,6 +1,8 @@
+import Link from 'next/link';
 import type { MaintenanceTicket } from '@propvault/types';
 import { MaintenanceFilterClient } from '@/components/maintenance/MaintenanceFilterClient';
 import { AdminMetricCard } from '@/components/ui/AdminMetricCard';
+import { Button } from '@/components/ui/Button';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapMaintenanceTicketRow } from '@/lib/operations';
@@ -46,6 +48,17 @@ export default async function MaintenancePage() {
       <PageHeader
         title="Maintenance"
         subtitle="Every maintenance ticket across your portfolio. Tickets are reported from a property."
+        actions={
+          // Lovable's "+ New work order" opens straight into a creation form; a portfolio-wide
+          // Maintenance list has no single property/unit in context to create one against
+          // (real ticket creation lives at /properties/[id]/maintenance/new), so this links to
+          // "go pick a property" first -- same pattern already used for Units' "+ Add unit".
+          <Link key="add-ticket" href="/properties">
+            <Button variant="primary" size="sm">
+              + Add ticket
+            </Button>
+          </Link>
+        }
       />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
