@@ -17,6 +17,7 @@ import {
   Scale,
   HandCoins,
   FileSpreadsheet,
+  PieChart,
   FileText,
   Bell,
   Megaphone,
@@ -70,6 +71,7 @@ const NAV_SECTIONS: NavSection[] = [
   {
     label: 'Finance',
     items: [
+      { href: '/accounting', label: 'Accounting', icon: navIcon(PieChart) },
       { href: '/accounting/rent-due', label: 'Rent Due', icon: navIcon(Receipt) },
       { href: '/accounting/expenses', label: 'Expenses', icon: navIcon(Wallet) },
       { href: '/accounting/bank-accounts', label: 'Bank Accounts', icon: navIcon(Landmark) },

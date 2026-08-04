@@ -113,7 +113,20 @@ export function AppShell({
   const [mobileOpen, setMobileOpen] = useState(false);
   const unreadCount = notifications.filter((n) => !n.readAt).length;
 
-  const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
+  // Longest-matching-prefix wins (real bug found 2026-08-04 adding the Accounting overview page:
+  // its href /accounting is itself a path prefix of every existing Finance sub-page's href, e.g.
+  // /accounting/rent-due, so plain startsWith() prefix matching lit up both "Accounting" and
+  // "Rent Due" simultaneously while viewing Rent Due). Every other nav item in this app has always
+  // had a unique, non-overlapping href, so this only changes behavior for that one new collision.
+  const allHrefs = navSections.flatMap((section) => section.items.map((item) => item.href));
+  const isActive = (href: string) => {
+    if (pathname === href) return true;
+    if (!pathname.startsWith(`${href}/`)) return false;
+    const longestMatch = allHrefs
+      .filter((h) => pathname === h || pathname.startsWith(`${h}/`))
+      .reduce((longest, h) => (h.length > longest.length ? h : longest), '');
+    return longestMatch === href;
+  };
 
   async function signOut() {
     const supabase = getBrowserSupabaseClient();
