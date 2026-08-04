@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Download } from 'lucide-react';
 import { MAINTENANCE_STATUSES, RENT_SCHEDULE_STATUSES } from '@propvault/types';
 import { MiniBarChart } from '@/components/ui/MiniBarChart';
 import { MiniLineChart } from '@/components/ui/MiniLineChart';
@@ -8,6 +9,22 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { Panel } from '@/components/ui/Panel';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
+
+function currency(n: number): string {
+  return `R${Math.round(n).toLocaleString('en-ZA')}`;
+}
+
+// Real destinations only -- Lovable's "Report library" lists 8 fixed report names (Rent roll,
+// Arrears ageing, Lease expiry, Vacancy analysis, Owner statements, Maintenance log, Tax summary,
+// Portfolio valuation); only 4 have a real, already-built page behind them in this codebase. The
+// other 4 are omitted rather than linked to a page that doesn't exist or relabelled to something
+// that overstates what the real page actually shows.
+const REPORT_LIBRARY = [
+  { label: 'Rent Due', href: '/accounting/rent-due' },
+  { label: 'Owner Statements', href: '/accounting/owner-statements' },
+  { label: 'Trial Balance', href: '/accounting/trial-balance' },
+  { label: 'Tax Pack', href: '/accounting/tax-pack' },
+];
 
 // 4 report cards, matching PROPVIEW_SCREENSHOT_AUDIT.md's evidenced Reports module exactly
 // (IMG_7991-7995): Income vs Expense Trend, Occupancy by Property, Tenant Payment Status,
@@ -34,9 +51,27 @@ function lastNMonthKeys(n: number): string[] {
 export default async function ReportsPage() {
   const data = ADMIN_DEMO_MODE ? demoData() : await loadData();
 
+  const stats = [
+    { label: 'Revenue YTD', value: currency(data.stats.revenueYtd) },
+    { label: 'Avg. occupancy', value: `${data.stats.avgOccupancyPct}%` },
+    { label: 'Collection rate', value: `${data.stats.collectionRatePct}%` },
+    { label: 'Maintenance spend YTD', value: currency(data.stats.maintenanceSpendYtd) },
+  ];
+
   return (
     <div className="space-y-5 animate-rise">
       <PageHeader title="Reports" subtitle="A snapshot across your portfolio." />
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {stats.map((s) => (
+          <div key={s.label} className="panel px-5 py-4">
+            <p className="text-[11px] text-light-textMuted dark:text-dark-textMuted">{s.label}</p>
+            <p className="tabular mt-1.5 font-display text-[22px] font-bold text-light-textPrimary dark:text-dark-textPrimary">
+              {s.value}
+            </p>
+          </div>
+        ))}
+      </div>
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <Panel title="Income vs Expense Trend">
@@ -106,6 +141,20 @@ export default async function ReportsPage() {
             <MiniBarChart bars={data.maintenanceStatusCounts} color="#7A5CC7" />
           )}
         </Panel>
+
+        <Panel title="Report library" bodyClassName="p-5">
+          <div className="grid gap-3 sm:grid-cols-2">
+            {REPORT_LIBRARY.map((r) => (
+              <Link
+                key={r.label}
+                href={r.href}
+                className="flex items-center justify-between rounded-xl border border-light-border px-4 py-3 text-left text-[13px] font-medium text-light-textPrimary transition-colors hover:bg-light-surface dark:border-dark-border dark:text-dark-textPrimary dark:hover:bg-dark-surface"
+              >
+                {r.label} <Download className="h-4 w-4 text-light-textMuted dark:text-dark-textMuted" aria-hidden="true" />
+              </Link>
+            ))}
+          </div>
+        </Panel>
       </div>
     </div>
   );
@@ -116,6 +165,12 @@ interface ReportsData {
   occupancy: { label: string; occupiedPct: number }[];
   rentStatusCounts: { label: string; value: number }[];
   maintenanceStatusCounts: { label: string; value: number }[];
+  stats: {
+    revenueYtd: number;
+    avgOccupancyPct: number;
+    collectionRatePct: number;
+    maintenanceSpendYtd: number;
+  };
 }
 
 function demoData(): ReportsData {
@@ -125,25 +180,33 @@ function demoData(): ReportsData {
     occupancy: [{ label: 'Sea Point Apart…', occupiedPct: 100 }],
     rentStatusCounts: RENT_SCHEDULE_STATUSES.map((s) => ({ label: s, value: s === 'pending' ? 1 : 0 })),
     maintenanceStatusCounts: MAINTENANCE_STATUSES.map((s) => ({ label: s.replace('_', ' '), value: s === 'to_do' ? 1 : 0 })),
+    stats: { revenueYtd: 84500, avgOccupancyPct: 92, collectionRatePct: 94, maintenanceSpendYtd: 1850 },
   };
 }
 
 async function loadData(): Promise<ReportsData> {
   const supabase = await getServerSupabaseClient();
   const monthKeys = lastNMonthKeys(6);
+  const yearStart = `${new Date().getFullYear()}-01-01`;
 
-  const [propertiesResult, unitsResult, rentSchedulesResult, expensesResult, maintenanceResult] = await Promise.all([
+  const [propertiesResult, unitsResult, rentSchedulesResult, expensesResult, maintenanceResult, vendorBillsResult] = await Promise.all([
     supabase.from('properties').select('id, nickname').eq('status', 'active'),
     supabase.from('units').select('id, property_id, status'),
     supabase.from('rent_schedules').select('due_date, amount, status'),
     supabase.from('expenses').select('created_at, amount, status'),
     supabase.from('maintenance_tickets').select('status'),
+    supabase
+      .from('vendor_bills')
+      .select('amount, status, created_at')
+      .not('maintenance_ticket_id', 'is', null)
+      .gte('created_at', yearStart),
   ]);
   if (propertiesResult.error) throw new Error(`Failed to load properties: ${propertiesResult.error.message}`);
   if (unitsResult.error) throw new Error(`Failed to load units: ${unitsResult.error.message}`);
   if (rentSchedulesResult.error) throw new Error(`Failed to load rent schedule: ${rentSchedulesResult.error.message}`);
   if (expensesResult.error) throw new Error(`Failed to load expenses: ${expensesResult.error.message}`);
   if (maintenanceResult.error) throw new Error(`Failed to load maintenance tickets: ${maintenanceResult.error.message}`);
+  if (vendorBillsResult.error) throw new Error(`Failed to load vendor bills: ${vendorBillsResult.error.message}`);
 
   const incomeByMonth = new Map(monthKeys.map((k) => [k, 0]));
   for (const row of rentSchedulesResult.data ?? []) {
@@ -184,5 +247,24 @@ async function loadData(): Promise<ReportsData> {
     value: maintenanceRows.filter((m) => m.status === s).length,
   }));
 
-  return { incomeExpense, occupancy, rentStatusCounts, maintenanceStatusCounts };
+  const ytdRentRows = rentRows.filter((r) => r.due_date >= yearStart);
+  const revenueYtd = ytdRentRows.filter((r) => r.status === 'paid').reduce((sum, r) => sum + Number(r.amount), 0);
+  const billedYtd = ytdRentRows.reduce((sum, r) => sum + Number(r.amount), 0);
+  const collectionRatePct = billedYtd > 0 ? Math.round((revenueYtd / billedYtd) * 100) : 0;
+
+  const totalUnits = units.length;
+  const totalOccupied = units.filter((u) => u.status === 'occupied').length;
+  const avgOccupancyPct = totalUnits > 0 ? Math.round((totalOccupied / totalUnits) * 100) : 0;
+
+  const maintenanceSpendYtd = (vendorBillsResult.data ?? [])
+    .filter((b) => b.status === 'paid')
+    .reduce((sum, b) => sum + Number(b.amount), 0);
+
+  return {
+    incomeExpense,
+    occupancy,
+    rentStatusCounts,
+    maintenanceStatusCounts,
+    stats: { revenueYtd, avgOccupancyPct, collectionRatePct, maintenanceSpendYtd },
+  };
 }
