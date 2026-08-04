@@ -31,6 +31,130 @@ html {
   --chart-muted: #98A1AD;
 }
 
+/* Lovable-adoption batch (2026-08-04, UI_INTEGRATION_PLAN.md): a second, additive semantic
+   colour layer so pages adapted from reference/lovable-ui-reference can keep Lovable's own
+   literal className strings (bg-primary, text-muted-foreground, border-border, ...) working
+   verbatim, instead of hand-translating every class to this codebase's existing light-prefixed
+   and dark-prefixed convention -- the "Tailwind compatibility" seam named explicitly in the
+   adoption instruction. Every value below is copied unchanged from reference/lovable-ui-reference/
+   propertyvault-essence-main/src/styles.css's own :root/.dark blocks (Lovable's real design
+   tokens, not re-derived or re-eyeballed) -- chart-1..5 are deliberately NOT redefined here:
+   this file's existing --chart-1..5 (above) already carry the same values from the same source
+   palette and are relied on by charts elsewhere in the app already; redefining them here would
+   risk a silent drift between the two declarations for pages outside this batch's scope. */
+:root {
+  --radius: 0.875rem;
+  --background: oklch(0.984 0.002 250);
+  --foreground: oklch(0.21 0.03 262);
+  --surface: oklch(0.972 0.004 250);
+  --surface-strong: oklch(0.948 0.006 250);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.21 0.03 262);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.21 0.03 262);
+  --primary: oklch(0.545 0.192 258);
+  --primary-foreground: oklch(0.99 0.002 250);
+  --primary-soft: oklch(0.955 0.026 258);
+  --secondary: oklch(0.966 0.005 250);
+  --secondary-foreground: oklch(0.28 0.03 262);
+  --muted: oklch(0.966 0.005 250);
+  --muted-foreground: oklch(0.535 0.022 258);
+  --accent: oklch(0.955 0.026 258);
+  --accent-foreground: oklch(0.42 0.14 258);
+  --destructive: oklch(0.585 0.222 25);
+  --destructive-foreground: oklch(0.99 0.002 250);
+  --success: oklch(0.6 0.135 158);
+  --success-foreground: oklch(0.99 0.002 250);
+  --warning: oklch(0.75 0.15 72);
+  --warning-foreground: oklch(0.26 0.05 60);
+  --info: oklch(0.63 0.13 232);
+  --info-foreground: oklch(0.99 0.002 250);
+  --border: oklch(0.922 0.006 255);
+  --border-strong: oklch(0.87 0.008 255);
+  --input: oklch(0.922 0.006 255);
+  --ring: oklch(0.545 0.192 258);
+  --sidebar: oklch(1 0 0);
+  --sidebar-foreground: oklch(0.34 0.02 262);
+  --sidebar-primary: oklch(0.545 0.192 258);
+  --sidebar-primary-foreground: oklch(0.99 0.002 250);
+  --sidebar-accent: oklch(0.966 0.005 250);
+  --sidebar-accent-foreground: oklch(0.21 0.03 262);
+  --sidebar-border: oklch(0.928 0.006 255);
+  --sidebar-ring: oklch(0.545 0.192 258);
+}
+
+.dark {
+  --background: oklch(0.168 0.017 262);
+  --foreground: oklch(0.965 0.005 250);
+  --surface: oklch(0.205 0.019 262);
+  --surface-strong: oklch(0.245 0.021 262);
+  --card: oklch(0.212 0.019 262);
+  --card-foreground: oklch(0.965 0.005 250);
+  --popover: oklch(0.222 0.019 262);
+  --popover-foreground: oklch(0.965 0.005 250);
+  --primary: oklch(0.66 0.17 258);
+  --primary-foreground: oklch(0.16 0.03 262);
+  --primary-soft: oklch(0.29 0.055 262);
+  --secondary: oklch(0.262 0.02 262);
+  --secondary-foreground: oklch(0.95 0.005 250);
+  --muted: oklch(0.262 0.02 262);
+  --muted-foreground: oklch(0.705 0.02 258);
+  --accent: oklch(0.29 0.055 262);
+  --accent-foreground: oklch(0.85 0.09 258);
+  --destructive: oklch(0.66 0.19 25);
+  --destructive-foreground: oklch(0.16 0.03 262);
+  --success: oklch(0.7 0.14 158);
+  --success-foreground: oklch(0.16 0.03 262);
+  --warning: oklch(0.8 0.14 72);
+  --warning-foreground: oklch(0.2 0.04 60);
+  --info: oklch(0.7 0.12 232);
+  --info-foreground: oklch(0.16 0.03 262);
+  --border: oklch(1 0 0 / 9%);
+  --border-strong: oklch(1 0 0 / 16%);
+  --input: oklch(1 0 0 / 12%);
+  --ring: oklch(0.66 0.17 258);
+  --sidebar: oklch(0.19 0.018 262);
+  --sidebar-foreground: oklch(0.88 0.008 250);
+  --sidebar-primary: oklch(0.66 0.17 258);
+  --sidebar-primary-foreground: oklch(0.16 0.03 262);
+  --sidebar-accent: oklch(0.262 0.02 262);
+  --sidebar-accent-foreground: oklch(0.96 0.005 250);
+  --sidebar-border: oklch(1 0 0 / 9%);
+  --sidebar-ring: oklch(0.66 0.17 258);
+}
+
+/* Lovable's own utility classes (@utility in its Tailwind v4 styles.css) -- reimplemented as
+   plain CSS since Tailwind v3 has no @utility directive. Values copied unchanged. */
+.panel {
+  background-color: var(--card);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) + 8px);
+  /* Matches the existing `shadow-card` Tailwind utility (packages/ui/src/tokens.ts `shadow.card`)
+     exactly -- that value was already faithfully ported from this same Lovable source in an
+     earlier pass, so this is a literal duplicate, not a new/re-derived shadow. */
+  box-shadow: 0 1px 2px 0 rgba(17, 24, 38, 0.04), 0 8px 24px -12px rgba(17, 24, 38, 0.14);
+}
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+.hairline-grid {
+  background-image:
+    linear-gradient(to right, var(--border) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--border) 1px, transparent 1px);
+  background-size: 44px 44px;
+}
+.scrollbar-slim {
+  scrollbar-width: thin;
+}
+.scrollbar-slim::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.scrollbar-slim::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 9999px;
+}
+
 body {
   @apply bg-light-surface text-light-textPrimary dark:bg-dark-surface dark:text-dark-textPrimary;
 }

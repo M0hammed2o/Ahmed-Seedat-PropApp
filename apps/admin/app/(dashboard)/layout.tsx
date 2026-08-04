@@ -27,6 +27,7 @@ import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 import { AppShell, type HeaderNotification, type NavSection } from '@/components/shell/AppShell';
 import { navIcon } from '@/components/shell/navIcon';
 import { SupportModeBanner } from '@/components/organizations/SupportModeBanner';
+import { CollectionHealthWidget } from '@/components/shell/CollectionHealthWidget';
 
 // Client-org-facing route group, matching ARCHITECTURE.md's "Why one web app, not two" naming
 // exactly (`app/(dashboard)/**` for client orgs, `app/(super-admin)/**` for platform staff).
@@ -105,6 +106,11 @@ export default async function PortalLayout({ children }: { children: React.React
   if (!activeOrg) redirect('/onboarding/create-organization');
 
   const notifications: HeaderNotification[] = ADMIN_DEMO_MODE ? [] : await loadHeaderNotifications();
+  const sidebarSubtitle = ADMIN_DEMO_MODE
+    ? 'Demo organization · 12 units'
+    : await loadSidebarSubtitle(activeOrg.orgId);
+  const collectionHealth = ADMIN_DEMO_MODE ? DEMO_COLLECTION_HEALTH : await loadCollectionHealth(activeOrg.orgId);
+  const displayName = ADMIN_DEMO_MODE ? undefined : await loadDisplayName();
 
   // A support-session-derived entry is never a real membership -- treat it as read-only
   // regardless of the synthesized 'viewer' role (PWA_V1_COMPLETION_PLAN.md #12): hide the
@@ -129,9 +135,13 @@ export default async function PortalLayout({ children }: { children: React.React
       productLabel="PropertyVault"
       navSections={NAV_SECTIONS}
       identityLine={activeSupportSession ? 'support mode (read-only)' : activeOrg.role.replace('_', ' ')}
+      displayName={displayName}
       demoBadge={ADMIN_DEMO_MODE}
       notifications={notifications}
       accountMenuLinks={accountMenuLinks}
+      homeLabel="Portfolio"
+      sidebarSubtitle={sidebarSubtitle}
+      sidebarFooterWidget={collectionHealth ? <CollectionHealthWidget {...collectionHealth} /> : undefined}
       banner={
         activeSupportSession ? (
           <SupportModeBanner session={activeSupportSession} orgName={supportSessionOrgName} />
@@ -168,4 +178,78 @@ async function loadHeaderNotifications(): Promise<HeaderNotification[]> {
     createdAt: row.created_at,
     readAt: row.read_at,
   }));
+}
+
+// Real org name + real unit count in the exact visual slot Lovable's own sidebar uses for a
+// fabricated "Enterprise · 412 units" tier label (Lovable-adoption batch, 2026-08-04) -- no
+// PropertyVault field backs a "tier"/"plan seat count" concept in this shell, so this shows what
+// actually exists instead: the org's own name and its real, current total unit count.
+async function loadSidebarSubtitle(orgId: string): Promise<string | undefined> {
+  const supabase = await getServerSupabaseClient();
+  const [orgResult, unitsResult] = await Promise.all([
+    supabase.from('organizations').select('legal_name, trading_name').eq('id', orgId).maybeSingle(),
+    supabase.from('units').select('id', { count: 'exact', head: true }).eq('org_id', orgId),
+  ]);
+  if (!orgResult.data) return undefined;
+  const name = orgResult.data.trading_name || orgResult.data.legal_name;
+  const unitCount = unitsResult.count ?? 0;
+  return `${name} · ${unitCount} ${unitCount === 1 ? 'unit' : 'units'}`;
+}
+
+export interface CollectionHealthData {
+  pct: number;
+  outstanding: number;
+  tenantsInArrears: number;
+}
+
+const DEMO_COLLECTION_HEALTH: CollectionHealthData = { pct: 94, outstanding: 6200, tenantsInArrears: 1 };
+
+// Real equivalent of Lovable's static "Collection health 94.2%" sidebar card -- this month's
+// billed-vs-collected ratio and the real count of distinct leases currently carrying an
+// outstanding rent_schedules row, computed the same way the dashboard's own outstanding-rent
+// figure is (Lovable-adoption batch, 2026-08-04). Returns undefined (renders nothing) rather than
+// a fabricated 0%/0 when the org has no rent schedules at all yet -- a true "not enough data"
+// state, not a misleading zero.
+async function loadCollectionHealth(orgId: string): Promise<CollectionHealthData | undefined> {
+  const supabase = await getServerSupabaseClient();
+  const { data: leases, error: leasesError } = await supabase
+    .from('leases')
+    .select('id')
+    .eq('org_id', orgId)
+    .eq('status', 'active');
+  if (leasesError || !leases || leases.length === 0) return undefined;
+  const leaseIds = leases.map((l) => l.id as string);
+
+  const { data: schedules, error: schedulesError } = await supabase
+    .from('rent_schedules')
+    .select('lease_id, amount, status')
+    .in('lease_id', leaseIds);
+  if (schedulesError || !schedules || schedules.length === 0) return undefined;
+
+  const billed = schedules.reduce((sum, r) => sum + Number(r.amount), 0);
+  const collected = schedules
+    .filter((r) => r.status === 'paid')
+    .reduce((sum, r) => sum + Number(r.amount), 0);
+  const outstandingRows = schedules.filter(
+    (r) => r.status === 'invoiced' || r.status === 'overdue' || r.status === 'partial',
+  );
+  const outstanding = outstandingRows.reduce((sum, r) => sum + Number(r.amount), 0);
+  const tenantsInArrears = new Set(outstandingRows.map((r) => r.lease_id)).size;
+  const pct = billed > 0 ? Math.round((collected / billed) * 100) : 0;
+
+  return { pct, outstanding, tenantsInArrears };
+}
+
+// Real display name for the shell's account button (Lovable's own shell shows a real person's
+// name, not just a role) -- `profiles.display_name`, the same source PWA_V1_COMPLETION_PLAN.md
+// #7's Account Settings page already reads/writes. Null when never set (new accounts) -- AppShell
+// falls back to identityLine (the caller's role) in that case, never a fabricated name.
+async function loadDisplayName(): Promise<string | undefined> {
+  const supabase = await getServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return undefined;
+  const { data } = await supabase.from('profiles').select('display_name').eq('id', user.id).maybeSingle();
+  return data?.display_name ?? undefined;
 }

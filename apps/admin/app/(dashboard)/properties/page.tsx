@@ -1,8 +1,8 @@
 import Link from 'next/link';
+import { Plus } from 'lucide-react';
 import type { Property } from '@propvault/types';
 import { PropertiesGridClient } from '@/components/properties/PropertiesGridClient';
 import type { PropertyCardData } from '@/components/properties/PropertyCard';
-import { Button } from '@/components/ui/Button';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapPropertyRow } from '@/lib/portfolio';
@@ -26,6 +26,8 @@ const DEMO_PROPERTIES: Property[] = [
     notes: null,
     imagePath: null,
     status: 'active',
+    estimatedValue: null,
+    estimatedValueAsOf: null,
     createdAt: '2026-06-01T00:00:00Z',
     updatedAt: '2026-06-01T00:00:00Z',
   },
@@ -38,6 +40,11 @@ const DEMO_PROPERTIES: Property[] = [
  * memberships) -- no org_id filter applied here, which is correct for a single-org user and a
  * known, honest simplification for a multi-org user (shows properties across every org they
  * belong to, combined) until an org switcher exists.
+ *
+ * Rebuilt against reference/lovable-ui-reference's properties/index.tsx literal composition
+ * (2026-08-04 Lovable-adoption batch, UI_INTEGRATION_PLAN.md): stat-card row (Monthly billed,
+ * Occupied units, Arrears, Avg. rent/unit) above the grid, computed from the same real
+ * per-property aggregates the cards themselves already use -- not a second, separate query.
  */
 const DEMO_CARDS: PropertyCardData[] = [
   {
@@ -59,24 +66,56 @@ export default async function PropertiesPage() {
   const properties: Property[] = ADMIN_DEMO_MODE ? DEMO_PROPERTIES : await loadProperties();
   const cards: PropertyCardData[] = ADMIN_DEMO_MODE ? DEMO_CARDS : await loadPropertyCards(properties);
 
+  const totals = cards.reduce(
+    (acc, c) => ({
+      income: acc.income + c.monthlyIncome,
+      units: acc.units + c.unitsCount,
+      occupied: acc.occupied + c.occupiedCount,
+      outstanding: acc.outstanding + c.outstanding,
+    }),
+    { income: 0, units: 0, occupied: 0, outstanding: 0 },
+  );
+
   const addAction = (
-    <Link href="/properties/new">
-      <Button variant="primary" size="sm">
-        + Add property
-      </Button>
+    <Link
+      href="/properties/new"
+      className="flex h-9 items-center gap-1.5 rounded-xl bg-primary px-3.5 text-[13px] font-semibold text-primary-foreground shadow-glow"
+    >
+      <Plus className="h-4 w-4" aria-hidden="true" /> Add property
     </Link>
   );
 
   return (
-    <div className="space-y-5 animate-rise">
+    <>
       <PageHeader
         title="Properties"
-        subtitle={`${properties.length} ${properties.length === 1 ? 'property' : 'properties'} in your portfolio.`}
+        subtitle={`${properties.length} ${properties.length === 1 ? 'asset' : 'assets'} · ${totals.units} units · ${currency(totals.income)} billed monthly`}
         actions={properties.length > 0 ? addAction : undefined}
       />
+
+      {properties.length > 0 ? (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            { label: 'Monthly billed', value: currency(totals.income) },
+            { label: 'Occupied units', value: `${totals.occupied} / ${totals.units}` },
+            { label: 'Arrears', value: currency(totals.outstanding) },
+            { label: 'Avg. rent per unit', value: currency(totals.units > 0 ? Math.round(totals.income / totals.units) : 0) },
+          ].map((s) => (
+            <div key={s.label} className="panel px-5 py-4">
+              <p className="text-[11px] text-muted-foreground">{s.label}</p>
+              <p className="tabular mt-1 font-display text-xl font-bold text-foreground">{s.value}</p>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
       <PropertiesGridClient cards={cards} tableData={properties} emptyAction={addAction} />
-    </div>
+    </>
   );
+}
+
+function currency(n: number): string {
+  return new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 }).format(n);
 }
 
 async function loadProperties(): Promise<Property[]> {

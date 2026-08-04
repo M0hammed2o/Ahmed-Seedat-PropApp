@@ -17,6 +17,21 @@ const TONE_CLASSES: Record<PillTone, string> = {
   info: 'bg-light-statusProcessing/12 text-light-statusProcessing dark:bg-dark-statusProcessing/12 dark:text-dark-statusProcessing',
 };
 
+// Adapted from reference/lovable-ui-reference's kit.tsx `statusTone` verbatim (2026-08-04
+// Lovable-adoption batch, UI_INTEGRATION_PLAN.md) -- the same string-vocabulary-to-tone mapping
+// Lovable's own property/tenant/maintenance/document status pills use, so a real status value
+// from any of PropertyVault's own enums renders with the identical tone Lovable would show.
+export function statusTone(status: string): PillTone {
+  const s = status.toLowerCase();
+  if (['occupied', 'current', 'cleared', 'paid', 'active', 'stabilised', 'completed', 'resolved', 'processed'].includes(s))
+    return 'success';
+  if (['notice', 'pending', 'scheduled', 'leasing', 'sent', 'trial', 'waiting', 'processing', 'queued', 'medium'].includes(s))
+    return 'warning';
+  if (['vacant', 'failed', 'overdue', 'late', 'critical', 'at risk', 'high'].includes(s)) return 'destructive';
+  if (['maintenance', 'renovation', 'in progress', 'draft', 'open', 'low'].includes(s)) return 'info';
+  return 'neutral';
+}
+
 export function Pill({
   children,
   tone = 'neutral',

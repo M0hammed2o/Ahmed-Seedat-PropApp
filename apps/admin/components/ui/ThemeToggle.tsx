@@ -28,7 +28,19 @@ export function ThemeToggle({ compact = false }: { compact?: boolean }) {
   if (compact) {
     // Icon-only nav rail has no room for a 3-way control -- a single button cycling
     // light -> dark -> system, its icon and title always naming the *current* state.
-    const current = OPTIONS.find((o) => o.value === theme) ?? OPTIONS[1];
+    //
+    // Real hydration bug found and fixed 2026-08-04 (Lovable-adoption batch): this branch never
+    // guarded on `mounted` the way the non-compact branch below already does. `next-themes`
+    // resolves `theme` from its no-FOUC inline script before React hydrates, so the client's
+    // *first* render already knows the real theme -- but a Server Component render always has
+    // `theme === undefined`. Picking `OPTIONS[1]` (System) as that undefined-theme fallback only
+    // ever matched the client's first paint by coincidence, while `defaultTheme` was "system"
+    // itself; changing the app default to "light" broke that coincidence and surfaced a real
+    // server/client mismatch (server guessed System's Monitor icon, client immediately showed
+    // Light's Sun icon) -- caught via a real dev-server hydration warning, not assumed. Fixed the
+    // same way the non-compact branch already does it: stay on the neutral pre-mount fallback
+    // until `mounted` is true, then switch to the real resolved theme.
+    const current = mounted ? (OPTIONS.find((o) => o.value === theme) ?? OPTIONS[1]!) : OPTIONS[1]!;
     const nextValue = OPTIONS[(OPTIONS.indexOf(current) + 1) % OPTIONS.length]!.value;
     return (
       <button

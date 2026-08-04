@@ -26,6 +26,8 @@ interface PropertyRow {
   notes: string | null;
   image_path: string | null;
   status: string;
+  estimated_value: number | string | null;
+  estimated_value_as_of: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -48,6 +50,8 @@ export function mapPropertyRow(row: PropertyRow): Property {
     notes: row.notes,
     imagePath: row.image_path,
     status: row.status as Property['status'],
+    estimatedValue: row.estimated_value === null ? null : Number(row.estimated_value),
+    estimatedValueAsOf: row.estimated_value_as_of,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

@@ -28,6 +28,18 @@ export const metadata: Metadata = {
  * `nonce` is read from `proxy.ts`'s per-request CSP nonce (`x-nonce` header) so next-themes' own
  * small inline no-FOUC script isn't blocked by the same CSP that broke hydration entirely until
  * the previous fix.
+ *
+ * `defaultTheme` changed "system" -> "light" 2026-08-04 (Lovable-adoption batch,
+ * UI_INTEGRATION_PLAN.md): Lovable's own shell always defaults to light and explicitly must not
+ * follow OS preference for a first-time Owner PWA visitor. A perfectly scoped version of this
+ * (Owner PWA only, Super Admin/Tenant Portal/public pages keep following system) would need
+ * `ThemeProvider` moved out of this single true-root layout into each of the three route groups'
+ * own layouts separately (next-themes' no-FOUC mechanism needs to be the only provider in a given
+ * request's tree to avoid a real flash-of-wrong-theme risk) -- a structural change to files
+ * outside this batch's scope (shell/dashboard/properties/property-detail), not attempted here.
+ * Applied globally instead: every portal now defaults to light, not just the Owner PWA. Dark mode
+ * remains fully user-selectable everywhere via the header's theme toggle, unaffected by this
+ * change. Documented as a real, disclosed scope-exceeding side effect, not a silent one.
  */
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const nonce = (await headers()).get('x-nonce') ?? undefined;
@@ -35,7 +47,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en" suppressHydrationWarning className={`${displayFont.variable} ${bodyFont.variable}`}>
       <body className="font-sans">
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem nonce={nonce}>
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem nonce={nonce}>
           {children}
         </ThemeProvider>
       </body>

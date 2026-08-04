@@ -119,6 +119,12 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   if (parsed.data.municipalAccountNumber !== undefined)
     patch.municipal_account_number = parsed.data.municipalAccountNumber;
   if (parsed.data.notes !== undefined) patch.notes = parsed.data.notes;
+  if (parsed.data.estimatedValue !== undefined) {
+    patch.estimated_value = parsed.data.estimatedValue;
+    // Who captured it, tracked automatically -- the caller never supplies this directly.
+    patch.estimated_value_updated_by = user.id;
+  }
+  if (parsed.data.estimatedValueAsOf !== undefined) patch.estimated_value_as_of = parsed.data.estimatedValueAsOf;
 
   const { data, error } = await supabase
     .from('properties')

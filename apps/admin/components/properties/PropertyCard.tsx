@@ -1,7 +1,7 @@
 import Link from 'next/link';
-import { Building2, MapPin } from 'lucide-react';
+import { MapPin } from 'lucide-react';
 import { Meter } from '@/components/ui/Meter';
-import { Pill } from '@/components/ui/Pill';
+import { Pill, statusTone } from '@/components/ui/Pill';
 
 export interface PropertyCardData {
   id: string;
@@ -17,84 +17,75 @@ export interface PropertyCardData {
   outstanding: number;
 }
 
-const STATUS_TONE: Record<string, 'success' | 'warning' | 'neutral'> = {
-  active: 'success',
-  inactive: 'neutral',
-};
-
 function currency(n: number): string {
   return `R${Math.round(n).toLocaleString('en-ZA')}`;
 }
 
-// Adapted from reference/lovable-ui-reference's properties/index.tsx card (UI_INTEGRATION_PLAN.md)
-// -- the reference hotlinks Unsplash photography for every card; PropertyVault has no property
-// photo storage wired up yet (Property.imagePath exists in the schema but is never populated), so
-// every card shows a placeholder icon header instead of fabricating or hotlinking an image.
+// Adapted from reference/lovable-ui-reference's properties/index.tsx photographic card
+// (2026-08-04 Lovable-adoption batch, UI_INTEGRATION_PLAN.md) -- image band with a bottom gradient,
+// status/type pills overlaid on the photo, name+address overlaid in white text, matching Lovable's
+// literal layout. Lovable hotlinks unlicensed Unsplash stock photography for every card; this uses
+// the property's own uploaded photo (`imagePath`) when one exists, and a self-authored, locally
+// hosted placeholder graphic (apps/admin/public/property-placeholder.svg -- no external request,
+// full rights) when it doesn't, per the explicit "never a hotlinked/fabricated photo" instruction.
 export function PropertyCard({ property }: { property: PropertyCardData }) {
   const occupancyPct = property.unitsCount > 0 ? Math.round((property.occupiedCount / property.unitsCount) * 100) : 0;
+  const imageSrc = property.imagePath ?? '/property-placeholder.svg';
 
   return (
     <Link
       href={`/properties/${property.id}`}
-      className="group overflow-hidden rounded-card border border-light-border bg-light-surfaceRaised shadow-card transition-all hover:-translate-y-0.5 hover:shadow-lift dark:border-dark-border dark:bg-dark-surfaceRaised"
+      className="panel group overflow-hidden transition-all hover:-translate-y-0.5 hover:shadow-lift"
     >
-      <div className="relative flex h-[120px] items-center justify-center bg-light-accentSoft dark:bg-dark-accentSoft">
-        <Building2 size={32} className="text-light-accent/40 dark:text-dark-accent/40" aria-hidden="true" />
+      <div className="relative h-[168px] overflow-hidden">
+        <img
+          src={imageSrc}
+          alt={property.imagePath ? `${property.nickname} exterior in ${property.city}` : 'No property photo uploaded yet'}
+          loading="lazy"
+          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-foreground/55 via-transparent to-transparent" />
         <div className="absolute top-3 left-3">
-          <Pill tone={STATUS_TONE[property.status] ?? 'neutral'} className="bg-light-surfaceRaised/90 dark:bg-dark-surfaceRaised/90">
+          <Pill tone={statusTone(property.status)} className="bg-card/90 backdrop-blur">
             {property.status}
           </Pill>
         </div>
-        <span className="absolute top-3 right-3 rounded-pill bg-light-surfaceRaised/90 px-2 py-1 text-[11px] font-semibold capitalize text-light-textPrimary dark:bg-dark-surfaceRaised/90 dark:text-dark-textPrimary">
-          {property.propertyType.replace('_', ' ')}
-        </span>
+        <div className="absolute right-3 bottom-3 left-3 flex items-end justify-between gap-2">
+          <div className="min-w-0">
+            <p className="truncate font-display text-[17px] font-bold text-white">{property.nickname}</p>
+            <p className="flex items-center gap-1 truncate text-[11px] text-white/80">
+              <MapPin className="h-3 w-3 shrink-0" aria-hidden="true" /> {property.fullAddress}
+            </p>
+          </div>
+          <span className="shrink-0 rounded-lg bg-card/90 px-2 py-1 text-[11px] font-semibold capitalize text-foreground backdrop-blur">
+            {property.propertyType.replace('_', ' ')}
+          </span>
+        </div>
       </div>
 
       <div className="space-y-4 p-4">
-        <div>
-          <p className="truncate font-display text-[16px] font-bold text-light-textPrimary dark:text-dark-textPrimary">
-            {property.nickname}
-          </p>
-          <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-light-textMuted dark:text-dark-textMuted">
-            <MapPin size={12} className="shrink-0" aria-hidden="true" /> {property.fullAddress}
-          </p>
-        </div>
-
         <div className="grid grid-cols-3 gap-3">
           <div>
-            <p className="text-[10px] tracking-wide text-light-textMuted uppercase dark:text-dark-textMuted">Income</p>
-            <p className="tabular-nums-feature text-[15px] font-semibold text-light-textPrimary dark:text-dark-textPrimary">
-              {currency(property.monthlyIncome)}
-            </p>
+            <p className="text-[10px] tracking-wide text-muted-foreground uppercase">Income</p>
+            <p className="tabular text-[15px] font-semibold text-foreground">{currency(property.monthlyIncome)}</p>
           </div>
           <div>
-            <p className="text-[10px] tracking-wide text-light-textMuted uppercase dark:text-dark-textMuted">Outstanding</p>
-            <p
-              className={`tabular-nums-feature text-[15px] font-semibold ${
-                property.outstanding > 0
-                  ? 'text-light-statusOverdue dark:text-dark-statusOverdue'
-                  : 'text-light-textPrimary dark:text-dark-textPrimary'
-              }`}
-            >
+            <p className="text-[10px] tracking-wide text-muted-foreground uppercase">Outstanding</p>
+            <p className={`tabular text-[15px] font-semibold ${property.outstanding > 0 ? 'text-destructive' : 'text-foreground'}`}>
               {currency(property.outstanding)}
             </p>
           </div>
           <div>
-            <p className="text-[10px] tracking-wide text-light-textMuted uppercase dark:text-dark-textMuted">Units</p>
-            <p className="tabular-nums-feature text-[15px] font-semibold text-light-textPrimary dark:text-dark-textPrimary">
-              {property.unitsCount}
-            </p>
+            <p className="text-[10px] tracking-wide text-muted-foreground uppercase">Units</p>
+            <p className="tabular text-[15px] font-semibold text-foreground">{property.unitsCount}</p>
           </div>
         </div>
-
         <div>
           <div className="mb-1.5 flex items-center justify-between text-[11px]">
-            <span className="text-light-textMuted dark:text-dark-textMuted">Occupancy</span>
-            <span className="tabular-nums-feature font-semibold text-light-textPrimary dark:text-dark-textPrimary">
-              {occupancyPct}%
-            </span>
+            <span className="text-muted-foreground">Occupancy</span>
+            <span className="tabular font-semibold text-foreground">{occupancyPct}%</span>
           </div>
-          <Meter value={occupancyPct} tone={occupancyPct >= 90 ? 'success' : occupancyPct >= 50 ? 'warning' : 'destructive'} />
+          <Meter value={occupancyPct} tone={occupancyPct >= 90 ? 'success' : 'warning'} />
         </div>
       </div>
     </Link>

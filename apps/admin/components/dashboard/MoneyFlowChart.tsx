@@ -4,6 +4,7 @@ import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YA
 
 interface MoneyFlowPoint {
   month: string;
+  billed: number;
   collected: number;
   expenses: number;
 }
@@ -23,44 +24,55 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
   );
 }
 
-// Real 6-month rent-collected-vs-expenses area chart (UI_REDESIGN_PLAN.md) -- data always comes
-// from the dashboard page's own live query, never fabricated here. A genuine empty state (all
-// zero) is left to render as a flat baseline rather than hidden -- an area chart at zero is an
-// honest "nothing recorded yet" signal, not a fabricated non-zero value.
+// Real 9-month billed/collected/expenses area chart, matching reference/lovable-ui-reference's
+// "Income vs collections" panel composition exactly (2026-08-04 Lovable-adoption batch,
+// UI_INTEGRATION_PLAN.md: billed=chart-1 solid area, collected=chart-3 solid area,
+// expenses=chart-4 dashed line, no fill). Data always comes from the dashboard page's own live
+// query, never fabricated here. A genuine empty state (all zero) renders as a flat baseline
+// rather than being hidden -- an honest "nothing recorded yet" signal, not a fabricated value.
 export function MoneyFlowChart({ data }: { data: MoneyFlowPoint[] }) {
-  const hasActivity = data.some((d) => d.collected > 0 || d.expenses > 0);
+  const hasActivity = data.some((d) => d.billed > 0 || d.collected > 0 || d.expenses > 0);
 
   if (!hasActivity) {
     return (
-      <div className="flex h-[240px] flex-col items-center justify-center gap-2 text-center">
+      <div className="flex h-[288px] flex-col items-center justify-center gap-2 text-center">
         <p className="text-sm font-medium text-light-textPrimary dark:text-dark-textPrimary">No money activity yet</p>
         <p className="max-w-xs text-xs text-light-textMuted dark:text-dark-textMuted">
-          This chart fills in once rent is collected or an expense is recorded.
+          This chart fills in once rent is billed, collected, or an expense is recorded.
         </p>
       </div>
     );
   }
 
   return (
-    <div className="h-[240px] w-full">
+    <div className="h-[288px] w-full">
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={data} margin={{ top: 4, right: 12, left: 0, bottom: 0 }}>
+        <AreaChart data={data} margin={{ top: 4, right: 12, left: -14, bottom: 0 }}>
           <defs>
-            <linearGradient id="gCollected" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.28} />
+            <linearGradient id="gBilled" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.32} />
               <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0} />
             </linearGradient>
-            <linearGradient id="gExpenses" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--chart-4)" stopOpacity={0.2} />
-              <stop offset="100%" stopColor="var(--chart-4)" stopOpacity={0} />
+            <linearGradient id="gCollected" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--chart-3)" stopOpacity={0.22} />
+              <stop offset="100%" stopColor="var(--chart-3)" stopOpacity={0} />
             </linearGradient>
           </defs>
           <CartesianGrid vertical={false} stroke="var(--chart-grid)" />
           <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: 'var(--chart-muted)' }} />
           <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: 'var(--chart-muted)' }} width={48} />
           <Tooltip content={<ChartTooltip />} cursor={{ stroke: 'var(--chart-grid)' }} />
-          <Area type="monotone" dataKey="collected" name="Collected" stroke="var(--chart-1)" strokeWidth={2.2} fill="url(#gCollected)" />
-          <Area type="monotone" dataKey="expenses" name="Expenses" stroke="var(--chart-4)" strokeWidth={1.8} fill="url(#gExpenses)" />
+          <Area type="monotone" dataKey="billed" name="Billed" stroke="var(--chart-1)" strokeWidth={2.4} fill="url(#gBilled)" />
+          <Area type="monotone" dataKey="collected" name="Collected" stroke="var(--chart-3)" strokeWidth={2} fill="url(#gCollected)" />
+          <Area
+            type="monotone"
+            dataKey="expenses"
+            name="Expenses"
+            stroke="var(--chart-4)"
+            strokeWidth={1.8}
+            fill="transparent"
+            strokeDasharray="4 4"
+          />
         </AreaChart>
       </ResponsiveContainer>
     </div>

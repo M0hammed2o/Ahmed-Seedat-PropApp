@@ -23,6 +23,14 @@ export interface Property {
   notes: string | null;
   imagePath: string | null;
   status: PropertyStatus;
+  /**
+   * Optional, manually captured current estimated value (ZAR) -- never computed/derived.
+   * Added 2026-08-04 for the Owner Dashboard's Portfolio Value card (Lovable-adoption batch,
+   * UI_INTEGRATION_PLAN.md): null means "not captured", not zero.
+   */
+  estimatedValue: number | null;
+  /** The date the captured value is understood to reflect (e.g. an appraisal date), not the row-edit timestamp. */
+  estimatedValueAsOf: string | null;
   createdAt: string;
   updatedAt: string;
 }

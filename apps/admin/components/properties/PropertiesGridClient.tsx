@@ -1,15 +1,26 @@
 'use client';
 
 import { useMemo, useState, type ReactNode } from 'react';
-import { LayoutGrid, List, Search } from 'lucide-react';
+import { LayoutGrid, List, Search, SlidersHorizontal } from 'lucide-react';
 import { PropertyCard, type PropertyCardData } from '@/components/properties/PropertyCard';
 import { PropertiesTable } from '@/components/tables/PropertiesTable';
 import type { Property } from '@propvault/types';
 
-// Adapted from reference/lovable-ui-reference's properties/index.tsx view toggle
-// (UI_INTEGRATION_PLAN.md) -- client-side filter/toggle over the real properties already fetched
-// server-side, no new data fetching. List view reuses the existing AdminDataTable-based
-// PropertiesTable rather than duplicating a second table implementation.
+// Adapted from reference/lovable-ui-reference's properties/index.tsx search/filter/view-toggle
+// bar (2026-08-04 Lovable-adoption batch, UI_INTEGRATION_PLAN.md) -- client-side filter/toggle
+// over the real properties already fetched server-side, no new data fetching.
+//
+// Lovable's own status filter tabs (All/Stabilised/Leasing/Renovation) are deliberately not
+// ported: those are operational-lifecycle labels PropertyVault's schema has no equivalent for --
+// `properties.status` is only ever `active`/`archived` (this page already only ever shows
+// `active` rows), and leasing/occupancy state lives on `units`, not `properties`. Fabricating
+// three property-level statuses with no real backing field would misrepresent every property's
+// actual state, so the tabs are omitted rather than wired to something they don't mean.
+//
+// The "Filters" button IS kept, unwired -- checked against Lovable's own source first: its
+// onClick is empty there too (a real, pre-existing gap in the donor project itself, not something
+// introduced here), so reproducing it exactly is the literal-adaptation choice, not a new fake
+// affordance invented for this app.
 export function PropertiesGridClient({
   cards,
   tableData,
@@ -35,52 +46,50 @@ export function PropertiesGridClient({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="relative">
-          <Search size={16} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-light-textMuted dark:text-dark-textMuted" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search properties"
-            className="h-9 w-[240px] rounded-xl border border-light-border bg-light-surfaceRaised pr-3 pl-9 text-[13px] text-light-textPrimary outline-none focus:border-light-accent/40 focus:ring-4 focus:ring-light-accent/10 dark:border-dark-border dark:bg-dark-surfaceRaised dark:text-dark-textPrimary dark:focus:border-dark-accent/40 dark:focus:ring-dark-accent/10"
-          />
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 sm:flex sm:flex-wrap sm:justify-between">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <div className="relative">
+            <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search properties"
+              className="h-9 w-[220px] rounded-xl border border-border bg-card pr-3 pl-9 text-[13px] text-foreground outline-none focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
+            />
+          </div>
+          <button
+            type="button"
+            className="flex h-9 items-center gap-1.5 rounded-xl border border-border bg-card px-3 text-[12px] font-medium text-muted-foreground"
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" /> Filters
+          </button>
         </div>
 
-        <div className="flex items-center gap-1 rounded-xl border border-light-border bg-light-surfaceRaised p-1 dark:border-dark-border dark:bg-dark-surfaceRaised">
+        <div className="flex shrink-0 items-center gap-1 rounded-xl border border-border bg-card p-1">
           <button
             type="button"
             onClick={() => setView('grid')}
             aria-label="Grid view"
             aria-pressed={view === 'grid'}
-            className={`grid h-7 w-7 place-items-center rounded-lg ${
-              view === 'grid'
-                ? 'bg-light-accentSoft text-light-accent dark:bg-dark-accentSoft dark:text-dark-accent'
-                : 'text-light-textMuted dark:text-dark-textMuted'
-            }`}
+            className={`grid h-7 w-7 place-items-center rounded-lg ${view === 'grid' ? 'bg-primary-soft text-primary' : 'text-muted-foreground'}`}
           >
-            <LayoutGrid size={15} />
+            <LayoutGrid className="h-4 w-4" aria-hidden="true" />
           </button>
           <button
             type="button"
             onClick={() => setView('list')}
             aria-label="List view"
             aria-pressed={view === 'list'}
-            className={`grid h-7 w-7 place-items-center rounded-lg ${
-              view === 'list'
-                ? 'bg-light-accentSoft text-light-accent dark:bg-dark-accentSoft dark:text-dark-accent'
-                : 'text-light-textMuted dark:text-dark-textMuted'
-            }`}
+            className={`grid h-7 w-7 place-items-center rounded-lg ${view === 'list' ? 'bg-primary-soft text-primary' : 'text-muted-foreground'}`}
           >
-            <List size={15} />
+            <List className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
       </div>
 
       {view === 'grid' ? (
         filteredCards.length === 0 ? (
-          <p className="rounded-card border border-light-border bg-light-surfaceRaised py-12 text-center text-sm text-light-textMuted dark:border-dark-border dark:bg-dark-surfaceRaised dark:text-dark-textMuted">
-            No properties match &quot;{query}&quot;.
-          </p>
+          <p className="panel py-12 text-center text-sm text-muted-foreground">No properties match &quot;{query}&quot;.</p>
         ) : (
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             {filteredCards.map((c) => (

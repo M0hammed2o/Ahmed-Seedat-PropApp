@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
-import { Bell, ChevronRight, LogOut, Menu, X } from 'lucide-react';
+import { Bell, Building2, ChevronRight, LogOut, Menu, X } from 'lucide-react';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { Avatar } from '@/components/ui/Avatar';
 import { Pill } from '@/components/ui/Pill';
@@ -11,19 +11,17 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/Popover
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/DropdownMenu';
 import { getBrowserSupabaseClient } from '@/lib/supabase/client';
 
-// DESIGN_SYSTEM.md "Responsive rules": persistent+expanded >=lg, icon-only >=md, overlay drawer
-// below md -- never built until now (UI_REDESIGN_PLAN.md 2026-08-02). One shared shell for all
-// three route groups ((dashboard)/(super-admin)/(tenant)) rather than three independently
-// drifting copies of the same sidebar markup -- each layout supplies its own nav content, the
-// responsive/collapse/theme-toggle mechanics live here once. The md->lg icon-rail-to-full
-// transition is pure CSS (Tailwind breakpoints hiding/showing label text) -- only the mobile
-// drawer's open/closed state needs JS.
-//
-// `icon` is a rendered element (`<LayoutDashboard size={17} .../>`), not a component reference --
-// each layout.tsx is a Server Component, and passing a component *reference* as a prop into this
-// Client Component isn't legal across the RSC boundary (only serializable data and already-
-// rendered elements cross it; a raw function reference produces a real runtime 500, caught during
-// this pass's own verification, not assumed away).
+// Rebuilt against reference/lovable-ui-reference's app-shell.tsx literal structure (2026-08-04
+// Lovable-adoption batch, UI_INTEGRATION_PLAN.md), replacing the previous three-breakpoint
+// version (mobile top bar / icon-only rail / full sidebar). Lovable's own shell is binary --
+// full 248px sidebar at `lg`+, an overlay drawer below it, no intermediate collapsed-icon state
+// -- so that middle rail state is removed here to match exactly, a real structural difference
+// from the prior pass, not a stylistic one. One shared component across all three route groups
+// ((dashboard)/(super-admin)/(tenant)), same as before: each layout supplies its own nav content
+// and identity; the optional `sidebarSubtitle`/`sidebarFooterWidget` slots below are new and are
+// only ever populated by the (dashboard) [Owner PWA] layout for now -- Super Admin and Tenant
+// Portal simply don't pass them, so their chrome content is unchanged even though the shared
+// component gained the capability.
 export interface NavItem {
   href: string;
   label: string;
@@ -52,6 +50,9 @@ export interface AppShellProps {
   productLabel: string;
   navSections: NavSection[];
   identityLine?: string;
+  /** Real display name (packages/validation `profiles.display_name`) when known -- Lovable's own
+   *  shell shows a name, not just a role; falls back to identityLine when no profile name exists. */
+  displayName?: string;
   demoBadge?: boolean;
   notifications?: HeaderNotification[];
   notificationsHref?: string;
@@ -59,33 +60,19 @@ export interface AppShellProps {
   /** Persistent, non-dismissible strip rendered above everything else, e.g. SupportModeBanner
    *  (SECURITY.md: "banner-visible, never silent... a hard requirement, not a nice-to-have"). */
   banner?: ReactNode;
+  /** Breadcrumb root — Lovable's own copy is "Portfolio"; other portals keep "Home" by not
+   *  passing this. */
+  homeLabel?: string;
+  homeHref?: string;
+  /** One-line real text under the product name in the full sidebar (e.g. real org name + real
+   *  unit count) — Lovable's own slot here shows a fabricated "Enterprise · 412 units"; this
+   *  prop exists so a layout can put real data in the identical visual position instead. */
+  sidebarSubtitle?: string;
+  /** Real content for the small card Lovable pins above the sidebar footer (its own version is a
+   *  static "Collection health 94.2%"). Omit to render nothing there, matching the no-fabricated-
+   *  widget rule for portals that don't have a real equivalent yet. */
+  sidebarFooterWidget?: ReactNode;
   children: React.ReactNode;
-}
-
-// Adapted from reference/lovable-ui-reference's app-shell.tsx header row (UI_INTEGRATION_PLAN.md)
-// -- breadcrumbs, notifications, and a user menu, none of which this shell had on desktop before.
-// Global search was deliberately NOT ported: no search API exists over properties/tenants/invoices
-// yet, and a search box that doesn't search would be a broken promise, not a visual upgrade.
-function Breadcrumbs({ pathname }: { pathname: string }) {
-  const parts = pathname.split('/').filter(Boolean);
-  if (parts.length === 0) return null;
-  return (
-    <div className="hidden min-w-0 items-center gap-1.5 text-[13px] text-light-textMuted lg:flex dark:text-dark-textMuted">
-      <Link href="/dashboard" className="transition-colors hover:text-light-textPrimary dark:hover:text-dark-textPrimary">
-        Home
-      </Link>
-      {parts.map((p, i) => (
-        <span key={p + i} className="flex min-w-0 items-center gap-1.5">
-          <ChevronRight size={13} className="shrink-0 opacity-50" aria-hidden="true" />
-          <span
-            className={`truncate capitalize ${i === parts.length - 1 ? 'font-medium text-light-textPrimary dark:text-dark-textPrimary' : ''}`}
-          >
-            {p.replace(/-/g, ' ')}
-          </span>
-        </span>
-      ))}
-    </div>
-  );
 }
 
 function relativeTime(iso: string): string {
@@ -109,16 +96,21 @@ export function AppShell({
   productLabel,
   navSections,
   identityLine,
+  displayName,
   demoBadge,
   notifications = [],
   notificationsHref = '/notifications',
   accountMenuLinks = [],
   banner,
+  homeLabel = 'Home',
+  homeHref = '/dashboard',
+  sidebarSubtitle,
+  sidebarFooterWidget,
   children,
 }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const unreadCount = notifications.filter((n) => !n.readAt).length;
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
@@ -130,223 +122,233 @@ export function AppShell({
     router.refresh();
   }
 
-  function NavContent({ showLabels, onNavigate }: { showLabels: boolean; onNavigate?: () => void }) {
+  function SidebarBody({ onNavigate }: { onNavigate?: () => void }) {
     return (
-      <nav className="mt-6 flex flex-1 flex-col gap-5 overflow-y-auto">
-        {navSections.map((section, i) => (
-          <div key={section.label ?? i} className="flex flex-col gap-0.5">
-            {section.label && showLabels ? (
-              <p className="px-3 pb-1 text-[10.5px] font-semibold uppercase tracking-wider text-light-textMuted dark:text-dark-textMuted">
-                {section.label}
-              </p>
+      <div className="flex h-full flex-col">
+        <div className="flex h-16 items-center gap-2.5 px-5">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground shadow-glow">
+            <Building2 className="h-[18px] w-[18px]" aria-hidden="true" />
+          </span>
+          <span className="min-w-0">
+            <span className="block truncate font-display text-[15px] font-bold tracking-tight text-foreground">
+              {productLabel}
+            </span>
+            {sidebarSubtitle ? (
+              <span className="block truncate text-[11px] text-muted-foreground">{sidebarSubtitle}</span>
             ) : null}
-            {section.items.map((item) => {
-              const active = isActive(item.href);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={onNavigate}
-                  title={item.label}
-                  className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${
-                    !showLabels ? 'justify-center' : ''
-                  } ${
-                    active
-                      ? 'bg-light-accent/10 text-light-accent dark:bg-dark-accent/10 dark:text-dark-accent'
-                      : 'text-light-textSecondary hover:bg-light-surface hover:text-light-textPrimary dark:text-dark-textSecondary dark:hover:bg-dark-surface dark:hover:text-dark-textPrimary'
-                  }`}
-                >
-                  {item.icon}
-                  {showLabels ? <span>{item.label}</span> : null}
-                </Link>
-              );
-            })}
-          </div>
+            {demoBadge ? (
+              <span className="mt-1 inline-flex w-fit items-center rounded-full border border-primary px-2 py-0.5 text-[10px] font-semibold text-primary">
+                Demo mode
+              </span>
+            ) : null}
+          </span>
+        </div>
+
+        <nav className="scrollbar-slim flex-1 space-y-6 overflow-y-auto px-3 pb-4">
+          {navSections.map((section, i) => (
+            <div key={section.label ?? i}>
+              {section.label ? (
+                <p className="px-3 pb-2 text-[10px] font-semibold tracking-[0.14em] text-muted-foreground uppercase">
+                  {section.label}
+                </p>
+              ) : null}
+              <ul className="space-y-0.5">
+                {section.items.map((item) => {
+                  const active = isActive(item.href);
+                  return (
+                    <li key={item.href}>
+                      <Link
+                        href={item.href}
+                        onClick={onNavigate}
+                        title={item.label}
+                        className={`group relative flex items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] font-medium transition-all duration-200 ${
+                          active
+                            ? 'bg-primary-soft text-accent-foreground'
+                            : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-foreground'
+                        }`}
+                      >
+                        {active ? (
+                          <span className="absolute top-1/2 -left-3 h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary" />
+                        ) : null}
+                        <span
+                          className={`shrink-0 transition-colors ${active ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'}`}
+                        >
+                          {item.icon}
+                        </span>
+                        <span className="truncate">{item.label}</span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+        </nav>
+
+        {sidebarFooterWidget ? <div className="border-t border-sidebar-border p-3">{sidebarFooterWidget}</div> : null}
+      </div>
+    );
+  }
+
+  function Breadcrumbs() {
+    const parts = pathname.split('/').filter(Boolean);
+    return (
+      <div className="hidden min-w-0 items-center gap-1.5 text-[13px] text-muted-foreground lg:flex">
+        <Link href={homeHref} className="transition-colors hover:text-foreground">
+          {homeLabel}
+        </Link>
+        {parts.map((p, i) => (
+          <span key={p + i} className="flex min-w-0 items-center gap-1.5">
+            <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-50" aria-hidden="true" />
+            <span className={`truncate capitalize ${i === parts.length - 1 ? 'font-medium text-foreground' : ''}`}>
+              {p.replace(/-/g, ' ')}
+            </span>
+          </span>
         ))}
-      </nav>
+      </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="min-h-screen bg-background">
       {banner ? <div className="sticky top-0 z-50 print:hidden">{banner}</div> : null}
-      <div className="flex min-h-0 flex-1">
-      {/* Mobile top bar: <md only -- the icon rail takes over from md upward. print:hidden on
-          every chrome element below (top bar, both sidebars) -- lets any (dashboard) page double
-          as a clean print/save-as-PDF view (e.g. Owner Statements) with zero extra route needed. */}
-      <div className="fixed inset-x-0 top-0 z-30 flex h-14 items-center gap-3 border-b border-light-border bg-light-surfaceRaised px-4 md:hidden print:hidden dark:border-dark-border dark:bg-dark-surfaceRaised">
-        <button
-          type="button"
-          aria-label="Open navigation"
-          onClick={() => setDrawerOpen(true)}
-          className="flex h-9 w-9 items-center justify-center rounded-md text-light-textSecondary hover:bg-light-surface dark:text-dark-textSecondary dark:hover:bg-dark-surface"
-        >
-          <Menu size={20} aria-hidden="true" />
-        </button>
-        <p className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">{productLabel}</p>
-      </div>
 
-      {/* Mobile drawer overlay: <md only, open on demand, full labels always shown */}
-      {drawerOpen ? (
-        <div className="fixed inset-0 z-40 md:hidden">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[248px] border-r border-sidebar-border bg-sidebar lg:block print:hidden">
+        <SidebarBody />
+      </aside>
+
+      {mobileOpen ? (
+        <div className="fixed inset-0 z-50 lg:hidden">
           <button
             type="button"
             aria-label="Close navigation"
-            className="absolute inset-0 bg-light-textPrimary/40 dark:bg-black/60"
-            onClick={() => setDrawerOpen(false)}
+            className="absolute inset-0 bg-foreground/30 backdrop-blur-sm"
+            onClick={() => setMobileOpen(false)}
           />
-          <aside className="absolute inset-y-0 left-0 flex w-72 flex-col bg-light-surfaceRaised px-4 py-5 dark:bg-dark-surfaceRaised">
-            <div className="flex items-center justify-between px-1">
-              <p className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">{productLabel}</p>
-              <button
-                type="button"
-                aria-label="Close navigation"
-                onClick={() => setDrawerOpen(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-md text-light-textSecondary hover:bg-light-surface dark:text-dark-textSecondary dark:hover:bg-dark-surface"
-              >
-                <X size={18} aria-hidden="true" />
-              </button>
-            </div>
-            {demoBadge ? <DemoBadge /> : null}
-            <NavContent showLabels onNavigate={() => setDrawerOpen(false)} />
-            <ShellFooter identityLine={identityLine} showLabels />
-          </aside>
+          <div className="absolute inset-y-0 left-0 w-[264px] border-r border-sidebar-border bg-sidebar shadow-lift">
+            <button
+              type="button"
+              onClick={() => setMobileOpen(false)}
+              aria-label="Close navigation"
+              className="absolute top-4 right-3 grid h-8 w-8 place-items-center rounded-lg text-muted-foreground hover:bg-sidebar-accent"
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
+            </button>
+            <SidebarBody onNavigate={() => setMobileOpen(false)} />
+          </div>
         </div>
       ) : null}
 
-      {/* Desktop: icon-only rail md-lg, full sidebar >=lg. Two separately-rendered <aside>s (one
-          hidden at each breakpoint) rather than one dynamically relabeled sidebar -- avoids a
-          content flash/reflow as labels would otherwise mount and unmount at the breakpoint. */}
-      <aside className="sticky top-0 hidden h-screen w-[68px] shrink-0 flex-col items-center border-r border-light-border bg-light-surfaceRaised py-5 md:flex lg:hidden print:hidden dark:border-dark-border dark:bg-dark-surfaceRaised">
-        <NavContent showLabels={false} />
-        <ShellFooter identityLine={identityLine} showLabels={false} />
-      </aside>
-      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-light-border bg-light-surfaceRaised px-4 py-5 lg:flex print:hidden dark:border-dark-border dark:bg-dark-surfaceRaised">
-        <p className="px-1 text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">{productLabel}</p>
-        {demoBadge ? <DemoBadge /> : null}
-        <NavContent showLabels onNavigate={undefined} />
-        <ShellFooter identityLine={identityLine} showLabels />
-      </aside>
+      <div className="lg:pl-[248px]">
+        <header className="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur-xl print:hidden">
+          <div className="grid h-16 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 sm:px-6">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setMobileOpen(true)}
+                aria-label="Open navigation"
+                className="grid h-9 w-9 place-items-center rounded-lg border border-border text-muted-foreground hover:bg-surface lg:hidden"
+              >
+                <Menu className="h-4 w-4" aria-hidden="true" />
+              </button>
+              <Breadcrumbs />
+            </div>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        {/* Desktop header: breadcrumbs + notifications + user menu, md and up only -- the mobile
-            top bar above already carries the product name and nav toggle at narrower widths. */}
-        <header className="sticky top-0 z-20 hidden h-16 items-center justify-between gap-3 border-b border-light-border bg-light-surfaceRaised/85 px-6 backdrop-blur-xl md:flex print:hidden dark:border-dark-border dark:bg-dark-surfaceRaised/85">
-          <Breadcrumbs pathname={pathname} />
+            {/* Lovable's header includes a global search input here (properties/tenants/invoices).
+                Deliberately not ported: no search index/API exists over those resources yet
+                (real backend integration gap, not a styling choice) -- a search box that doesn't
+                actually search would be a broken promise, not a visual upgrade. Left empty rather
+                than a fake input, matching the "do not fabricate" rule. */}
+            <div />
 
-          <div className="ml-auto flex items-center gap-1.5">
-            <ThemeToggle compact />
+            <div className="flex items-center gap-1.5 justify-self-end">
+              <ThemeToggle compact />
 
-            <Popover>
-              <PopoverTrigger asChild>
-                <button
-                  type="button"
-                  aria-label="Notifications"
-                  className="relative flex h-9 w-9 items-center justify-center rounded-md text-light-textMuted hover:bg-light-surface hover:text-light-textSecondary dark:text-dark-textMuted dark:hover:bg-dark-surface dark:hover:text-dark-textSecondary"
-                >
-                  <Bell size={17} aria-hidden="true" />
-                  {unreadCount > 0 ? (
-                    <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-light-statusOverdue ring-2 ring-light-surfaceRaised dark:bg-dark-statusOverdue dark:ring-dark-surfaceRaised" />
-                  ) : null}
-                </button>
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-[340px] p-0">
-                <div className="flex items-center justify-between border-b border-light-border px-4 py-3 dark:border-dark-border">
-                  <p className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">Notifications</p>
-                  {unreadCount > 0 ? <Pill tone="primary">{unreadCount} new</Pill> : null}
-                </div>
-                {notifications.length === 0 ? (
-                  <p className="px-4 py-6 text-center text-xs text-light-textMuted dark:text-dark-textMuted">
-                    No notifications yet.
-                  </p>
-                ) : (
-                  <ul className="max-h-[320px] divide-y divide-light-border overflow-y-auto dark:divide-dark-border">
-                    {notifications.map((n) => (
-                      <li key={n.id} className="px-4 py-3">
-                        <p className="text-[13px] font-medium text-light-textPrimary dark:text-dark-textPrimary">{n.title}</p>
-                        <p className="truncate text-xs text-light-textMuted dark:text-dark-textMuted">{n.body}</p>
-                        <p className="mt-1 text-[11px] text-light-textMuted/70 dark:text-dark-textMuted/70">
-                          {relativeTime(n.createdAt)}
-                        </p>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <Link
-                  href={notificationsHref}
-                  className="block border-t border-light-border px-4 py-2.5 text-center text-xs font-medium text-light-accent hover:underline dark:border-dark-border dark:text-dark-accent"
-                >
-                  View all
-                </Link>
-              </PopoverContent>
-            </Popover>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label="Notifications"
+                    className="relative grid h-9 w-9 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-surface hover:text-foreground"
+                  >
+                    <Bell className="h-[17px] w-[17px]" aria-hidden="true" />
+                    {unreadCount > 0 ? (
+                      <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-destructive ring-2 ring-background" />
+                    ) : null}
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-[340px] p-0">
+                  <div className="flex items-center justify-between border-b border-border px-4 py-3">
+                    <p className="text-sm font-semibold text-foreground">Notifications</p>
+                    {unreadCount > 0 ? <Pill tone="primary">{unreadCount} new</Pill> : null}
+                  </div>
+                  {notifications.length === 0 ? (
+                    <p className="px-4 py-6 text-center text-xs text-muted-foreground">No notifications yet.</p>
+                  ) : (
+                    <ul className="max-h-[320px] divide-y divide-border overflow-y-auto">
+                      {notifications.map((n) => (
+                        <li key={n.id} className="px-4 py-3">
+                          <p className="text-[13px] font-medium text-foreground">{n.title}</p>
+                          <p className="truncate text-xs text-muted-foreground">{n.body}</p>
+                          <p className="mt-1 text-[11px] text-muted-foreground/70">{relativeTime(n.createdAt)}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <Link
+                    href={notificationsHref}
+                    className="block border-t border-border px-4 py-2.5 text-center text-xs font-medium text-primary hover:underline"
+                  >
+                    View all
+                  </Link>
+                </PopoverContent>
+              </Popover>
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  type="button"
-                  className="ml-1 flex items-center gap-2 rounded-xl border border-light-border bg-light-surfaceRaised py-1 pr-2.5 pl-1 hover:bg-light-surface dark:border-dark-border dark:bg-dark-surfaceRaised dark:hover:bg-dark-surface"
-                >
-                  <Avatar initials={initialsFor(identityLine ?? 'User')} />
-                  {identityLine ? (
-                    <span className="hidden text-left text-[12px] leading-tight font-medium text-light-textPrimary capitalize sm:block dark:text-dark-textPrimary">
-                      {identityLine}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="ml-1 flex items-center gap-2 rounded-xl border border-border bg-card py-1 pr-2.5 pl-1 transition-colors hover:bg-surface"
+                  >
+                    <Avatar initials={initialsFor(displayName ?? identityLine ?? 'User')} />
+                    <span className="hidden text-left sm:block">
+                      <span className="block text-[12px] leading-tight font-semibold text-foreground">
+                        {displayName ?? identityLine ?? 'Account'}
+                      </span>
+                      {displayName && identityLine ? (
+                        <span className="block text-[11px] leading-tight text-muted-foreground capitalize">
+                          {identityLine}
+                        </span>
+                      ) : null}
                     </span>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  {identityLine ? <DropdownMenuLabel className="capitalize">{identityLine}</DropdownMenuLabel> : null}
+                  {accountMenuLinks.length > 0 ? (
+                    <>
+                      <DropdownMenuSeparator />
+                      {accountMenuLinks.map((link) => (
+                        <DropdownMenuItem key={link.href} onSelect={() => router.push(link.href)}>
+                          {link.label}
+                        </DropdownMenuItem>
+                      ))}
+                    </>
                   ) : null}
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {identityLine ? <DropdownMenuLabel className="capitalize">{identityLine}</DropdownMenuLabel> : null}
-                {accountMenuLinks.length > 0 ? (
-                  <>
-                    <DropdownMenuSeparator />
-                    {accountMenuLinks.map((link) => (
-                      <DropdownMenuItem key={link.href} onSelect={() => router.push(link.href)}>
-                        {link.label}
-                      </DropdownMenuItem>
-                    ))}
-                  </>
-                ) : null}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={signOut}>
-                  <LogOut size={15} aria-hidden="true" /> Sign out
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onSelect={signOut}>
+                    <LogOut size={15} aria-hidden="true" /> Sign out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
         </header>
 
-        <main className="min-w-0 flex-1 px-5 py-6 pt-20 md:px-8 md:py-8 md:pt-8 print:p-0">{children}</main>
+        <main className="animate-rise mx-auto w-full max-w-[1560px] space-y-6 px-4 py-6 sm:px-6 sm:py-8 print:p-0 print:max-w-none">
+          {children}
+        </main>
       </div>
-      </div>
-    </div>
-  );
-}
-
-function DemoBadge() {
-  return (
-    <span className="mx-1 mt-2 inline-flex w-fit items-center rounded-full border border-light-accent px-2 py-0.5 text-[10px] font-semibold text-light-accent dark:border-dark-accent dark:text-dark-accent">
-      Demo mode
-    </span>
-  );
-}
-
-function ShellFooter({ identityLine, showLabels }: { identityLine?: string; showLabels: boolean }) {
-  if (!showLabels) {
-    // Rail mode: still show the theme toggle (icon buttons work fine narrow), skip the identity
-    // line (would truncate illegibly at 68px).
-    return (
-      <div className="mt-auto flex flex-col items-center gap-3 border-t border-light-border pt-4 dark:border-dark-border">
-        <ThemeToggle compact />
-      </div>
-    );
-  }
-  return (
-    <div className="mt-auto flex flex-col gap-3 border-t border-light-border pt-4 dark:border-dark-border">
-      <ThemeToggle />
-      {identityLine ? (
-        <p className="px-1 text-xs text-light-textMuted dark:text-dark-textMuted">{identityLine}</p>
-      ) : null}
     </div>
   );
 }
