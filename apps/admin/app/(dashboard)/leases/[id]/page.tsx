@@ -1,17 +1,25 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { LEASE_STATUS_PRESENTATION } from '@propvault/ui';
+import type { RentSchedule, Tenant } from '@propvault/types';
+import { LEASE_STATUS_PRESENTATION, TENANT_STATUS_PRESENTATION } from '@propvault/ui';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
-import { mapLeaseRow } from '@/lib/leasing';
-import { resolvePortalSession, findActiveMembership } from '@/lib/orgSession';
+import { mapLeaseRow, mapTenantRow, mapRentScheduleRow } from '@/lib/leasing';
+import { resolvePortalSession, findActiveMembership, canPostAccountingRecords } from '@/lib/orgSession';
 import { StatusBadge } from '@/components/ui/StatusBadge';
+import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Panel } from '@/components/ui/Panel';
+import { LeaseRentScheduleClient } from '@/components/leases/LeaseRentScheduleClient';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 import type { LeaseRow } from '@/components/tables/LeasesTable';
 
 type RouteParams = { params: Promise<{ id: string }> };
+
+interface LeaseTenant {
+  tenant: Tenant;
+  isPrimary: boolean;
+}
 
 const DEMO_LEASE: LeaseRow = {
   id: 'demo-lease-1',
@@ -33,12 +41,44 @@ const DEMO_LEASE: LeaseRow = {
   propertyNickname: 'Sea Point Apartment',
 };
 
+const DEMO_LEASE_TENANTS: LeaseTenant[] = [
+  {
+    isPrimary: true,
+    tenant: {
+      id: 'demo-tenant-1',
+      orgId: 'demo-org-1',
+      userId: null,
+      fullName: 'Naledi Khumalo',
+      email: 'naledi@example.com',
+      phone: '+27 82 555 0134',
+      idNumberRef: null,
+      status: 'active',
+      createdAt: '2026-06-05T00:00:00Z',
+      updatedAt: '2026-06-05T00:00:00Z',
+    },
+  },
+];
+
+const DEMO_RENT_SCHEDULE: RentSchedule[] = [
+  { id: 'demo-rs-1', orgId: 'demo-org-1', leaseId: 'demo-lease-1', dueDate: '2026-08-01', amount: 12500, status: 'overdue', generatedAt: '2026-08-01T00:00:00Z' },
+  { id: 'demo-rs-2', orgId: 'demo-org-1', leaseId: 'demo-lease-1', dueDate: '2026-07-01', amount: 12500, status: 'paid', generatedAt: '2026-07-01T00:00:00Z' },
+  { id: 'demo-rs-3', orgId: 'demo-org-1', leaseId: 'demo-lease-1', dueDate: '2026-06-01', amount: 12500, status: 'paid', generatedAt: '2026-06-01T00:00:00Z' },
+];
+
 export default async function LeaseDetailPage({ params }: RouteParams) {
   const { id } = await params;
 
   if (ADMIN_DEMO_MODE) {
     if (id !== 'demo-lease-1') notFound();
-    return <LeaseDetailView lease={DEMO_LEASE} canEdit />;
+    return (
+      <LeaseDetailView
+        lease={DEMO_LEASE}
+        canEdit
+        canPost
+        leaseTenants={DEMO_LEASE_TENANTS}
+        rentSchedule={DEMO_RENT_SCHEDULE}
+      />
+    );
   }
 
   const supabase = await getServerSupabaseClient();
@@ -63,11 +103,57 @@ export default async function LeaseDetailPage({ params }: RouteParams) {
   const session = await resolvePortalSession();
   const membership = session ? findActiveMembership(session, lease.orgId) : undefined;
   const canEdit = Boolean(membership && membership.role !== 'viewer' && membership.role !== 'accountant');
+  const canPost = Boolean(membership && canPostAccountingRecords(membership.role));
 
-  return <LeaseDetailView lease={lease} canEdit={canEdit} />;
+  const { data: ltData, error: ltError } = await supabase
+    .from('lease_tenants')
+    .select('is_primary, tenants(*)')
+    .eq('lease_id', id)
+    .order('is_primary', { ascending: false });
+  if (ltError) throw new Error(`Failed to load lease tenants: ${ltError.message}`);
+  // lease_tenants.tenant_id -> tenants.id is many-to-one, so PostgREST embeds a single object at
+  // runtime -- the `tenants(*)` embed syntax just can't express that cardinality to an untyped
+  // client (no generated Database types), so supabase-js's inferred type is wrong, not the data.
+  const ltRows = (ltData ?? []) as unknown as { is_primary: boolean; tenants: Record<string, unknown> | null }[];
+  const leaseTenants: LeaseTenant[] = ltRows
+    .filter((r): r is typeof r & { tenants: NonNullable<typeof r.tenants> } => r.tenants !== null)
+    .map((r) => ({
+      tenant: mapTenantRow(r.tenants as unknown as Parameters<typeof mapTenantRow>[0]),
+      isPrimary: r.is_primary,
+    }));
+
+  const { data: rsRows, error: rsError } = await supabase
+    .from('rent_schedules')
+    .select('*')
+    .eq('lease_id', id)
+    .order('due_date', { ascending: false });
+  if (rsError) throw new Error(`Failed to load rent schedule: ${rsError.message}`);
+  const rentSchedule = (rsRows ?? []).map(mapRentScheduleRow);
+
+  return (
+    <LeaseDetailView
+      lease={lease}
+      canEdit={canEdit}
+      canPost={canPost}
+      leaseTenants={leaseTenants}
+      rentSchedule={rentSchedule}
+    />
+  );
 }
 
-function LeaseDetailView({ lease, canEdit }: { lease: LeaseRow; canEdit: boolean }) {
+function LeaseDetailView({
+  lease,
+  canEdit,
+  canPost,
+  leaseTenants,
+  rentSchedule,
+}: {
+  lease: LeaseRow;
+  canEdit: boolean;
+  canPost: boolean;
+  leaseTenants: LeaseTenant[];
+  rentSchedule: RentSchedule[];
+}) {
   const backHref = lease.propertyId ? `/properties/${lease.propertyId}/units/${lease.unitId}` : '/leases';
 
   return (
@@ -120,11 +206,55 @@ function LeaseDetailView({ lease, canEdit }: { lease: LeaseRow; canEdit: boolean
         </dl>
       </Panel>
 
+      <Panel title="Tenants">
+        {leaseTenants.length === 0 ? (
+          <p className="text-sm text-light-textMuted dark:text-dark-textMuted">No tenant assigned to this lease yet.</p>
+        ) : (
+          <ul className="divide-y divide-light-border dark:divide-dark-border">
+            {leaseTenants.map(({ tenant, isPrimary }) => (
+              <li key={tenant.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                <Link href={`/tenants/${tenant.id}`} className="group flex min-w-0 items-center gap-2.5">
+                  <Avatar initials={initialsFor(tenant.fullName)} tone="muted" className="h-8 w-8 text-[11px]" />
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-medium text-light-accent group-hover:underline dark:text-dark-accent">
+                      {tenant.fullName}
+                      {isPrimary ? (
+                        <span className="ml-1.5 text-xs font-normal text-light-textMuted dark:text-dark-textMuted">
+                          (primary)
+                        </span>
+                      ) : null}
+                    </span>
+                  </span>
+                </Link>
+                <StatusBadge presentation={TENANT_STATUS_PRESENTATION[tenant.status]} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </Panel>
+
+      {/* Not wrapped in a Panel -- AdminDataTable (which RentScheduleTable/LeaseRentScheduleClient
+          render through) already supplies its own bordered/rounded/shadowed card, same as the bare
+          RentDueClient placement on the Rent Due page; a second Panel around it would double the
+          card chrome. */}
+      <div>
+        <h2 className="mb-2.5 text-[15px] font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+          Rent schedule
+        </h2>
+        <LeaseRentScheduleClient data={rentSchedule} canPost={canPost} />
+      </div>
+
       <p className="text-xs text-light-textMuted dark:text-dark-textMuted">
-        Tenants assigned to this lease, rent schedule, and trust deposit status are built at the
-        API layer (TASKS.md M9/M10/M14) but not yet wired into this page — Leases is the current
-        vertical slice, Maintenance is next.
+        Trust deposit status (deposit held/released against this lease) is built at the API layer
+        (TASKS.md M14) but not yet wired into this page.
       </p>
     </div>
   );
+}
+
+function initialsFor(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return '?';
+  if (words.length === 1) return words[0]!.slice(0, 2).toUpperCase();
+  return (words[0]![0]! + words[1]![0]!).toUpperCase();
 }
