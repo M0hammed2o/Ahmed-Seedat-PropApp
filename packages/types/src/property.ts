@@ -31,6 +31,12 @@ export interface Property {
   estimatedValue: number | null;
   /** The date the captured value is understood to reflect (e.g. an appraisal date), not the row-edit timestamp. */
   estimatedValueAsOf: string | null;
+  /**
+   * Geocoded from the address via Mapbox on create/update (2026-08-04, Owner Dashboard map).
+   * Both null or both set -- enforced by a DB check constraint, never a partial coordinate.
+   */
+  latitude: number | null;
+  longitude: number | null;
   createdAt: string;
   updatedAt: string;
 }

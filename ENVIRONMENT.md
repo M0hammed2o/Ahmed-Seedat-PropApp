@@ -46,6 +46,8 @@ No real secret values are ever committed. Every variable below exists as a place
 See `AUTHENTICATION.md` for the full external setup walkthrough (Google Cloud OAuth consent
 screen + client, Apple Developer Services ID + key) these four variables come from.
 
+| `NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN` | Mapbox *public* token — drives the Owner Dashboard's real property map and server-side geocoding-on-save (`lib/providers/geocoding.ts`, 2026-08-04). Not a secret by Mapbox's own design. | No — map/geocoding degrade to an honest "not available" state when unset |
+
 ## Validation
 
 Both apps validate their environment at startup through a Zod schema in `packages/config/env.ts` (parameterised per-app since mobile/admin need different variables) — a missing or malformed required variable fails fast with a clear error instead of an obscure runtime crash later.

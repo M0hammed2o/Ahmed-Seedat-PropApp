@@ -28,6 +28,8 @@ interface PropertyRow {
   status: string;
   estimated_value: number | string | null;
   estimated_value_as_of: string | null;
+  latitude: number | string | null;
+  longitude: number | string | null;
   created_at: string;
   updated_at: string;
 }
@@ -52,6 +54,8 @@ export function mapPropertyRow(row: PropertyRow): Property {
     status: row.status as Property['status'],
     estimatedValue: row.estimated_value === null ? null : Number(row.estimated_value),
     estimatedValueAsOf: row.estimated_value_as_of,
+    latitude: row.latitude === null ? null : Number(row.latitude),
+    longitude: row.longitude === null ? null : Number(row.longitude),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

@@ -55,6 +55,8 @@ const DEMO_PROPERTY: Property = {
   status: 'active',
   estimatedValue: null,
   estimatedValueAsOf: null,
+  latitude: -33.9166,
+  longitude: 18.3833,
   createdAt: '2026-06-01T00:00:00Z',
   updatedAt: '2026-06-01T00:00:00Z',
 };

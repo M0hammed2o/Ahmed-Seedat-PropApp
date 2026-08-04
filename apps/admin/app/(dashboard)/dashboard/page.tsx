@@ -21,6 +21,7 @@ import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 import { MoneyFlowChart } from '@/components/dashboard/MoneyFlowChart';
 import { CollectionsMixChart } from '@/components/dashboard/CollectionsMixChart';
+import { PropertyMap, type MappableProperty } from '@/components/dashboard/PropertyMap';
 import { RecentActivityFeed, type ActivityItem } from '@/components/dashboard/RecentActivityFeed';
 
 // Owner Dashboard, rebuilt against reference/lovable-ui-reference's routes/index.tsx literal
@@ -70,6 +71,7 @@ interface DashboardData {
   collectionsMix: { name: string; value: number; tone: string }[];
   activity: ActivityItem[];
   topProperties: TopProperty[];
+  mappableProperties: MappableProperty[];
   recentPayments: RecentPayment[];
   insight: string | null;
   displayFirstName?: string;
@@ -115,6 +117,10 @@ const DEMO_DATA: DashboardData = {
   topProperties: [
     { id: 'demo-property-1', nickname: 'Sea Point Apartment', status: 'active', monthlyIncome: 12500, occupied: 1, units: 1 },
   ],
+  // Real Sea Point, Cape Town coordinates -- renders a real pin if a Mapbox token is configured
+  // in this environment, falls back to the honest "not available" state otherwise, same as
+  // real (non-demo) mode. Not a fabricated position: this is genuinely where the fixture address is.
+  mappableProperties: [{ id: 'demo-property-1', nickname: 'Sea Point Apartment', latitude: -33.9166, longitude: 18.3833 }],
   recentPayments: [
     { id: 'demo-pmt-1', tenantName: 'Naledi Khumalo', propertyName: 'Sea Point Apartment', amount: 12500, date: '2026-08-01', status: 'paid' },
   ],
@@ -131,6 +137,12 @@ function greeting(): string {
 export default async function DashboardPage() {
   const data = ADMIN_DEMO_MODE ? DEMO_DATA : await loadData();
   const monthLabel = new Date().toLocaleDateString('en-ZA', { month: 'long', year: 'numeric' });
+  // Real bug found and fixed 2026-08-04: showing the map when data.mappableProperties has entries
+  // but no Mapbox token is configured rendered an empty box with a "Live" badge above it --
+  // PropertyMap's own effect correctly no-ops without a token, but the *panel* was only checking
+  // "do we have coordinates", not "can we actually render a map with them". Caught by an actual
+  // real-browser screenshot, not assumed. Availability now requires both.
+  const mapAvailable = Boolean(process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN) && data.mappableProperties.length > 0;
 
   const stats = [
     {
@@ -294,18 +306,23 @@ export default async function DashboardPage() {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-3">
-        {/* Lovable's "Portfolio map" plots properties by hardcoded x/y percentages. No property
-            in this schema has geo-coordinates and no geocoding vendor is selected -- same class
-            of open vendor decision as OCR/email/WhatsApp elsewhere in this project (DECISIONS.md).
-            Panel kept, a real property list replaces the fake scatter-plot dots. */}
+        {/* Lovable's "Portfolio map" plots properties by hardcoded x/y percentages. Real Mapbox
+            map (2026-08-04, Mohammed's explicit choice) when a property has a real geocoded
+            coordinate; the property-list fallback below covers properties that don't yet
+            (address not geocodable, or MAPBOX_ACCESS_TOKEN not configured in this environment) --
+            never a fabricated pin position. */}
         <Panel
           className="xl:col-span-2"
           title="Portfolio"
           description={`${data.totalProperties} ${data.totalProperties === 1 ? 'property' : 'properties'}`}
-          actions={<Pill tone="neutral">Map view not available</Pill>}
-          bodyClassName="p-5"
+          actions={
+            mapAvailable ? <Pill tone="primary">Live</Pill> : <Pill tone="neutral">Map view not available</Pill>
+          }
+          bodyClassName={mapAvailable ? 'p-0' : 'p-5'}
         >
-          {data.topProperties.length > 0 ? (
+          {mapAvailable ? (
+            <PropertyMap properties={data.mappableProperties} />
+          ) : data.topProperties.length > 0 ? (
             <ul className="grid gap-3 sm:grid-cols-2">
               {data.topProperties.map((p) => (
                 <li key={p.id}>
@@ -329,9 +346,12 @@ export default async function DashboardPage() {
           ) : (
             <p className="text-center text-xs text-muted-foreground">No properties yet.</p>
           )}
-          <p className="mt-3 text-[11px] text-muted-foreground">
-            Add coordinates to your properties to enable the map view.
-          </p>
+          {!mapAvailable && data.topProperties.length > 0 ? (
+            <p className="mt-3 text-[11px] text-muted-foreground">
+              Properties are geocoded automatically when their address is saved. If this doesn&apos;t update, a
+              Mapbox access token may not be configured yet in this environment.
+            </p>
+          ) : null}
         </Panel>
 
         <Panel className="xl:col-span-2" title="Recent activity" description="Latest actions across your portfolio">
@@ -479,7 +499,7 @@ async function loadData(): Promise<DashboardData> {
     insightResult,
     profileResult,
   ] = await Promise.all([
-    supabase.from('properties').select('id, nickname, status, estimated_value').eq('status', 'active'),
+    supabase.from('properties').select('id, nickname, status, estimated_value, latitude, longitude').eq('status', 'active'),
     supabase.from('units').select('id, property_id, status'),
     supabase.from('rent_schedules').select('lease_id, due_date, amount, status'),
     supabase.from('expenses').select('created_at, amount, status'),
@@ -613,6 +633,10 @@ async function loadData(): Promise<DashboardData> {
     }))
     .sort((a, b) => b.monthlyIncome - a.monthlyIncome);
 
+  const mappableProperties: MappableProperty[] = properties
+    .filter((p): p is typeof p & { latitude: number; longitude: number } => p.latitude !== null && p.longitude !== null)
+    .map((p) => ({ id: p.id, nickname: p.nickname, latitude: Number(p.latitude), longitude: Number(p.longitude) }));
+
   const recentPayments = await loadRecentPayments(supabase, unitPropertyById, properties);
 
   return {
@@ -637,6 +661,7 @@ async function loadData(): Promise<DashboardData> {
     collectionsMix,
     activity,
     topProperties,
+    mappableProperties,
     recentPayments,
     insight: insightResult.data?.message ?? null,
     displayFirstName: profileResult.data?.display_name?.split(' ')[0] || undefined,

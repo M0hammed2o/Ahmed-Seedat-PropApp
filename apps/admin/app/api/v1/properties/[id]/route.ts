@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { propertyUpdateSchema } from '@propvault/validation';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapPropertyRow, requireOrgRole } from '@/lib/portfolio';
+import { getGeocodingProvider } from '@/lib/providers/geocoding';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -140,7 +141,32 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     );
   }
 
-  return NextResponse.json({ property: mapPropertyRow(data) });
+  let property = mapPropertyRow(data);
+
+  // Re-geocode only when an address field actually changed (2026-08-04, Owner Dashboard map) --
+  // avoids a wasted API call on every unrelated edit (e.g. just updating notes). Best-effort, same
+  // as the create path: never blocks or fails the update itself.
+  const addressChanged = [
+    'addressLine1',
+    'addressLine2',
+    'suburb',
+    'city',
+    'province',
+    'postalCode',
+    'country',
+  ].some((key) => key in parsed.data);
+  if (addressChanged) {
+    const coords = await getGeocodingProvider().geocode(property.fullAddress);
+    const { data: geocoded, error: geocodeError } = await supabase
+      .from('properties')
+      .update({ latitude: coords?.latitude ?? null, longitude: coords?.longitude ?? null })
+      .eq('id', id)
+      .select('*')
+      .single();
+    if (!geocodeError && geocoded) property = mapPropertyRow(geocoded);
+  }
+
+  return NextResponse.json({ property });
 }
 
 /**

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { propertyCreateSchema } from '@propvault/validation';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapPropertyRow, requireOrgRole } from '@/lib/portfolio';
+import { getGeocodingProvider } from '@/lib/providers/geocoding';
 import { parseListQuery, encodeCursor, beforeCursorFilter } from '@/lib/cursorPagination';
 
 /**
@@ -138,5 +139,21 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  return NextResponse.json({ property: mapPropertyRow(data) }, { status: 201 });
+  let property = mapPropertyRow(data);
+
+  // Best-effort geocoding (2026-08-04, Owner Dashboard map) -- never blocks or fails the property
+  // create itself. A geocoding failure (vendor down, address not found, no token configured yet)
+  // just leaves latitude/longitude null; the property write already succeeded above.
+  const coords = await getGeocodingProvider().geocode(property.fullAddress);
+  if (coords) {
+    const { data: geocoded, error: geocodeError } = await supabase
+      .from('properties')
+      .update({ latitude: coords.latitude, longitude: coords.longitude })
+      .eq('id', property.id)
+      .select('*')
+      .single();
+    if (!geocodeError && geocoded) property = mapPropertyRow(geocoded);
+  }
+
+  return NextResponse.json({ property }, { status: 201 });
 }
