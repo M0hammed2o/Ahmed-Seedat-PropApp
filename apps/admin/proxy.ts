@@ -82,6 +82,12 @@ function localSupabaseConnectSrc(): string {
   }
 }
 
+// Real bug found 2026-08-04 verifying the Portfolio map against a live Mapbox token (UI_
+// INTEGRATION_PLAN.md map batch): connect-src only ever allowed 'self' and https://*.supabase.co,
+// so Mapbox GL's style/sprite/tile requests to api.mapbox.com and *.tiles.mapbox.com were silently
+// blocked by CSP -- confirmed live via a real Chrome console CSP violation, not inferred. Mapbox GL
+// also runs its tile-decoding work on a worker constructed from a `blob:` URL, which needs an
+// explicit worker-src (the default-src 'self' fallback does not cover blob: workers).
 function buildCspHeader(nonce: string): string {
   const isDev = process.env.NODE_ENV === 'development';
   return [
@@ -94,7 +100,8 @@ function buildCspHeader(nonce: string): string {
     "base-uri 'self'",
     "form-action 'self'",
     "frame-ancestors 'none'",
-    `connect-src 'self' https://*.supabase.co${localSupabaseConnectSrc()}`,
+    "worker-src 'self' blob:",
+    `connect-src 'self' https://*.supabase.co https://api.mapbox.com https://*.tiles.mapbox.com https://events.mapbox.com${localSupabaseConnectSrc()}`,
     'upgrade-insecure-requests',
   ].join('; ');
 }
