@@ -8,6 +8,7 @@ import { registerSchema } from '@propvault/validation';
 import { branding, TERMS_VERSION, PRIVACY_VERSION } from '@propvault/config';
 import { Button } from '@/components/ui/Button';
 import { OAuthButtons } from '@/components/auth/OAuthButtons';
+import { safeNextPathOr } from '@/lib/safeRedirect';
 
 /**
  * PRODUCT DECISION 1 (2026-08-03). `next` (from ?next=) carries invitation continuation --
@@ -26,7 +27,12 @@ import { OAuthButtons } from '@/components/auth/OAuthButtons';
 export function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams.get('next') ?? '/onboarding/create-organization';
+  // Defers to '/' (the central destination resolver, app/page.tsx) rather than hardcoding
+  // '/onboarding/create-organization' -- a brand-new registrant has no org/tenant/owner identity
+  // yet, so the resolver lands them on onboarding anyway; this way the destination decision lives
+  // in exactly one place instead of being duplicated here. `safeNextPathOr` also rejects an
+  // attacker-supplied absolute-URL `?next=` (open-redirect protection).
+  const next = safeNextPathOr(searchParams.get('next'), '/');
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
