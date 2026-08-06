@@ -5,6 +5,7 @@ import { RATE_LIMITS } from '@propvault/config';
 import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { rateLimitOrRespond, requestIp } from '@/lib/rateLimit';
 import { isSafeNextPath } from '@/lib/safeRedirect';
+import { getRequestOrigin } from '@/lib/appUrl';
 
 // emailRedirectTo is computed client-side today (RegisterForm.tsx uses window.location.origin,
 // which a server route has no access to) -- accepted as an input here rather than guessed
@@ -66,7 +67,7 @@ export async function POST(request: NextRequest) {
     email: parsed.data.email,
     password: parsed.data.password,
     options: {
-      emailRedirectTo: `${new URL(request.url).origin}/auth/callback?next=${encodeURIComponent(parsed.data.next)}`,
+      emailRedirectTo: `${getRequestOrigin(request.headers)}/auth/callback?next=${encodeURIComponent(parsed.data.next)}`,
     },
   });
 

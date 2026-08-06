@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { safeNextPathOr } from '@/lib/safeRedirect';
+import { getRequestOrigin } from '@/lib/appUrl';
 
 /**
  * GET /auth/callback (PRODUCT DECISION 1, 2026-08-03). The single landing point for every
@@ -17,6 +18,7 @@ import { safeNextPathOr } from '@/lib/safeRedirect';
  */
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
+  const origin = getRequestOrigin(request.headers);
   const code = url.searchParams.get('code');
   const tokenHash = url.searchParams.get('token_hash');
   const otpType = url.searchParams.get('type');
@@ -27,7 +29,7 @@ export async function GET(request: NextRequest) {
 
   if (providerError) {
     return NextResponse.redirect(
-      new URL(`/login?error=${encodeURIComponent(providerError)}`, url.origin),
+      new URL(`/login?error=${encodeURIComponent(providerError)}`, origin),
     );
   }
 
@@ -39,7 +41,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(
         new URL(
           `/login?error=${encodeURIComponent('This link is invalid or has expired.')}`,
-          url.origin,
+          origin,
         ),
       );
     }
@@ -52,12 +54,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(
         new URL(
           `/login?error=${encodeURIComponent('This link is invalid or has expired.')}`,
-          url.origin,
+          origin,
         ),
       );
     }
   } else {
-    return NextResponse.redirect(new URL('/login', url.origin));
+    return NextResponse.redirect(new URL('/login', origin));
   }
 
   // Duplicate-account prevention (PRODUCT DECISION 1): this route never merges auth identities
@@ -71,5 +73,5 @@ export async function GET(request: NextRequest) {
   // job once a session exists is to route onward; profiles is auto-created for any new
   // auth.users row (including OAuth ones) by the on_auth_user_created trigger (migration
   // 20260101000004), so there is nothing else to provision here.
-  return NextResponse.redirect(new URL(next, url.origin));
+  return NextResponse.redirect(new URL(next, origin));
 }

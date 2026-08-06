@@ -3,6 +3,7 @@ import { forgotPasswordSchema } from '@propvault/validation';
 import { RATE_LIMITS } from '@propvault/config';
 import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { rateLimitOrRespond, requestIp } from '@/lib/rateLimit';
+import { getRequestOrigin } from '@/lib/appUrl';
 
 /**
  * POST /api/v1/auth/password-reset (Stage 7, commercial-launch execution plan,
@@ -52,7 +53,7 @@ export async function POST(request: NextRequest) {
 
   const supabase = await getServerSupabaseClient();
   const { error } = await supabase.auth.resetPasswordForEmail(parsed.data.email, {
-    redirectTo: `${new URL(request.url).origin}/reset-password`,
+    redirectTo: `${getRequestOrigin(request.headers)}/reset-password`,
   });
 
   if (error) {
