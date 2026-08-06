@@ -27,7 +27,7 @@ const columns: ColumnDef<SubscriptionRow, unknown>[] = [
     accessorKey: 'legalName',
     cell: (info) => (
       <Link
-        href={`/customers/${info.row.original.orgId}`}
+        href={`/platform-admin/customers/${info.row.original.orgId}`}
         className="text-light-accent hover:underline dark:text-dark-accent"
       >
         {info.row.original.legalName}

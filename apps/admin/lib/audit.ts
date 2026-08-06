@@ -46,3 +46,32 @@ export async function writeAuditEvent(
       error.message,
     );
 }
+
+/**
+ * Super Admin separation (WORKLOG.md this date), item 8: "Super Admin login" was a named audit
+ * gap -- the shared /api/v1/auth/{signin,mfa/verify} routes complete sign-in for every account
+ * type, with no per-account-type branching, and neither wrote an audit row. Called from both of
+ * this account's two possible completion points (no-MFA-needed at signin, or the MFA step-up at
+ * mfa/verify) -- a no-op (one extra, cheap single-row lookup) for the overwhelming majority of
+ * sign-ins that aren't a platform admin at all.
+ */
+export async function auditPlatformAdminLoginIfApplicable(
+  serviceClient: SupabaseClient,
+  authUserId: string,
+): Promise<void> {
+  const { data } = await serviceClient
+    .from('platform_admin_users')
+    .select('id')
+    .eq('auth_user_id', authUserId)
+    .maybeSingle();
+  if (!data) return;
+
+  await writeAuditEvent(serviceClient, {
+    orgId: null,
+    actorUserId: authUserId,
+    actorType: 'user',
+    action: 'platform_admin.login',
+    entityType: 'platform_admin_users',
+    entityId: data.id as string,
+  });
+}

@@ -54,7 +54,7 @@ export function LoginForm() {
     if (process.env.NEXT_PUBLIC_DEMO_MODE === 'true') {
       // No Supabase project to authenticate against in demo mode — see DECISIONS.md. Any
       // credentials "work"; the server always resolves the fixed demo admin session.
-      router.replace('/overview');
+      router.replace('/platform-admin/overview');
       router.refresh();
       return;
     }

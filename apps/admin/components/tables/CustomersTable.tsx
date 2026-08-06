@@ -29,7 +29,7 @@ const columns: ColumnDef<CustomerRow, unknown>[] = [
     accessorKey: 'id',
     cell: (info) => (
       <Link
-        href={`/customers/${info.row.original.id}`}
+        href={`/platform-admin/customers/${info.row.original.id}`}
         className="text-light-accent hover:underline dark:text-dark-accent"
       >
         {info.row.original.displayName || info.row.original.id.slice(0, 8)}

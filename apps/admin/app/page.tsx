@@ -24,7 +24,7 @@ export const dynamic = 'force-dynamic';
  */
 export default async function RootPage() {
   if (ADMIN_DEMO_MODE) {
-    redirect('/overview');
+    redirect('/platform-admin/overview');
   }
 
   const destination = await resolveAuthenticatedDestination();

@@ -3,10 +3,14 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { HealthStatusIndicator } from '@/components/ui/HealthStatusIndicator';
 import { MiniLineChart } from '@/components/ui/MiniLineChart';
 import { MiniBarChart } from '@/components/ui/MiniBarChart';
-import { requireRole } from '@/lib/auth';
 import { getServiceRoleClient } from '@/lib/supabase/server';
 import { computePlatformMetrics } from '@/lib/superAdmin';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
+// Authorization: enforced by the (super-admin) layout's own gate, not re-checked here -- see that
+// layout's comment and lib/auth.ts's resolveAdminGate() comment for the real, live-caught bug a
+// page-level requireRole() throw used to cause (raced the layout's redirect, since both are
+// independent async Server Components Next.js can start concurrently; a plain thrown Error, unlike
+// redirect()/notFound(), isn't a signal Next's renderer treats specially).
 import {
   DEMO_ACTIVITY,
   DEMO_OVERVIEW_STATS,
@@ -16,8 +20,6 @@ import {
 } from '@/lib/demo/adminMockData';
 
 export default async function OverviewPage() {
-  await requireRole('read_only_admin');
-
   if (ADMIN_DEMO_MODE) {
     const s = DEMO_OVERVIEW_STATS;
     return (

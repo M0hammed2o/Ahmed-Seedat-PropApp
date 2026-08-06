@@ -65,10 +65,14 @@ test.describe('root domain (/) routing', () => {
     await page.getByRole('button', { name: /sign in/i }).click();
     await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 15_000 });
 
-    // getAdminSession() returns null for this user (no platform_admin_users row) -- the
-    // (super-admin) layout's own server-side check redirects away rather than rendering.
-    await page.goto('/overview');
-    await page.waitForURL((url) => !url.pathname.startsWith('/overview'), { timeout: 15_000 });
+    // getAdminSessionWithoutMfaCheck() returns null for this user (no platform_admin_users row)
+    // -- the (super-admin) layout's own server-side check redirects them to their real
+    // destination (onboarding, since this test user has no org) rather than showing any
+    // FORBIDDEN/error page that would reveal the admin area exists.
+    await page.goto('/platform-admin/overview');
+    await page.waitForURL((url) => !url.pathname.startsWith('/platform-admin'), {
+      timeout: 15_000,
+    });
     await expect(page.getByText(/client directory|subscriptions|document processing/i)).toHaveCount(
       0,
     );

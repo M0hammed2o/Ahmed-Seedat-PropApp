@@ -54,6 +54,7 @@ screen + client, Apple Developer Services ID + key) these four variables come fr
 | `WHATSAPP_TEMPLATE_LANGUAGE` | Meta template-approval locale code. | No — defaults to `en_US` |
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_TEXTRACT_REGION` | Real AWS Textract credentials (`apps/admin/lib/providers/documentIntelligence.ts`, Stage 5, 2026-08-06, TD-39). All three required together (`AWS_TEXTRACT_REGION` falls back to `AWS_REGION` if unset). | No — falls back to `MockDocumentIntelligenceProvider` when unset |
 | `CLAMAV_HOST` / `CLAMAV_PORT` | Real upload malware-scanning target (`apps/admin/lib/providers/malwareScan.ts`, Stage 7, 2026-08-06, TD-43). Points at the local `clamav` service in the repo-root `docker-compose.yml` by default (`docker compose up -d clamav`) -- unlike the other vendors on this list, self-hosted/free, so `.env.example` defaults it ON rather than blank. | No — falls back to `MockMalwareScanProvider` when unset (uploads go through unscanned, MIME-allowlist only) |
+| `PLATFORM_ADMIN_ALLOWED_EMAILS` | Super Admin separation (`apps/admin/lib/auth.ts`, 2026-08-06). Comma-separated email allow-list, checked in addition to `platform_admin_users` -- a real admin whose email isn't listed here (when this is set) is treated as a non-admin entirely. | No — `platform_admin_users` alone (RLS default-deny, manual-only provisioning) is the allow-list when unset |
 
 ## Validation
 

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { getAdminSession } from '../auth';
+import { getAdminGateStatus } from '../auth';
 import { resolvePortalSession } from '../orgSession';
 import { resolveTenantSession } from '../tenantSession';
 import { resolveOwnerSession } from '../ownerSession';
@@ -11,19 +11,19 @@ import { resolveAuthenticatedDestination } from '../destinationResolver';
 // authenticated-with-nothing (onboarding) > unauthenticated (null, the caller renders the public
 // landing page instead of redirecting).
 
-vi.mock('../auth', () => ({ getAdminSession: vi.fn() }));
+vi.mock('../auth', () => ({ getAdminGateStatus: vi.fn() }));
 vi.mock('../orgSession', () => ({ resolvePortalSession: vi.fn() }));
 vi.mock('../tenantSession', () => ({ resolveTenantSession: vi.fn() }));
 vi.mock('../ownerSession', () => ({ resolveOwnerSession: vi.fn() }));
 
-const mockGetAdminSession = vi.mocked(getAdminSession);
+const mockGetAdminGateStatus = vi.mocked(getAdminGateStatus);
 const mockResolvePortalSession = vi.mocked(resolvePortalSession);
 const mockResolveTenantSession = vi.mocked(resolveTenantSession);
 const mockResolveOwnerSession = vi.mocked(resolveOwnerSession);
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockGetAdminSession.mockResolvedValue(null);
+  mockGetAdminGateStatus.mockResolvedValue({ session: null, isAal2: false });
   mockResolvePortalSession.mockResolvedValue(null);
   mockResolveTenantSession.mockResolvedValue(null);
   mockResolveOwnerSession.mockResolvedValue(null);
@@ -34,12 +34,10 @@ describe('resolveAuthenticatedDestination', () => {
     expect(await resolveAuthenticatedDestination()).toBeNull();
   });
 
-  it('routes a platform admin to /overview, ahead of every other identity', async () => {
-    mockGetAdminSession.mockResolvedValue({
-      id: 'admin-1',
-      authUserId: 'user-1',
-      role: 'super_admin',
-      displayName: 'Admin',
+  it('routes an AAL2 platform admin to /overview, ahead of every other identity', async () => {
+    mockGetAdminGateStatus.mockResolvedValue({
+      session: { id: 'admin-1', authUserId: 'user-1', role: 'super_admin', displayName: 'Admin' },
+      isAal2: true,
     });
     // Even with an active org membership present, platform-admin wins.
     mockResolvePortalSession.mockResolvedValue({
@@ -51,7 +49,20 @@ describe('resolveAuthenticatedDestination', () => {
     });
 
     const destination = await resolveAuthenticatedDestination();
-    expect(destination).toEqual({ kind: 'platform-admin', path: '/overview' });
+    expect(destination).toEqual({ kind: 'platform-admin', path: '/platform-admin/overview' });
+  });
+
+  it('routes a platform admin who has not completed MFA straight to /platform-admin/mfa-setup, not /overview', async () => {
+    // Collapses what used to be two chained server-side redirects (/ -> overview -> mfa-setup)
+    // into one -- see this file's own comment for the real, live-caught Next.js dev-server bug
+    // that chain reproducibly triggered.
+    mockGetAdminGateStatus.mockResolvedValue({
+      session: { id: 'admin-1', authUserId: 'user-1', role: 'super_admin', displayName: 'Admin' },
+      isAal2: false,
+    });
+
+    const destination = await resolveAuthenticatedDestination();
+    expect(destination).toEqual({ kind: 'platform-admin', path: '/platform-admin/mfa-setup' });
   });
 
   it('routes a normal active-org member to /dashboard', async () => {

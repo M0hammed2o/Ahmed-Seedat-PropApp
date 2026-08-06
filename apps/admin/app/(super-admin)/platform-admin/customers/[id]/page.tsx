@@ -1,9 +1,10 @@
 import { notFound } from 'next/navigation';
 import { ORGANIZATION_STATUS_PRESENTATION } from '@propvault/ui';
-import { requireRole } from '@/lib/auth';
+import { getAdminSessionWithoutMfaCheck } from '@/lib/auth';
 import { isRoleAtLeast } from '@/lib/roleRank';
 import { getServiceRoleClient } from '@/lib/supabase/server';
 import { getPlatformOrganizationDetail } from '@/lib/superAdmin';
+import { writeAuditEvent } from '@/lib/audit';
 import { OrganizationActionsPanel } from '@/components/organizations/OrganizationActionsPanel';
 import { BillingPanel } from '@/components/organizations/BillingPanel';
 import { SupportSessionControl } from '@/components/organizations/SupportSessionControl';
@@ -15,7 +16,14 @@ import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 import { DEMO_CUSTOMERS } from '@/lib/demo/adminMockData';
 
 export default async function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const session = await requireRole('read_only_admin');
+  // Identity/AAL2 already enforced by the (super-admin) layout's own gate -- this only reads the
+  // session data this page needs (audit actor id, role-gated panels below), via the same React
+  // `cache()`-deduped resolution the layout used (see lib/auth.ts's resolveAdminGate() comment for
+  // the real bug a page-level requireRole() throw used to cause). notFound() is used, not thrown,
+  // purely because the layout guarantees this is non-null by the time this page renders -- this
+  // branch is unreachable in practice.
+  const session = await getAdminSessionWithoutMfaCheck();
+  if (!session) notFound();
   const { id } = await params;
 
   if (ADMIN_DEMO_MODE) {
@@ -85,6 +93,19 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
   const supabase = getServiceRoleClient();
   const detail = await getPlatformOrganizationDetail(supabase, id);
   if (!detail) notFound();
+
+  // Item 8: "customer data views" -- a platform admin opening a specific customer's real record
+  // (name, usage, billing, staff/tenant counts) is exactly the kind of access a customer would
+  // reasonably expect to be logged, distinct from the list page (which shows only summary rows,
+  // not a single customer's full detail). Fire-and-forget: writeAuditEvent logs its own failures.
+  void writeAuditEvent(supabase, {
+    orgId: detail.orgId,
+    actorUserId: session.authUserId,
+    actorType: 'user',
+    action: 'platform_admin.customer_view',
+    entityType: 'organizations',
+    entityId: detail.orgId,
+  });
 
   return (
     <div>

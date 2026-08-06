@@ -1,11 +1,19 @@
+import { notFound } from 'next/navigation';
 import { HealthStatusIndicator } from '@/components/ui/HealthStatusIndicator';
 import { PageHeader } from '@/components/ui/PageHeader';
-import { requireRole } from '@/lib/auth';
+import { getAdminSessionWithoutMfaCheck } from '@/lib/auth';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 import { DEMO_FEATURE_FLAGS, DEMO_SYSTEM_HEALTH } from '@/lib/demo/adminMockData';
 
 export default async function SystemPage() {
-  const session = await requireRole('read_only_admin');
+  // Identity/AAL2 already enforced by the (super-admin) layout's own gate -- this only reads the
+  // session data for display, via the same React `cache()`-deduped resolution the layout used, so
+  // this never performs an independent auth decision of its own (see lib/auth.ts's
+  // resolveAdminGate() comment for the real bug a page-level requireRole() throw used to cause).
+  // notFound() is used, not thrown, purely because the layout guarantees this is non-null by the
+  // time this page renders -- this branch is unreachable in practice.
+  const session = await getAdminSessionWithoutMfaCheck();
+  if (!session) notFound();
 
   return (
     <div>

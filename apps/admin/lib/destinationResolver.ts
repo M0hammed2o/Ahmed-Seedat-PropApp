@@ -1,5 +1,5 @@
 import 'server-only';
-import { getAdminSession } from './auth';
+import { getAdminGateStatus } from './auth';
 import { resolvePortalSession } from './orgSession';
 import { resolveTenantSession } from './tenantSession';
 import { resolveOwnerSession } from './ownerSession';
@@ -30,10 +30,38 @@ export interface AuthenticatedDestination {
  * Returns `null` only for a genuinely unauthenticated caller -- the root page is the only caller
  * that needs to distinguish "no destination because not signed in" (show the public landing page)
  * from any of the authenticated cases above.
+ *
+ * Real bug found and fixed by this session's own E2E suite (Super Admin separation, WORKLOG.md
+ * this date), round 1: this used to call the AAL2-enforcing `getAdminSession()` -- a real platform
+ * admin who hadn't completed MFA yet failed that check, fell through this function's ENTIRE
+ * priority chain (no org/tenant/owner identity either), and landed on "onboarding" instead of the
+ * Super Admin area at all. Fixed by switching to `getAdminSessionWithoutMfaCheck()` (routing on
+ * identity alone, not authorization).
+ *
+ * Round 2, also live-caught via Playwright: sending every admin to `/platform-admin/overview` and
+ * relying on the (super-admin) layout's own redirect to `/platform-admin/mfa-setup` for a
+ * not-yet-AAL2 admin chains TWO server-side redirects (`/` -> overview -> mfa-setup) into one
+ * client-router-initiated navigation (the common real path: right after
+ * `router.refresh()`/`router.push('/')` on sign-in). That chained-redirect shape reproducibly left
+ * the dev server (Next 16.2.11 + Turbopack) stuck re-fetching the same RSC payload every ~200ms
+ * without ever committing content to the DOM -- confirmed by inspecting the actual client-side RSC
+ * push data during the hang, which showed the browser still holding the ORIGINAL `/login` route
+ * tree, never having swapped to the destination page. A single-hop full-page navigation through
+ * the same layout redirect (e.g. a bookmarked `/platform-admin/overview` link) does not hit this --
+ * it's specific to a client-side-initiated navigation chaining two redirects. Resolving AAL here
+ * too and pointing not-yet-AAL2 admins straight at mfa-setup collapses that to one hop for the
+ * common path; this function's job is still identity+auth-state ROUTING, not authorization -- the
+ * (super-admin) layout remains the actual, sole enforcement point (re-checks both facts itself
+ * rather than trusting this function's answer).
  */
 export async function resolveAuthenticatedDestination(): Promise<AuthenticatedDestination | null> {
-  const adminSession = await getAdminSession();
-  if (adminSession) return { kind: 'platform-admin', path: '/overview' };
+  const { session: adminSession, isAal2 } = await getAdminGateStatus();
+  if (adminSession) {
+    return {
+      kind: 'platform-admin',
+      path: isAal2 ? '/platform-admin/overview' : '/platform-admin/mfa-setup',
+    };
+  }
 
   const portalSession = await resolvePortalSession();
   const activeMemberships = portalSession?.organizations.filter((m) => m.status === 'active') ?? [];

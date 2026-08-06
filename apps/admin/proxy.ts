@@ -9,11 +9,10 @@ type CookieToSet = { name: string; value: string; options: CookieOptions };
 // route groups now correctly named -- DECISIONS.md 2026-08-01). One shared list so the matcher
 // config below and the runtime check can't drift out of sync as more routes are added.
 const PROTECTED_ROUTE_PREFIXES = [
-  '/overview',
-  '/customers',
-  '/subscriptions',
-  '/processing',
-  '/system',
+  // Super Admin separation (WORKLOG.md this date): every platform-admin page now lives under this
+  // one prefix instead of 5 separate top-level ones -- a single, easy-to-audit namespace for both
+  // this gate and the X-Robots-Tag exclusion below.
+  '/platform-admin',
   '/dashboard',
   '/properties',
   '/units',
@@ -204,6 +203,13 @@ export async function proxy(request: NextRequest) {
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set('Content-Security-Policy', cspHeader);
+  // Super Admin separation, item 9 (no sitemap entry exists to omit it from -- this is the actual
+  // enforcement search engines see): belt-and-suspenders alongside robots.ts's Disallow rule and
+  // the (super-admin) layout's own `robots` metadata -- a crawler that ignores robots.txt still
+  // gets this HTTP header on every response under the prefix.
+  if (request.nextUrl.pathname.startsWith('/platform-admin')) {
+    response.headers.set('X-Robots-Tag', 'noindex, nofollow');
+  }
 
   // Demo mode has no Supabase project to check a session against — lib/auth.ts's
   // getAdminSession() always returns the fixed demo admin session instead, so there's nothing
