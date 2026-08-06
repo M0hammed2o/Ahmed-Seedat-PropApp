@@ -1,7 +1,7 @@
 import { redirect, notFound } from 'next/navigation';
 import { MaintenanceForm } from '@/components/maintenance/MaintenanceForm';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
-import { resolvePortalSession, findActiveMembership } from '@/lib/orgSession';
+import { resolvePortalSession, findActiveMembership, canWriteOrgRecords } from '@/lib/orgSession';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -30,7 +30,7 @@ export default async function NewMaintenancePage({ params }: RouteParams) {
   if (!property) notFound();
 
   const membership = findActiveMembership(session, property.org_id);
-  const canCreate = membership && membership.role !== 'viewer' && membership.role !== 'accountant';
+  const canCreate = membership && canWriteOrgRecords(membership.role);
   if (!canCreate) redirect(`/properties/${propertyId}`);
 
   return <MaintenanceForm mode="create" orgId={property.org_id} propertyId={propertyId} />;

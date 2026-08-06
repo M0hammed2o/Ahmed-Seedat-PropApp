@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import type { MaintenancePriority, MaintenanceStatus, MaintenanceTicket } from '@propvault/types';
 import { MAINTENANCE_PRIORITIES, MAINTENANCE_STATUSES } from '@propvault/types';
 import { Button } from '@/components/ui/Button';
+import { PageHeader } from '@/components/ui/PageHeader';
 
 // Same DESIGN_SYSTEM.md "Forms" conventions as the other create/edit forms this milestone. No
 // unit/lease/tenant/vendor linkage fields -- maintenanceTicketCreateSchema supports them, but
@@ -93,9 +94,7 @@ export function MaintenanceForm({ mode, orgId, propertyId, ticket }: Maintenance
 
   return (
     <div>
-      <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">
-        {mode === 'create' ? 'Report an issue' : 'Edit ticket'}
-      </h1>
+      <PageHeader title={mode === 'create' ? 'Report an issue' : 'Edit ticket'} />
 
       <form onSubmit={handleSubmit} className="mt-6 max-w-xl space-y-4">
         {error ? (

@@ -2,7 +2,7 @@ import { redirect, notFound } from 'next/navigation';
 import { TenantForm } from '@/components/tenants/TenantForm';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapTenantRow } from '@/lib/leasing';
-import { resolvePortalSession, findActiveMembership } from '@/lib/orgSession';
+import { resolvePortalSession, findActiveMembership, canWriteOrgRecords } from '@/lib/orgSession';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -42,7 +42,7 @@ export default async function EditTenantPage({ params }: RouteParams) {
 
   const tenant = mapTenantRow(data);
   const membership = findActiveMembership(session, tenant.orgId);
-  const canEdit = membership && membership.role !== 'viewer' && membership.role !== 'accountant';
+  const canEdit = membership && canWriteOrgRecords(membership.role);
   if (!canEdit) redirect(`/tenants/${id}`);
 
   return <TenantForm mode="edit" orgId={tenant.orgId} tenant={tenant} />;

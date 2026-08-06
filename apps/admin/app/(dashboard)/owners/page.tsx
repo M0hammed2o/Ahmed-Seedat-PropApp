@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapOwnerRow } from '@/lib/portfolio';
-import { resolvePortalSession, findActiveMembership } from '@/lib/orgSession';
+import { resolvePortalSession, findActiveMembership, canWriteOrgRecords } from '@/lib/orgSession';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 const DEMO_OWNERS: Owner[] = [
@@ -73,5 +73,5 @@ async function resolveCanCreate(): Promise<boolean> {
   const activeOrg = session.organizations.find((m) => m.status === 'active');
   if (!activeOrg) return false;
   const membership = findActiveMembership(session, activeOrg.orgId);
-  return Boolean(membership && membership.role !== 'viewer' && membership.role !== 'accountant');
+  return Boolean(membership && canWriteOrgRecords(membership.role));
 }

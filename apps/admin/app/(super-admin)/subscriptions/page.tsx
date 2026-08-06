@@ -1,5 +1,6 @@
 import { type SubscriptionRow } from '@/components/tables/SubscriptionsTable';
 import { SubscriptionsFilterClient } from '@/components/tables/SubscriptionsFilterClient';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { requireRole } from '@/lib/auth';
 import { getServiceRoleClient } from '@/lib/supabase/server';
 import { listPlatformOrganizations } from '@/lib/superAdmin';
@@ -19,8 +20,10 @@ export default async function SubscriptionsPage() {
     ? DEMO_CUSTOMERS.map((c) => ({
         orgId: c.id,
         legalName: c.displayName,
-        planName: 'PropertyVault Base',
-        effectivePrice: 499,
+        // Matches Stage 4's real plan catalogue (20260101000075_commercial_billing_foundation.sql)
+        // -- this demo row was still showing the pre-Stage-4 placeholder name/price.
+        planName: 'Professional',
+        effectivePrice: 699,
         discountPct: null,
         subscriptionStatus: c.subscriptionStatus,
         currentPeriodEnd: new Date(
@@ -41,20 +44,17 @@ export default async function SubscriptionsPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">
-          Subscriptions
-        </h1>
-        {ADMIN_DEMO_MODE ? (
-          <span className="rounded-full border border-light-accent px-3 py-1 text-xs font-semibold text-light-accent dark:border-dark-accent dark:text-dark-accent">
-            Demo data
-          </span>
-        ) : null}
-      </div>
-      <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
-        Plan/price/discount changes and credits are issued from an organization's detail page, not
-        here — see DECISIONS.md.
-      </p>
+      <PageHeader
+        title="Subscriptions"
+        subtitle="Plan/price/discount changes and credits are issued from an organization's detail page, not here — see DECISIONS.md."
+        actions={
+          ADMIN_DEMO_MODE ? (
+            <span className="rounded-full border border-light-accent px-3 py-1 text-xs font-semibold text-light-accent dark:border-dark-accent dark:text-dark-accent">
+              Demo data
+            </span>
+          ) : undefined
+        }
+      />
       <div className="mt-6">
         <SubscriptionsFilterClient subscriptions={data} />
       </div>

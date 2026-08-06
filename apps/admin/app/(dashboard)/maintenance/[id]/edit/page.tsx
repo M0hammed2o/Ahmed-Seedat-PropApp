@@ -2,7 +2,7 @@ import { redirect, notFound } from 'next/navigation';
 import { MaintenanceForm } from '@/components/maintenance/MaintenanceForm';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapMaintenanceTicketRow } from '@/lib/operations';
-import { resolvePortalSession, findActiveMembership } from '@/lib/orgSession';
+import { resolvePortalSession, findActiveMembership, canWriteOrgRecords } from '@/lib/orgSession';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -49,7 +49,7 @@ export default async function EditMaintenancePage({ params }: RouteParams) {
 
   const ticket = mapMaintenanceTicketRow(data);
   const membership = findActiveMembership(session, ticket.orgId);
-  const canEdit = membership && membership.role !== 'viewer' && membership.role !== 'accountant';
+  const canEdit = membership && canWriteOrgRecords(membership.role);
   if (!canEdit) redirect(`/maintenance/${id}`);
 
   return <MaintenanceForm mode="edit" orgId={ticket.orgId} propertyId={ticket.propertyId} ticket={ticket} />;

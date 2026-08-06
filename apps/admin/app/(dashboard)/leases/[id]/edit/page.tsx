@@ -2,7 +2,7 @@ import { redirect, notFound } from 'next/navigation';
 import { LeaseForm } from '@/components/leases/LeaseForm';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapLeaseRow } from '@/lib/leasing';
-import { resolvePortalSession, findActiveMembership } from '@/lib/orgSession';
+import { resolvePortalSession, findActiveMembership, canWriteOrgRecords } from '@/lib/orgSession';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -54,7 +54,7 @@ export default async function EditLeasePage({ params }: RouteParams) {
   const lease = mapLeaseRow(leaseRow);
 
   const membership = findActiveMembership(session, lease.orgId);
-  const canEdit = membership && membership.role !== 'viewer' && membership.role !== 'accountant';
+  const canEdit = membership && canWriteOrgRecords(membership.role);
   if (!canEdit) redirect(`/leases/${id}`);
 
   return (

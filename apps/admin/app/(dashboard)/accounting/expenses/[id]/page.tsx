@@ -6,6 +6,7 @@ import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapExpenseRow } from '@/lib/accounting';
 import { resolvePortalSession, findActiveMembership, canPostAccountingRecords } from '@/lib/orgSession';
 import { StatusBadge } from '@/components/ui/StatusBadge';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { RecordExpenseButton } from '@/components/accounting/RecordExpenseButton';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
@@ -56,13 +57,13 @@ function ExpenseDetailView({ expense, canPost }: { expense: Expense; canPost: bo
         ← Back to expenses
       </Link>
 
-      <div className="mt-2 flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">{expense.category}</h1>
-        <StatusBadge presentation={EXPENSE_STATUS_PRESENTATION[expense.status]} />
+      <div className="mt-2">
+        <PageHeader
+          title={expense.category}
+          subtitle={`R${expense.amount.toLocaleString('en-ZA')}`}
+          actions={<StatusBadge presentation={EXPENSE_STATUS_PRESENTATION[expense.status]} />}
+        />
       </div>
-      <p className="mt-1 text-sm text-light-textPrimary dark:text-dark-textPrimary">
-        R{expense.amount.toLocaleString('en-ZA')}
-      </p>
 
       {expense.status === 'pending' && canPost ? <RecordExpenseButton expenseId={expense.id} /> : null}
 

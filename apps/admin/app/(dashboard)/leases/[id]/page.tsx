@@ -4,7 +4,7 @@ import type { RentSchedule, Tenant } from '@propvault/types';
 import { LEASE_STATUS_PRESENTATION, TENANT_STATUS_PRESENTATION } from '@propvault/ui';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapLeaseRow, mapTenantRow, mapRentScheduleRow } from '@/lib/leasing';
-import { resolvePortalSession, findActiveMembership, canPostAccountingRecords } from '@/lib/orgSession';
+import { resolvePortalSession, findActiveMembership, canPostAccountingRecords, canWriteOrgRecords } from '@/lib/orgSession';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
@@ -102,7 +102,7 @@ export default async function LeaseDetailPage({ params }: RouteParams) {
 
   const session = await resolvePortalSession();
   const membership = session ? findActiveMembership(session, lease.orgId) : undefined;
-  const canEdit = Boolean(membership && membership.role !== 'viewer' && membership.role !== 'accountant');
+  const canEdit = Boolean(membership && canWriteOrgRecords(membership.role));
   const canPost = Boolean(membership && canPostAccountingRecords(membership.role));
 
   const { data: ltData, error: ltError } = await supabase

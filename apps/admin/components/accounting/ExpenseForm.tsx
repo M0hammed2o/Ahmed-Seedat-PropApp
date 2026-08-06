@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
+import { PageHeader } from '@/components/ui/PageHeader';
 
 // Create-only (POST /api/v1/expenses always inserts status='pending' -- recording is the separate
 // RecordExpenseButton action). No vendorId picker: optional on the schema, but no Vendors module
@@ -60,7 +61,7 @@ export function ExpenseForm({ orgId, properties }: ExpenseFormProps) {
 
   return (
     <div>
-      <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">Add expense</h1>
+      <PageHeader title="Add expense" />
 
       <form onSubmit={handleSubmit} className="mt-6 max-w-xl space-y-4">
         {error ? (

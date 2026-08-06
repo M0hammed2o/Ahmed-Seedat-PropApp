@@ -1,4 +1,5 @@
 import { HealthStatusIndicator } from '@/components/ui/HealthStatusIndicator';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { requireRole } from '@/lib/auth';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 import { DEMO_FEATURE_FLAGS, DEMO_SYSTEM_HEALTH } from '@/lib/demo/adminMockData';
@@ -8,19 +9,17 @@ export default async function SystemPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">
-          System
-        </h1>
-        {ADMIN_DEMO_MODE ? (
-          <span className="rounded-full border border-light-accent px-3 py-1 text-xs font-semibold text-light-accent dark:border-dark-accent dark:text-dark-accent">
-            Demo data
-          </span>
-        ) : null}
-      </div>
-      <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
-        Signed in as {session.displayName} ({session.role.replace('_', ' ')}).
-      </p>
+      <PageHeader
+        title="System"
+        subtitle={`Signed in as ${session.displayName} (${session.role.replace('_', ' ')}).`}
+        actions={
+          ADMIN_DEMO_MODE ? (
+            <span className="rounded-full border border-light-accent px-3 py-1 text-xs font-semibold text-light-accent dark:border-dark-accent dark:text-dark-accent">
+              Demo data
+            </span>
+          ) : undefined
+        }
+      />
 
       <div className="mt-6 rounded-lg border border-light-border bg-light-surfaceRaised px-4 dark:border-dark-border dark:bg-dark-surfaceRaised">
         <h2 className="pt-4 text-sm font-medium text-light-textPrimary dark:text-dark-textPrimary">

@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import type { Owner } from '@propvault/types';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapOwnerRow } from '@/lib/portfolio';
-import { resolvePortalSession, findActiveMembership } from '@/lib/orgSession';
+import { resolvePortalSession, findActiveMembership, canWriteOrgRecords } from '@/lib/orgSession';
 import { Button } from '@/components/ui/Button';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Panel } from '@/components/ui/Panel';
@@ -43,7 +43,7 @@ export default async function OwnerDetailPage({ params }: RouteParams) {
 
   const session = await resolvePortalSession();
   const membership = session ? findActiveMembership(session, owner.orgId) : undefined;
-  const canEdit = Boolean(membership && membership.role !== 'viewer' && membership.role !== 'accountant');
+  const canEdit = Boolean(membership && canWriteOrgRecords(membership.role));
 
   return <OwnerDetailView owner={owner} canEdit={canEdit} />;
 }

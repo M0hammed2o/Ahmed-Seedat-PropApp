@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { OwnerForm } from '@/components/owners/OwnerForm';
-import { resolvePortalSession, findActiveMembership } from '@/lib/orgSession';
+import { resolvePortalSession, findActiveMembership, canWriteOrgRecords } from '@/lib/orgSession';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 export default async function NewOwnerPage() {
@@ -14,7 +14,7 @@ export default async function NewOwnerPage() {
   if (!activeOrg) redirect('/onboarding/create-organization');
 
   const membership = findActiveMembership(session, activeOrg.orgId);
-  const canCreate = membership && membership.role !== 'viewer' && membership.role !== 'accountant';
+  const canCreate = membership && canWriteOrgRecords(membership.role);
   if (!canCreate) redirect('/owners');
 
   return <OwnerForm mode="create" orgId={activeOrg.orgId} />;

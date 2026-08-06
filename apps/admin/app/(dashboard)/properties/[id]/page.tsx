@@ -4,7 +4,7 @@ import type { MaintenanceTicket, Property } from '@propvault/types';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapPropertyRow, mapUnitRow } from '@/lib/portfolio';
 import { mapMaintenanceTicketRow } from '@/lib/operations';
-import { resolvePortalSession, findActiveMembership } from '@/lib/orgSession';
+import { resolvePortalSession, findActiveMembership, canWriteOrgRecords } from '@/lib/orgSession';
 import { MapPin } from 'lucide-react';
 import { UnitsTable, type UnitRow } from '@/components/tables/UnitsTable';
 import { MaintenanceTable } from '@/components/tables/MaintenanceTable';
@@ -155,7 +155,7 @@ export default async function PropertyDetailPage({ params }: RouteParams) {
 
   const session = await resolvePortalSession();
   const membership = session ? findActiveMembership(session, property.orgId) : undefined;
-  const canManage = Boolean(membership && membership.role !== 'viewer' && membership.role !== 'accountant');
+  const canManage = Boolean(membership && canWriteOrgRecords(membership.role));
 
   return (
     <PropertyDetailView

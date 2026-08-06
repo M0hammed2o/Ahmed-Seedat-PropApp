@@ -1,5 +1,6 @@
 import { type CustomerRow } from '@/components/tables/CustomersTable';
 import { CustomersFilterClient } from '@/components/tables/CustomersFilterClient';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { requireRole } from '@/lib/auth';
 import { getServiceRoleClient } from '@/lib/supabase/server';
 import { listPlatformOrganizations } from '@/lib/superAdmin';
@@ -41,19 +42,17 @@ export default async function CustomersPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">
-          Client Directory
-        </h1>
-        {ADMIN_DEMO_MODE ? (
-          <span className="rounded-full border border-light-accent px-3 py-1 text-xs font-semibold text-light-accent dark:border-dark-accent dark:text-dark-accent">
-            Demo data
-          </span>
-        ) : null}
-      </div>
-      <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
-        {customers.length} {ADMIN_DEMO_MODE ? 'client organizations' : 'most recently registered client organizations'}.
-      </p>
+      <PageHeader
+        title="Client Directory"
+        subtitle={`${customers.length} ${ADMIN_DEMO_MODE ? 'client organizations' : 'most recently registered client organizations'}.`}
+        actions={
+          ADMIN_DEMO_MODE ? (
+            <span className="rounded-full border border-light-accent px-3 py-1 text-xs font-semibold text-light-accent dark:border-dark-accent dark:text-dark-accent">
+              Demo data
+            </span>
+          ) : undefined
+        }
+      />
 
       <div className="mt-6">
         <CustomersFilterClient customers={customers} />

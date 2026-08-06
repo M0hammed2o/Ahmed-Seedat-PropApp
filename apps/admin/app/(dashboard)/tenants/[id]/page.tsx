@@ -12,7 +12,7 @@ import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapTenantRow, mapLeaseRow, mapRentScheduleRow } from '@/lib/leasing';
 import { mapMaintenanceTicketRow } from '@/lib/operations';
 import { mapTenantInvitationRow } from '@/lib/tenantInvitations';
-import { resolvePortalSession, findActiveMembership } from '@/lib/orgSession';
+import { resolvePortalSession, findActiveMembership, canWriteOrgRecords } from '@/lib/orgSession';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
@@ -138,9 +138,9 @@ export default async function TenantDetailPage({ params }: RouteParams) {
 
   const session = await resolvePortalSession();
   const membership = session ? findActiveMembership(session, tenant.orgId) : undefined;
-  const canEdit = Boolean(membership && membership.role !== 'viewer' && membership.role !== 'accountant');
+  const canEdit = Boolean(membership && canWriteOrgRecords(membership.role));
 
-  const canInvite = Boolean(membership && membership.role !== 'viewer' && membership.role !== 'accountant');
+  const canInvite = Boolean(membership && canWriteOrgRecords(membership.role));
   let invitations: TenantInvitation[] = [];
   if (canInvite) {
     const { data: inviteRows, error: inviteError } = await supabase

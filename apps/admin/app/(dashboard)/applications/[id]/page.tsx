@@ -4,7 +4,7 @@ import type { Application } from '@propvault/types';
 import { APPLICATION_STATUS_PRESENTATION } from '@propvault/ui';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapApplicationRow } from '@/lib/leasing';
-import { resolvePortalSession, findActiveMembership } from '@/lib/orgSession';
+import { resolvePortalSession, findActiveMembership, canWriteOrgRecords } from '@/lib/orgSession';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Panel } from '@/components/ui/Panel';
@@ -50,7 +50,7 @@ export default async function ApplicationDetailPage({ params }: RouteParams) {
 
   const session = await resolvePortalSession();
   const membership = session ? findActiveMembership(session, application.orgId) : undefined;
-  const canAct = Boolean(membership && membership.role !== 'viewer' && membership.role !== 'accountant');
+  const canAct = Boolean(membership && canWriteOrgRecords(membership.role));
 
   return <ApplicationDetailView application={application} canAct={canAct} />;
 }

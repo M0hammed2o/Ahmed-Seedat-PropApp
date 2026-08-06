@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import type { InspectionType } from '@propvault/types';
 import { INSPECTION_TYPES } from '@propvault/types';
 import { Button } from '@/components/ui/Button';
+import { PageHeader } from '@/components/ui/PageHeader';
 
 // Create-only, same reasoning as ApplicationForm.tsx -- no generic PATCH exists for inspections
 // either (API_SPEC.md §5's only mutation endpoints are items/sign/complete, all workflow-shaped,
@@ -58,7 +59,7 @@ export function InspectionForm({ orgId, propertyId, unitId }: InspectionFormProp
 
   return (
     <div>
-      <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">Schedule inspection</h1>
+      <PageHeader title="Schedule inspection" />
 
       <form onSubmit={handleSubmit} className="mt-6 max-w-xl space-y-4">
         {error ? (

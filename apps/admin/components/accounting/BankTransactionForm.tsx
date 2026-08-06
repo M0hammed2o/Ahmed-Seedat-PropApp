@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
+import { PageHeader } from '@/components/ui/PageHeader';
 
 export function BankTransactionForm({ bankAccounts }: { bankAccounts: { id: string; bankName: string }[] }) {
   const router = useRouter();
@@ -54,7 +55,7 @@ export function BankTransactionForm({ bankAccounts }: { bankAccounts: { id: stri
 
   return (
     <div>
-      <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">Add transaction</h1>
+      <PageHeader title="Add transaction" />
       <form onSubmit={handleSubmit} className="mt-6 max-w-xl space-y-4">
         {error ? (
           <p className="rounded-md border border-light-danger bg-light-danger/10 px-3 py-2 text-xs text-light-danger dark:border-dark-danger dark:bg-dark-danger/10 dark:text-dark-danger">

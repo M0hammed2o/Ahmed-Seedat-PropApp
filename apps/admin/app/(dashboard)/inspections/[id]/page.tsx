@@ -4,8 +4,9 @@ import type { Inspection, InspectionItem } from '@propvault/types';
 import { INSPECTION_STATUS_PRESENTATION } from '@propvault/ui';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapInspectionRow, mapInspectionItemRow } from '@/lib/operations';
-import { resolvePortalSession, findActiveMembership } from '@/lib/orgSession';
+import { resolvePortalSession, findActiveMembership, canWriteOrgRecords } from '@/lib/orgSession';
 import { StatusBadge } from '@/components/ui/StatusBadge';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { InspectionActions } from '@/components/inspections/InspectionActions';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
@@ -52,7 +53,7 @@ export default async function InspectionDetailPage({ params }: RouteParams) {
 
   const session = await resolvePortalSession();
   const membership = session ? findActiveMembership(session, inspection.orgId) : undefined;
-  const canAct = Boolean(membership && membership.role !== 'viewer' && membership.role !== 'accountant');
+  const canAct = Boolean(membership && canWriteOrgRecords(membership.role));
 
   return <InspectionDetailView inspection={inspection} items={items} canAct={canAct} />;
 }
@@ -75,15 +76,13 @@ function InspectionDetailView({
         ← Back to unit
       </Link>
 
-      <div className="mt-2 flex items-center justify-between">
-        <h1 className="text-xl font-semibold capitalize text-light-textPrimary dark:text-dark-textPrimary">
-          {inspection.inspectionType.replace('_', ' ')} inspection
-        </h1>
-        <StatusBadge presentation={INSPECTION_STATUS_PRESENTATION[inspection.status]} />
+      <div className="mt-2">
+        <PageHeader
+          title={`${inspection.inspectionType.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase())} inspection`}
+          subtitle={`Scheduled ${new Date(inspection.scheduledAt).toLocaleString('en-ZA')}`}
+          actions={<StatusBadge presentation={INSPECTION_STATUS_PRESENTATION[inspection.status]} />}
+        />
       </div>
-      <p className="mt-1 text-xs text-light-textMuted dark:text-dark-textMuted">
-        Scheduled {new Date(inspection.scheduledAt).toLocaleString('en-ZA')}
-      </p>
 
       <InspectionActions inspection={inspection} items={items} canAct={canAct} />
     </div>

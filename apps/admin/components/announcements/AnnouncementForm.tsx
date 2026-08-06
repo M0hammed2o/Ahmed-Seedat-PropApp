@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
+import { PageHeader } from '@/components/ui/PageHeader';
 
 // Create-only -- API_SPEC.md §5 exposes GET/POST /api/v1/announcements and
 // POST /:id/acknowledge (tenant-only, no tenant portal in V1, not built), no PATCH/edit at all.
@@ -54,9 +55,7 @@ export function AnnouncementForm({ orgId }: { orgId: string }) {
 
   return (
     <div>
-      <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">
-        Publish announcement
-      </h1>
+      <PageHeader title="Publish announcement" />
 
       <form onSubmit={handleSubmit} className="mt-6 max-w-xl space-y-4">
         {error ? (

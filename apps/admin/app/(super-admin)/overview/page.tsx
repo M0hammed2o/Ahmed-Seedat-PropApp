@@ -1,4 +1,5 @@
 import { AdminMetricCard } from '@/components/ui/AdminMetricCard';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { HealthStatusIndicator } from '@/components/ui/HealthStatusIndicator';
 import { MiniLineChart } from '@/components/ui/MiniLineChart';
 import { MiniBarChart } from '@/components/ui/MiniBarChart';
@@ -21,17 +22,15 @@ export default async function OverviewPage() {
     const s = DEMO_OVERVIEW_STATS;
     return (
       <div>
-        <div className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">
-            Overview
-          </h1>
-          <span className="rounded-full border border-light-accent px-3 py-1 text-xs font-semibold text-light-accent dark:border-dark-accent dark:text-dark-accent">
-            Demo data
-          </span>
-        </div>
-        <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
-          SaaS operations control centre — realistic mock data for demonstration purposes.
-        </p>
+        <PageHeader
+          title="Overview"
+          subtitle="SaaS operations control centre — realistic mock data for demonstration purposes."
+          actions={
+            <span className="rounded-full border border-light-accent px-3 py-1 text-xs font-semibold text-light-accent dark:border-dark-accent dark:text-dark-accent">
+              Demo data
+            </span>
+          }
+        />
 
         <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
           <AdminMetricCard
@@ -164,15 +163,10 @@ export default async function OverviewPage() {
 
   return (
     <div>
-      <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">
-        Overview
-      </h1>
-      <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
-        Live, computed-on-read platform metrics (SUPER_ADMIN.md §2.1) — not yet backed by a
-        scheduled snapshot (TECHNICAL_DEBT_REGISTER.md TD-24), so this query re-runs on every
-        page load rather than reading a cached rollup. Integrations not yet connected are shown
-        explicitly below rather than displaying fabricated numbers.
-      </p>
+      <PageHeader
+        title="Overview"
+        subtitle="Live, computed-on-read platform metrics (SUPER_ADMIN.md §2.1) — not yet backed by a scheduled snapshot (TECHNICAL_DEBT_REGISTER.md TD-24), so this query re-runs on every page load rather than reading a cached rollup. Integrations not yet connected are shown explicitly below rather than displaying fabricated numbers."
+      />
 
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <AdminMetricCard label="Total organizations" value={metrics.totalOrganizations} />

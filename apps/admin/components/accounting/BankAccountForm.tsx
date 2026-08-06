@@ -4,6 +4,7 @@ import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import type { BankAccountClass } from '@propvault/types';
 import { Button } from '@/components/ui/Button';
+import { PageHeader } from '@/components/ui/PageHeader';
 
 export function BankAccountForm({ orgId }: { orgId: string }) {
   const router = useRouter();
@@ -38,7 +39,7 @@ export function BankAccountForm({ orgId }: { orgId: string }) {
 
   return (
     <div>
-      <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">Add bank account</h1>
+      <PageHeader title="Add bank account" />
       <form onSubmit={handleSubmit} className="mt-6 max-w-xl space-y-4">
         {error ? (
           <p className="rounded-md border border-light-danger bg-light-danger/10 px-3 py-2 text-xs text-light-danger dark:border-dark-danger dark:bg-dark-danger/10 dark:text-dark-danger">

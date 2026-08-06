@@ -6,7 +6,7 @@ import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapUnitRow } from '@/lib/portfolio';
 import { mapLeaseRow, mapApplicationRow } from '@/lib/leasing';
 import { mapInspectionRow } from '@/lib/operations';
-import { resolvePortalSession, findActiveMembership } from '@/lib/orgSession';
+import { resolvePortalSession, findActiveMembership, canWriteOrgRecords } from '@/lib/orgSession';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Button } from '@/components/ui/Button';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -145,7 +145,7 @@ export default async function UnitDetailPage({ params }: RouteParams) {
 
   const session = await resolvePortalSession();
   const membership = session ? findActiveMembership(session, unit.orgId) : undefined;
-  const canEdit = Boolean(membership && membership.role !== 'viewer' && membership.role !== 'accountant');
+  const canEdit = Boolean(membership && canWriteOrgRecords(membership.role));
 
   return (
     <UnitDetailView

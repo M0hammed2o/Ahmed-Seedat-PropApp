@@ -3,6 +3,7 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
+import { PageHeader } from '@/components/ui/PageHeader';
 
 // Create-only -- there is no generic PATCH /api/v1/applications/:id (API_SPEC.md §4 only exposes
 // the workflow-shaped consent/screen/decide endpoints, apps/admin/components/applications/
@@ -69,7 +70,7 @@ export function ApplicationForm({ orgId, propertyId, unitId }: ApplicationFormPr
 
   return (
     <div>
-      <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">New application</h1>
+      <PageHeader title="New application" />
 
       <form onSubmit={handleSubmit} className="mt-6 max-w-xl space-y-4">
         {error ? (

@@ -4,9 +4,10 @@ import type { MaintenanceTicket } from '@propvault/types';
 import { MAINTENANCE_PRIORITY_PRESENTATION, MAINTENANCE_STATUS_PRESENTATION } from '@propvault/ui';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapMaintenanceTicketRow } from '@/lib/operations';
-import { resolvePortalSession, findActiveMembership } from '@/lib/orgSession';
+import { resolvePortalSession, findActiveMembership, canWriteOrgRecords } from '@/lib/orgSession';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Button } from '@/components/ui/Button';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -52,7 +53,7 @@ export default async function MaintenanceDetailPage({ params }: RouteParams) {
 
   const session = await resolvePortalSession();
   const membership = session ? findActiveMembership(session, ticket.orgId) : undefined;
-  const canEdit = Boolean(membership && membership.role !== 'viewer' && membership.role !== 'accountant');
+  const canEdit = Boolean(membership && canWriteOrgRecords(membership.role));
 
   return <MaintenanceDetailView ticket={ticket} propertyNickname={properties?.nickname} canEdit={canEdit} />;
 }
@@ -75,15 +76,19 @@ function MaintenanceDetailView({
         ← Back to {propertyNickname ?? 'property'}
       </Link>
 
-      <div className="mt-2 flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">{ticket.summary}</h1>
-        {canEdit ? (
-          <Link href={`/maintenance/${ticket.id}/edit`}>
-            <Button variant="secondary" size="sm">
-              Edit
-            </Button>
-          </Link>
-        ) : null}
+      <div className="mt-2">
+        <PageHeader
+          title={ticket.summary}
+          actions={
+            canEdit ? (
+              <Link href={`/maintenance/${ticket.id}/edit`}>
+                <Button variant="secondary" size="sm">
+                  Edit
+                </Button>
+              </Link>
+            ) : undefined
+          }
+        />
       </div>
       <div className="mt-1 flex gap-3">
         <StatusBadge presentation={MAINTENANCE_STATUS_PRESENTATION[ticket.status]} />

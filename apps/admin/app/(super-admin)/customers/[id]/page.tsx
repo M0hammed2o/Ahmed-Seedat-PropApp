@@ -10,6 +10,7 @@ import { SupportSessionControl } from '@/components/organizations/SupportSession
 import { UsagePanel } from '@/components/organizations/UsagePanel';
 import { AuditLogPanel } from '@/components/organizations/AuditLogPanel';
 import { StatusBadge } from '@/components/ui/StatusBadge';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 import { DEMO_CUSTOMERS } from '@/lib/demo/adminMockData';
 
@@ -23,17 +24,15 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
 
     return (
       <div>
-        <div className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">
-            {customer.displayName}
-          </h1>
-          <span className="rounded-full border border-light-accent px-3 py-1 text-xs font-semibold text-light-accent dark:border-dark-accent dark:text-dark-accent">
-            Demo data
-          </span>
-        </div>
-        <p className="mt-1 text-xs text-light-textMuted dark:text-dark-textMuted">
-          {customer.email}
-        </p>
+        <PageHeader
+          title={customer.displayName}
+          subtitle={customer.email}
+          actions={
+            <span className="rounded-full border border-light-accent px-3 py-1 text-xs font-semibold text-light-accent dark:border-dark-accent dark:text-dark-accent">
+              Demo data
+            </span>
+          }
+        />
 
         <dl className="mt-6 grid grid-cols-2 gap-4 text-sm lg:grid-cols-4">
           <div>
@@ -89,10 +88,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
 
   return (
     <div>
-      <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">
-        {detail.legalName}
-      </h1>
-      <p className="mt-1 text-xs text-light-textMuted dark:text-dark-textMuted">{detail.orgId}</p>
+      <PageHeader title={detail.legalName} subtitle={detail.orgId} />
 
       <dl className="mt-6 grid grid-cols-2 gap-4 text-sm lg:grid-cols-4">
         <div>
