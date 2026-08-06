@@ -20,6 +20,13 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: path.join(__dirname, '../..'),
   },
+  // Dev-only (Next.js ignores this outside `next dev`) -- Playwright (playwright.config.ts,
+  // Stage 6) navigates to 127.0.0.1 explicitly, which Next's default dev-origin allowlist
+  // (localhost only) blocks the HMR websocket for. Found live this session: without this, the
+  // blocked/repeatedly-retrying HMR handshake measurably delayed client hydration, which was
+  // masking a real bug as a flaky one (a form's onSubmit handler not yet attached when a test
+  // clicked submit, falling through to a native GET form submission instead).
+  allowedDevOrigins: ['127.0.0.1'],
   transpilePackages: [
     '@propvault/config',
     '@propvault/types',

@@ -20,5 +20,10 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
+    // e2e/*.spec.ts (Stage 6, commercial-launch execution plan) are Playwright tests, run via
+    // `pnpm test:e2e`, never vitest -- vitest's default include glob otherwise picks up any
+    // *.spec.ts file anywhere in the project and tries (and fails) to execute Playwright's own
+    // test() as if it were a vitest test.
+    exclude: ['**/node_modules/**', '**/e2e/**'],
   },
 });

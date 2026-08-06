@@ -38,7 +38,16 @@ export function CreateOrganizationForm() {
       return;
     }
 
-    router.replace('/overview');
+    // Real bug found and fixed this date (Stage 6, commercial-launch execution plan, caught by a
+    // new real-backend Playwright test, not by inspection): this used to send every newly-created
+    // org's principal to '/overview' -- the Super Admin dashboard, gated on `requireRole
+    // ('read_only_admin')`, a platform-admin-only role no ordinary customer has. A real signup
+    // would create their organization successfully and then immediately hit a thrown FORBIDDEN
+    // error instead of ever reaching their new org's dashboard -- the exact bug class LoginForm.tsx
+    // already fixed once (see its own 2026-08-01 comment) for the sign-in path, just missed here on
+    // the org-creation path. '/dashboard' is correct unconditionally here (unlike '/', which has to
+    // check session type first) -- this code path only ever runs after a real org was just created.
+    router.replace('/dashboard');
     router.refresh();
   };
 
