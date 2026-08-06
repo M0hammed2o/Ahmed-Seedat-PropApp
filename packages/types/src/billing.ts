@@ -65,6 +65,11 @@ export interface BillingWebhookEvent {
   orgId: string | null;
   amount: number | null;
   currency: string | null;
+  /** The gateway's own recurring-billing token (PayFast: the ITN `token` field), present only on
+   * events for a subscription-type payment. Persisted onto organization_subscriptions so a later
+   * cancelSubscription() call has something real to cancel against -- distinct from
+   * providerReference, which is OUR OWN idempotency key, not a gateway-issued handle. */
+  providerSubscriptionToken: string | null;
   raw: Record<string, unknown>;
 }
 
@@ -75,8 +80,10 @@ export interface BillingGatewayProvider {
   getPaymentStatus(providerReference: string): Promise<PaymentStatusResult>;
   cancelSubscription(providerSubscriptionId: string): Promise<CancelSubscriptionResult>;
   refundPayment(input: RefundPaymentInput): Promise<RefundResult>;
-  /** Verifies an inbound webhook's signature against the raw request body -- must run before
-   * parseWebhookEvent() is ever trusted. */
-  verifyWebhookSignature(rawBody: string, signatureHeader: string | null): boolean;
+  /** Verifies an inbound webhook is genuinely from the gateway, before parseWebhookEvent() is
+   * ever trusted -- must run first. Async: a real gateway's recommended verification (PayFast:
+   * signature check PLUS a server-to-server confirmation POST back to the gateway, not signature
+   * alone) needs a network round trip, not just a local hash comparison. */
+  verifyWebhookSignature(rawBody: string, signatureHeader: string | null): Promise<boolean>;
   parseWebhookEvent(rawBody: string): BillingWebhookEvent;
 }

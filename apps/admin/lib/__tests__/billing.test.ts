@@ -154,10 +154,30 @@ describeIfSupabase('billing service (real local Supabase integration)', () => {
 
   it('cancelOrgSubscription sets both the subscription and organization to cancelled', async () => {
     const checkout = await startSubscriptionCheckout(serviceClient, { orgId, planId, idempotencyKey: `test-${orgId}` });
-    await cancelOrgSubscription(serviceClient, { orgId, providerSubscriptionId: checkout.providerSubscriptionId });
+
+    // cancelOrgSubscription resolves the gateway token from provider_subscription_token, which is
+    // only ever populated by a successful payment's webhook -- there is nothing to cancel until
+    // one has been processed.
+    const rawBody = JSON.stringify({
+      providerEventId: `evt-cancel-${orgId}`,
+      type: 'payment_succeeded',
+      providerReference: checkout.providerSubscriptionId,
+      providerSubscriptionToken: `mock-token-${orgId}`,
+      orgId,
+      amount: 499,
+      currency: 'ZAR',
+    });
+    await processBillingWebhookEvent(serviceClient, { rawBody, signatureHeader: 'test-signature' });
+
+    await cancelOrgSubscription(serviceClient, { orgId });
 
     const { data: org } = await serviceClient.from('organizations').select('status').eq('id', orgId).single();
     expect(org!.status).toBe('cancelled');
+  });
+
+  it('cancelOrgSubscription throws if no payment has ever succeeded (no gateway token on record)', async () => {
+    await startSubscriptionCheckout(serviceClient, { orgId, planId, idempotencyKey: `test-${orgId}` });
+    await expect(cancelOrgSubscription(serviceClient, { orgId })).rejects.toThrow(/no gateway token/);
   });
 
   it('rejects a webhook with no signature header', async () => {

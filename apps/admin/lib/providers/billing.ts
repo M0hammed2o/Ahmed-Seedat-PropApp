@@ -11,10 +11,14 @@ import type {
   RefundPaymentInput,
   RefundResult,
 } from '@propvault/types';
+import { PayFastBillingGatewayProvider, getPayFastConfig } from './payfast';
 
-// Mock-first BillingGatewayProvider (SUBSCRIPTIONS.md) -- no real South African gateway account
-// exists (external-service blocker, same class of gap as MockEmailProvider/MockWhatsAppProvider).
-// Deterministic, not random: given the same idempotencyKey it returns the same
+// Mock BillingGatewayProvider (SUBSCRIPTIONS.md) -- the fallback when no real PayFast merchant
+// credentials are configured (getBillingGatewayProvider() below prefers PayFastBillingGatewayProvider
+// once PAYFAST_MERCHANT_ID/PAYFAST_MERCHANT_KEY/PAYFAST_PASSPHRASE are set, Stage 4 commercial-
+// launch execution plan). Still the only option in THIS environment specifically -- no real
+// PayFast merchant account exists here to configure (external-service blocker, same class of gap
+// as MockEmailProvider/MockWhatsAppProvider). Deterministic, not random: given the same idempotencyKey it returns the same
 // providerSubscriptionId, so a caller retrying a checkout request after a network timeout doesn't
 // create a second subscription against the mock either -- the abstraction's idempotency
 // requirement is honoured even in mock mode, not just documented as a real-provider concern.
@@ -57,7 +61,7 @@ export class MockBillingGatewayProvider implements BillingGatewayProvider {
   // No real signature scheme in mock mode -- accepts any non-empty header, matching the "mock
   // never pretends to a stronger guarantee than it has" rule used for MockEmailProvider's
   // status/MockWhatsAppProvider's lifecycle, applied here to signature verification instead.
-  verifyWebhookSignature(_rawBody: string, signatureHeader: string | null): boolean {
+  async verifyWebhookSignature(_rawBody: string, signatureHeader: string | null): Promise<boolean> {
     return Boolean(signatureHeader);
   }
 
@@ -73,11 +77,16 @@ export class MockBillingGatewayProvider implements BillingGatewayProvider {
       orgId: (parsed.orgId as string | undefined) ?? null,
       amount: (parsed.amount as number | undefined) ?? null,
       currency: (parsed.currency as string | undefined) ?? null,
+      providerSubscriptionToken: (parsed.providerSubscriptionToken as string | undefined) ?? null,
       raw: parsed,
     };
   }
 }
 
 export function getBillingGatewayProvider(): BillingGatewayProvider {
+  const payfastConfig = getPayFastConfig();
+  if (payfastConfig) {
+    return new PayFastBillingGatewayProvider(payfastConfig);
+  }
   return new MockBillingGatewayProvider();
 }

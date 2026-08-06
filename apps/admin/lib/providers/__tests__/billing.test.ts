@@ -55,10 +55,10 @@ describe('MockBillingGatewayProvider', () => {
     expect(new URL(result.checkoutUrl).hostname).toBe('mock-gateway.invalid');
   });
 
-  it('verifyWebhookSignature rejects a missing signature header', () => {
+  it('verifyWebhookSignature rejects a missing signature header', async () => {
     const provider = new MockBillingGatewayProvider();
-    expect(provider.verifyWebhookSignature('{}', null)).toBe(false);
-    expect(provider.verifyWebhookSignature('{}', 'any-non-empty-value')).toBe(true);
+    expect(await provider.verifyWebhookSignature('{}', null)).toBe(false);
+    expect(await provider.verifyWebhookSignature('{}', 'any-non-empty-value')).toBe(true);
   });
 
   it('parseWebhookEvent rejects a malformed payload rather than silently defaulting fields', () => {

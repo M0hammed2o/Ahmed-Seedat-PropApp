@@ -21,6 +21,9 @@ export interface Organization {
   ffcIssued: string | null;
   ffcExpires: string | null;
   status: OrganizationStatus;
+  /** Set once at org creation (20260101000075) and never cleared -- a historical record of when
+   * the 30-day free trial ends/ended, meaningful for UI purposes only while status is 'trial'. */
+  trialEndsAt: string | null;
   createdAt: string;
   updatedAt: string;
 }

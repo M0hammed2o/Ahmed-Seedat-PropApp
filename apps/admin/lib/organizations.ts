@@ -21,6 +21,7 @@ interface OrganizationRow {
   ffc_issued: string | null;
   ffc_expires: string | null;
   status: string;
+  trial_ends_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -41,6 +42,7 @@ export function mapOrganizationRow(row: OrganizationRow): Organization {
     ffcIssued: row.ffc_issued,
     ffcExpires: row.ffc_expires,
     status: row.status as Organization['status'],
+    trialEndsAt: row.trial_ends_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

@@ -16,11 +16,6 @@ export const billingCheckoutSchema = z.object({
 });
 export type BillingCheckoutInput = z.infer<typeof billingCheckoutSchema>;
 
-export const billingCancelSchema = z.object({
-  providerSubscriptionId: z.string().min(1, 'providerSubscriptionId is required'),
-});
-export type BillingCancelInput = z.infer<typeof billingCancelSchema>;
-
 export const billingRefundSchema = z.object({
   idempotencyKey: z.string().min(1, 'idempotencyKey is required').max(200),
 });
