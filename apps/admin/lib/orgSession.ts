@@ -1,5 +1,5 @@
 import 'server-only';
-import type { OrganizationMemberRole } from '@propvault/types';
+import type { OrganizationMemberRole, OrganizationStatus } from '@propvault/types';
 import { getServerSupabaseClient } from './supabase/server';
 
 /**
@@ -23,6 +23,14 @@ export interface OrgMembership {
   orgId: string;
   role: OrganizationMemberRole;
   status: 'invited' | 'active' | 'revoked';
+  /** The organization's own billing/lifecycle status (trial/active/overdue/suspended/cancelled/
+   *  archived) -- distinct from this membership's own `status` above, which is about the person's
+   *  membership, not the org's account state. Added for root-domain routing (a member of a
+   *  suspended/cancelled org must land on a truthful restricted-access page, not `/dashboard`).
+   *  A synthesized support-mode entry (see below) has no real org row backing it in the same
+   *  query, so it defaults to 'active' -- support access is independent of the org's own billing
+   *  state by design (SUPER_ADMIN.md §6). */
+  orgStatus: OrganizationStatus;
 }
 
 export interface OwnerIdentity {
@@ -72,7 +80,10 @@ export async function resolvePortalSession(): Promise<PortalSession | null> {
   if (!user) return null;
 
   const [membershipsResult, ownersResult, supportSessionsResult] = await Promise.all([
-    supabase.from('organization_members').select('org_id, role, status').eq('user_id', user.id),
+    supabase
+      .from('organization_members')
+      .select('org_id, role, status, organizations(status)')
+      .eq('user_id', user.id),
     supabase.from('owners').select('id, org_id').eq('user_id', user.id),
     // RLS-scoped to the caller's own rows (support_access_sessions_select_own, migration
     // 20260101000057) -- zero rows for every non-admin caller, exactly like the platform-admin
@@ -104,11 +115,21 @@ export async function resolvePortalSession(): Promise<PortalSession | null> {
     .from('platform_admin_users')
     .select('id', { count: 'exact', head: true });
 
-  const organizations: OrgMembership[] = (membershipsResult.data ?? []).map((row) => ({
-    orgId: row.org_id as string,
-    role: row.role as OrganizationMemberRole,
-    status: row.status as 'invited' | 'active' | 'revoked',
-  }));
+  const organizations: OrgMembership[] = (membershipsResult.data ?? []).map((row) => {
+    // Supabase's JS client types an embedded to-one relationship as an array at the type level
+    // even though `organizations(status)` is a to-one FK (org_id -> organizations.id) and always
+    // returns at most one row -- narrow it the same way every other embedded-select call in this
+    // codebase does.
+    const embeddedOrg = row.organizations as
+      { status: OrganizationStatus } | { status: OrganizationStatus }[] | null;
+    const orgStatus = Array.isArray(embeddedOrg) ? embeddedOrg[0]?.status : embeddedOrg?.status;
+    return {
+      orgId: row.org_id as string,
+      role: row.role as OrganizationMemberRole,
+      status: row.status as 'invited' | 'active' | 'revoked',
+      orgStatus: orgStatus ?? 'active',
+    };
+  });
 
   const supportSessions: ActiveSupportSession[] = (supportSessionsResult.data ?? []).map((row) => ({
     orgId: row.org_id as string,
@@ -123,7 +144,7 @@ export async function resolvePortalSession(): Promise<PortalSession | null> {
   // legitimately an org staff member keeps their real role, not a downgrade).
   for (const s of supportSessions) {
     if (!organizations.some((m) => m.orgId === s.orgId)) {
-      organizations.push({ orgId: s.orgId, role: 'viewer', status: 'active' });
+      organizations.push({ orgId: s.orgId, role: 'viewer', status: 'active', orgStatus: 'active' });
     }
   }
 

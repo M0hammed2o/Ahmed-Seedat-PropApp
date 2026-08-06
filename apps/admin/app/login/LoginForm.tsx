@@ -10,13 +10,17 @@ import { loginSchema, type LoginInput } from '@propvault/validation';
 import { branding } from '@propvault/config';
 import { Button } from '@/components/ui/Button';
 import { OAuthButtons } from '@/components/auth/OAuthButtons';
+import { safeNextPathOr } from '@/lib/safeRedirect';
 
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   // Session-expiry / deep-link continuation (proxy.ts) and invitation continuation
-  // (PRODUCT DECISION 1) both land here via the same ?next= param.
-  const next = searchParams.get('next') ?? '/';
+  // (PRODUCT DECISION 1) both land here via the same ?next= param. `safeNextPathOr` rejects an
+  // attacker-supplied absolute-URL value (open-redirect protection) -- defense-in-depth alongside
+  // the server-side check in auth/callback/route.ts, which is the one that actually matters for
+  // the OAuth/email-link path this value also flows through via OAuthButtons.
+  const next = safeNextPathOr(searchParams.get('next'), '/');
   const providerError = searchParams.get('error');
 
   const [submitError, setSubmitError] = useState<string | null>(null);

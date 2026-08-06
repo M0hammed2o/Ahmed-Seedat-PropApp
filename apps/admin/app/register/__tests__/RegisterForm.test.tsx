@@ -127,6 +127,11 @@ describe('RegisterForm', () => {
     render(<RegisterForm />);
     fillAndSubmit();
 
-    await waitFor(() => expect(replace).toHaveBeenCalledWith('/onboarding/create-organization'));
+    // Root-domain routing fix (WORKLOG.md this date): the default `next` is now '/' -- the
+    // centralized destination resolver (app/page.tsx), not a hardcoded
+    // '/onboarding/create-organization' -- a brand-new registrant has no org/tenant/owner
+    // identity yet, so the resolver lands them on onboarding anyway, but the decision now lives
+    // in exactly one place instead of being duplicated here.
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/'));
   });
 });

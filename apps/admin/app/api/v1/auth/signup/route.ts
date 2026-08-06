@@ -4,12 +4,19 @@ import { registerSchema } from '@propvault/validation';
 import { RATE_LIMITS } from '@propvault/config';
 import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { rateLimitOrRespond, requestIp } from '@/lib/rateLimit';
+import { isSafeNextPath } from '@/lib/safeRedirect';
 
 // emailRedirectTo is computed client-side today (RegisterForm.tsx uses window.location.origin,
 // which a server route has no access to) -- accepted as an input here rather than guessed
 // server-side, validated as a same-origin *path* (never a full external URL) so this can never be
 // abused to redirect a real confirmation email's link to an attacker-controlled origin.
-const signupSchema = registerSchema.and(z.object({ next: z.string().startsWith('/') }));
+//
+// `isSafeNextPath` (not a bare `.startsWith('/')`, the weaker check this replaced) -- a plain
+// `startsWith('/')` still accepts `//evil.example`, which every browser resolves as a
+// protocol-relative (i.e. external) URL, the exact class of bug this field exists to prevent.
+const signupSchema = registerSchema.and(
+  z.object({ next: z.string().refine(isSafeNextPath, 'next must be a same-origin path') }),
+);
 
 /**
  * POST /api/v1/auth/signup (Stage 7, commercial-launch execution plan, TECHNICAL_DEBT_REGISTER.md

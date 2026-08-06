@@ -197,6 +197,10 @@ export async function proxy(request: NextRequest) {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set('x-nonce', nonce);
   requestHeaders.set('Content-Security-Policy', cspHeader);
+  // Forwarded so a Server Component layout (e.g. (dashboard)/layout.tsx's suspended-org gate) can
+  // know the current path without Next.js's client-only usePathname() -- same "compute once in
+  // middleware, forward via header" pattern as x-nonce above, not a new mechanism.
+  requestHeaders.set('x-pathname', request.nextUrl.pathname);
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set('Content-Security-Policy', cspHeader);

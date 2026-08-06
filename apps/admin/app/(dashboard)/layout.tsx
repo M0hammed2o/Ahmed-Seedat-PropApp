@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { headers } from 'next/headers';
 import {
   LayoutDashboard,
   BarChart3,
@@ -101,7 +102,12 @@ export default async function PortalLayout({ children }: { children: React.React
     ? {
         userId: 'demo-user-1',
         organizations: [
-          { orgId: 'demo-org-1', role: 'principal' as const, status: 'active' as const },
+          {
+            orgId: 'demo-org-1',
+            role: 'principal' as const,
+            status: 'active' as const,
+            orgStatus: 'active' as const,
+          },
         ],
         ownerIdentities: [],
         isPlatformAdmin: false,
@@ -113,6 +119,19 @@ export default async function PortalLayout({ children }: { children: React.React
 
   const activeOrg = session.organizations.find((m) => m.status === 'active');
   if (!activeOrg) redirect('/onboarding/create-organization');
+
+  // Root-domain routing fix, WORKLOG.md this date: a suspended/cancelled org's active member
+  // must not reach any dashboard page except billing itself, which stays reachable so the org's
+  // principal can actually reactivate (re-subscribe) rather than being locked out entirely.
+  // `x-pathname` is set by proxy.ts (the same "compute in middleware, forward via header"
+  // pattern already used for the CSP nonce) since a Server Component layout has no access to
+  // Next.js's client-only usePathname().
+  const isRestrictedOrg =
+    activeOrg.orgStatus === 'suspended' || activeOrg.orgStatus === 'cancelled';
+  const currentPath = ADMIN_DEMO_MODE ? '' : (await headers()).get('x-pathname');
+  if (isRestrictedOrg && currentPath !== '/organization/billing') {
+    redirect('/access-restricted');
+  }
 
   const notifications: HeaderNotification[] = ADMIN_DEMO_MODE
     ? []

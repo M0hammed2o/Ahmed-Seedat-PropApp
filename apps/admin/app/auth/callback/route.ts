@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { safeNextPathOr } from '@/lib/safeRedirect';
 
 /**
  * GET /auth/callback (PRODUCT DECISION 1, 2026-08-03). The single landing point for every
@@ -20,7 +21,9 @@ export async function GET(request: NextRequest) {
   const tokenHash = url.searchParams.get('token_hash');
   const otpType = url.searchParams.get('type');
   const providerError = url.searchParams.get('error_description') ?? url.searchParams.get('error');
-  const next = url.searchParams.get('next') ?? '/';
+  // Validated -- an absolute-URL `next` (e.g. `?next=https://evil.example`) must never reach the
+  // redirect below; see safeRedirect.ts's own comment for why this specific route needed it.
+  const next = safeNextPathOr(url.searchParams.get('next'));
 
   if (providerError) {
     return NextResponse.redirect(
