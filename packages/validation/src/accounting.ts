@@ -73,5 +73,26 @@ export type OwnerStatementDraftInput = z.infer<typeof ownerStatementDraftSchema>
 
 export const ownerStatementConfirmPayoutSchema = z.object({
   bankTransactionId: z.string().uuid('bankTransactionId must be a valid UUID'),
+  // Optional -- omitted means "pay the full remaining outstanding balance," matching
+  // confirm_owner_statement_payout()'s own default (migration 20260101000071). A caller may pass
+  // a smaller amount for a genuine partial payout.
+  amount: z.number().positive('amount must be positive').optional(),
 });
 export type OwnerStatementConfirmPayoutInput = z.infer<typeof ownerStatementConfirmPayoutSchema>;
+
+// Cash Management (Stage 3 Phase 7, commercial-launch execution plan, migration 20260101000073).
+export const cashReceiptCreateSchema = z.object({
+  orgId: z.string().uuid('orgId must be a valid UUID'),
+  propertyId: z.string().uuid('propertyId must be a valid UUID'),
+  amount: z.number().positive('amount must be positive'),
+  leaseId: z.string().uuid('leaseId must be a valid UUID').optional().nullable(),
+  rentScheduleId: z.string().uuid('rentScheduleId must be a valid UUID').optional().nullable(),
+  documentId: z.string().uuid('documentId must be a valid UUID').optional().nullable(),
+});
+export type CashReceiptCreateInput = z.infer<typeof cashReceiptCreateSchema>;
+
+export const cashReceiptConfirmDepositSchema = z.object({
+  bankTransactionId: z.string().uuid('bankTransactionId must be a valid UUID'),
+  depositedAmount: z.number().positive('depositedAmount must be positive'),
+});
+export type CashReceiptConfirmDepositInput = z.infer<typeof cashReceiptConfirmDepositSchema>;
