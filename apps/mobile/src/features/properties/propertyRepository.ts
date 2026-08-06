@@ -20,6 +20,10 @@ interface PropertyRow {
   municipal_account_number: string | null;
   notes: string | null;
   image_path: string | null;
+  estimated_value: number | null;
+  estimated_value_as_of: string | null;
+  latitude: number | null;
+  longitude: number | null;
   status: string;
   created_at: string;
   updated_at: string;
@@ -45,6 +49,10 @@ function mapRow(row: PropertyRow): Property {
     municipalAccountNumber: row.municipal_account_number,
     notes: row.notes,
     imagePath: row.image_path,
+    estimatedValue: row.estimated_value,
+    estimatedValueAsOf: row.estimated_value_as_of,
+    latitude: row.latitude,
+    longitude: row.longitude,
     status: row.status as Property['status'],
     createdAt: row.created_at,
     updatedAt: row.updated_at,
