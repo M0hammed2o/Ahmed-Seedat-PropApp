@@ -93,94 +93,115 @@ export function NewPropertyForm({ orgId }: { orgId: string }) {
       <PageHeader title="Add property" />
 
       <Panel className="max-w-xl">
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {error ? (
-          <p className="rounded-md border border-light-danger bg-light-danger/10 px-3 py-2 text-xs text-light-danger dark:border-dark-danger dark:bg-dark-danger/10 dark:text-dark-danger">
-            {error}
-          </p>
-        ) : null}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error ? (
+            <p className="rounded-md border border-light-danger bg-light-danger/10 px-3 py-2 text-xs text-light-danger dark:border-dark-danger dark:bg-dark-danger/10 dark:text-dark-danger">
+              {error}
+            </p>
+          ) : null}
 
-        <Field label="Property name" error={fieldErrors.nickname}>
-          <input
-            required
-            value={form.nickname}
-            onChange={(e) => set('nickname', e.target.value)}
-            className={inputClass}
-          />
-        </Field>
-
-        <Field label="Property type">
-          <select
-            value={form.propertyType}
-            onChange={(e) => set('propertyType', e.target.value as PropertyType)}
-            className={inputClass}
-          >
-            {PROPERTY_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {t.replace('_', ' ')}
-              </option>
-            ))}
-          </select>
-        </Field>
-
-        <Field label="Address line 1" error={fieldErrors.addressLine1}>
-          <input
-            required
-            value={form.addressLine1}
-            onChange={(e) => set('addressLine1', e.target.value)}
-            className={inputClass}
-          />
-        </Field>
-
-        <Field label="Address line 2">
-          <input value={form.addressLine2} onChange={(e) => set('addressLine2', e.target.value)} className={inputClass} />
-        </Field>
-
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="Suburb">
-            <input value={form.suburb} onChange={(e) => set('suburb', e.target.value)} className={inputClass} />
+          <Field label="Property name" error={fieldErrors.nickname}>
+            <input
+              required
+              value={form.nickname}
+              onChange={(e) => set('nickname', e.target.value)}
+              className={inputClass}
+            />
           </Field>
-          <Field label="City" error={fieldErrors.city}>
-            <input required value={form.city} onChange={(e) => set('city', e.target.value)} className={inputClass} />
-          </Field>
-          <Field label="Province">
-            <input value={form.province} onChange={(e) => set('province', e.target.value)} className={inputClass} />
-          </Field>
-          <Field label="Postal code">
-            <input value={form.postalCode} onChange={(e) => set('postalCode', e.target.value)} className={inputClass} />
-          </Field>
-        </div>
 
-        <Field label="Municipal account number">
-          <input
-            value={form.municipalAccountNumber}
-            onChange={(e) => set('municipalAccountNumber', e.target.value)}
-            className={inputClass}
-          />
-        </Field>
+          <Field label="Property type">
+            <select
+              value={form.propertyType}
+              onChange={(e) => set('propertyType', e.target.value as PropertyType)}
+              className={inputClass}
+            >
+              {PROPERTY_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {t.replace('_', ' ')}
+                </option>
+              ))}
+            </select>
+          </Field>
 
-        <Field label="Notes">
-          <textarea
-            value={form.notes}
-            onChange={(e) => set('notes', e.target.value)}
-            rows={3}
-            maxLength={2000}
-            className={inputClass}
-          />
-          <p className="mt-1 text-right text-[11px] text-light-textMuted dark:text-dark-textMuted">
-            {form.notes.length}/2000
-          </p>
-        </Field>
+          <Field label="Address line 1" error={fieldErrors.addressLine1}>
+            <input
+              required
+              value={form.addressLine1}
+              onChange={(e) => set('addressLine1', e.target.value)}
+              className={inputClass}
+            />
+          </Field>
 
-        <div className="flex gap-2 pt-2">
-          <Button type="submit" variant="primary" disabled={submitting}>
-            {submitting ? 'Creating…' : 'Create property'}
-          </Button>
-          <Button type="button" onClick={() => router.push('/properties')}>
-            Cancel
-          </Button>
-        </div>
-      </form>
+          <Field label="Address line 2">
+            <input
+              value={form.addressLine2}
+              onChange={(e) => set('addressLine2', e.target.value)}
+              className={inputClass}
+            />
+          </Field>
+
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Suburb">
+              <input
+                value={form.suburb}
+                onChange={(e) => set('suburb', e.target.value)}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="City" error={fieldErrors.city}>
+              <input
+                required
+                value={form.city}
+                onChange={(e) => set('city', e.target.value)}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Province">
+              <input
+                value={form.province}
+                onChange={(e) => set('province', e.target.value)}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Postal code">
+              <input
+                value={form.postalCode}
+                onChange={(e) => set('postalCode', e.target.value)}
+                className={inputClass}
+              />
+            </Field>
+          </div>
+
+          <Field label="Municipal account number">
+            <input
+              value={form.municipalAccountNumber}
+              onChange={(e) => set('municipalAccountNumber', e.target.value)}
+              className={inputClass}
+            />
+          </Field>
+
+          <Field label="Notes">
+            <textarea
+              value={form.notes}
+              onChange={(e) => set('notes', e.target.value)}
+              rows={3}
+              maxLength={2000}
+              className={inputClass}
+            />
+            <p className="mt-1 text-right text-[11px] text-light-textMuted dark:text-dark-textMuted">
+              {form.notes.length}/2000
+            </p>
+          </Field>
+
+          <div className="flex gap-2 pt-2">
+            <Button type="submit" variant="primary" disabled={submitting}>
+              {submitting ? 'Creating…' : 'Create property'}
+            </Button>
+            <Button type="button" onClick={() => router.push('/properties')}>
+              Cancel
+            </Button>
+          </div>
+        </form>
       </Panel>
     </div>
   );
@@ -189,13 +210,23 @@ export function NewPropertyForm({ orgId }: { orgId: string }) {
 const inputClass =
   'mt-1 block w-full rounded-md border border-light-border bg-transparent px-3 py-2 text-sm text-light-textPrimary dark:border-dark-border dark:text-dark-textPrimary';
 
-function Field({ label, error, children }: { label: string; error?: string[]; children: ReactNode }) {
+function Field({
+  label,
+  error,
+  children,
+}: {
+  label: string;
+  error?: string[];
+  children: ReactNode;
+}) {
   return (
     <label className="block text-xs">
       <span className="text-light-textMuted dark:text-dark-textMuted">{label}</span>
       {children}
       {error?.length ? (
-        <p className="mt-1 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">{error[0]}</p>
+        <p className="mt-1 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">
+          {error[0]}
+        </p>
       ) : null}
     </label>
   );

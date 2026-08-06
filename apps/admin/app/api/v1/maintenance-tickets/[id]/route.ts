@@ -8,7 +8,10 @@ import { dispatchWhatsApp } from '@/lib/whatsappDispatch';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
-async function loadVisibleTicket(supabase: Awaited<ReturnType<typeof getServerSupabaseClient>>, id: string) {
+async function loadVisibleTicket(
+  supabase: Awaited<ReturnType<typeof getServerSupabaseClient>>,
+  id: string,
+) {
   return supabase.from('maintenance_tickets').select('*').eq('id', id).maybeSingle();
 }
 
@@ -107,7 +110,10 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     );
   }
 
-  if (parsed.data.status !== undefined && !isValidMaintenanceTransition(existing.status, parsed.data.status)) {
+  if (
+    parsed.data.status !== undefined &&
+    !isValidMaintenanceTransition(existing.status, parsed.data.status)
+  ) {
     return NextResponse.json(
       {
         error: {
@@ -123,7 +129,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   if (parsed.data.summary !== undefined) patch.summary = parsed.data.summary;
   if (parsed.data.description !== undefined) patch.description = parsed.data.description;
   if (parsed.data.priority !== undefined) patch.priority = parsed.data.priority;
-  if (parsed.data.assignedVendorId !== undefined) patch.assigned_vendor_id = parsed.data.assignedVendorId;
+  if (parsed.data.assignedVendorId !== undefined)
+    patch.assigned_vendor_id = parsed.data.assignedVendorId;
   if (parsed.data.status !== undefined) {
     patch.status = parsed.data.status;
     if (parsed.data.status === 'completed') patch.resolved_at = new Date().toISOString();
@@ -146,7 +153,11 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   if (parsed.data.status !== undefined && data.tenant_id) {
     try {
       const serviceClient = getServiceRoleClient();
-      const { data: tenant } = await serviceClient.from('tenants').select('email, phone').eq('id', data.tenant_id).maybeSingle();
+      const { data: tenant } = await serviceClient
+        .from('tenants')
+        .select('email, phone')
+        .eq('id', data.tenant_id)
+        .maybeSingle();
 
       // relatedEntityType carries the new status (it's a plain text column, unlike
       // relatedEntityId which is uuid) -- a ticket legitimately moves through several distinct

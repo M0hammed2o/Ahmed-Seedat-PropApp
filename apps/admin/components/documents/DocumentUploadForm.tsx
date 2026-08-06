@@ -15,7 +15,12 @@ interface DocumentUploadFormProps {
   leases: { id: string; label: string }[];
 }
 
-export function DocumentUploadForm({ orgId, properties, categories, leases }: DocumentUploadFormProps) {
+export function DocumentUploadForm({
+  orgId,
+  properties,
+  categories,
+  leases,
+}: DocumentUploadFormProps) {
   const router = useRouter();
   const [propertyId, setPropertyId] = useState(properties[0]?.id ?? '');
   const [categoryId, setCategoryId] = useState(categories[0]?.id ?? '');
@@ -76,89 +81,105 @@ export function DocumentUploadForm({ orgId, properties, categories, leases }: Do
       <PageHeader title="Upload document" />
 
       <Panel className="max-w-xl">
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {error ? (
-          <p className="rounded-md border border-light-danger bg-light-danger/10 px-3 py-2 text-xs text-light-danger dark:border-dark-danger dark:bg-dark-danger/10 dark:text-dark-danger">
-            {error}
-          </p>
-        ) : null}
-
-        <label className="block text-xs">
-          <span className="text-light-textMuted dark:text-dark-textMuted">File (PDF, JPEG, PNG, or HEIC, up to 25MB)</span>
-          <input
-            required
-            type="file"
-            accept="application/pdf,image/jpeg,image/png,image/heic"
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            className="mt-1 block w-full text-sm text-light-textPrimary dark:text-dark-textPrimary"
-          />
-          {fieldErrors.file?.length ? (
-            <p className="mt-1 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">{fieldErrors.file[0]}</p>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error ? (
+            <p className="rounded-md border border-light-danger bg-light-danger/10 px-3 py-2 text-xs text-light-danger dark:border-dark-danger dark:bg-dark-danger/10 dark:text-dark-danger">
+              {error}
+            </p>
           ) : null}
-        </label>
 
-        <label className="block text-xs">
-          <span className="text-light-textMuted dark:text-dark-textMuted">Property</span>
-          <select value={propertyId} onChange={(e) => setPropertyId(e.target.value)} className={inputClass}>
-            {properties.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.nickname}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="block text-xs">
-          <span className="text-light-textMuted dark:text-dark-textMuted">Document type</span>
-          <select
-            value={documentType}
-            onChange={(e) => setDocumentType(e.target.value as DocumentType)}
-            className={inputClass}
-          >
-            {DOCUMENT_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {t.replace('_', ' ')}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="block text-xs">
-          <span className="text-light-textMuted dark:text-dark-textMuted">Category</span>
-          <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className={inputClass}>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        {leases.length > 0 ? (
           <label className="block text-xs">
             <span className="text-light-textMuted dark:text-dark-textMuted">
-              Tag to a lease (makes this document visible to that tenant) — optional
+              File (PDF, JPEG, PNG, or HEIC, up to 25MB)
             </span>
-            <select value={leaseId} onChange={(e) => setLeaseId(e.target.value)} className={inputClass}>
-              <option value="">Not tenant-visible</option>
-              {leases.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.label}
+            <input
+              required
+              type="file"
+              accept="application/pdf,image/jpeg,image/png,image/heic"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              className="mt-1 block w-full text-sm text-light-textPrimary dark:text-dark-textPrimary"
+            />
+            {fieldErrors.file?.length ? (
+              <p className="mt-1 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">
+                {fieldErrors.file[0]}
+              </p>
+            ) : null}
+          </label>
+
+          <label className="block text-xs">
+            <span className="text-light-textMuted dark:text-dark-textMuted">Property</span>
+            <select
+              value={propertyId}
+              onChange={(e) => setPropertyId(e.target.value)}
+              className={inputClass}
+            >
+              {properties.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.nickname}
                 </option>
               ))}
             </select>
           </label>
-        ) : null}
 
-        <div className="flex gap-2 pt-2">
-          <Button type="submit" variant="primary" disabled={submitting}>
-            {submitting ? 'Uploading…' : 'Upload document'}
-          </Button>
-          <Button type="button" onClick={() => router.push('/documents')}>
-            Cancel
-          </Button>
-        </div>
-      </form>
+          <label className="block text-xs">
+            <span className="text-light-textMuted dark:text-dark-textMuted">Document type</span>
+            <select
+              value={documentType}
+              onChange={(e) => setDocumentType(e.target.value as DocumentType)}
+              className={inputClass}
+            >
+              {DOCUMENT_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {t.replace('_', ' ')}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block text-xs">
+            <span className="text-light-textMuted dark:text-dark-textMuted">Category</span>
+            <select
+              value={categoryId}
+              onChange={(e) => setCategoryId(e.target.value)}
+              className={inputClass}
+            >
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {leases.length > 0 ? (
+            <label className="block text-xs">
+              <span className="text-light-textMuted dark:text-dark-textMuted">
+                Tag to a lease (makes this document visible to that tenant) — optional
+              </span>
+              <select
+                value={leaseId}
+                onChange={(e) => setLeaseId(e.target.value)}
+                className={inputClass}
+              >
+                <option value="">Not tenant-visible</option>
+                {leases.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+
+          <div className="flex gap-2 pt-2">
+            <Button type="submit" variant="primary" disabled={submitting}>
+              {submitting ? 'Uploading…' : 'Upload document'}
+            </Button>
+            <Button type="button" onClick={() => router.push('/documents')}>
+              Cancel
+            </Button>
+          </div>
+        </form>
       </Panel>
     </div>
   );

@@ -41,7 +41,11 @@ export default async function OwnerPortalLayout({ children }: { children: React.
   if (!session) redirect('/login');
 
   return (
-    <AppShell productLabel={branding.productName} navSections={NAV_SECTIONS} demoBadge={ADMIN_DEMO_MODE}>
+    <AppShell
+      productLabel={branding.productName}
+      navSections={NAV_SECTIONS}
+      demoBadge={ADMIN_DEMO_MODE}
+    >
       {children}
     </AppShell>
   );

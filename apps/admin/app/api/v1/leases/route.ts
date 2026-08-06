@@ -54,7 +54,9 @@ export async function GET(request: NextRequest) {
   const leases = rows.map(mapLeaseRow);
   const last = rows[rows.length - 1];
   const nextCursor =
-    rows.length === limit && last ? encodeCursor({ createdAt: last.created_at, id: last.id }) : null;
+    rows.length === limit && last
+      ? encodeCursor({ createdAt: last.created_at, id: last.id })
+      : null;
 
   return NextResponse.json({ leases, next_cursor: nextCursor });
 }
@@ -99,7 +101,10 @@ export async function POST(request: NextRequest) {
   if (!canWrite) {
     return NextResponse.json(
       {
-        error: { code: 'forbidden', message: 'You do not have permission to create leases for this organization.' },
+        error: {
+          code: 'forbidden',
+          message: 'You do not have permission to create leases for this organization.',
+        },
       },
       { status: 403 },
     );

@@ -58,7 +58,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const statementIds = ((rows ?? []) as Array<{ owner_statement_id: string }>).map((r) => r.owner_statement_id);
+  const statementIds = ((rows ?? []) as Array<{ owner_statement_id: string }>).map(
+    (r) => r.owner_statement_id,
+  );
   const { data: statements, error: fetchError } = await supabase
     .from('owner_statements')
     .select('*')
@@ -70,5 +72,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  return NextResponse.json({ ownerStatements: (statements ?? []).map(mapOwnerStatementRow) }, { status: 201 });
+  return NextResponse.json(
+    { ownerStatements: (statements ?? []).map(mapOwnerStatementRow) },
+    { status: 201 },
+  );
 }

@@ -59,7 +59,9 @@ export function GenerateOwnerStatementsButton({ orgId }: { orgId: string }) {
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-lg border border-light-border p-3 dark:border-dark-border">
       {error ? (
-        <p className="w-full text-xs text-light-statusOverdue dark:text-dark-statusOverdue">{error}</p>
+        <p className="w-full text-xs text-light-statusOverdue dark:text-dark-statusOverdue">
+          {error}
+        </p>
       ) : null}
       <label className="text-xs text-light-textSecondary dark:text-dark-textSecondary">
         Period start

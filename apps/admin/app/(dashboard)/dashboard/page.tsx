@@ -112,17 +112,42 @@ const DEMO_DATA: DashboardData = {
   activity: [
     { id: '1', description: 'Invoice issued for Unit 4B', timestamp: new Date().toISOString() },
     { id: '2', description: 'Payment recorded for Unit 2A', timestamp: new Date().toISOString() },
-    { id: '3', description: 'Maintenance ticket completed at Sunset Villas', timestamp: new Date().toISOString() },
+    {
+      id: '3',
+      description: 'Maintenance ticket completed at Sunset Villas',
+      timestamp: new Date().toISOString(),
+    },
   ],
   topProperties: [
-    { id: 'demo-property-1', nickname: 'Sea Point Apartment', status: 'active', monthlyIncome: 12500, occupied: 1, units: 1 },
+    {
+      id: 'demo-property-1',
+      nickname: 'Sea Point Apartment',
+      status: 'active',
+      monthlyIncome: 12500,
+      occupied: 1,
+      units: 1,
+    },
   ],
   // Real Sea Point, Cape Town coordinates -- renders a real pin if a Mapbox token is configured
   // in this environment, falls back to the honest "not available" state otherwise, same as
   // real (non-demo) mode. Not a fabricated position: this is genuinely where the fixture address is.
-  mappableProperties: [{ id: 'demo-property-1', nickname: 'Sea Point Apartment', latitude: -33.9166, longitude: 18.3833 }],
+  mappableProperties: [
+    {
+      id: 'demo-property-1',
+      nickname: 'Sea Point Apartment',
+      latitude: -33.9166,
+      longitude: 18.3833,
+    },
+  ],
   recentPayments: [
-    { id: 'demo-pmt-1', tenantName: 'Naledi Khumalo', propertyName: 'Sea Point Apartment', amount: 12500, date: '2026-08-01', status: 'paid' },
+    {
+      id: 'demo-pmt-1',
+      tenantName: 'Naledi Khumalo',
+      propertyName: 'Sea Point Apartment',
+      amount: 12500,
+      date: '2026-08-01',
+      status: 'paid',
+    },
   ],
   insight: null,
 };
@@ -142,7 +167,8 @@ export default async function DashboardPage() {
   // PropertyMap's own effect correctly no-ops without a token, but the *panel* was only checking
   // "do we have coordinates", not "can we actually render a map with them". Caught by an actual
   // real-browser screenshot, not assumed. Availability now requires both.
-  const mapAvailable = Boolean(process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN) && data.mappableProperties.length > 0;
+  const mapAvailable =
+    Boolean(process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN) && data.mappableProperties.length > 0;
 
   const stats = [
     {
@@ -181,8 +207,18 @@ export default async function DashboardPage() {
   const secondary = [
     { label: 'Properties', value: data.totalProperties, icon: Building2, to: '/properties' },
     { label: 'Units', value: data.totalUnits, icon: Home, to: '/units' },
-    { label: 'Expiring leases', value: data.expiringLeasesCount, icon: FileSignature, to: '/leases' },
-    { label: 'Open maintenance', value: data.openMaintenanceCount, icon: Wrench, to: '/maintenance' },
+    {
+      label: 'Expiring leases',
+      value: data.expiringLeasesCount,
+      icon: FileSignature,
+      to: '/leases',
+    },
+    {
+      label: 'Open maintenance',
+      value: data.openMaintenanceCount,
+      icon: Wrench,
+      to: '/maintenance',
+    },
   ];
 
   // Lovable's own 6: Add property, New lease, Record payment, Log maintenance, Invite tenant,
@@ -220,7 +256,10 @@ export default async function DashboardPage() {
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {stats.map((s) => (
-          <div key={s.label} className="panel group relative overflow-hidden p-5 transition-shadow hover:shadow-lift">
+          <div
+            key={s.label}
+            className="panel group relative overflow-hidden p-5 transition-shadow hover:shadow-lift"
+          >
             <div className="flex items-start justify-between">
               <span className="grid h-9 w-9 place-items-center rounded-xl bg-primary-soft text-primary">
                 <s.icon className="h-[18px] w-[18px]" aria-hidden="true" />
@@ -228,7 +267,9 @@ export default async function DashboardPage() {
               {s.delta !== null ? <Delta value={s.delta} /> : null}
             </div>
             <p className="mt-4 text-[12px] font-medium text-muted-foreground">{s.label}</p>
-            <p className="tabular mt-1 font-display text-[26px] leading-tight font-bold text-foreground">{s.value}</p>
+            <p className="tabular mt-1 font-display text-[26px] leading-tight font-bold text-foreground">
+              {s.value}
+            </p>
             <p className="mt-1 text-[11px] text-muted-foreground">{s.foot}</p>
           </div>
         ))}
@@ -246,7 +287,9 @@ export default async function DashboardPage() {
             </span>
             <span className="min-w-0 flex-1">
               <span className="block text-[11px] text-muted-foreground">{s.label}</span>
-              <span className="tabular block text-lg leading-tight font-semibold text-foreground">{s.value}</span>
+              <span className="tabular block text-lg leading-tight font-semibold text-foreground">
+                {s.value}
+              </span>
             </span>
             <ArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
           </Link>
@@ -277,7 +320,11 @@ export default async function DashboardPage() {
         </Panel>
 
         <div className="space-y-4">
-          <Panel title="Rent collection" description={`Share of ${monthLabel} billing`} bodyClassName="p-4">
+          <Panel
+            title="Rent collection"
+            description={`Share of ${monthLabel} billing`}
+            bodyClassName="p-4"
+          >
             {data.monthlyBilled > 0 ? (
               <CollectionsMixChart data={data.collectionsMix} />
             ) : (
@@ -291,7 +338,11 @@ export default async function DashboardPage() {
               deliberately never built (this file's own earlier design note, preserved): no
               occupancy snapshot table exists to compute a trend honestly. Panel kept at the same
               position/size with a true point-in-time meter instead of a fabricated series. */}
-          <Panel title="Occupancy" description="Current portfolio-wide (no historical trend data yet)" bodyClassName="p-4">
+          <Panel
+            title="Occupancy"
+            description="Current portfolio-wide (no historical trend data yet)"
+            bodyClassName="p-4"
+          >
             <div className="flex items-center justify-between text-[13px]">
               <span className="text-muted-foreground">Occupied</span>
               <span className="tabular font-semibold text-foreground">
@@ -316,7 +367,11 @@ export default async function DashboardPage() {
           title="Portfolio"
           description={`${data.totalProperties} ${data.totalProperties === 1 ? 'property' : 'properties'}`}
           actions={
-            mapAvailable ? <Pill tone="primary">Live</Pill> : <Pill tone="neutral">Map view not available</Pill>
+            mapAvailable ? (
+              <Pill tone="primary">Live</Pill>
+            ) : (
+              <Pill tone="neutral">Map view not available</Pill>
+            )
           }
           bodyClassName={mapAvailable ? 'p-0' : 'p-5'}
         >
@@ -334,7 +389,9 @@ export default async function DashboardPage() {
                       <Building2 className="h-4 w-4" aria-hidden="true" />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[13px] font-medium text-foreground">{p.nickname}</span>
+                      <span className="block truncate text-[13px] font-medium text-foreground">
+                        {p.nickname}
+                      </span>
                       <span className="block text-[11px] text-muted-foreground">
                         {p.occupied}/{p.units} units occupied
                       </span>
@@ -348,13 +405,18 @@ export default async function DashboardPage() {
           )}
           {!mapAvailable && data.topProperties.length > 0 ? (
             <p className="mt-3 text-[11px] text-muted-foreground">
-              Properties are geocoded automatically when their address is saved. If this doesn&apos;t update, a
-              Mapbox access token may not be configured yet in this environment.
+              Properties are geocoded automatically when their address is saved. If this
+              doesn&apos;t update, a Mapbox access token may not be configured yet in this
+              environment.
             </p>
           ) : null}
         </Panel>
 
-        <Panel className="xl:col-span-2" title="Recent activity" description="Latest actions across your portfolio">
+        <Panel
+          className="xl:col-span-2"
+          title="Recent activity"
+          description="Latest actions across your portfolio"
+        >
           <RecentActivityFeed items={data.activity} />
         </Panel>
       </div>
@@ -364,7 +426,10 @@ export default async function DashboardPage() {
           className="xl:col-span-2"
           title="Recent payments"
           actions={
-            <Link href="/accounting/bank-transactions" className="text-[12px] font-medium text-primary">
+            <Link
+              href="/accounting/bank-transactions"
+              className="text-[12px] font-medium text-primary"
+            >
               View ledger
             </Link>
           }
@@ -386,12 +451,18 @@ export default async function DashboardPage() {
                   {data.recentPayments.map((p) => (
                     <tr key={p.id} className="transition-colors hover:bg-surface">
                       <td className="px-5 py-3 font-medium text-foreground">{p.tenantName}</td>
-                      <td className="hidden px-5 py-3 text-muted-foreground sm:table-cell">{p.propertyName}</td>
+                      <td className="hidden px-5 py-3 text-muted-foreground sm:table-cell">
+                        {p.propertyName}
+                      </td>
                       {/* bank_transactions has no payment-method column -- no real feed distinguishes
                           EFT/card/debit order today, so this is honestly "not tracked", never a
                           guessed value. */}
-                      <td className="hidden px-5 py-3 text-muted-foreground sm:table-cell">Not tracked</td>
-                      <td className="tabular px-5 py-3 text-right font-semibold text-foreground">{currency(p.amount)}</td>
+                      <td className="hidden px-5 py-3 text-muted-foreground sm:table-cell">
+                        Not tracked
+                      </td>
+                      <td className="tabular px-5 py-3 text-right font-semibold text-foreground">
+                        {currency(p.amount)}
+                      </td>
                       <td className="px-5 py-3 text-right">
                         <Pill tone={statusTone(p.status)} dot>
                           {p.status}
@@ -403,7 +474,9 @@ export default async function DashboardPage() {
               </table>
             </div>
           ) : (
-            <p className="px-5 py-8 text-center text-xs text-muted-foreground">No matched payments yet.</p>
+            <p className="px-5 py-8 text-center text-xs text-muted-foreground">
+              No matched payments yet.
+            </p>
           )}
         </Panel>
 
@@ -423,7 +496,11 @@ export default async function DashboardPage() {
         </Panel>
       </div>
 
-      <Panel title="Top performing properties" description="Ranked by monthly income" bodyClassName="p-5">
+      <Panel
+        title="Top performing properties"
+        description="Ranked by monthly income"
+        bodyClassName="p-5"
+      >
         {data.topProperties.length > 0 ? (
           <div className="grid gap-4 md:grid-cols-3">
             {data.topProperties.slice(0, 3).map((p) => (
@@ -436,7 +513,9 @@ export default async function DashboardPage() {
                   <p className="truncate font-semibold text-foreground">{p.nickname}</p>
                   <Pill tone={statusTone(p.status)}>{p.status}</Pill>
                 </div>
-                <p className="tabular mt-3 font-display text-xl font-bold text-foreground">{currency(p.monthlyIncome)}</p>
+                <p className="tabular mt-3 font-display text-xl font-bold text-foreground">
+                  {currency(p.monthlyIncome)}
+                </p>
                 <p className="mt-0.5 text-[11px] text-muted-foreground">
                   {p.occupied}/{p.units} units occupied
                 </p>
@@ -462,7 +541,8 @@ export default async function DashboardPage() {
         <p className="min-w-0 flex-1 text-[13px] text-muted-foreground">
           {data.insight ? (
             <>
-              <span className="font-semibold text-foreground">Portfolio insight:</span> {data.insight}
+              <span className="font-semibold text-foreground">Portfolio insight:</span>{' '}
+              {data.insight}
             </>
           ) : (
             'No portfolio insights available yet.'
@@ -499,12 +579,19 @@ async function loadData(): Promise<DashboardData> {
     insightResult,
     profileResult,
   ] = await Promise.all([
-    supabase.from('properties').select('id, nickname, status, estimated_value, latitude, longitude').eq('status', 'active'),
+    supabase
+      .from('properties')
+      .select('id, nickname, status, estimated_value, latitude, longitude')
+      .eq('status', 'active'),
     supabase.from('units').select('id, property_id, status'),
     supabase.from('rent_schedules').select('lease_id, due_date, amount, status'),
     supabase.from('expenses').select('created_at, amount, status'),
     supabase.from('maintenance_tickets').select('id, status').neq('status', 'completed'),
-    supabase.from('audit_events').select('id, action, entity_type, created_at').order('created_at', { ascending: false }).limit(8),
+    supabase
+      .from('audit_events')
+      .select('id, action, entity_type, created_at')
+      .order('created_at', { ascending: false })
+      .limit(8),
     supabase.from('leases').select('id, unit_id, rent_amount, status, end_date'),
     supabase
       .from('portfolio_insights')
@@ -521,11 +608,15 @@ async function loadData(): Promise<DashboardData> {
       return supabase.from('profiles').select('display_name').eq('id', user.id).maybeSingle();
     })(),
   ]);
-  if (propertiesResult.error) throw new Error(`Failed to load properties: ${propertiesResult.error.message}`);
+  if (propertiesResult.error)
+    throw new Error(`Failed to load properties: ${propertiesResult.error.message}`);
   if (unitsResult.error) throw new Error(`Failed to load units: ${unitsResult.error.message}`);
-  if (rentSchedulesResult.error) throw new Error(`Failed to load rent schedule: ${rentSchedulesResult.error.message}`);
-  if (expensesResult.error) throw new Error(`Failed to load expenses: ${expensesResult.error.message}`);
-  if (maintenanceResult.error) throw new Error(`Failed to load maintenance: ${maintenanceResult.error.message}`);
+  if (rentSchedulesResult.error)
+    throw new Error(`Failed to load rent schedule: ${rentSchedulesResult.error.message}`);
+  if (expensesResult.error)
+    throw new Error(`Failed to load expenses: ${expensesResult.error.message}`);
+  if (maintenanceResult.error)
+    throw new Error(`Failed to load maintenance: ${maintenanceResult.error.message}`);
   if (leasesResult.error) throw new Error(`Failed to load leases: ${leasesResult.error.message}`);
 
   const properties = propertiesResult.data ?? [];
@@ -546,14 +637,20 @@ async function loadData(): Promise<DashboardData> {
   const leaseByUnit = new Map(activeLeases.map((l) => [l.unit_id, l]));
 
   const billedInMonth = (key: string) =>
-    rentSchedules.filter((r) => r.due_date.slice(0, 7) === key).reduce((sum, r) => sum + Number(r.amount), 0);
+    rentSchedules
+      .filter((r) => r.due_date.slice(0, 7) === key)
+      .reduce((sum, r) => sum + Number(r.amount), 0);
   const collectedInMonth = (key: string) =>
     rentSchedules
       .filter((r) => r.status === 'paid' && r.due_date.slice(0, 7) === key)
       .reduce((sum, r) => sum + Number(r.amount), 0);
   const outstandingAsOf = (key: string) =>
     rentSchedules
-      .filter((r) => (r.status === 'invoiced' || r.status === 'overdue' || r.status === 'partial') && r.due_date.slice(0, 7) <= key)
+      .filter(
+        (r) =>
+          (r.status === 'invoiced' || r.status === 'overdue' || r.status === 'partial') &&
+          r.due_date.slice(0, 7) <= key,
+      )
       .reduce((sum, r) => sum + Number(r.amount), 0);
 
   const monthlyBilled = billedInMonth(thisMonthKey);
@@ -570,7 +667,11 @@ async function loadData(): Promise<DashboardData> {
     const d = new Date(now.getFullYear(), now.getMonth() - (8 - i), 1);
     const key = monthKey(d);
     const monthExpenses = expenses
-      .filter((e) => (e.status === 'recorded' || e.status === 'reimbursed') && e.created_at.slice(0, 7) === key)
+      .filter(
+        (e) =>
+          (e.status === 'recorded' || e.status === 'reimbursed') &&
+          e.created_at.slice(0, 7) === key,
+      )
       .reduce((sum, e) => sum + Number(e.amount), 0);
     return {
       month: d.toLocaleDateString('en-ZA', { month: 'short' }),
@@ -611,16 +712,20 @@ async function loadData(): Promise<DashboardData> {
 
   const valuedProperties = properties.filter((p) => p.estimated_value !== null);
   const portfolioValue =
-    valuedProperties.length > 0 ? valuedProperties.reduce((sum, p) => sum + Number(p.estimated_value), 0) : null;
+    valuedProperties.length > 0
+      ? valuedProperties.reduce((sum, p) => sum + Number(p.estimated_value), 0)
+      : null;
 
   const propertyIncome = new Map<string, number>();
   const propertyOccupied = new Map<string, number>();
   const propertyUnitCount = new Map<string, number>();
   for (const u of units) {
     propertyUnitCount.set(u.property_id, (propertyUnitCount.get(u.property_id) ?? 0) + 1);
-    if (u.status === 'occupied') propertyOccupied.set(u.property_id, (propertyOccupied.get(u.property_id) ?? 0) + 1);
+    if (u.status === 'occupied')
+      propertyOccupied.set(u.property_id, (propertyOccupied.get(u.property_id) ?? 0) + 1);
     const rent = Number(leaseByUnit.get(u.id)?.rent_amount ?? 0);
-    if (rent > 0) propertyIncome.set(u.property_id, (propertyIncome.get(u.property_id) ?? 0) + rent);
+    if (rent > 0)
+      propertyIncome.set(u.property_id, (propertyIncome.get(u.property_id) ?? 0) + rent);
   }
   const topProperties: TopProperty[] = properties
     .map((p) => ({
@@ -634,8 +739,16 @@ async function loadData(): Promise<DashboardData> {
     .sort((a, b) => b.monthlyIncome - a.monthlyIncome);
 
   const mappableProperties: MappableProperty[] = properties
-    .filter((p): p is typeof p & { latitude: number; longitude: number } => p.latitude !== null && p.longitude !== null)
-    .map((p) => ({ id: p.id, nickname: p.nickname, latitude: Number(p.latitude), longitude: Number(p.longitude) }));
+    .filter(
+      (p): p is typeof p & { latitude: number; longitude: number } =>
+        p.latitude !== null && p.longitude !== null,
+    )
+    .map((p) => ({
+      id: p.id,
+      nickname: p.nickname,
+      latitude: Number(p.latitude),
+      longitude: Number(p.longitude),
+    }));
 
   const recentPayments = await loadRecentPayments(supabase, unitPropertyById, properties);
 
@@ -655,7 +768,11 @@ async function loadData(): Promise<DashboardData> {
     outstandingDelta: pctDelta(outstandingRent, outstandingLastMonth),
     openMaintenanceCount: maintenanceResult.data?.length ?? 0,
     expiringLeasesCount: leases.filter(
-      (l) => l.status === 'active' && l.end_date !== null && l.end_date >= todayIso && l.end_date <= in45Days,
+      (l) =>
+        l.status === 'active' &&
+        l.end_date !== null &&
+        l.end_date >= todayIso &&
+        l.end_date <= in45Days,
     ).length,
     revenueSeries,
     collectionsMix,
@@ -681,10 +798,15 @@ async function loadRecentPayments(
     .limit(6);
   if (error || !transactions || transactions.length === 0) return [];
 
-  const scheduleIds = transactions.map((t) => t.matched_rent_schedule_id).filter((id): id is string => Boolean(id));
+  const scheduleIds = transactions
+    .map((t) => t.matched_rent_schedule_id)
+    .filter((id): id is string => Boolean(id));
   if (scheduleIds.length === 0) return [];
 
-  const { data: schedules } = await supabase.from('rent_schedules').select('id, lease_id').in('id', scheduleIds);
+  const { data: schedules } = await supabase
+    .from('rent_schedules')
+    .select('id, lease_id')
+    .in('id', scheduleIds);
   const leaseIdBySchedule = new Map((schedules ?? []).map((s) => [s.id, s.lease_id]));
   const leaseIds = [...new Set((schedules ?? []).map((s) => s.lease_id))];
   if (leaseIds.length === 0) return [];
@@ -696,7 +818,10 @@ async function loadRecentPayments(
   const unitByLease = new Map((leases ?? []).map((l) => [l.id, l.unit_id]));
   const tenantIdByLease = new Map((leaseTenants ?? []).map((lt) => [lt.lease_id, lt.tenant_id]));
   const tenantIds = [...new Set((leaseTenants ?? []).map((lt) => lt.tenant_id))];
-  const { data: tenants } = tenantIds.length > 0 ? await supabase.from('tenants').select('id, full_name').in('id', tenantIds) : { data: [] };
+  const { data: tenants } =
+    tenantIds.length > 0
+      ? await supabase.from('tenants').select('id, full_name').in('id', tenantIds)
+      : { data: [] };
   const tenantNameById = new Map((tenants ?? []).map((t) => [t.id, t.full_name]));
   const propertyNameById = new Map(properties.map((p) => [p.id, p.nickname]));
 

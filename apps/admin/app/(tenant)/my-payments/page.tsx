@@ -41,7 +41,10 @@ export default async function MyPaymentsPage() {
       <PageHeader title="My Payments" subtitle="Your rent payment schedule and history." />
 
       <div className="max-w-xs">
-        <AdminMetricCard label="Outstanding balance" value={`R${outstanding.toLocaleString('en-ZA')}`} />
+        <AdminMetricCard
+          label="Outstanding balance"
+          value={`R${outstanding.toLocaleString('en-ZA')}`}
+        />
       </div>
 
       {rentSchedules.length === 0 ? (
@@ -51,9 +54,15 @@ export default async function MyPaymentsPage() {
           <table className="w-full text-left text-sm">
             <thead className="border-b border-light-border bg-light-surfaceStrong dark:border-dark-border dark:bg-dark-surfaceStrong">
               <tr>
-                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Due date</th>
-                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Amount</th>
-                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Status</th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Due date
+                </th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Amount
+                </th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Status
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -61,8 +70,13 @@ export default async function MyPaymentsPage() {
                 .slice()
                 .sort((a, b) => b.dueDate.localeCompare(a.dueDate))
                 .map((r) => (
-                  <tr key={r.id} className="border-b border-light-border last:border-0 dark:border-dark-border">
-                    <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">{r.dueDate}</td>
+                  <tr
+                    key={r.id}
+                    className="border-b border-light-border last:border-0 dark:border-dark-border"
+                  >
+                    <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">
+                      {r.dueDate}
+                    </td>
                     <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">
                       R{Number(r.amount).toLocaleString('en-ZA')}
                     </td>
@@ -81,7 +95,10 @@ export default async function MyPaymentsPage() {
 
 async function loadRentSchedules(): Promise<RentSchedule[]> {
   const supabase = await getServerSupabaseClient();
-  const { data, error } = await supabase.from('rent_schedules').select('*').order('due_date', { ascending: false });
+  const { data, error } = await supabase
+    .from('rent_schedules')
+    .select('*')
+    .order('due_date', { ascending: false });
   if (error) throw new Error(`Failed to load payments: ${error.message}`);
   return (data ?? []).map(mapRentScheduleRow);
 }

@@ -38,7 +38,10 @@ export default async function MyDocumentsPage() {
 
   return (
     <div className="space-y-5 animate-rise">
-      <PageHeader title="My Documents" subtitle="Documents your landlord or property manager has shared with you." />
+      <PageHeader
+        title="My Documents"
+        subtitle="Documents your landlord or property manager has shared with you."
+      />
 
       {documents.length === 0 ? (
         <div className="rounded-card border border-light-border bg-light-surfaceRaised dark:border-dark-border dark:bg-dark-surfaceRaised">
@@ -53,17 +56,30 @@ export default async function MyDocumentsPage() {
           <table className="w-full text-left text-sm">
             <thead className="border-b border-light-border bg-light-surfaceStrong dark:border-dark-border dark:bg-dark-surfaceStrong">
               <tr>
-                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">File</th>
-                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Type</th>
-                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Size</th>
-                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Shared</th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  File
+                </th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Type
+                </th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Size
+                </th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Shared
+                </th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody>
               {documents.map((doc) => (
-                <tr key={doc.id} className="border-b border-light-border last:border-b-0 dark:border-dark-border">
-                  <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">{doc.originalFileName}</td>
+                <tr
+                  key={doc.id}
+                  className="border-b border-light-border last:border-b-0 dark:border-dark-border"
+                >
+                  <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">
+                    {doc.originalFileName}
+                  </td>
                   <td className="px-4 py-3 capitalize text-light-textPrimary dark:text-dark-textPrimary">
                     {doc.documentType.replace('_', ' ')}
                   </td>
@@ -84,7 +100,9 @@ export default async function MyDocumentsPage() {
                         View
                       </a>
                     ) : (
-                      <span className="text-light-textMuted dark:text-dark-textMuted">Unavailable</span>
+                      <span className="text-light-textMuted dark:text-dark-textMuted">
+                        Unavailable
+                      </span>
                     )}
                   </td>
                 </tr>

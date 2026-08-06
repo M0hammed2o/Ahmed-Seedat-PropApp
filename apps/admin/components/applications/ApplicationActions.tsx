@@ -13,7 +13,13 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 // git log if that work is ever resumed. POPIA consent is the only consent capture kept, per the
 // "basic privacy consent where personal information is collected" V1 requirement.
 
-export function ApplicationActions({ application, canAct }: { application: Application; canAct: boolean }) {
+export function ApplicationActions({
+  application,
+  canAct,
+}: {
+  application: Application;
+  canAct: boolean;
+}) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -44,7 +50,9 @@ export function ApplicationActions({ application, canAct }: { application: Appli
     setBusy(true);
     setError(null);
     try {
-      const response = await fetch(`/api/v1/applications/${application.id}/withdraw`, { method: 'POST' });
+      const response = await fetch(`/api/v1/applications/${application.id}/withdraw`, {
+        method: 'POST',
+      });
       const body = await response.json();
       if (!response.ok) {
         setError(body.error?.message ?? 'Failed to withdraw application.');
@@ -69,7 +77,9 @@ export function ApplicationActions({ application, canAct }: { application: Appli
             <>
               <p className="mt-2 text-xs text-light-textMuted dark:text-dark-textMuted">
                 {application.decisionReason ? `${application.decisionReason} — ` : ''}
-                {application.decidedAt ? new Date(application.decidedAt).toLocaleString('en-ZA') : ''}
+                {application.decidedAt
+                  ? new Date(application.decidedAt).toLocaleString('en-ZA')
+                  : ''}
               </p>
             </>
           ) : null}
@@ -101,22 +111,42 @@ export function ApplicationActions({ application, canAct }: { application: Appli
               Record consent
             </Button>
           ) : (
-            <span className="text-xs text-light-textMuted dark:text-dark-textMuted">Not yet granted</span>
+            <span className="text-xs text-light-textMuted dark:text-dark-textMuted">
+              Not yet granted
+            </span>
           )}
         </div>
       </div>
 
-      <NotesPanel applicationId={application.id} notes={application.notes} canAct={canAct} onSaved={() => router.refresh()} />
+      <NotesPanel
+        applicationId={application.id}
+        notes={application.notes}
+        canAct={canAct}
+        onSaved={() => router.refresh()}
+      />
 
       {canAct ? (
         <>
-          <DecisionPanel applicationId={application.id} busy={busy} setBusy={setBusy} setError={setError} />
+          <DecisionPanel
+            applicationId={application.id}
+            busy={busy}
+            setBusy={setBusy}
+            setError={setError}
+          />
           <div className="rounded-lg border border-light-border p-4 dark:border-dark-border">
-            <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">Withdraw</h2>
+            <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+              Withdraw
+            </h2>
             <p className="mt-1 text-xs text-light-textMuted dark:text-dark-textMuted">
               Record that the applicant pulled out, without approving or declining.
             </p>
-            <Button className="mt-2" variant="destructive" size="sm" disabled={busy} onClick={withdraw}>
+            <Button
+              className="mt-2"
+              variant="destructive"
+              size="sm"
+              disabled={busy}
+              onClick={withdraw}
+            >
               Withdraw application
             </Button>
           </div>
@@ -129,7 +159,9 @@ export function ApplicationActions({ application, canAct }: { application: Appli
 function NotesDisplay({ notes }: { notes: string }) {
   return (
     <div className="rounded-lg border border-light-border p-4 dark:border-dark-border">
-      <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">Notes</h2>
+      <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+        Notes
+      </h2>
       <p className="mt-2 whitespace-pre-wrap text-sm text-light-textSecondary dark:text-dark-textSecondary">
         {notes}
       </p>
@@ -176,8 +208,14 @@ function NotesPanel({
 
   return (
     <div className="rounded-lg border border-light-border p-4 dark:border-dark-border">
-      <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">Notes</h2>
-      {error ? <p className="mt-1 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">{error}</p> : null}
+      <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+        Notes
+      </h2>
+      {error ? (
+        <p className="mt-1 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">
+          {error}
+        </p>
+      ) : null}
       {canAct ? (
         <>
           <textarea
@@ -257,7 +295,9 @@ function DecisionPanel({
 
   return (
     <div className="rounded-lg border border-light-border p-4 dark:border-dark-border">
-      <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">Decision</h2>
+      <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+        Decision
+      </h2>
       <div className="mt-3 flex gap-2">
         <Button
           size="sm"
@@ -281,7 +321,9 @@ function DecisionPanel({
         {mode === 'approve' ? (
           <>
             <label className="block text-xs">
-              <span className="text-light-textMuted dark:text-dark-textMuted">Rent amount (ZAR)</span>
+              <span className="text-light-textMuted dark:text-dark-textMuted">
+                Rent amount (ZAR)
+              </span>
               <input
                 required
                 type="number"
@@ -293,7 +335,9 @@ function DecisionPanel({
               />
             </label>
             <label className="block text-xs">
-              <span className="text-light-textMuted dark:text-dark-textMuted">Deposit amount (ZAR)</span>
+              <span className="text-light-textMuted dark:text-dark-textMuted">
+                Deposit amount (ZAR)
+              </span>
               <input
                 type="number"
                 min={0}
@@ -314,8 +358,15 @@ function DecisionPanel({
               />
             </label>
             <label className="block text-xs">
-              <span className="text-light-textMuted dark:text-dark-textMuted">End date (optional)</span>
-              <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className={inputClass} />
+              <span className="text-light-textMuted dark:text-dark-textMuted">
+                End date (optional)
+              </span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className={inputClass}
+              />
             </label>
             <p className="text-xs text-light-textMuted dark:text-dark-textMuted">
               Approving creates the tenant and lease, and continues straight to lease setup.
@@ -324,11 +375,20 @@ function DecisionPanel({
         ) : (
           <label className="block text-xs">
             <span className="text-light-textMuted dark:text-dark-textMuted">Reason (optional)</span>
-            <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} className={inputClass} />
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              rows={3}
+              className={inputClass}
+            />
           </label>
         )}
 
-        <Button type="submit" variant={mode === 'approve' ? 'primary' : 'destructive'} disabled={busy}>
+        <Button
+          type="submit"
+          variant={mode === 'approve' ? 'primary' : 'destructive'}
+          disabled={busy}
+        >
           {busy ? 'Saving…' : mode === 'approve' ? 'Approve application' : 'Decline application'}
         </Button>
       </form>

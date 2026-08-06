@@ -41,7 +41,13 @@ describe('UnitsTable', () => {
   });
 
   it('renders the empty state with the custom message and action when there are no units', () => {
-    render(<UnitsTable data={[]} emptyMessage="No units yet" emptyAction={<button>+ Add unit</button>} />);
+    render(
+      <UnitsTable
+        data={[]}
+        emptyMessage="No units yet"
+        emptyAction={<button>+ Add unit</button>}
+      />,
+    );
     expect(screen.getByText('No units yet')).toBeTruthy();
     expect(screen.getByText('+ Add unit')).toBeTruthy();
   });

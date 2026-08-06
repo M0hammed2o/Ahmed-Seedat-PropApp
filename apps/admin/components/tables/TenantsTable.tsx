@@ -22,28 +22,43 @@ const columns: ColumnDef<Tenant, unknown>[] = [
     accessorKey: 'fullName',
     cell: (info) => (
       <Link href={`/tenants/${info.row.original.id}`} className="group flex items-center gap-2.5">
-        <Avatar initials={initialsFor(info.row.original.fullName)} tone="muted" className="h-7 w-7 text-[10px]" />
+        <Avatar
+          initials={initialsFor(info.row.original.fullName)}
+          tone="muted"
+          className="h-7 w-7 text-[10px]"
+        />
         <span className="font-medium text-light-accent group-hover:underline dark:text-dark-accent">
           {info.row.original.fullName}
         </span>
       </Link>
     ),
   },
-  { header: 'Email', accessorKey: 'email', cell: (info) => (info.getValue() as string | null) ?? '—' },
-  { header: 'Phone', accessorKey: 'phone', cell: (info) => (info.getValue() as string | null) ?? '—' },
+  {
+    header: 'Email',
+    accessorKey: 'email',
+    cell: (info) => (info.getValue() as string | null) ?? '—',
+  },
+  {
+    header: 'Phone',
+    accessorKey: 'phone',
+    cell: (info) => (info.getValue() as string | null) ?? '—',
+  },
   {
     header: 'Status',
     accessorKey: 'status',
-    cell: (info) => <StatusBadge presentation={TENANT_STATUS_PRESENTATION[info.getValue() as Tenant['status']]} />,
+    cell: (info) => (
+      <StatusBadge presentation={TENANT_STATUS_PRESENTATION[info.getValue() as Tenant['status']]} />
+    ),
   },
 ];
 
-export function TenantsTable({
-  data,
-  emptyAction,
-}: {
-  data: Tenant[];
-  emptyAction?: ReactNode;
-}) {
-  return <AdminDataTable emptyMessage="No tenants yet" emptyAction={emptyAction} data={data} columns={columns} />;
+export function TenantsTable({ data, emptyAction }: { data: Tenant[]; emptyAction?: ReactNode }) {
+  return (
+    <AdminDataTable
+      emptyMessage="No tenants yet"
+      emptyAction={emptyAction}
+      data={data}
+      columns={columns}
+    />
+  );
 }

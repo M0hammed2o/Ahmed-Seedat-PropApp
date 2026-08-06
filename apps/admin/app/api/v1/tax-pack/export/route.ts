@@ -33,7 +33,12 @@ export async function GET(request: NextRequest) {
 
   if (!orgId || !Number.isInteger(taxYear)) {
     return NextResponse.json(
-      { error: { code: 'validation_failed', message: 'org_id and a numeric tax_year are required.' } },
+      {
+        error: {
+          code: 'validation_failed',
+          message: 'org_id and a numeric tax_year are required.',
+        },
+      },
       { status: 400 },
     );
   }
@@ -57,10 +62,15 @@ export async function GET(request: NextRequest) {
     amount: number;
   }>;
 
-  const propertyIds = Array.from(new Set(typedRows.map((r) => r.property_id).filter((id): id is string => !!id)));
+  const propertyIds = Array.from(
+    new Set(typedRows.map((r) => r.property_id).filter((id): id is string => !!id)),
+  );
   const propertyNames = new Map<string, string>();
   if (propertyIds.length > 0) {
-    const { data: properties } = await supabase.from('properties').select('id, nickname').in('id', propertyIds);
+    const { data: properties } = await supabase
+      .from('properties')
+      .select('id, nickname')
+      .in('id', propertyIds);
     for (const p of properties ?? []) propertyNames.set(p.id, p.nickname);
   }
 
@@ -78,7 +88,9 @@ export async function GET(request: NextRequest) {
   const header = 'Property,Account Type,Account Code,Account Name,Amount (ZAR)';
   const csvRows = typedRows.map((r) =>
     [
-      csvEscape(r.property_id ? (propertyNames.get(r.property_id) ?? 'Unknown property') : 'Unattributed'),
+      csvEscape(
+        r.property_id ? (propertyNames.get(r.property_id) ?? 'Unknown property') : 'Unattributed',
+      ),
       csvEscape(r.account_type),
       csvEscape(r.account_code),
       csvEscape(r.account_name),

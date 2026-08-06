@@ -21,19 +21,33 @@ export async function POST(request: NextRequest) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: { code: 'invalid_json', message: 'Request body must be valid JSON.' } }, { status: 400 });
+    return NextResponse.json(
+      { error: { code: 'invalid_json', message: 'Request body must be valid JSON.' } },
+      { status: 400 },
+    );
   }
 
   const parsed = forgotPasswordSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
-      { error: { code: 'validation_failed', message: 'Check the highlighted fields.', field_errors: parsed.error.flatten().fieldErrors } },
+      {
+        error: {
+          code: 'validation_failed',
+          message: 'Check the highlighted fields.',
+          field_errors: parsed.error.flatten().fieldErrors,
+        },
+      },
       { status: 400 },
     );
   }
 
   const serviceClient = getServiceRoleClient();
-  const limited = await rateLimitOrRespond(serviceClient, `auth-password-reset-ip:${requestIp(request)}`, RATE_LIMITS.passwordResetAttemptsPerMinute, 60);
+  const limited = await rateLimitOrRespond(
+    serviceClient,
+    `auth-password-reset-ip:${requestIp(request)}`,
+    RATE_LIMITS.passwordResetAttemptsPerMinute,
+    60,
+  );
   if (limited) return limited;
 
   const supabase = await getServerSupabaseClient();
@@ -44,7 +58,15 @@ export async function POST(request: NextRequest) {
   if (error) {
     // Still a real infrastructure failure (e.g. email provider down) -- surfaced honestly, unlike
     // the deliberate "always looks the same" behaviour for the account-existence question itself.
-    return NextResponse.json({ error: { code: 'password_reset_failed', message: 'Something went wrong sending the reset email. Try again.' } }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: {
+          code: 'password_reset_failed',
+          message: 'Something went wrong sending the reset email. Try again.',
+        },
+      },
+      { status: 500 },
+    );
   }
 
   return NextResponse.json({ sent: true });

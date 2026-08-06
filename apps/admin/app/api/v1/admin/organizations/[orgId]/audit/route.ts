@@ -24,7 +24,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   const serviceClient = getServiceRoleClient();
   const { data, error } = await serviceClient
     .from('audit_events')
-    .select('id, org_id, actor_user_id, actor_type, action, entity_type, entity_id, before, after, ip_address, ai_conversation_id, ai_message_id, created_at')
+    .select(
+      'id, org_id, actor_user_id, actor_type, action, entity_type, entity_id, before, after, ip_address, ai_conversation_id, ai_message_id, created_at',
+    )
     .eq('org_id', orgId)
     .order('created_at', { ascending: false })
     .limit(limit);

@@ -35,7 +35,12 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
   }
   if (!tenant) {
     return NextResponse.json(
-      { error: { code: 'not_a_tenant', message: 'This account has no tenant identity to acknowledge with.' } },
+      {
+        error: {
+          code: 'not_a_tenant',
+          message: 'This account has no tenant identity to acknowledge with.',
+        },
+      },
       { status: 403 },
     );
   }

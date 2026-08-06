@@ -37,7 +37,10 @@ describe('MockEmailProvider', () => {
   });
 });
 
-const CONFIG: ResendConfig = { apiKey: 'test-api-key', fromAddress: 'PropertyVault <billing@propertyvault.example>' };
+const CONFIG: ResendConfig = {
+  apiKey: 'test-api-key',
+  fromAddress: 'PropertyVault <billing@propertyvault.example>',
+};
 
 describe('ResendEmailProvider', () => {
   const originalFetch = global.fetch;

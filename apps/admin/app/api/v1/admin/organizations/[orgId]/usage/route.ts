@@ -53,7 +53,10 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     );
   }
 
-  const currentPeriod = Object.fromEntries(USAGE_TYPES.map((t) => [t, 0])) as Record<string, number>;
+  const currentPeriod = Object.fromEntries(USAGE_TYPES.map((t) => [t, 0])) as Record<
+    string,
+    number
+  >;
   for (const row of eventsResult.data ?? []) {
     const key = row.usage_type as string;
     currentPeriod[key] = (currentPeriod[key] ?? 0) + (row.quantity as number);

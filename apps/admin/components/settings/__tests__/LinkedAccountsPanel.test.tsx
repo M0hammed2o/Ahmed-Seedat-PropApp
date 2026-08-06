@@ -33,7 +33,7 @@ describe('LinkedAccountsPanel', () => {
     expect(screen.getByText('Link account')).toBeTruthy(); // Apple, still unlinked
   });
 
-  it('disables Unlink when it is the caller\'s only identity -- unlinkIdentity() itself requires at least 2', async () => {
+  it("disables Unlink when it is the caller's only identity -- unlinkIdentity() itself requires at least 2", async () => {
     getUserIdentities.mockResolvedValueOnce({
       data: { identities: [{ identity_id: 'id-1', provider: 'google' }] },
       error: null,

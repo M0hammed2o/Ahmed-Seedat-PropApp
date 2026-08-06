@@ -5,7 +5,10 @@ import { mapUnitRow, requireOrgRole } from '@/lib/portfolio';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
-async function loadVisibleUnit(supabase: Awaited<ReturnType<typeof getServerSupabaseClient>>, id: string) {
+async function loadVisibleUnit(
+  supabase: Awaited<ReturnType<typeof getServerSupabaseClient>>,
+  id: string,
+) {
   return supabase.from('units').select('*').eq('id', id).maybeSingle();
 }
 
@@ -106,7 +109,12 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   if (parsed.data.marketRent !== undefined) patch.market_rent = parsed.data.marketRent;
   if (parsed.data.status !== undefined) patch.status = parsed.data.status;
 
-  const { data, error } = await supabase.from('units').update(patch).eq('id', id).select('*').single();
+  const { data, error } = await supabase
+    .from('units')
+    .update(patch)
+    .eq('id', id)
+    .select('*')
+    .single();
 
   if (error) {
     return NextResponse.json(

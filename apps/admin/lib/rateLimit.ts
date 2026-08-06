@@ -29,7 +29,10 @@ export async function rateLimitOrRespond(
   // this codebase -- this is throttling, not access control, so the failure mode is "no
   // protection this request" not "deny everyone").
   if (error) {
-    console.error(`[rateLimit] check_rate_limit RPC failed for bucket "${bucketKey}"`, error.message);
+    console.error(
+      `[rateLimit] check_rate_limit RPC failed for bucket "${bucketKey}"`,
+      error.message,
+    );
     return null;
   }
 

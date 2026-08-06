@@ -36,7 +36,9 @@ export async function POST(request: NextRequest) {
 
   const serviceClient = getServiceRoleClient();
 
-  const { data: transitions, error: transitionsError } = await serviceClient.rpc('expire_trials_and_suspend_overdue');
+  const { data: transitions, error: transitionsError } = await serviceClient.rpc(
+    'expire_trials_and_suspend_overdue',
+  );
   if (transitionsError) {
     return NextResponse.json(
       { error: { code: 'subscription_lifecycle_check_failed', message: transitionsError.message } },
@@ -92,15 +94,24 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const { data: expiringSoon, error: expiringSoonError } = await serviceClient.rpc('trials_expiring_soon', { p_within_days: 3 });
+  const { data: expiringSoon, error: expiringSoonError } = await serviceClient.rpc(
+    'trials_expiring_soon',
+    { p_within_days: 3 },
+  );
   if (expiringSoonError) {
     return NextResponse.json(
-      { error: { code: 'subscription_lifecycle_check_failed', message: expiringSoonError.message } },
+      {
+        error: { code: 'subscription_lifecycle_check_failed', message: expiringSoonError.message },
+      },
       { status: 500 },
     );
   }
 
-  const expiring = (expiringSoon ?? []) as Array<{ org_id: string; legal_name: string; trial_ends_at: string }>;
+  const expiring = (expiringSoon ?? []) as Array<{
+    org_id: string;
+    legal_name: string;
+    trial_ends_at: string;
+  }>;
   let remindersSent = 0;
   for (const org of expiring) {
     try {
@@ -127,7 +138,10 @@ export async function POST(request: NextRequest) {
       // Stamped even if no active principal was found -- an org with nobody to email still
       // shouldn't be re-attempted forever; that gap belongs in TECHNICAL_DEBT_REGISTER.md, not
       // an infinite retry here.
-      await serviceClient.from('organizations').update({ trial_reminder_sent_at: new Date().toISOString() }).eq('id', org.org_id);
+      await serviceClient
+        .from('organizations')
+        .update({ trial_reminder_sent_at: new Date().toISOString() })
+        .eq('id', org.org_id);
       remindersSent += 1;
     } catch (err) {
       console.error('[emailDispatch] trial_expiring_soon dispatch failed', err);

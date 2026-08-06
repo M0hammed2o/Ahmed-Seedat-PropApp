@@ -26,7 +26,13 @@ interface SubscriptionPayment {
 // super_admin trigger the mock BillingGatewayProvider's checkout/cancel actions. Never activates
 // real billing (apps/admin/lib/providers/billing.ts is mock-only until a real gateway account
 // exists).
-export function BillingPanel({ orgId, currentUserRole }: { orgId: string; currentUserRole: AdminRole }) {
+export function BillingPanel({
+  orgId,
+  currentUserRole,
+}: {
+  orgId: string;
+  currentUserRole: AdminRole;
+}) {
   const router = useRouter();
   const canManageBilling = currentUserRole === 'super_admin';
 
@@ -59,7 +65,10 @@ export function BillingPanel({ orgId, currentUserRole }: { orgId: string; curren
       const response = await fetch(`/api/v1/admin/organizations/${orgId}/billing/checkout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planId: selectedPlanId, idempotencyKey: `checkout-${orgId}-${Date.now()}` }),
+        body: JSON.stringify({
+          planId: selectedPlanId,
+          idempotencyKey: `checkout-${orgId}-${Date.now()}`,
+        }),
       });
       const body = await response.json();
       if (!response.ok) {
@@ -100,10 +109,14 @@ export function BillingPanel({ orgId, currentUserRole }: { orgId: string; curren
 
   return (
     <div className="mt-6 rounded-lg border border-light-border p-4 dark:border-dark-border">
-      <p className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">Billing</p>
+      <p className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+        Billing
+      </p>
 
       {error ? (
-        <p className="mt-2 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">{error}</p>
+        <p className="mt-2 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">
+          {error}
+        </p>
       ) : null}
 
       {canManageBilling ? (
@@ -123,7 +136,12 @@ export function BillingPanel({ orgId, currentUserRole }: { orgId: string; curren
             {busy ? 'Starting…' : 'Start checkout'}
           </Button>
           {latestPayment?.providerReference ? (
-            <Button size="sm" variant="secondary" disabled={busy} onClick={() => cancelSubscription(latestPayment.providerReference!)}>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={busy}
+              onClick={() => cancelSubscription(latestPayment.providerReference!)}
+            >
               Cancel subscription
             </Button>
           ) : null}
@@ -146,7 +164,10 @@ export function BillingPanel({ orgId, currentUserRole }: { orgId: string; curren
         <tbody>
           {payments.length === 0 ? (
             <tr>
-              <td colSpan={4} className="py-3 text-center text-light-textMuted dark:text-dark-textMuted">
+              <td
+                colSpan={4}
+                className="py-3 text-center text-light-textMuted dark:text-dark-textMuted"
+              >
                 No billing history yet.
               </td>
             </tr>
@@ -159,8 +180,12 @@ export function BillingPanel({ orgId, currentUserRole }: { orgId: string; curren
                 <td className="py-1.5 text-light-textPrimary dark:text-dark-textPrimary">
                   {p.currency} {p.amount.toLocaleString('en-ZA')}
                 </td>
-                <td className="py-1.5 capitalize text-light-textSecondary dark:text-dark-textSecondary">{p.status}</td>
-                <td className="py-1.5 text-light-textMuted dark:text-dark-textMuted">{p.providerReference ?? '—'}</td>
+                <td className="py-1.5 capitalize text-light-textSecondary dark:text-dark-textSecondary">
+                  {p.status}
+                </td>
+                <td className="py-1.5 text-light-textMuted dark:text-dark-textMuted">
+                  {p.providerReference ?? '—'}
+                </td>
               </tr>
             ))
           )}

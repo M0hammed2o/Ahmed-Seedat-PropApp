@@ -18,7 +18,12 @@ export async function requireAdminRoleOrRespond(
   } catch {
     return {
       response: NextResponse.json(
-        { error: { code: 'forbidden', message: 'You do not have permission to perform this action.' } },
+        {
+          error: {
+            code: 'forbidden',
+            message: 'You do not have permission to perform this action.',
+          },
+        },
         { status: 403 },
       ),
     };

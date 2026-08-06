@@ -14,7 +14,12 @@ import { rateLimitOrRespond, requestIp } from '@/lib/rateLimit';
  */
 export async function POST(request: NextRequest) {
   const serviceClient = getServiceRoleClient();
-  const limited = await rateLimitOrRespond(serviceClient, `auth-mfa-enroll:${requestIp(request)}`, RATE_LIMITS.mfaVerifyAttemptsPerMinute, 60);
+  const limited = await rateLimitOrRespond(
+    serviceClient,
+    `auth-mfa-enroll:${requestIp(request)}`,
+    RATE_LIMITS.mfaVerifyAttemptsPerMinute,
+    60,
+  );
   if (limited) return limited;
 
   const supabase = await getServerSupabaseClient();
@@ -22,15 +27,31 @@ export async function POST(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.json({ error: { code: 'unauthenticated', message: 'Sign in required.' } }, { status: 401 });
+    return NextResponse.json(
+      { error: { code: 'unauthenticated', message: 'Sign in required.' } },
+      { status: 401 },
+    );
   }
 
-  const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp', friendlyName: `${branding.productName} — ${new Date().toISOString().slice(0, 10)}` });
+  const { data, error } = await supabase.auth.mfa.enroll({
+    factorType: 'totp',
+    friendlyName: `${branding.productName} — ${new Date().toISOString().slice(0, 10)}`,
+  });
   if (error || !data) {
-    return NextResponse.json({ error: { code: 'mfa_enroll_failed', message: 'Could not start MFA enrollment. Try again.' } }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: { code: 'mfa_enroll_failed', message: 'Could not start MFA enrollment. Try again.' },
+      },
+      { status: 500 },
+    );
   }
 
-  return NextResponse.json({ factorId: data.id, qrCode: data.totp.qr_code, secret: data.totp.secret, uri: data.totp.uri });
+  return NextResponse.json({
+    factorId: data.id,
+    qrCode: data.totp.qr_code,
+    secret: data.totp.secret,
+    uri: data.totp.uri,
+  });
 }
 
 const verifyEnrollSchema = z.object({
@@ -50,19 +71,33 @@ export async function PATCH(request: NextRequest) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: { code: 'invalid_json', message: 'Request body must be valid JSON.' } }, { status: 400 });
+    return NextResponse.json(
+      { error: { code: 'invalid_json', message: 'Request body must be valid JSON.' } },
+      { status: 400 },
+    );
   }
 
   const parsed = verifyEnrollSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
-      { error: { code: 'validation_failed', message: 'Check the highlighted fields.', field_errors: parsed.error.flatten().fieldErrors } },
+      {
+        error: {
+          code: 'validation_failed',
+          message: 'Check the highlighted fields.',
+          field_errors: parsed.error.flatten().fieldErrors,
+        },
+      },
       { status: 400 },
     );
   }
 
   const serviceClient = getServiceRoleClient();
-  const limited = await rateLimitOrRespond(serviceClient, `auth-mfa-enroll-verify:${requestIp(request)}`, RATE_LIMITS.mfaVerifyAttemptsPerMinute, 60);
+  const limited = await rateLimitOrRespond(
+    serviceClient,
+    `auth-mfa-enroll-verify:${requestIp(request)}`,
+    RATE_LIMITS.mfaVerifyAttemptsPerMinute,
+    60,
+  );
   if (limited) return limited;
 
   const supabase = await getServerSupabaseClient();
@@ -70,12 +105,21 @@ export async function PATCH(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.json({ error: { code: 'unauthenticated', message: 'Sign in required.' } }, { status: 401 });
+    return NextResponse.json(
+      { error: { code: 'unauthenticated', message: 'Sign in required.' } },
+      { status: 401 },
+    );
   }
 
-  const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId: parsed.data.factorId, code: parsed.data.code });
+  const { error } = await supabase.auth.mfa.challengeAndVerify({
+    factorId: parsed.data.factorId,
+    code: parsed.data.code,
+  });
   if (error) {
-    return NextResponse.json({ error: { code: 'invalid_mfa_code', message: 'Incorrect or expired code. Try again.' } }, { status: 401 });
+    return NextResponse.json(
+      { error: { code: 'invalid_mfa_code', message: 'Incorrect or expired code. Try again.' } },
+      { status: 401 },
+    );
   }
 
   return NextResponse.json({ verified: true });

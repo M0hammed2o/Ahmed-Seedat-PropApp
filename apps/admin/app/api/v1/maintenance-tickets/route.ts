@@ -55,7 +55,9 @@ export async function GET(request: NextRequest) {
   const maintenanceTickets = rows.map(mapMaintenanceTicketRow);
   const last = rows[rows.length - 1];
   const nextCursor =
-    rows.length === limit && last ? encodeCursor({ createdAt: last.created_at, id: last.id }) : null;
+    rows.length === limit && last
+      ? encodeCursor({ createdAt: last.created_at, id: last.id })
+      : null;
 
   return NextResponse.json({ maintenanceTickets, next_cursor: nextCursor });
 }
@@ -102,7 +104,8 @@ export async function POST(request: NextRequest) {
       {
         error: {
           code: 'forbidden',
-          message: 'You do not have permission to create maintenance tickets for this organization.',
+          message:
+            'You do not have permission to create maintenance tickets for this organization.',
         },
       },
       { status: 403 },

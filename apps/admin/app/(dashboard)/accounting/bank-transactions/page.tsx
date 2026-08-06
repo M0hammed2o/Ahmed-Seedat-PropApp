@@ -6,7 +6,11 @@ import { Button } from '@/components/ui/Button';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapBankTransactionRow } from '@/lib/accounting';
-import { resolvePortalSession, findActiveMembership, canPostAccountingRecords } from '@/lib/orgSession';
+import {
+  resolvePortalSession,
+  findActiveMembership,
+  canPostAccountingRecords,
+} from '@/lib/orgSession';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 const DEMO_TRANSACTIONS: BankTransaction[] = [
@@ -43,8 +47,12 @@ const DEMO_RENT_SCHEDULE: RentSchedule[] = [
  * vendor-bill/expense matching in V1).
  */
 export default async function BankTransactionsPage() {
-  const transactions: BankTransaction[] = ADMIN_DEMO_MODE ? DEMO_TRANSACTIONS : await loadTransactions();
-  const candidates: RentSchedule[] = ADMIN_DEMO_MODE ? DEMO_RENT_SCHEDULE : await loadRentScheduleCandidates();
+  const transactions: BankTransaction[] = ADMIN_DEMO_MODE
+    ? DEMO_TRANSACTIONS
+    : await loadTransactions();
+  const candidates: RentSchedule[] = ADMIN_DEMO_MODE
+    ? DEMO_RENT_SCHEDULE
+    : await loadRentScheduleCandidates();
   const canPost = ADMIN_DEMO_MODE ? true : await resolveCanPost();
 
   const unmatched = transactions.filter((t) => t.matchStatus === 'unmatched').length;
@@ -67,7 +75,11 @@ export default async function BankTransactionsPage() {
         <AdminMetricCard label="Matched" value={matched} />
       </div>
 
-      <BankTransactionsFilterClient transactions={transactions} canPost={canPost} rentScheduleCandidates={candidates} />
+      <BankTransactionsFilterClient
+        transactions={transactions}
+        canPost={canPost}
+        rentScheduleCandidates={candidates}
+      />
     </div>
   );
 }

@@ -43,7 +43,13 @@ describe('LeasesTable', () => {
   });
 
   it('renders the empty state with the custom message and action when there are no leases', () => {
-    render(<LeasesTable data={[]} emptyMessage="No leases yet" emptyAction={<button>+ Add lease</button>} />);
+    render(
+      <LeasesTable
+        data={[]}
+        emptyMessage="No leases yet"
+        emptyAction={<button>+ Add lease</button>}
+      />,
+    );
     expect(screen.getByText('No leases yet')).toBeTruthy();
     expect(screen.getByText('+ Add lease')).toBeTruthy();
   });

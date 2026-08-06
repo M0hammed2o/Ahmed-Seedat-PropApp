@@ -14,7 +14,10 @@ export interface ScreeningResult {
 }
 
 export interface TenantScreeningProvider {
-  runScreening(input: { applicantName: string; applicantEmail: string | null }): Promise<ScreeningResult>;
+  runScreening(input: {
+    applicantName: string;
+    applicantEmail: string | null;
+  }): Promise<ScreeningResult>;
 }
 
 /**

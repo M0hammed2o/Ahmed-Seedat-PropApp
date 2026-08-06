@@ -7,7 +7,10 @@ import { AdminDataTable } from '@/components/ui/AdminDataTable';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { MatchTransactionControl } from '@/components/accounting/MatchTransactionControl';
 
-function buildColumns(canPost: boolean, rentScheduleCandidates: RentSchedule[]): ColumnDef<BankTransaction, unknown>[] {
+function buildColumns(
+  canPost: boolean,
+  rentScheduleCandidates: RentSchedule[],
+): ColumnDef<BankTransaction, unknown>[] {
   const columns: ColumnDef<BankTransaction, unknown>[] = [
     { header: 'Date', accessorKey: 'transactionDate' },
     {
@@ -24,7 +27,13 @@ function buildColumns(canPost: boolean, rentScheduleCandidates: RentSchedule[]):
       header: 'Status',
       accessorKey: 'matchStatus',
       cell: (info) => (
-        <StatusBadge presentation={BANK_TRANSACTION_MATCH_STATUS_PRESENTATION[info.getValue() as BankTransaction['matchStatus']]} />
+        <StatusBadge
+          presentation={
+            BANK_TRANSACTION_MATCH_STATUS_PRESENTATION[
+              info.getValue() as BankTransaction['matchStatus']
+            ]
+          }
+        />
       ),
     },
   ];
@@ -35,7 +44,10 @@ function buildColumns(canPost: boolean, rentScheduleCandidates: RentSchedule[]):
       id: 'actions',
       cell: (info) =>
         info.row.original.matchStatus === 'unmatched' ? (
-          <MatchTransactionControl bankTransactionId={info.row.original.id} candidates={rentScheduleCandidates} />
+          <MatchTransactionControl
+            bankTransactionId={info.row.original.id}
+            candidates={rentScheduleCandidates}
+          />
         ) : null,
     });
   }

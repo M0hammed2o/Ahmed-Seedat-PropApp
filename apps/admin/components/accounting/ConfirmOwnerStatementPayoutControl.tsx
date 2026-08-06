@@ -52,9 +52,13 @@ export function ConfirmOwnerStatementPayoutControl({
 
   return (
     <div className="mt-4 rounded-lg border border-light-border p-4 dark:border-dark-border">
-      <p className="mb-2 text-xs text-light-textSecondary dark:text-dark-textSecondary">Confirm payout</p>
+      <p className="mb-2 text-xs text-light-textSecondary dark:text-dark-textSecondary">
+        Confirm payout
+      </p>
       {error ? (
-        <p className="mb-2 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">{error}</p>
+        <p className="mb-2 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">
+          {error}
+        </p>
       ) : null}
       <div className="flex flex-wrap items-center gap-2">
         <select
@@ -64,7 +68,8 @@ export function ConfirmOwnerStatementPayoutControl({
         >
           {candidates.map((c) => (
             <option key={c.id} value={c.id}>
-              {c.transactionDate} — R{Math.abs(c.amount).toLocaleString('en-ZA')} {c.description ?? ''}
+              {c.transactionDate} — R{Math.abs(c.amount).toLocaleString('en-ZA')}{' '}
+              {c.description ?? ''}
             </option>
           ))}
         </select>

@@ -91,7 +91,7 @@ If either says `false`, change it to `true` and save. (This file is git-ignored 
 edits never get committed.)
 
 **Why both flags**: this is a deliberate double-gate (`SECURITY.md` — the flag that closed the
-old demo-mode auth-bypass risk). Demo Mode only activates when *both* are `true`; either alone
+old demo-mode auth-bypass risk). Demo Mode only activates when _both_ are `true`; either alone
 does nothing. `ALLOW_DEMO_MODE` must never be set this way outside a local `.env.local` file.
 
 ## 8. Install dependencies (only if needed)
@@ -189,18 +189,22 @@ icon in the system tray to stop animating, then retry.
 
 **`npx supabase start` hangs or fails with a port-in-use error**
 Something else on the machine is using ports `54321-54324`. Check what's running:
+
 ```
 netstat -ano | findstr :54321
 ```
+
 If it's a stale Supabase instance from a previous session, `npx supabase stop` first, then
 `npx supabase start` again.
 
 **`next start` says "Port 3090 is already in use"**
 Something else is bound to 3090 (possibly a leftover server from an earlier attempt tonight):
+
 ```
 netstat -ano | findstr :3090
 taskkill /PID <the_PID> /F
 ```
+
 Then retry `npx next start -p 3090`. Alternatively, use a different port: `npx next start -p 3091`
 and adjust the URL you open accordingly.
 

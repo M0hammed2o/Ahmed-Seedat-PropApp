@@ -41,7 +41,12 @@ describe('ApplicationActions', () => {
   it('shows the decision outcome and no action panels once decided', () => {
     render(
       <ApplicationActions
-        application={{ ...BASE, status: 'decided', decision: 'approved', decidedAt: '2026-08-02T00:00:00Z' }}
+        application={{
+          ...BASE,
+          status: 'decided',
+          decision: 'approved',
+          decidedAt: '2026-08-02T00:00:00Z',
+        }}
         canAct
       />,
     );
@@ -70,7 +75,12 @@ describe('ApplicationActions', () => {
   });
 
   it('shows the granted consent timestamp once POPIA consent is recorded', () => {
-    render(<ApplicationActions application={{ ...BASE, popiaConsentAt: '2026-08-01T00:00:00Z' }} canAct />);
+    render(
+      <ApplicationActions
+        application={{ ...BASE, popiaConsentAt: '2026-08-01T00:00:00Z' }}
+        canAct
+      />,
+    );
     expect(screen.getByText(/Granted/)).toBeTruthy();
     expect(screen.queryByText('Record consent')).toBeNull();
   });

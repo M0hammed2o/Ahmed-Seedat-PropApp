@@ -41,7 +41,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   const canWrite = await requireOrgRole(supabase, inspection.org_id, 'agent');
   if (!canWrite) {
     return NextResponse.json(
-      { error: { code: 'forbidden', message: 'You do not have permission to add items to this inspection.' } },
+      {
+        error: {
+          code: 'forbidden',
+          message: 'You do not have permission to add items to this inspection.',
+        },
+      },
       { status: 403 },
     );
   }

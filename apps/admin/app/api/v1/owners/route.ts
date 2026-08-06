@@ -50,7 +50,9 @@ export async function GET(request: NextRequest) {
   const owners = rows.map(mapOwnerRow);
   const last = rows[rows.length - 1];
   const nextCursor =
-    rows.length === limit && last ? encodeCursor({ createdAt: last.created_at, id: last.id }) : null;
+    rows.length === limit && last
+      ? encodeCursor({ createdAt: last.created_at, id: last.id })
+      : null;
 
   return NextResponse.json({ owners, next_cursor: nextCursor });
 }

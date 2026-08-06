@@ -29,10 +29,21 @@ const columns: ColumnDef<Expense, unknown>[] = [
   {
     header: 'Status',
     accessorKey: 'status',
-    cell: (info) => <StatusBadge presentation={EXPENSE_STATUS_PRESENTATION[info.getValue() as Expense['status']]} />,
+    cell: (info) => (
+      <StatusBadge
+        presentation={EXPENSE_STATUS_PRESENTATION[info.getValue() as Expense['status']]}
+      />
+    ),
   },
 ];
 
 export function ExpensesTable({ data, emptyAction }: { data: Expense[]; emptyAction?: ReactNode }) {
-  return <AdminDataTable emptyMessage="No expenses yet" emptyAction={emptyAction} data={data} columns={columns} />;
+  return (
+    <AdminDataTable
+      emptyMessage="No expenses yet"
+      emptyAction={emptyAction}
+      data={data}
+      columns={columns}
+    />
+  );
 }

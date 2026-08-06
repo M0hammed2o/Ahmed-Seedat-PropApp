@@ -6,7 +6,10 @@ import { mapTenantRow } from '@/lib/leasing';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
-async function loadVisibleTenant(supabase: Awaited<ReturnType<typeof getServerSupabaseClient>>, id: string) {
+async function loadVisibleTenant(
+  supabase: Awaited<ReturnType<typeof getServerSupabaseClient>>,
+  id: string,
+) {
   return supabase.from('tenants').select('*').eq('id', id).maybeSingle();
 }
 
@@ -110,7 +113,12 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   if (parsed.data.email !== undefined) patch.email = parsed.data.email;
   if (parsed.data.phone !== undefined) patch.phone = parsed.data.phone;
 
-  const { data, error } = await supabase.from('tenants').update(patch).eq('id', id).select('*').single();
+  const { data, error } = await supabase
+    .from('tenants')
+    .update(patch)
+    .eq('id', id)
+    .select('*')
+    .single();
 
   if (error) {
     return NextResponse.json(

@@ -96,20 +96,35 @@ function generateFormSignature(fields: Map<string, string>, passphrase: string):
 // passphrase) is sorted ALPHABETICALLY by key first -- a genuinely different rule from the
 // checkout/ITN signature above, confirmed from a second, independent source before writing this,
 // not assumed to be "the same algorithm, reused."
-function generateManagementApiSignature(fields: Record<string, string>, passphrase: string): string {
+function generateManagementApiSignature(
+  fields: Record<string, string>,
+  passphrase: string,
+): string {
   const withPassphrase: Record<string, string> = { ...fields, passphrase };
   const sortedKeys = Object.keys(withPassphrase).sort();
-  const pfOutput = sortedKeys.map((key) => `${key}=${phpUrlEncode(withPassphrase[key]!.trim())}`).join('&');
+  const pfOutput = sortedKeys
+    .map((key) => `${key}=${phpUrlEncode(withPassphrase[key]!.trim())}`)
+    .join('&');
   return crypto.createHash('md5').update(pfOutput).digest('hex');
 }
 
-function managementApiHeaders(config: PayFastConfig, bodyFields: Record<string, string> = {}): Record<string, string> {
+function managementApiHeaders(
+  config: PayFastConfig,
+  bodyFields: Record<string, string> = {},
+): Record<string, string> {
   // ISO 8601 without milliseconds, matching the documented/cross-checked example exactly
   // (e.g. "2026-08-05T14:30:45") -- timezone-offset suffix was inconsistently described across
   // sources; omitted here since the concrete working code example found did not include one.
   const timestamp = new Date().toISOString().split('.')[0]!;
-  const baseFields: Record<string, string> = { 'merchant-id': config.merchantId, version: 'v1', timestamp };
-  const signature = generateManagementApiSignature({ ...baseFields, ...bodyFields }, config.passphrase);
+  const baseFields: Record<string, string> = {
+    'merchant-id': config.merchantId,
+    version: 'v1',
+    timestamp,
+  };
+  const signature = generateManagementApiSignature(
+    { ...baseFields, ...bodyFields },
+    config.passphrase,
+  );
   return { ...baseFields, signature, 'Content-Type': 'application/json' };
 }
 
@@ -194,7 +209,9 @@ export class PayFastBillingGatewayProvider implements BillingGatewayProvider {
     const response = await fetch(url, { method: 'PUT', headers });
     if (!response.ok) {
       const body = await response.text().catch(() => '');
-      throw new Error(`PayFast subscription cancel failed (${response.status}): ${body || response.statusText}`);
+      throw new Error(
+        `PayFast subscription cancel failed (${response.status}): ${body || response.statusText}`,
+      );
     }
 
     return { providerSubscriptionId: token, status: 'cancelled' };
@@ -212,7 +229,11 @@ export class PayFastBillingGatewayProvider implements BillingGatewayProvider {
     };
     const headers = managementApiHeaders(this.config, bodyObject);
 
-    const response = await fetch(url, { method: 'POST', headers, body: JSON.stringify(bodyObject) });
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(bodyObject),
+    });
     if (!response.ok) {
       const body = await response.text().catch(() => '');
       throw new Error(`PayFast refund failed (${response.status}): ${body || response.statusText}`);
@@ -256,7 +277,10 @@ export class PayFastBillingGatewayProvider implements BillingGatewayProvider {
       // (verification, not "verification unless we couldn't check"), fail closed. A dropped ITN
       // gets retried by PayFast on a non-2xx response (this codebase's own webhook route already
       // returns 400 on a false result here), so this is not a silent, permanent loss of the event.
-      console.error('[PayFastBillingGatewayProvider] server-to-server ITN confirmation failed', err);
+      console.error(
+        '[PayFastBillingGatewayProvider] server-to-server ITN confirmation failed',
+        err,
+      );
       return false;
     }
   }
@@ -283,7 +307,10 @@ export class PayFastBillingGatewayProvider implements BillingGatewayProvider {
     if (paymentStatus === 'COMPLETE') type = 'payment_succeeded';
     else if (paymentStatus === 'FAILED') type = 'payment_failed';
     else if (paymentStatus === 'CANCELLED') type = 'subscription_cancelled';
-    else throw new Error(`Unrecognized (or not-yet-handled) PayFast ITN payment_status: ${paymentStatus}`);
+    else
+      throw new Error(
+        `Unrecognized (or not-yet-handled) PayFast ITN payment_status: ${paymentStatus}`,
+      );
 
     const raw: Record<string, unknown> = {};
     for (const [key, value] of fields) raw[key] = value;

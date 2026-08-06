@@ -13,7 +13,11 @@ export function InspectionsFilterClient({ inspections }: { inspections: Inspecti
 
   return (
     <div className="space-y-4">
-      <SearchBar value={query} onChange={setQuery} placeholder="Search inspections by type or status" />
+      <SearchBar
+        value={query}
+        onChange={setQuery}
+        placeholder="Search inspections by type or status"
+      />
       <InspectionsTable data={filtered} />
     </div>
   );

@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { startSubscriptionCheckout, processBillingWebhookEvent, cancelOrgSubscription } from '../billing';
+import {
+  startSubscriptionCheckout,
+  processBillingWebhookEvent,
+  cancelOrgSubscription,
+} from '../billing';
 
 // Real integration test against the local Supabase instance (same pattern as
 // lib/supabase/__tests__/server.test.ts) -- mocking Supabase's chained query builder would only
@@ -79,7 +83,11 @@ describeIfSupabase('billing service (real local Supabase integration)', () => {
   });
 
   it('processBillingWebhookEvent moves a pending payment to paid and activates the org', async () => {
-    const checkout = await startSubscriptionCheckout(serviceClient, { orgId, planId, idempotencyKey: `test-${orgId}` });
+    const checkout = await startSubscriptionCheckout(serviceClient, {
+      orgId,
+      planId,
+      idempotencyKey: `test-${orgId}`,
+    });
 
     const rawBody = JSON.stringify({
       providerEventId: `evt-${orgId}`,
@@ -90,7 +98,10 @@ describeIfSupabase('billing service (real local Supabase integration)', () => {
       currency: 'ZAR',
     });
 
-    const result = await processBillingWebhookEvent(serviceClient, { rawBody, signatureHeader: 'test-signature' });
+    const result = await processBillingWebhookEvent(serviceClient, {
+      rawBody,
+      signatureHeader: 'test-signature',
+    });
     expect(result.alreadyProcessed).toBe(false);
 
     const { data: payment } = await serviceClient
@@ -100,12 +111,20 @@ describeIfSupabase('billing service (real local Supabase integration)', () => {
       .single();
     expect(payment!.status).toBe('paid');
 
-    const { data: org } = await serviceClient.from('organizations').select('status').eq('id', orgId).single();
+    const { data: org } = await serviceClient
+      .from('organizations')
+      .select('status')
+      .eq('id', orgId)
+      .single();
     expect(org!.status).toBe('active');
   });
 
   it('a replayed webhook (same providerEventId) is a no-op, not a double-processed payment', async () => {
-    const checkout = await startSubscriptionCheckout(serviceClient, { orgId, planId, idempotencyKey: `test-${orgId}` });
+    const checkout = await startSubscriptionCheckout(serviceClient, {
+      orgId,
+      planId,
+      idempotencyKey: `test-${orgId}`,
+    });
 
     const rawBody = JSON.stringify({
       providerEventId: `evt-replay-${orgId}`,
@@ -116,8 +135,14 @@ describeIfSupabase('billing service (real local Supabase integration)', () => {
       currency: 'ZAR',
     });
 
-    const first = await processBillingWebhookEvent(serviceClient, { rawBody, signatureHeader: 'test-signature' });
-    const second = await processBillingWebhookEvent(serviceClient, { rawBody, signatureHeader: 'test-signature' });
+    const first = await processBillingWebhookEvent(serviceClient, {
+      rawBody,
+      signatureHeader: 'test-signature',
+    });
+    const second = await processBillingWebhookEvent(serviceClient, {
+      rawBody,
+      signatureHeader: 'test-signature',
+    });
 
     expect(first.alreadyProcessed).toBe(false);
     expect(second.alreadyProcessed).toBe(true);
@@ -130,7 +155,11 @@ describeIfSupabase('billing service (real local Supabase integration)', () => {
   });
 
   it('a payment_failed event marks the org overdue without touching subscription_payments as paid', async () => {
-    const checkout = await startSubscriptionCheckout(serviceClient, { orgId, planId, idempotencyKey: `test-${orgId}` });
+    const checkout = await startSubscriptionCheckout(serviceClient, {
+      orgId,
+      planId,
+      idempotencyKey: `test-${orgId}`,
+    });
 
     const rawBody = JSON.stringify({
       providerEventId: `evt-fail-${orgId}`,
@@ -148,12 +177,20 @@ describeIfSupabase('billing service (real local Supabase integration)', () => {
       .single();
     expect(payment!.status).toBe('failed');
 
-    const { data: org } = await serviceClient.from('organizations').select('status').eq('id', orgId).single();
+    const { data: org } = await serviceClient
+      .from('organizations')
+      .select('status')
+      .eq('id', orgId)
+      .single();
     expect(org!.status).toBe('overdue');
   });
 
   it('cancelOrgSubscription sets both the subscription and organization to cancelled', async () => {
-    const checkout = await startSubscriptionCheckout(serviceClient, { orgId, planId, idempotencyKey: `test-${orgId}` });
+    const checkout = await startSubscriptionCheckout(serviceClient, {
+      orgId,
+      planId,
+      idempotencyKey: `test-${orgId}`,
+    });
 
     // cancelOrgSubscription resolves the gateway token from provider_subscription_token, which is
     // only ever populated by a successful payment's webhook -- there is nothing to cancel until
@@ -171,13 +208,23 @@ describeIfSupabase('billing service (real local Supabase integration)', () => {
 
     await cancelOrgSubscription(serviceClient, { orgId });
 
-    const { data: org } = await serviceClient.from('organizations').select('status').eq('id', orgId).single();
+    const { data: org } = await serviceClient
+      .from('organizations')
+      .select('status')
+      .eq('id', orgId)
+      .single();
     expect(org!.status).toBe('cancelled');
   });
 
   it('cancelOrgSubscription throws if no payment has ever succeeded (no gateway token on record)', async () => {
-    await startSubscriptionCheckout(serviceClient, { orgId, planId, idempotencyKey: `test-${orgId}` });
-    await expect(cancelOrgSubscription(serviceClient, { orgId })).rejects.toThrow(/no gateway token/);
+    await startSubscriptionCheckout(serviceClient, {
+      orgId,
+      planId,
+      idempotencyKey: `test-${orgId}`,
+    });
+    await expect(cancelOrgSubscription(serviceClient, { orgId })).rejects.toThrow(
+      /no gateway token/,
+    );
   });
 
   it('rejects a webhook with no signature header', async () => {
@@ -187,6 +234,8 @@ describeIfSupabase('billing service (real local Supabase integration)', () => {
       providerReference: 'mock-sub-x',
       orgId,
     });
-    await expect(processBillingWebhookEvent(serviceClient, { rawBody, signatureHeader: null })).rejects.toThrow();
+    await expect(
+      processBillingWebhookEvent(serviceClient, { rawBody, signatureHeader: null }),
+    ).rejects.toThrow();
   });
 });

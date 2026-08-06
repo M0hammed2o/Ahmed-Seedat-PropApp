@@ -1,7 +1,10 @@
 import type { Organization, OrganizationSubscription, Plan } from '@propvault/types';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { PermissionDenied } from '@/components/ui/PermissionDenied';
-import { OrganizationBillingView, type SubscriptionPaymentSummary } from '@/components/organizations/OrganizationBillingView';
+import {
+  OrganizationBillingView,
+  type SubscriptionPaymentSummary,
+} from '@/components/organizations/OrganizationBillingView';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapOrganizationRow } from '@/lib/organizations';
 import { resolvePortalSession } from '@/lib/orgSession';
@@ -28,9 +31,47 @@ const DEMO_ORGANIZATION: Organization = {
 };
 
 const DEMO_PLANS: Plan[] = [
-  { id: 'demo-plan-starter', code: 'starter', name: 'Starter', billingCycle: 'monthly', basePrice: 299, currency: 'ZAR', featureLimits: { maxProperties: 5 }, isActive: true, version: 1, createdAt: '2026-01-01T00:00:00Z' },
-  { id: 'demo-plan-professional', code: 'professional', name: 'Professional', billingCycle: 'monthly', basePrice: 699, currency: 'ZAR', featureLimits: { maxProperties: 25, ocrEnabled: true, ownerPortalEnabled: true }, isActive: true, version: 1, createdAt: '2026-01-01T00:00:00Z' },
-  { id: 'demo-plan-business', code: 'business', name: 'Business', billingCycle: 'monthly', basePrice: 1499, currency: 'ZAR', featureLimits: { maxProperties: -1, ocrEnabled: true, ownerPortalEnabled: true, apiAccess: true }, isActive: true, version: 1, createdAt: '2026-01-01T00:00:00Z' },
+  {
+    id: 'demo-plan-starter',
+    code: 'starter',
+    name: 'Starter',
+    billingCycle: 'monthly',
+    basePrice: 299,
+    currency: 'ZAR',
+    featureLimits: { maxProperties: 5 },
+    isActive: true,
+    version: 1,
+    createdAt: '2026-01-01T00:00:00Z',
+  },
+  {
+    id: 'demo-plan-professional',
+    code: 'professional',
+    name: 'Professional',
+    billingCycle: 'monthly',
+    basePrice: 699,
+    currency: 'ZAR',
+    featureLimits: { maxProperties: 25, ocrEnabled: true, ownerPortalEnabled: true },
+    isActive: true,
+    version: 1,
+    createdAt: '2026-01-01T00:00:00Z',
+  },
+  {
+    id: 'demo-plan-business',
+    code: 'business',
+    name: 'Business',
+    billingCycle: 'monthly',
+    basePrice: 1499,
+    currency: 'ZAR',
+    featureLimits: {
+      maxProperties: -1,
+      ocrEnabled: true,
+      ownerPortalEnabled: true,
+      apiAccess: true,
+    },
+    isActive: true,
+    version: 1,
+    createdAt: '2026-01-01T00:00:00Z',
+  },
 ];
 
 /**
@@ -44,8 +85,16 @@ export default async function OrganizationBillingPage() {
   if (ADMIN_DEMO_MODE) {
     return (
       <div className="space-y-5 animate-rise">
-        <PageHeader title="Billing & subscription" subtitle="Manage your PropertyVault plan and view payment history." />
-        <OrganizationBillingView organization={DEMO_ORGANIZATION} plans={DEMO_PLANS} subscription={null} payments={[]} />
+        <PageHeader
+          title="Billing & subscription"
+          subtitle="Manage your PropertyVault plan and view payment history."
+        />
+        <OrganizationBillingView
+          organization={DEMO_ORGANIZATION}
+          plans={DEMO_PLANS}
+          subscription={null}
+          payments={[]}
+        />
       </div>
     );
   }
@@ -71,25 +120,34 @@ export default async function OrganizationBillingPage() {
 
   const supabase = await getServerSupabaseClient();
 
-  const [{ data: orgRow, error: orgError }, { data: planRows, error: plansError }, { data: subRows, error: subError }, { data: paymentRows, error: paymentsError }] =
-    await Promise.all([
-      supabase.from('organizations').select('*').eq('id', activeOrg.orgId).single(),
-      supabase.from('plans').select('*').eq('is_active', true).order('base_price', { ascending: true }),
-      supabase
-        .from('organization_subscriptions')
-        .select('*')
-        .eq('org_id', activeOrg.orgId)
-        .order('current_period_start', { ascending: false })
-        .limit(1),
-      supabase
-        .from('subscription_payments')
-        .select('*')
-        .eq('org_id', activeOrg.orgId)
-        .order('created_at', { ascending: false })
-        .limit(50),
-    ]);
+  const [
+    { data: orgRow, error: orgError },
+    { data: planRows, error: plansError },
+    { data: subRows, error: subError },
+    { data: paymentRows, error: paymentsError },
+  ] = await Promise.all([
+    supabase.from('organizations').select('*').eq('id', activeOrg.orgId).single(),
+    supabase
+      .from('plans')
+      .select('*')
+      .eq('is_active', true)
+      .order('base_price', { ascending: true }),
+    supabase
+      .from('organization_subscriptions')
+      .select('*')
+      .eq('org_id', activeOrg.orgId)
+      .order('current_period_start', { ascending: false })
+      .limit(1),
+    supabase
+      .from('subscription_payments')
+      .select('*')
+      .eq('org_id', activeOrg.orgId)
+      .order('created_at', { ascending: false })
+      .limit(50),
+  ]);
 
-  if (orgError || !orgRow) throw new Error(`Failed to load organization: ${orgError?.message ?? 'not found'}`);
+  if (orgError || !orgRow)
+    throw new Error(`Failed to load organization: ${orgError?.message ?? 'not found'}`);
   if (plansError) throw new Error(`Failed to load plans: ${plansError.message}`);
   if (subError) throw new Error(`Failed to load subscription: ${subError.message}`);
   if (paymentsError) throw new Error(`Failed to load payment history: ${paymentsError.message}`);
@@ -136,8 +194,16 @@ export default async function OrganizationBillingPage() {
 
   return (
     <div className="space-y-5 animate-rise">
-      <PageHeader title="Billing & subscription" subtitle="Manage your PropertyVault plan and view payment history." />
-      <OrganizationBillingView organization={mapOrganizationRow(orgRow)} plans={plans} subscription={subscription} payments={payments} />
+      <PageHeader
+        title="Billing & subscription"
+        subtitle="Manage your PropertyVault plan and view payment history."
+      />
+      <OrganizationBillingView
+        organization={mapOrganizationRow(orgRow)}
+        plans={plans}
+        subscription={subscription}
+        payments={payments}
+      />
     </div>
   );
 }

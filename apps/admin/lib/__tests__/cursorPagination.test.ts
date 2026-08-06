@@ -15,13 +15,22 @@ describe('parseListQuery', () => {
   });
 
   it('ignores a non-numeric or non-positive limit and falls back to the default', () => {
-    expect(parseListQuery(new NextRequest('http://test.local/api/v1/units?limit=abc')).limit).toBe(25);
-    expect(parseListQuery(new NextRequest('http://test.local/api/v1/units?limit=-5')).limit).toBe(25);
-    expect(parseListQuery(new NextRequest('http://test.local/api/v1/units?limit=0')).limit).toBe(25);
+    expect(parseListQuery(new NextRequest('http://test.local/api/v1/units?limit=abc')).limit).toBe(
+      25,
+    );
+    expect(parseListQuery(new NextRequest('http://test.local/api/v1/units?limit=-5')).limit).toBe(
+      25,
+    );
+    expect(parseListQuery(new NextRequest('http://test.local/api/v1/units?limit=0')).limit).toBe(
+      25,
+    );
   });
 
   it('round-trips a cursor produced by encodeCursor', () => {
-    const page = { createdAt: '2026-07-30T00:00:00.000Z', id: 'ffffffff-0000-0000-0000-000000000001' };
+    const page = {
+      createdAt: '2026-07-30T00:00:00.000Z',
+      id: 'ffffffff-0000-0000-0000-000000000001',
+    };
     const encoded = encodeCursor(page);
     const { cursor } = parseListQuery(
       new NextRequest(`http://test.local/api/v1/units?cursor=${encoded}`),

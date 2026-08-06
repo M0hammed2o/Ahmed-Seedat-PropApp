@@ -88,11 +88,17 @@ export default async function ReportsPage() {
           ) : (
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="text-xs text-light-textMuted dark:text-dark-textMuted">Income (rent paid)</p>
-                <MiniLineChart points={data.incomeExpense.map((p) => ({ label: p.label, value: p.income }))} />
+                <p className="text-xs text-light-textMuted dark:text-dark-textMuted">
+                  Income (rent paid)
+                </p>
+                <MiniLineChart
+                  points={data.incomeExpense.map((p) => ({ label: p.label, value: p.income }))}
+                />
               </div>
               <div>
-                <p className="text-xs text-light-textMuted dark:text-dark-textMuted">Expenses (recorded)</p>
+                <p className="text-xs text-light-textMuted dark:text-dark-textMuted">
+                  Expenses (recorded)
+                </p>
                 <MiniLineChart
                   points={data.incomeExpense.map((p) => ({ label: p.label, value: p.expense }))}
                   color="#B3541E"
@@ -114,7 +120,9 @@ export default async function ReportsPage() {
               }
             />
           ) : (
-            <MiniBarChart bars={data.occupancy.map((o) => ({ label: o.label, value: o.occupiedPct }))} />
+            <MiniBarChart
+              bars={data.occupancy.map((o) => ({ label: o.label, value: o.occupiedPct }))}
+            />
           )}
         </Panel>
 
@@ -136,7 +144,10 @@ export default async function ReportsPage() {
 
         <Panel title="Maintenance by Status">
           {data.maintenanceStatusCounts.every((c) => c.value === 0) ? (
-            <EmptyState icon={<span className="text-lg">🔧</span>} title="No maintenance tickets yet" />
+            <EmptyState
+              icon={<span className="text-lg">🔧</span>}
+              title="No maintenance tickets yet"
+            />
           ) : (
             <MiniBarChart bars={data.maintenanceStatusCounts} color="#7A5CC7" />
           )}
@@ -150,7 +161,11 @@ export default async function ReportsPage() {
                 href={r.href}
                 className="flex items-center justify-between rounded-xl border border-light-border px-4 py-3 text-left text-[13px] font-medium text-light-textPrimary transition-colors hover:bg-light-surface dark:border-dark-border dark:text-dark-textPrimary dark:hover:bg-dark-surface"
               >
-                {r.label} <Download className="h-4 w-4 text-light-textMuted dark:text-dark-textMuted" aria-hidden="true" />
+                {r.label}{' '}
+                <Download
+                  className="h-4 w-4 text-light-textMuted dark:text-dark-textMuted"
+                  aria-hidden="true"
+                />
               </Link>
             ))}
           </div>
@@ -176,11 +191,26 @@ interface ReportsData {
 function demoData(): ReportsData {
   const months = lastNMonthKeys(6).map((k) => k.slice(5));
   return {
-    incomeExpense: months.map((m, i) => ({ label: m, income: i === months.length - 1 ? 12500 : 0, expense: i === months.length - 1 ? 1850 : 0 })),
+    incomeExpense: months.map((m, i) => ({
+      label: m,
+      income: i === months.length - 1 ? 12500 : 0,
+      expense: i === months.length - 1 ? 1850 : 0,
+    })),
     occupancy: [{ label: 'Sea Point Apart…', occupiedPct: 100 }],
-    rentStatusCounts: RENT_SCHEDULE_STATUSES.map((s) => ({ label: s, value: s === 'pending' ? 1 : 0 })),
-    maintenanceStatusCounts: MAINTENANCE_STATUSES.map((s) => ({ label: s.replace('_', ' '), value: s === 'to_do' ? 1 : 0 })),
-    stats: { revenueYtd: 84500, avgOccupancyPct: 92, collectionRatePct: 94, maintenanceSpendYtd: 1850 },
+    rentStatusCounts: RENT_SCHEDULE_STATUSES.map((s) => ({
+      label: s,
+      value: s === 'pending' ? 1 : 0,
+    })),
+    maintenanceStatusCounts: MAINTENANCE_STATUSES.map((s) => ({
+      label: s.replace('_', ' '),
+      value: s === 'to_do' ? 1 : 0,
+    })),
+    stats: {
+      revenueYtd: 84500,
+      avgOccupancyPct: 92,
+      collectionRatePct: 94,
+      maintenanceSpendYtd: 1850,
+    },
   };
 }
 
@@ -189,7 +219,14 @@ async function loadData(): Promise<ReportsData> {
   const monthKeys = lastNMonthKeys(6);
   const yearStart = `${new Date().getFullYear()}-01-01`;
 
-  const [propertiesResult, unitsResult, rentSchedulesResult, expensesResult, maintenanceResult, vendorBillsResult] = await Promise.all([
+  const [
+    propertiesResult,
+    unitsResult,
+    rentSchedulesResult,
+    expensesResult,
+    maintenanceResult,
+    vendorBillsResult,
+  ] = await Promise.all([
     supabase.from('properties').select('id, nickname').eq('status', 'active'),
     supabase.from('units').select('id, property_id, status'),
     supabase.from('rent_schedules').select('due_date, amount, status'),
@@ -201,24 +238,31 @@ async function loadData(): Promise<ReportsData> {
       .not('maintenance_ticket_id', 'is', null)
       .gte('created_at', yearStart),
   ]);
-  if (propertiesResult.error) throw new Error(`Failed to load properties: ${propertiesResult.error.message}`);
+  if (propertiesResult.error)
+    throw new Error(`Failed to load properties: ${propertiesResult.error.message}`);
   if (unitsResult.error) throw new Error(`Failed to load units: ${unitsResult.error.message}`);
-  if (rentSchedulesResult.error) throw new Error(`Failed to load rent schedule: ${rentSchedulesResult.error.message}`);
-  if (expensesResult.error) throw new Error(`Failed to load expenses: ${expensesResult.error.message}`);
-  if (maintenanceResult.error) throw new Error(`Failed to load maintenance tickets: ${maintenanceResult.error.message}`);
-  if (vendorBillsResult.error) throw new Error(`Failed to load vendor bills: ${vendorBillsResult.error.message}`);
+  if (rentSchedulesResult.error)
+    throw new Error(`Failed to load rent schedule: ${rentSchedulesResult.error.message}`);
+  if (expensesResult.error)
+    throw new Error(`Failed to load expenses: ${expensesResult.error.message}`);
+  if (maintenanceResult.error)
+    throw new Error(`Failed to load maintenance tickets: ${maintenanceResult.error.message}`);
+  if (vendorBillsResult.error)
+    throw new Error(`Failed to load vendor bills: ${vendorBillsResult.error.message}`);
 
   const incomeByMonth = new Map(monthKeys.map((k) => [k, 0]));
   for (const row of rentSchedulesResult.data ?? []) {
     if (row.status !== 'paid') continue;
     const key = row.due_date.slice(0, 7);
-    if (incomeByMonth.has(key)) incomeByMonth.set(key, (incomeByMonth.get(key) ?? 0) + Number(row.amount));
+    if (incomeByMonth.has(key))
+      incomeByMonth.set(key, (incomeByMonth.get(key) ?? 0) + Number(row.amount));
   }
   const expenseByMonth = new Map(monthKeys.map((k) => [k, 0]));
   for (const row of expensesResult.data ?? []) {
     if (row.status !== 'recorded' && row.status !== 'reimbursed') continue;
     const key = row.created_at.slice(0, 7);
-    if (expenseByMonth.has(key)) expenseByMonth.set(key, (expenseByMonth.get(key) ?? 0) + Number(row.amount));
+    if (expenseByMonth.has(key))
+      expenseByMonth.set(key, (expenseByMonth.get(key) ?? 0) + Number(row.amount));
   }
   const incomeExpense = monthKeys.map((k) => ({
     label: monthLabel(`${k}-01`),
@@ -232,7 +276,10 @@ async function loadData(): Promise<ReportsData> {
     const propertyUnits = units.filter((u) => u.property_id === p.id);
     const occupied = propertyUnits.filter((u) => u.status === 'occupied').length;
     const pct = propertyUnits.length > 0 ? Math.round((occupied / propertyUnits.length) * 100) : 0;
-    return { label: p.nickname.length > 14 ? `${p.nickname.slice(0, 13)}…` : p.nickname, occupiedPct: pct };
+    return {
+      label: p.nickname.length > 14 ? `${p.nickname.slice(0, 13)}…` : p.nickname,
+      occupiedPct: pct,
+    };
   });
 
   const rentRows = rentSchedulesResult.data ?? [];
@@ -248,7 +295,9 @@ async function loadData(): Promise<ReportsData> {
   }));
 
   const ytdRentRows = rentRows.filter((r) => r.due_date >= yearStart);
-  const revenueYtd = ytdRentRows.filter((r) => r.status === 'paid').reduce((sum, r) => sum + Number(r.amount), 0);
+  const revenueYtd = ytdRentRows
+    .filter((r) => r.status === 'paid')
+    .reduce((sum, r) => sum + Number(r.amount), 0);
   const billedYtd = ytdRentRows.reduce((sum, r) => sum + Number(r.amount), 0);
   const collectionRatePct = billedYtd > 0 ? Math.round((revenueYtd / billedYtd) * 100) : 0;
 

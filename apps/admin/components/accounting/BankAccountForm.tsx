@@ -58,7 +58,11 @@ export function BankAccountForm({ orgId }: { orgId: string }) {
         </label>
         <label className="block text-xs">
           <span className="text-light-textMuted dark:text-dark-textMuted">Account class</span>
-          <select value={accountClass} onChange={(e) => setAccountClass(e.target.value as BankAccountClass)} className={inputClass}>
+          <select
+            value={accountClass}
+            onChange={(e) => setAccountClass(e.target.value as BankAccountClass)}
+            className={inputClass}
+          >
             <option value="business">Business</option>
             <option value="trust">Trust</option>
           </select>

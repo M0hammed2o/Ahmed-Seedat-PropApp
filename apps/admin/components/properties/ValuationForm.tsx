@@ -38,7 +38,10 @@ export function ValuationForm({
       const response = await fetch(`/api/v1/properties/${propertyId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ estimatedValue: parsedValue, estimatedValueAsOf: asOf.trim() === '' ? null : asOf }),
+        body: JSON.stringify({
+          estimatedValue: parsedValue,
+          estimatedValueAsOf: asOf.trim() === '' ? null : asOf,
+        }),
       });
       const body = await response.json();
       if (!response.ok) {

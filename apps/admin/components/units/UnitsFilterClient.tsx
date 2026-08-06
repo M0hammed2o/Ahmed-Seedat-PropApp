@@ -51,17 +51,24 @@ export function UnitsFilterClient({ units }: { units: UnitRow[] }) {
               type="button"
               onClick={() => setStatus(s)}
               className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium capitalize transition-colors ${
-                status === s ? 'bg-card text-foreground shadow-card' : 'text-muted-foreground hover:text-foreground'
+                status === s
+                  ? 'bg-card text-foreground shadow-card'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               {s}
-              <span className="tabular rounded-md bg-surface-strong px-1.5 text-[10px]">{counts[s] ?? 0}</span>
+              <span className="tabular rounded-md bg-surface-strong px-1.5 text-[10px]">
+                {counts[s] ?? 0}
+              </span>
             </button>
           ))}
         </div>
 
         <div className="relative shrink-0">
-          <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+          <Search
+            className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+            aria-hidden="true"
+          />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}

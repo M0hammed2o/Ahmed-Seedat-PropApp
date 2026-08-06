@@ -30,7 +30,10 @@ export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const includeArchived = url.searchParams.get('include_archived') === 'true';
 
-  let query = supabase.from('lease_templates').select('*').order('created_at', { ascending: false });
+  let query = supabase
+    .from('lease_templates')
+    .select('*')
+    .order('created_at', { ascending: false });
   if (!includeArchived) query = query.eq('status', 'active');
 
   const { data, error } = await query;
@@ -61,7 +64,9 @@ export async function POST(request: NextRequest) {
     form = await request.formData();
   } catch {
     return NextResponse.json(
-      { error: { code: 'invalid_form_data', message: 'Request body must be multipart/form-data.' } },
+      {
+        error: { code: 'invalid_form_data', message: 'Request body must be multipart/form-data.' },
+      },
       { status: 400 },
     );
   }
@@ -69,7 +74,13 @@ export async function POST(request: NextRequest) {
   const file = form.get('file');
   if (!(file instanceof File)) {
     return NextResponse.json(
-      { error: { code: 'validation_failed', message: 'A file is required.', field_errors: { file: ['File is required'] } } },
+      {
+        error: {
+          code: 'validation_failed',
+          message: 'A file is required.',
+          field_errors: { file: ['File is required'] },
+        },
+      },
       { status: 400 },
     );
   }
@@ -81,7 +92,12 @@ export async function POST(request: NextRequest) {
   }
   if (!(LEASE_TEMPLATE_MIME_TYPES as readonly string[]).includes(file.type)) {
     return NextResponse.json(
-      { error: { code: 'unsupported_mime_type', message: `Unsupported file type: ${file.type}. Use PDF or DOCX.` } },
+      {
+        error: {
+          code: 'unsupported_mime_type',
+          message: `Unsupported file type: ${file.type}. Use PDF or DOCX.`,
+        },
+      },
       { status: 400 },
     );
   }
@@ -112,7 +128,12 @@ export async function POST(request: NextRequest) {
   const canWrite = await requireOrgRole(supabase, parsed.data.orgId, 'manager');
   if (!canWrite) {
     return NextResponse.json(
-      { error: { code: 'forbidden', message: 'Only principals and managers can manage lease templates.' } },
+      {
+        error: {
+          code: 'forbidden',
+          message: 'Only principals and managers can manage lease templates.',
+        },
+      },
       { status: 403 },
     );
   }
@@ -196,7 +217,10 @@ export async function POST(request: NextRequest) {
   // replaced row is archived, never mutated/deleted -- any lease created against it keeps working
   // off its own already-downloaded/attached copy, untouched by this.
   if (parsed.data.supersedesId) {
-    await supabase.from('lease_templates').update({ status: 'archived' }).eq('id', parsed.data.supersedesId);
+    await supabase
+      .from('lease_templates')
+      .update({ status: 'archived' })
+      .eq('id', parsed.data.supersedesId);
   }
 
   return NextResponse.json({ leaseTemplate: mapLeaseTemplateRow(data) }, { status: 201 });

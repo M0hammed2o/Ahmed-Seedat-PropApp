@@ -7,7 +7,18 @@ import { hotpFromAsciiSecret, generateTotpCode } from '../e2e/fixtures/totp';
 // failing, or worse, silently exercising a broken code path that happens to produce SOME 6-digit
 // string without actually validating TOTP correctness).
 const RFC4226_SECRET = '12345678901234567890';
-const RFC4226_VECTORS = ['755224', '287082', '359152', '969429', '338314', '254676', '287922', '162583', '399871', '520489'];
+const RFC4226_VECTORS = [
+  '755224',
+  '287082',
+  '359152',
+  '969429',
+  '338314',
+  '254676',
+  '287922',
+  '162583',
+  '399871',
+  '520489',
+];
 
 describe('hotpFromAsciiSecret (RFC 4226 Appendix D test vectors)', () => {
   it.each(RFC4226_VECTORS.map((expected, counter) => [counter, expected] as const))(
@@ -28,7 +39,9 @@ describe('generateTotpCode', () => {
 
   it('is deterministic for the same secret and timestamp', () => {
     const at = Date.now();
-    expect(generateTotpCode('JBSWY3DPEHPK3PXP', 30, at)).toBe(generateTotpCode('JBSWY3DPEHPK3PXP', 30, at));
+    expect(generateTotpCode('JBSWY3DPEHPK3PXP', 30, at)).toBe(
+      generateTotpCode('JBSWY3DPEHPK3PXP', 30, at),
+    );
   });
 
   it('changes across a 30-second step boundary', () => {

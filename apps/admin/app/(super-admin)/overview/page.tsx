@@ -195,7 +195,10 @@ export default async function OverviewPage() {
         <AdminMetricCard label="Total owners" value={metrics.totalOwners} />
         <AdminMetricCard label="Total tenants" value={metrics.totalTenants} />
         <AdminMetricCard label="Active staff" value={metrics.totalActiveStaff} />
-        <AdminMetricCard label="Credits issued" value={`R${metrics.totalCreditsIssued.toLocaleString('en-ZA')}`} />
+        <AdminMetricCard
+          label="Credits issued"
+          value={`R${metrics.totalCreditsIssued.toLocaleString('en-ZA')}`}
+        />
       </div>
 
       <div className="mt-8 grid grid-cols-2 gap-3 rounded-lg border border-light-border bg-light-surfaceRaised p-4 text-sm dark:border-dark-border dark:bg-dark-surfaceRaised lg:grid-cols-4">

@@ -66,7 +66,9 @@ const DEMO_CARDS: PropertyCardData[] = [
 
 export default async function PropertiesPage() {
   const properties: Property[] = ADMIN_DEMO_MODE ? DEMO_PROPERTIES : await loadProperties();
-  const cards: PropertyCardData[] = ADMIN_DEMO_MODE ? DEMO_CARDS : await loadPropertyCards(properties);
+  const cards: PropertyCardData[] = ADMIN_DEMO_MODE
+    ? DEMO_CARDS
+    : await loadPropertyCards(properties);
 
   const totals = cards.reduce(
     (acc, c) => ({
@@ -101,11 +103,16 @@ export default async function PropertiesPage() {
             { label: 'Monthly billed', value: currency(totals.income) },
             { label: 'Occupied units', value: `${totals.occupied} / ${totals.units}` },
             { label: 'Arrears', value: currency(totals.outstanding) },
-            { label: 'Avg. rent per unit', value: currency(totals.units > 0 ? Math.round(totals.income / totals.units) : 0) },
+            {
+              label: 'Avg. rent per unit',
+              value: currency(totals.units > 0 ? Math.round(totals.income / totals.units) : 0),
+            },
           ].map((s) => (
             <div key={s.label} className="panel px-5 py-4">
               <p className="text-[11px] text-muted-foreground">{s.label}</p>
-              <p className="tabular mt-1 font-display text-xl font-bold text-foreground">{s.value}</p>
+              <p className="tabular mt-1 font-display text-xl font-bold text-foreground">
+                {s.value}
+              </p>
             </div>
           ))}
         </div>
@@ -117,7 +124,11 @@ export default async function PropertiesPage() {
 }
 
 function currency(n: number): string {
-  return new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 }).format(n);
+  return new Intl.NumberFormat('en-ZA', {
+    style: 'currency',
+    currency: 'ZAR',
+    maximumFractionDigits: 0,
+  }).format(n);
 }
 
 async function loadProperties(): Promise<Property[]> {
@@ -155,14 +166,19 @@ async function loadPropertyCards(properties: Property[]): Promise<PropertyCardDa
 
   const { data: rentSchedules, error: rentError } =
     activeLeaseIds.length > 0
-      ? await supabase.from('rent_schedules').select('lease_id, amount, status').in('lease_id', activeLeaseIds)
+      ? await supabase
+          .from('rent_schedules')
+          .select('lease_id, amount, status')
+          .in('lease_id', activeLeaseIds)
       : { data: [], error: null };
   if (rentError) throw new Error(`Failed to load rent schedule: ${rentError.message}`);
 
   const leaseByUnit = new Map(activeLeases.map((l) => [l.unit_id, l]));
 
   const outstandingByProperty = new Map<string, number>();
-  const leasePropertyById = new Map(activeLeases.map((l) => [l.id, unitPropertyById.get(l.unit_id)]));
+  const leasePropertyById = new Map(
+    activeLeases.map((l) => [l.id, unitPropertyById.get(l.unit_id)]),
+  );
   for (const r of rentSchedules ?? []) {
     if (r.status !== 'invoiced' && r.status !== 'overdue' && r.status !== 'partial') continue;
     const propId = leasePropertyById.get(r.lease_id);
@@ -173,7 +189,10 @@ async function loadPropertyCards(properties: Property[]): Promise<PropertyCardDa
   return properties.map((property) => {
     const propertyUnits = units.filter((u) => u.property_id === property.id);
     const occupiedCount = propertyUnits.filter((u) => u.status === 'occupied').length;
-    const monthlyIncome = propertyUnits.reduce((sum, u) => sum + Number(leaseByUnit.get(u.id)?.rent_amount ?? 0), 0);
+    const monthlyIncome = propertyUnits.reduce(
+      (sum, u) => sum + Number(leaseByUnit.get(u.id)?.rent_amount ?? 0),
+      0,
+    );
     return {
       id: property.id,
       nickname: property.nickname,

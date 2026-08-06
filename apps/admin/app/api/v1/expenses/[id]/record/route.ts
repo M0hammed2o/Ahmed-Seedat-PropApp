@@ -47,7 +47,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     );
   }
 
-  const { data: before } = await supabase.from('expenses').select('org_id, status, amount').eq('id', id).maybeSingle();
+  const { data: before } = await supabase
+    .from('expenses')
+    .select('org_id, status, amount')
+    .eq('id', id)
+    .maybeSingle();
 
   const { error: recordError } = await supabase.rpc('record_expense', {
     p_expense_id: id,
@@ -61,7 +65,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     );
   }
 
-  const { data, error: fetchError } = await supabase.from('expenses').select('*').eq('id', id).single();
+  const { data, error: fetchError } = await supabase
+    .from('expenses')
+    .select('*')
+    .eq('id', id)
+    .single();
   if (fetchError) {
     return NextResponse.json(
       { error: { code: 'expense_fetch_failed', message: fetchError.message } },
@@ -80,7 +88,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     entityType: 'expenses',
     entityId: id,
     before: before ? { status: before.status, amount: before.amount } : null,
-    after: { status: data.status, amount: data.amount, paidImmediately: parsed.data.paidImmediately },
+    after: {
+      status: data.status,
+      amount: data.amount,
+      paidImmediately: parsed.data.paidImmediately,
+    },
   });
 
   return NextResponse.json({ expense: mapExpenseRow(data) });

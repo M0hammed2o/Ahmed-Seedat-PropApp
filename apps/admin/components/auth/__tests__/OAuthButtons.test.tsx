@@ -38,6 +38,8 @@ describe('OAuthButtons', () => {
     render(<OAuthButtons />);
     fireEvent.click(screen.getByText('Continue with Apple'));
 
-    await waitFor(() => expect(screen.getByText(/Apple sign-in is not available right now/)).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByText(/Apple sign-in is not available right now/)).toBeTruthy(),
+    );
   });
 });

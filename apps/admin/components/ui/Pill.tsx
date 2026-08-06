@@ -8,12 +8,15 @@ import type { ReactNode } from 'react';
 export type PillTone = 'neutral' | 'primary' | 'success' | 'warning' | 'destructive' | 'info';
 
 const TONE_CLASSES: Record<PillTone, string> = {
-  neutral: 'bg-light-surfaceStrong text-light-textSecondary dark:bg-dark-surfaceStrong dark:text-dark-textSecondary',
+  neutral:
+    'bg-light-surfaceStrong text-light-textSecondary dark:bg-dark-surfaceStrong dark:text-dark-textSecondary',
   primary: 'bg-light-accentSoft text-light-accent dark:bg-dark-accentSoft dark:text-dark-accent',
-  success: 'bg-light-statusPaid/12 text-light-statusPaid dark:bg-dark-statusPaid/12 dark:text-dark-statusPaid',
+  success:
+    'bg-light-statusPaid/12 text-light-statusPaid dark:bg-dark-statusPaid/12 dark:text-dark-statusPaid',
   warning:
     'bg-light-statusNeedsReview/16 text-light-statusNeedsReview dark:bg-dark-statusNeedsReview/16 dark:text-dark-statusNeedsReview',
-  destructive: 'bg-light-statusOverdue/12 text-light-statusOverdue dark:bg-dark-statusOverdue/12 dark:text-dark-statusOverdue',
+  destructive:
+    'bg-light-statusOverdue/12 text-light-statusOverdue dark:bg-dark-statusOverdue/12 dark:text-dark-statusOverdue',
   info: 'bg-light-statusProcessing/12 text-light-statusProcessing dark:bg-dark-statusProcessing/12 dark:text-dark-statusProcessing',
 };
 
@@ -23,12 +26,39 @@ const TONE_CLASSES: Record<PillTone, string> = {
 // from any of PropertyVault's own enums renders with the identical tone Lovable would show.
 export function statusTone(status: string): PillTone {
   const s = status.toLowerCase();
-  if (['occupied', 'current', 'cleared', 'paid', 'active', 'stabilised', 'completed', 'resolved', 'processed'].includes(s))
+  if (
+    [
+      'occupied',
+      'current',
+      'cleared',
+      'paid',
+      'active',
+      'stabilised',
+      'completed',
+      'resolved',
+      'processed',
+    ].includes(s)
+  )
     return 'success';
-  if (['notice', 'pending', 'scheduled', 'leasing', 'sent', 'trial', 'waiting', 'processing', 'queued', 'medium'].includes(s))
+  if (
+    [
+      'notice',
+      'pending',
+      'scheduled',
+      'leasing',
+      'sent',
+      'trial',
+      'waiting',
+      'processing',
+      'queued',
+      'medium',
+    ].includes(s)
+  )
     return 'warning';
-  if (['vacant', 'failed', 'overdue', 'late', 'critical', 'at risk', 'high'].includes(s)) return 'destructive';
-  if (['maintenance', 'renovation', 'in progress', 'draft', 'open', 'low'].includes(s)) return 'info';
+  if (['vacant', 'failed', 'overdue', 'late', 'critical', 'at risk', 'high'].includes(s))
+    return 'destructive';
+  if (['maintenance', 'renovation', 'in progress', 'draft', 'open', 'low'].includes(s))
+    return 'info';
   return 'neutral';
 }
 

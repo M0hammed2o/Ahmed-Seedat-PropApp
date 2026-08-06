@@ -207,7 +207,13 @@ export async function assembleOrgContext(
         .limit(10),
     ]);
 
-  for (const result of [overdueResult, dueSoonResult, expensesResult, ticketsResult, expiringLeasesResult]) {
+  for (const result of [
+    overdueResult,
+    dueSoonResult,
+    expensesResult,
+    ticketsResult,
+    expiringLeasesResult,
+  ]) {
     if (result.error) throw new Error(`Context assembly query failed: ${result.error.message}`);
   }
 
@@ -289,7 +295,8 @@ export async function checkAiUsageCap(
     .select('plan_id')
     .eq('org_id', orgId)
     .maybeSingle();
-  if (subError) throw new Error(`Failed to resolve organization_subscriptions: ${subError.message}`);
+  if (subError)
+    throw new Error(`Failed to resolve organization_subscriptions: ${subError.message}`);
   if (!subscription) return { allowed: true, capExceeded: false }; // no subscription row yet -- unlimited, matches "absent = unlimited"
 
   const { data: plan, error: planError } = await supabase

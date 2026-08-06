@@ -54,14 +54,18 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
   // same "log, don't throw" boundary writeAuditEvent() already uses for the identical reason.
   try {
     const serviceClient = getServiceRoleClient();
-    const { data: tenant } = await serviceClient.from('tenants').select('email').eq('id', data.tenant_id).maybeSingle();
+    const { data: tenant } = await serviceClient
+      .from('tenants')
+      .select('email')
+      .eq('id', data.tenant_id)
+      .maybeSingle();
     const { data: property } = await serviceClient
       .from('leases')
       .select('units(properties(nickname))')
       .eq('id', data.lease_id)
       .maybeSingle();
-    const propertyAddress = (property as { units?: { properties?: { nickname?: string } } } | null)?.units?.properties
-      ?.nickname;
+    const propertyAddress = (property as { units?: { properties?: { nickname?: string } } } | null)
+      ?.units?.properties?.nickname;
 
     await dispatchEmail(serviceClient, {
       orgId: data.org_id,

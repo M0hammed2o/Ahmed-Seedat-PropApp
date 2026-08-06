@@ -91,7 +91,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         .eq('lease_id', schedule.lease_id)
         .eq('is_primary', true)
         .maybeSingle();
-      const tenant = (primaryTenant as { tenants?: { email?: string; phone?: string } } | null)?.tenants;
+      const tenant = (primaryTenant as { tenants?: { email?: string; phone?: string } } | null)
+        ?.tenants;
 
       await dispatchEmail(serviceClient, {
         orgId: schedule.org_id,

@@ -28,19 +28,33 @@ export async function POST(request: NextRequest) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: { code: 'invalid_json', message: 'Request body must be valid JSON.' } }, { status: 400 });
+    return NextResponse.json(
+      { error: { code: 'invalid_json', message: 'Request body must be valid JSON.' } },
+      { status: 400 },
+    );
   }
 
   const parsed = mfaVerifySchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
-      { error: { code: 'validation_failed', message: 'Check the highlighted fields.', field_errors: parsed.error.flatten().fieldErrors } },
+      {
+        error: {
+          code: 'validation_failed',
+          message: 'Check the highlighted fields.',
+          field_errors: parsed.error.flatten().fieldErrors,
+        },
+      },
       { status: 400 },
     );
   }
 
   const serviceClient = getServiceRoleClient();
-  const limited = await rateLimitOrRespond(serviceClient, `auth-mfa-verify:${requestIp(request)}`, RATE_LIMITS.mfaVerifyAttemptsPerMinute, 60);
+  const limited = await rateLimitOrRespond(
+    serviceClient,
+    `auth-mfa-verify:${requestIp(request)}`,
+    RATE_LIMITS.mfaVerifyAttemptsPerMinute,
+    60,
+  );
   if (limited) return limited;
 
   const supabase = await getServerSupabaseClient();
@@ -48,12 +62,21 @@ export async function POST(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.json({ error: { code: 'unauthenticated', message: 'Sign in required.' } }, { status: 401 });
+    return NextResponse.json(
+      { error: { code: 'unauthenticated', message: 'Sign in required.' } },
+      { status: 401 },
+    );
   }
 
-  const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId: parsed.data.factorId, code: parsed.data.code });
+  const { error } = await supabase.auth.mfa.challengeAndVerify({
+    factorId: parsed.data.factorId,
+    code: parsed.data.code,
+  });
   if (error) {
-    return NextResponse.json({ error: { code: 'invalid_mfa_code', message: 'Incorrect or expired code. Try again.' } }, { status: 401 });
+    return NextResponse.json(
+      { error: { code: 'invalid_mfa_code', message: 'Incorrect or expired code. Try again.' } },
+      { status: 401 },
+    );
   }
 
   return NextResponse.json({ verified: true });

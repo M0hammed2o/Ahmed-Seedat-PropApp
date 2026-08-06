@@ -1,6 +1,10 @@
 import { redirect } from 'next/navigation';
 import { BankAccountForm } from '@/components/accounting/BankAccountForm';
-import { resolvePortalSession, findActiveMembership, canPostAccountingRecords } from '@/lib/orgSession';
+import {
+  resolvePortalSession,
+  findActiveMembership,
+  canPostAccountingRecords,
+} from '@/lib/orgSession';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 export default async function NewBankAccountPage() {
@@ -14,7 +18,8 @@ export default async function NewBankAccountPage() {
   if (!activeOrg) redirect('/onboarding/create-organization');
 
   const membership = findActiveMembership(session, activeOrg.orgId);
-  if (!membership || !canPostAccountingRecords(membership.role)) redirect('/accounting/bank-accounts');
+  if (!membership || !canPostAccountingRecords(membership.role))
+    redirect('/accounting/bank-accounts');
 
   return <BankAccountForm orgId={activeOrg.orgId} />;
 }

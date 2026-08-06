@@ -6,7 +6,9 @@ import { test, expect } from '@playwright/test';
 test.describe('public pages', () => {
   test('login page renders the sign-in form', async ({ page }) => {
     await page.goto('/login');
-    await expect(page.getByRole('heading', { name: /welcome back|sign in/i }).or(page.locator('h1'))).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: /welcome back|sign in/i }).or(page.locator('h1')),
+    ).toBeVisible();
     await expect(page.locator('input[type="email"]')).toBeVisible();
     await expect(page.locator('input[type="password"]')).toBeVisible();
   });
@@ -37,7 +39,9 @@ test.describe('public pages', () => {
     await expect(page.getByText(/you're offline/i)).toBeVisible();
   });
 
-  test('an unauthenticated visitor to a protected route is redirected to /login', async ({ page }) => {
+  test('an unauthenticated visitor to a protected route is redirected to /login', async ({
+    page,
+  }) => {
     await page.goto('/dashboard');
     await page.waitForURL(/\/login/);
   });

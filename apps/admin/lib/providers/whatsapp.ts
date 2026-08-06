@@ -64,7 +64,12 @@ export function getMetaWhatsAppConfig(): MetaWhatsAppConfig | null {
   // language-specific, and a mismatch here would make every send fail with a template-not-found
   // error from Meta, not a silent wrong-language send. Override via WHATSAPP_TEMPLATE_LANGUAGE if
   // the approved templates use a different locale code.
-  return { accessToken, phoneNumberId, webhookSecret, templateLanguage: process.env.WHATSAPP_TEMPLATE_LANGUAGE ?? 'en_US' };
+  return {
+    accessToken,
+    phoneNumberId,
+    webhookSecret,
+    templateLanguage: process.env.WHATSAPP_TEMPLATE_LANGUAGE ?? 'en_US',
+  };
 }
 
 const META_GRAPH_API_VERSION = 'v21.0';
@@ -96,11 +101,17 @@ export class MetaWhatsAppProvider implements WhatsAppProvider {
     // approved template's placeholders expect. JS preserves string-key insertion order, so this
     // holds as long as the caller does; there is no way for this provider to verify that from a
     // plain Record<string, string>, a real gap disclosed here rather than silently assumed safe.
-    const parameters = Object.values(input.variables).map((value) => ({ type: 'text', text: value }));
+    const parameters = Object.values(input.variables).map((value) => ({
+      type: 'text',
+      text: value,
+    }));
 
     const response = await fetch(url, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${this.config.accessToken}`, 'Content-Type': 'application/json' },
+      headers: {
+        Authorization: `Bearer ${this.config.accessToken}`,
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({
         messaging_product: 'whatsapp',
         to: input.to.replace(/^\+/, ''), // Meta expects digits only, no leading '+'
@@ -115,13 +126,17 @@ export class MetaWhatsAppProvider implements WhatsAppProvider {
 
     if (!response.ok) {
       const body = await response.text().catch(() => '');
-      throw new Error(`Meta WhatsApp send failed (${response.status}): ${body || response.statusText}`);
+      throw new Error(
+        `Meta WhatsApp send failed (${response.status}): ${body || response.statusText}`,
+      );
     }
 
     const json = (await response.json()) as { messages?: { id: string }[] };
     const messageId = json.messages?.[0]?.id;
     if (!messageId) {
-      throw new Error('Meta WhatsApp send returned 2xx but no message id -- unexpected response shape');
+      throw new Error(
+        'Meta WhatsApp send returned 2xx but no message id -- unexpected response shape',
+      );
     }
 
     return { providerMessageId: messageId };
@@ -149,7 +164,9 @@ export class MetaWhatsAppProvider implements WhatsAppProvider {
     const value = extractChangeValue(rawBody);
     const message = value?.messages?.[0];
     if (!message) {
-      throw new Error('Meta WhatsApp webhook payload has no entry[].changes[].value.messages[0] -- not an inbound message event');
+      throw new Error(
+        'Meta WhatsApp webhook payload has no entry[].changes[].value.messages[0] -- not an inbound message event',
+      );
     }
     return {
       kind: 'message',
@@ -163,7 +180,9 @@ export class MetaWhatsAppProvider implements WhatsAppProvider {
     const value = extractChangeValue(rawBody);
     const status = value?.statuses?.[0];
     if (!status) {
-      throw new Error('Meta WhatsApp webhook payload has no entry[].changes[].value.statuses[0] -- not a status callback event');
+      throw new Error(
+        'Meta WhatsApp webhook payload has no entry[].changes[].value.statuses[0] -- not a status callback event',
+      );
     }
     return {
       providerMessageId: status.id,

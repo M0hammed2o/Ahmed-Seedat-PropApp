@@ -78,7 +78,9 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   const canWrite = await requireOrgRole(supabase, existing.org_id, 'agent');
   if (!canWrite) {
     return NextResponse.json(
-      { error: { code: 'forbidden', message: 'You do not have permission to edit this property.' } },
+      {
+        error: { code: 'forbidden', message: 'You do not have permission to edit this property.' },
+      },
       { status: 403 },
     );
   }
@@ -125,7 +127,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     // Who captured it, tracked automatically -- the caller never supplies this directly.
     patch.estimated_value_updated_by = user.id;
   }
-  if (parsed.data.estimatedValueAsOf !== undefined) patch.estimated_value_as_of = parsed.data.estimatedValueAsOf;
+  if (parsed.data.estimatedValueAsOf !== undefined)
+    patch.estimated_value_as_of = parsed.data.estimatedValueAsOf;
 
   const { data, error } = await supabase
     .from('properties')
@@ -204,7 +207,12 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
   const canWrite = await requireOrgRole(supabase, existing.org_id, 'agent');
   if (!canWrite) {
     return NextResponse.json(
-      { error: { code: 'forbidden', message: 'You do not have permission to archive this property.' } },
+      {
+        error: {
+          code: 'forbidden',
+          message: 'You do not have permission to archive this property.',
+        },
+      },
       { status: 403 },
     );
   }

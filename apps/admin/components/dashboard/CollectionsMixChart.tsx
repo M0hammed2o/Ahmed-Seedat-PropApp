@@ -18,7 +18,14 @@ export function CollectionsMixChart({ data }: { data: MixSlice[] }) {
       <div className="h-[132px] w-[132px] shrink-0">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
-            <Pie data={data} dataKey="value" innerRadius={42} outerRadius={62} paddingAngle={3} stroke="none">
+            <Pie
+              data={data}
+              dataKey="value"
+              innerRadius={42}
+              outerRadius={62}
+              paddingAngle={3}
+              stroke="none"
+            >
               {data.map((slice) => (
                 <Cell key={slice.name} fill={slice.tone} />
               ))}
@@ -30,10 +37,15 @@ export function CollectionsMixChart({ data }: { data: MixSlice[] }) {
         {data.map((slice) => (
           <li key={slice.name} className="flex items-center justify-between gap-2">
             <span className="flex min-w-0 items-center gap-2 text-[13px] text-foreground">
-              <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: slice.tone }} />
+              <span
+                className="h-2.5 w-2.5 shrink-0 rounded-full"
+                style={{ background: slice.tone }}
+              />
               <span className="truncate">{slice.name}</span>
             </span>
-            <span className="tabular text-[13px] font-semibold text-foreground">{slice.value}%</span>
+            <span className="tabular text-[13px] font-semibold text-foreground">
+              {slice.value}%
+            </span>
           </li>
         ))}
       </ul>

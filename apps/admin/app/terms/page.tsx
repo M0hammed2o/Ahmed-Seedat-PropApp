@@ -9,13 +9,18 @@ export default function TermsPage() {
   return (
     <main className="mx-auto max-w-2xl px-6 py-16 text-sm text-light-textPrimary dark:text-dark-textPrimary">
       <h1 className="font-display text-2xl font-bold">Terms of Service</h1>
-      <p className="mt-2 text-xs text-light-textMuted dark:text-dark-textMuted">Version {TERMS_VERSION}</p>
-      <p className="mt-6 rounded-lg border border-light-border bg-light-surfaceRaised p-4 text-light-textSecondary dark:border-dark-border dark:bg-dark-surfaceRaised dark:text-dark-textSecondary">
-        Placeholder — the real Terms of Service for {branding.productName} have not been finalized yet. This page
-        exists so account registration has something concrete to reference and version; it is not binding legal
-        content.
+      <p className="mt-2 text-xs text-light-textMuted dark:text-dark-textMuted">
+        Version {TERMS_VERSION}
       </p>
-      <Link href="/register" className="mt-6 inline-block text-light-accent hover:underline dark:text-dark-accent">
+      <p className="mt-6 rounded-lg border border-light-border bg-light-surfaceRaised p-4 text-light-textSecondary dark:border-dark-border dark:bg-dark-surfaceRaised dark:text-dark-textSecondary">
+        Placeholder — the real Terms of Service for {branding.productName} have not been finalized
+        yet. This page exists so account registration has something concrete to reference and
+        version; it is not binding legal content.
+      </p>
+      <Link
+        href="/register"
+        className="mt-6 inline-block text-light-accent hover:underline dark:text-dark-accent"
+      >
         ← Back to registration
       </Link>
     </main>

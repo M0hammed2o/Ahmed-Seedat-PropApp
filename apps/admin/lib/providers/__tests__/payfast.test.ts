@@ -25,7 +25,9 @@ function phpUrlEncode(value: string): string {
 }
 
 function independentFormSignature(fields: [string, string][], passphrase: string): string {
-  const parts = fields.filter(([, v]) => v !== '').map(([k, v]) => `${k}=${phpUrlEncode(v.trim())}`);
+  const parts = fields
+    .filter(([, v]) => v !== '')
+    .map(([k, v]) => `${k}=${phpUrlEncode(v.trim())}`);
   let pfOutput = parts.join('&');
   if (passphrase) pfOutput += `&passphrase=${phpUrlEncode(passphrase.trim())}`;
   return crypto.createHash('md5').update(pfOutput).digest('hex');
@@ -115,7 +117,9 @@ describe('PayFastBillingGatewayProvider', () => {
     }
 
     it('accepts a genuinely valid ITN (correct signature + PayFast confirms VALID)', async () => {
-      global.fetch = vi.fn().mockResolvedValue({ text: async () => 'VALID' }) as unknown as typeof fetch;
+      global.fetch = vi
+        .fn()
+        .mockResolvedValue({ text: async () => 'VALID' }) as unknown as typeof fetch;
       const provider = new PayFastBillingGatewayProvider(CONFIG);
       const result = await provider.verifyWebhookSignature(buildItnBody(), null);
       expect(result).toBe(true);
@@ -136,14 +140,18 @@ describe('PayFastBillingGatewayProvider', () => {
     });
 
     it("rejects an ITN with a correct signature if PayFast's own server-confirmation says INVALID", async () => {
-      global.fetch = vi.fn().mockResolvedValue({ text: async () => 'INVALID' }) as unknown as typeof fetch;
+      global.fetch = vi
+        .fn()
+        .mockResolvedValue({ text: async () => 'INVALID' }) as unknown as typeof fetch;
       const provider = new PayFastBillingGatewayProvider(CONFIG);
       const result = await provider.verifyWebhookSignature(buildItnBody(), null);
       expect(result).toBe(false);
     });
 
     it('fails closed if the server-confirmation network call itself fails', async () => {
-      global.fetch = vi.fn().mockRejectedValue(new Error('network down')) as unknown as typeof fetch;
+      global.fetch = vi
+        .fn()
+        .mockRejectedValue(new Error('network down')) as unknown as typeof fetch;
       const provider = new PayFastBillingGatewayProvider(CONFIG);
       const result = await provider.verifyWebhookSignature(buildItnBody(), null);
       expect(result).toBe(false);
@@ -151,7 +159,10 @@ describe('PayFastBillingGatewayProvider', () => {
 
     it('rejects a body with no signature field at all', async () => {
       const provider = new PayFastBillingGatewayProvider(CONFIG);
-      const result = await provider.verifyWebhookSignature('m_payment_id=x&payment_status=COMPLETE', null);
+      const result = await provider.verifyWebhookSignature(
+        'm_payment_id=x&payment_status=COMPLETE',
+        null,
+      );
       expect(result).toBe(false);
     });
   });
@@ -159,7 +170,9 @@ describe('PayFastBillingGatewayProvider', () => {
   describe('parseWebhookEvent', () => {
     it('maps COMPLETE to payment_succeeded', () => {
       const provider = new PayFastBillingGatewayProvider(CONFIG);
-      const event = provider.parseWebhookEvent('m_payment_id=ref-1&pf_payment_id=999&payment_status=COMPLETE&amount_gross=299.00');
+      const event = provider.parseWebhookEvent(
+        'm_payment_id=ref-1&pf_payment_id=999&payment_status=COMPLETE&amount_gross=299.00',
+      );
       expect(event.type).toBe('payment_succeeded');
       expect(event.providerReference).toBe('ref-1');
       expect(event.amount).toBe(299);
@@ -168,13 +181,17 @@ describe('PayFastBillingGatewayProvider', () => {
 
     it('maps FAILED to payment_failed', () => {
       const provider = new PayFastBillingGatewayProvider(CONFIG);
-      const event = provider.parseWebhookEvent('m_payment_id=ref-1&pf_payment_id=999&payment_status=FAILED');
+      const event = provider.parseWebhookEvent(
+        'm_payment_id=ref-1&pf_payment_id=999&payment_status=FAILED',
+      );
       expect(event.type).toBe('payment_failed');
     });
 
     it('maps CANCELLED to subscription_cancelled', () => {
       const provider = new PayFastBillingGatewayProvider(CONFIG);
-      const event = provider.parseWebhookEvent('m_payment_id=ref-1&pf_payment_id=999&payment_status=CANCELLED');
+      const event = provider.parseWebhookEvent(
+        'm_payment_id=ref-1&pf_payment_id=999&payment_status=CANCELLED',
+      );
       expect(event.type).toBe('subscription_cancelled');
     });
 
@@ -215,7 +232,12 @@ describe('PayFastBillingGatewayProvider', () => {
     });
 
     it('throws on a non-2xx response rather than pretending the cancellation succeeded', async () => {
-      global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 403, statusText: 'Forbidden', text: async () => 'bad signature' }) as unknown as typeof fetch;
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 403,
+        statusText: 'Forbidden',
+        text: async () => 'bad signature',
+      }) as unknown as typeof fetch;
       const provider = new PayFastBillingGatewayProvider(CONFIG);
       await expect(provider.cancelSubscription('token-abc-123')).rejects.toThrow(/403/);
     });
@@ -235,7 +257,11 @@ describe('PayFastBillingGatewayProvider', () => {
       global.fetch = fetchSpy as unknown as typeof fetch;
       const provider = new PayFastBillingGatewayProvider(CONFIG);
 
-      await provider.refundPayment({ providerPaymentReference: 'pf-999', amount: 299, idempotencyKey: 'refund-1' });
+      await provider.refundPayment({
+        providerPaymentReference: 'pf-999',
+        amount: 299,
+        idempotencyKey: 'refund-1',
+      });
 
       const [url, options] = fetchSpy.mock.calls[0]!;
       expect(String(url)).toContain('/refunds/pf-999');

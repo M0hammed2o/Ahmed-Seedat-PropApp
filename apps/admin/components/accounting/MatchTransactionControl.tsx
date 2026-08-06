@@ -23,7 +23,11 @@ export function MatchTransactionControl({
   const [error, setError] = useState<string | null>(null);
 
   if (candidates.length === 0) {
-    return <span className="text-xs text-light-textMuted dark:text-dark-textMuted">No pending rent due to match</span>;
+    return (
+      <span className="text-xs text-light-textMuted dark:text-dark-textMuted">
+        No pending rent due to match
+      </span>
+    );
   }
 
   async function confirm() {
@@ -64,7 +68,11 @@ export function MatchTransactionControl({
       <Button size="sm" disabled={busy} onClick={confirm}>
         {busy ? 'Matching…' : 'Match'}
       </Button>
-      {error ? <span className="text-xs text-light-statusOverdue dark:text-dark-statusOverdue">{error}</span> : null}
+      {error ? (
+        <span className="text-xs text-light-statusOverdue dark:text-dark-statusOverdue">
+          {error}
+        </span>
+      ) : null}
     </div>
   );
 }

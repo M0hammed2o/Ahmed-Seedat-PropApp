@@ -47,7 +47,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   if (!canWrite) {
     return NextResponse.json(
       {
-        error: { code: 'forbidden', message: 'You do not have permission to decide this application.' },
+        error: {
+          code: 'forbidden',
+          message: 'You do not have permission to decide this application.',
+        },
       },
       { status: 403 },
     );

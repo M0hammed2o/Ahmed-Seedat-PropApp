@@ -48,12 +48,18 @@ export function TenantContactForm({
   return (
     <Panel className="max-w-xl">
       <form onSubmit={handleSubmit} className="space-y-3">
-        <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">Contact info</h2>
+        <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+          Contact info
+        </h2>
         {error ? <p className="text-xs text-light-danger dark:text-dark-danger">{error}</p> : null}
-        {saved ? <p className="text-xs text-light-statusPaid dark:text-dark-statusPaid">Saved.</p> : null}
+        {saved ? (
+          <p className="text-xs text-light-statusPaid dark:text-dark-statusPaid">Saved.</p>
+        ) : null}
 
         <label className="block text-xs">
-          <span className="text-light-textMuted dark:text-dark-textMuted">Full name (contact your landlord to change)</span>
+          <span className="text-light-textMuted dark:text-dark-textMuted">
+            Full name (contact your landlord to change)
+          </span>
           <input disabled value={fullName} className={`${inputClass} opacity-60`} />
         </label>
 

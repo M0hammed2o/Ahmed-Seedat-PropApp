@@ -73,7 +73,9 @@ export function InspectionActions({
     setBusy(true);
     setError(null);
     try {
-      const response = await fetch(`/api/v1/inspections/${inspection.id}/complete`, { method: 'POST' });
+      const response = await fetch(`/api/v1/inspections/${inspection.id}/complete`, {
+        method: 'POST',
+      });
       const body = await response.json();
       if (!response.ok) {
         setError(body.error?.message ?? 'Failed to complete inspection.');
@@ -90,8 +92,10 @@ export function InspectionActions({
   // Mirrors the API's own completion precondition (inspections/[id]/complete/route.ts) for the
   // Complete button's disabled state -- a UX nicety, not the enforcement; the API/DB CHECK
   // constraint remain the real gate regardless of what this computes.
-  const hasBothSignatures = Boolean(inspection.landlordSignedAt) && Boolean(inspection.tenantSignedAt);
-  const hasRefusalLogged = Boolean(inspection.landlordSignedAt) && Boolean(inspection.tenantRefusalReason);
+  const hasBothSignatures =
+    Boolean(inspection.landlordSignedAt) && Boolean(inspection.tenantSignedAt);
+  const hasRefusalLogged =
+    Boolean(inspection.landlordSignedAt) && Boolean(inspection.tenantRefusalReason);
   const canComplete = hasBothSignatures || hasRefusalLogged;
 
   return (
@@ -108,7 +112,9 @@ export function InspectionActions({
         </h2>
         <div className="mt-3 space-y-2">
           {items.length === 0 ? (
-            <p className="text-xs text-light-textMuted dark:text-dark-textMuted">No items recorded yet.</p>
+            <p className="text-xs text-light-textMuted dark:text-dark-textMuted">
+              No items recorded yet.
+            </p>
           ) : (
             items.map((item) => (
               <div
@@ -116,13 +122,22 @@ export function InspectionActions({
                 className="flex items-center justify-between rounded-md border border-light-border px-3 py-2 text-xs dark:border-dark-border"
               >
                 <div>
-                  <span className="font-medium text-light-textPrimary dark:text-dark-textPrimary">{item.room}</span>
-                  <span className="text-light-textSecondary dark:text-dark-textSecondary"> — {item.itemDescription}</span>
+                  <span className="font-medium text-light-textPrimary dark:text-dark-textPrimary">
+                    {item.room}
+                  </span>
+                  <span className="text-light-textSecondary dark:text-dark-textSecondary">
+                    {' '}
+                    — {item.itemDescription}
+                  </span>
                   {item.notes ? (
-                    <p className="mt-0.5 text-light-textMuted dark:text-dark-textMuted">{item.notes}</p>
+                    <p className="mt-0.5 text-light-textMuted dark:text-dark-textMuted">
+                      {item.notes}
+                    </p>
                   ) : null}
                 </div>
-                <StatusBadge presentation={INSPECTION_CONDITION_RATING_PRESENTATION[item.conditionRating]} />
+                <StatusBadge
+                  presentation={INSPECTION_CONDITION_RATING_PRESENTATION[item.conditionRating]}
+                />
               </div>
             ))
           )}
@@ -135,12 +150,15 @@ export function InspectionActions({
       {inspection.status === 'completed' ? (
         <div className="rounded-lg border border-light-border p-4 dark:border-dark-border">
           <p className="text-sm text-light-textPrimary dark:text-dark-textPrimary">
-            Completed {inspection.completedAt ? new Date(inspection.completedAt).toLocaleString('en-ZA') : ''}
+            Completed{' '}
+            {inspection.completedAt ? new Date(inspection.completedAt).toLocaleString('en-ZA') : ''}
           </p>
         </div>
       ) : (
         <div className="rounded-lg border border-light-border p-4 dark:border-dark-border">
-          <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">Signatures</h2>
+          <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+            Signatures
+          </h2>
           <div className="mt-3 flex flex-wrap gap-6">
             <SignatureRow
               label="Landlord"
@@ -159,13 +177,19 @@ export function InspectionActions({
             />
           </div>
           {canAct ? (
-            <Button className="mt-4" variant="primary" disabled={busy || !canComplete} onClick={complete}>
+            <Button
+              className="mt-4"
+              variant="primary"
+              disabled={busy || !canComplete}
+              onClick={complete}
+            >
               Complete inspection
             </Button>
           ) : null}
           {!canComplete ? (
             <p className="mt-2 text-xs text-light-textMuted dark:text-dark-textMuted">
-              Completion requires both signatures, or a landlord signature plus a logged tenant refusal.
+              Completion requires both signatures, or a landlord signature plus a logged tenant
+              refusal.
             </p>
           ) : null}
         </div>
@@ -237,7 +261,9 @@ function TenantSignatureRow({
     return (
       <div className="text-xs">
         <p className="text-light-textSecondary dark:text-dark-textSecondary">Tenant</p>
-        <p className="mt-1 text-light-statusOverdue dark:text-dark-statusOverdue">Refused: {refusalReason}</p>
+        <p className="mt-1 text-light-statusOverdue dark:text-dark-statusOverdue">
+          Refused: {refusalReason}
+        </p>
       </div>
     );
   }
@@ -257,7 +283,12 @@ function TenantSignatureRow({
               placeholder="Refusal reason"
               className="rounded-md border border-light-border bg-transparent px-2 py-1 text-xs text-light-textPrimary dark:border-dark-border dark:text-dark-textPrimary"
             />
-            <Button size="sm" variant="destructive" disabled={busy || !reason} onClick={() => onRefuse(reason)}>
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={busy || !reason}
+              onClick={() => onRefuse(reason)}
+            >
               Log refusal
             </Button>
           </div>
@@ -311,7 +342,10 @@ function AddItemForm({
   }
 
   return (
-    <form onSubmit={submit} className="mt-4 grid grid-cols-2 gap-2 border-t border-light-border pt-4 dark:border-dark-border">
+    <form
+      onSubmit={submit}
+      className="mt-4 grid grid-cols-2 gap-2 border-t border-light-border pt-4 dark:border-dark-border"
+    >
       <input
         required
         placeholder="Room"

@@ -38,7 +38,12 @@ export async function POST(request: NextRequest) {
     // Signature/parse failures are the caller's fault (400), not a server error -- a gateway
     // should not retry these the way it would a 5xx.
     return NextResponse.json(
-      { error: { code: 'billing_webhook_failed', message: err instanceof Error ? err.message : 'Webhook processing failed.' } },
+      {
+        error: {
+          code: 'billing_webhook_failed',
+          message: err instanceof Error ? err.message : 'Webhook processing failed.',
+        },
+      },
       { status: 400 },
     );
   }

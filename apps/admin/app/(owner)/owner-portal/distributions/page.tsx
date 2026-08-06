@@ -98,28 +98,59 @@ export default async function OwnerDistributionsPage() {
           <table className="w-full text-left text-sm">
             <thead className="border-b border-light-border bg-light-surfaceStrong dark:border-dark-border dark:bg-dark-surfaceStrong">
               <tr>
-                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Period</th>
-                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Rent</th>
-                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Expenses</th>
-                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Mgmt fee</th>
-                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Reserve</th>
-                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Net payable</th>
-                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Outstanding</th>
-                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Status</th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Period
+                </th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Rent
+                </th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Expenses
+                </th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Mgmt fee
+                </th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Reserve
+                </th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Net payable
+                </th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Outstanding
+                </th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Status
+                </th>
               </tr>
             </thead>
             <tbody>
               {statements.map((s) => (
-                <tr key={s.id} className="border-b border-light-border last:border-b-0 dark:border-dark-border">
+                <tr
+                  key={s.id}
+                  className="border-b border-light-border last:border-b-0 dark:border-dark-border"
+                >
                   <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">
                     {s.periodStart} – {s.periodEnd}
                   </td>
-                  <td className="px-4 py-3 tabular text-light-textPrimary dark:text-dark-textPrimary">{currency(s.rentCollected)}</td>
-                  <td className="px-4 py-3 tabular text-light-textPrimary dark:text-dark-textPrimary">{currency(s.expensesTotal)}</td>
-                  <td className="px-4 py-3 tabular text-light-textPrimary dark:text-dark-textPrimary">{currency(s.managementFee)}</td>
-                  <td className="px-4 py-3 tabular text-light-textPrimary dark:text-dark-textPrimary">{currency(s.reserveAmount)}</td>
-                  <td className="px-4 py-3 tabular font-medium text-light-textPrimary dark:text-dark-textPrimary">{currency(s.netPayable)}</td>
-                  <td className="px-4 py-3 tabular text-light-textPrimary dark:text-dark-textPrimary">{currency(s.outstandingBalance)}</td>
+                  <td className="px-4 py-3 tabular text-light-textPrimary dark:text-dark-textPrimary">
+                    {currency(s.rentCollected)}
+                  </td>
+                  <td className="px-4 py-3 tabular text-light-textPrimary dark:text-dark-textPrimary">
+                    {currency(s.expensesTotal)}
+                  </td>
+                  <td className="px-4 py-3 tabular text-light-textPrimary dark:text-dark-textPrimary">
+                    {currency(s.managementFee)}
+                  </td>
+                  <td className="px-4 py-3 tabular text-light-textPrimary dark:text-dark-textPrimary">
+                    {currency(s.reserveAmount)}
+                  </td>
+                  <td className="px-4 py-3 tabular font-medium text-light-textPrimary dark:text-dark-textPrimary">
+                    {currency(s.netPayable)}
+                  </td>
+                  <td className="px-4 py-3 tabular text-light-textPrimary dark:text-dark-textPrimary">
+                    {currency(s.outstandingBalance)}
+                  </td>
                   <td className="px-4 py-3">
                     <StatusBadge presentation={OWNER_STATEMENT_STATUS_PRESENTATION[s.status]} />
                   </td>
@@ -144,23 +175,42 @@ export default async function OwnerDistributionsPage() {
             <table className="w-full text-left text-sm">
               <thead className="border-b border-light-border bg-light-surfaceStrong dark:border-dark-border dark:bg-dark-surfaceStrong">
                 <tr>
-                  <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Receipt #</th>
-                  <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Received</th>
-                  <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Amount</th>
-                  <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Deposited</th>
-                  <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Variance</th>
+                  <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                    Receipt #
+                  </th>
+                  <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                    Received
+                  </th>
+                  <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                    Amount
+                  </th>
+                  <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                    Deposited
+                  </th>
+                  <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                    Variance
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {cashReceipts.map((r) => (
-                  <tr key={r.id} className="border-b border-light-border last:border-b-0 dark:border-dark-border">
-                    <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">{r.receiptNumber}</td>
+                  <tr
+                    key={r.id}
+                    className="border-b border-light-border last:border-b-0 dark:border-dark-border"
+                  >
+                    <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">
+                      {r.receiptNumber}
+                    </td>
                     <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">
                       {new Date(r.receivedAt).toLocaleDateString('en-ZA')}
                     </td>
-                    <td className="px-4 py-3 tabular text-light-textPrimary dark:text-dark-textPrimary">{currency(r.amount)}</td>
+                    <td className="px-4 py-3 tabular text-light-textPrimary dark:text-dark-textPrimary">
+                      {currency(r.amount)}
+                    </td>
                     <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">
-                      {r.depositedAt ? new Date(r.depositedAt).toLocaleDateString('en-ZA') : 'Not yet banked'}
+                      {r.depositedAt
+                        ? new Date(r.depositedAt).toLocaleDateString('en-ZA')
+                        : 'Not yet banked'}
                     </td>
                     <td className="px-4 py-3 tabular text-light-textPrimary dark:text-dark-textPrimary">
                       {r.variance === null ? '—' : currency(r.variance)}

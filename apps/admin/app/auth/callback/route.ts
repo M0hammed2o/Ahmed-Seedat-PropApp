@@ -34,7 +34,10 @@ export async function GET(request: NextRequest) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (error) {
       return NextResponse.redirect(
-        new URL(`/login?error=${encodeURIComponent('This link is invalid or has expired.')}`, url.origin),
+        new URL(
+          `/login?error=${encodeURIComponent('This link is invalid or has expired.')}`,
+          url.origin,
+        ),
       );
     }
   } else if (tokenHash && otpType) {
@@ -44,7 +47,10 @@ export async function GET(request: NextRequest) {
     });
     if (error) {
       return NextResponse.redirect(
-        new URL(`/login?error=${encodeURIComponent('This link is invalid or has expired.')}`, url.origin),
+        new URL(
+          `/login?error=${encodeURIComponent('This link is invalid or has expired.')}`,
+          url.origin,
+        ),
       );
     }
   } else {

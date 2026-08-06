@@ -13,7 +13,10 @@ type RouteParams = { params: Promise<{ orgId: string }> };
 // naturally. PATCH's role floor (manager) is enforced twice: here (fail-fast 403) and by
 // organizations_update_manager_plus (migration 20260101000021, the actual ground truth) --
 // PERMISSIONS.md layer 2.
-async function loadVisibleOrganization(supabase: Awaited<ReturnType<typeof getServerSupabaseClient>>, orgId: string) {
+async function loadVisibleOrganization(
+  supabase: Awaited<ReturnType<typeof getServerSupabaseClient>>,
+  orgId: string,
+) {
   return supabase.from('organizations').select('*').eq('id', orgId).maybeSingle();
 }
 
@@ -77,7 +80,12 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   const canWrite = await requireOrgRole(supabase, orgId, 'manager');
   if (!canWrite) {
     return NextResponse.json(
-      { error: { code: 'forbidden', message: 'You do not have permission to edit this organization.' } },
+      {
+        error: {
+          code: 'forbidden',
+          message: 'You do not have permission to edit this organization.',
+        },
+      },
       { status: 403 },
     );
   }
@@ -115,7 +123,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   if (parsed.data.popiaInformationOfficer !== undefined)
     patch.popia_information_officer = parsed.data.popiaInformationOfficer;
   if (parsed.data.invoicePrefix !== undefined) patch.invoice_prefix = parsed.data.invoicePrefix;
-  if (parsed.data.depositInterestPct !== undefined) patch.deposit_interest_pct = parsed.data.depositInterestPct;
+  if (parsed.data.depositInterestPct !== undefined)
+    patch.deposit_interest_pct = parsed.data.depositInterestPct;
   if (parsed.data.ffcNumber !== undefined) patch.ffc_number = parsed.data.ffcNumber;
   if (parsed.data.ffcIssued !== undefined) patch.ffc_issued = parsed.data.ffcIssued;
   if (parsed.data.ffcExpires !== undefined) patch.ffc_expires = parsed.data.ffcExpires;

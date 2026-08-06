@@ -78,7 +78,9 @@ export function CreateOrganizationForm() {
           {...register('legalName')}
         />
         {errors.legalName ? (
-          <p className="mt-1 text-xs text-light-danger dark:text-dark-danger">{errors.legalName.message}</p>
+          <p className="mt-1 text-xs text-light-danger dark:text-dark-danger">
+            {errors.legalName.message}
+          </p>
         ) : null}
 
         <label className="mt-4 block text-xs text-light-textSecondary dark:text-dark-textSecondary">
@@ -92,7 +94,9 @@ export function CreateOrganizationForm() {
           <option value="agency">Agency (I manage properties for other owners)</option>
         </select>
 
-        {submitError ? <p className="mt-3 text-sm text-light-danger dark:text-dark-danger">{submitError}</p> : null}
+        {submitError ? (
+          <p className="mt-3 text-sm text-light-danger dark:text-dark-danger">{submitError}</p>
+        ) : null}
 
         <Button type="submit" variant="primary" disabled={isSubmitting} className="mt-6 w-full">
           {isSubmitting ? 'Creating…' : 'Create organization'}

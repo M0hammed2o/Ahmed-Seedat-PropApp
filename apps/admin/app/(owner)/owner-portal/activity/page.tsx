@@ -63,19 +63,28 @@ export default async function OwnerActivityPage({
 }) {
   const { entity } = await searchParams;
   const activeFilter: EntityFilter =
-    entity === 'cash_receipts' || entity === 'maintenance_tickets' || entity === 'owner_statements' ? entity : 'all';
+    entity === 'cash_receipts' || entity === 'maintenance_tickets' || entity === 'owner_statements'
+      ? entity
+      : 'all';
 
   const activity = ADMIN_DEMO_MODE ? DEMO_ACTIVITY : await loadOwnerActivity(activeFilter);
 
   return (
     <div className="space-y-5 animate-rise">
-      <PageHeader title="Activity" subtitle="Every recorded change to your properties' cash, maintenance, and distributions." />
+      <PageHeader
+        title="Activity"
+        subtitle="Every recorded change to your properties' cash, maintenance, and distributions."
+      />
 
       <div className="flex flex-wrap gap-2">
         {FILTERS.map((f) => (
           <Link
             key={f.value}
-            href={f.value === 'all' ? '/owner-portal/activity' : `/owner-portal/activity?entity=${f.value}`}
+            href={
+              f.value === 'all'
+                ? '/owner-portal/activity'
+                : `/owner-portal/activity?entity=${f.value}`
+            }
             className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
               activeFilter === f.value
                 ? 'bg-light-accent text-white dark:bg-dark-accent'
@@ -101,14 +110,21 @@ export default async function OwnerActivityPage({
             <li key={a.id} className="px-5 py-4">
               <div className="flex items-center justify-between gap-3">
                 <p className="text-sm font-medium text-light-textPrimary dark:text-dark-textPrimary">
-                  {ENTITY_LABELS[a.entityType] ?? a.entityType} {a.action.endsWith('.insert') ? 'created' : a.action.endsWith('.delete') ? 'deleted' : 'updated'}
+                  {ENTITY_LABELS[a.entityType] ?? a.entityType}{' '}
+                  {a.action.endsWith('.insert')
+                    ? 'created'
+                    : a.action.endsWith('.delete')
+                      ? 'deleted'
+                      : 'updated'}
                 </p>
                 <p className="shrink-0 text-xs text-light-textMuted dark:text-dark-textMuted">
                   {new Date(a.createdAt).toLocaleString('en-ZA')}
                 </p>
               </div>
               {describeChanges(a.before, a.after) ? (
-                <p className="mt-1 text-xs text-light-textMuted dark:text-dark-textMuted">{describeChanges(a.before, a.after)}</p>
+                <p className="mt-1 text-xs text-light-textMuted dark:text-dark-textMuted">
+                  {describeChanges(a.before, a.after)}
+                </p>
               ) : null}
             </li>
           ))}
@@ -120,7 +136,10 @@ export default async function OwnerActivityPage({
 
 // Best-effort human-readable diff -- only surfaces fields that actually changed between before
 // and after, never dumps the raw jsonb (real evidence, not a debug view).
-function describeChanges(before: Record<string, unknown> | null, after: Record<string, unknown> | null): string | null {
+function describeChanges(
+  before: Record<string, unknown> | null,
+  after: Record<string, unknown> | null,
+): string | null {
   if (!after) return before ? 'Record removed.' : null;
   if (!before) return null;
 
@@ -130,7 +149,9 @@ function describeChanges(before: Record<string, unknown> | null, after: Record<s
     const beforeVal = before[key];
     const afterVal = after[key];
     if (JSON.stringify(beforeVal) !== JSON.stringify(afterVal)) {
-      changes.push(`${key.replace(/_/g, ' ')}: ${String(beforeVal ?? '—')} → ${String(afterVal ?? '—')}`);
+      changes.push(
+        `${key.replace(/_/g, ' ')}: ${String(beforeVal ?? '—')} → ${String(afterVal ?? '—')}`,
+      );
     }
   }
   return changes.length > 0 ? changes.join('; ') : null;

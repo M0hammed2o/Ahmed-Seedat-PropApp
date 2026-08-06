@@ -43,7 +43,8 @@ const columns: ColumnDef<CustomerRow, unknown>[] = [
     cell: (info) => {
       const status = info.getValue() as string | undefined;
       if (!status) return <span className="text-light-textMuted dark:text-dark-textMuted">—</span>;
-      const presentation = ORGANIZATION_STATUS_PRESENTATION[status as keyof typeof ORGANIZATION_STATUS_PRESENTATION];
+      const presentation =
+        ORGANIZATION_STATUS_PRESENTATION[status as keyof typeof ORGANIZATION_STATUS_PRESENTATION];
       if (!presentation) {
         // Demo-mode legacy status value -- not a real OrganizationStatus, render plainly rather
         // than crashing or silently dropping it.

@@ -25,13 +25,21 @@ export function UsagePanel({
   return (
     <div className="mt-6">
       <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
-        Usage this period ({new Date(periodStart).toLocaleDateString('en-ZA', { month: 'long', year: 'numeric' })})
+        Usage this period (
+        {new Date(periodStart).toLocaleDateString('en-ZA', { month: 'long', year: 'numeric' })})
       </h2>
       <dl className="mt-2 grid grid-cols-2 gap-4 text-sm lg:grid-cols-5">
         {Object.entries(totals).map(([usageType, quantity]) => (
-          <div key={usageType} className="rounded-card border border-light-border bg-light-surfaceRaised p-3 dark:border-dark-border dark:bg-dark-surfaceRaised">
-            <dt className="text-xs text-light-textMuted dark:text-dark-textMuted">{USAGE_LABELS[usageType] ?? usageType}</dt>
-            <dd className="mt-1 text-light-textPrimary dark:text-dark-textPrimary">{formatUsage(usageType, quantity)}</dd>
+          <div
+            key={usageType}
+            className="rounded-card border border-light-border bg-light-surfaceRaised p-3 dark:border-dark-border dark:bg-dark-surfaceRaised"
+          >
+            <dt className="text-xs text-light-textMuted dark:text-dark-textMuted">
+              {USAGE_LABELS[usageType] ?? usageType}
+            </dt>
+            <dd className="mt-1 text-light-textPrimary dark:text-dark-textPrimary">
+              {formatUsage(usageType, quantity)}
+            </dd>
           </div>
         ))}
       </dl>

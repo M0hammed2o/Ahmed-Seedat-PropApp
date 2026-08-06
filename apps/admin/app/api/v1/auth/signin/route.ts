@@ -30,13 +30,22 @@ export async function POST(request: NextRequest) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: { code: 'invalid_json', message: 'Request body must be valid JSON.' } }, { status: 400 });
+    return NextResponse.json(
+      { error: { code: 'invalid_json', message: 'Request body must be valid JSON.' } },
+      { status: 400 },
+    );
   }
 
   const parsed = loginSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
-      { error: { code: 'validation_failed', message: 'Check the highlighted fields.', field_errors: parsed.error.flatten().fieldErrors } },
+      {
+        error: {
+          code: 'validation_failed',
+          message: 'Check the highlighted fields.',
+          field_errors: parsed.error.flatten().fieldErrors,
+        },
+      },
       { status: 400 },
     );
   }
@@ -45,19 +54,35 @@ export async function POST(request: NextRequest) {
   const ip = requestIp(request);
   const normalizedEmail = parsed.data.email.trim().toLowerCase();
 
-  const ipLimited = await rateLimitOrRespond(serviceClient, `auth-signin-ip:${ip}`, RATE_LIMITS.loginAttemptsPerMinute, 60);
+  const ipLimited = await rateLimitOrRespond(
+    serviceClient,
+    `auth-signin-ip:${ip}`,
+    RATE_LIMITS.loginAttemptsPerMinute,
+    60,
+  );
   if (ipLimited) return ipLimited;
-  const emailLimited = await rateLimitOrRespond(serviceClient, `auth-signin-email:${normalizedEmail}`, RATE_LIMITS.loginAttemptsPerMinute, 60);
+  const emailLimited = await rateLimitOrRespond(
+    serviceClient,
+    `auth-signin-email:${normalizedEmail}`,
+    RATE_LIMITS.loginAttemptsPerMinute,
+    60,
+  );
   if (emailLimited) return emailLimited;
 
   const supabase = await getServerSupabaseClient();
-  const { data, error } = await supabase.auth.signInWithPassword({ email: parsed.data.email, password: parsed.data.password });
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: parsed.data.email,
+    password: parsed.data.password,
+  });
 
   if (error || !data.session) {
     // Deliberately identical message/status for "no such account" and "wrong password" -- the
     // same anti-enumeration posture ForgotPasswordForm.tsx's own comment already documents for
     // password reset, applied here to sign-in.
-    return NextResponse.json({ error: { code: 'invalid_credentials', message: 'Invalid email or password.' } }, { status: 401 });
+    return NextResponse.json(
+      { error: { code: 'invalid_credentials', message: 'Invalid email or password.' } },
+      { status: 401 },
+    );
   }
 
   const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
@@ -70,7 +95,15 @@ export async function POST(request: NextRequest) {
     // An account whose AAL requirement says aal2 but has no listable TOTP factor is an
     // inconsistent state this route cannot resolve -- fails closed (never silently treats it as
     // "no MFA needed") rather than guessing.
-    return NextResponse.json({ error: { code: 'mfa_state_error', message: 'Could not verify your account’s second factor. Contact support.' } }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: {
+          code: 'mfa_state_error',
+          message: 'Could not verify your account’s second factor. Contact support.',
+        },
+      },
+      { status: 500 },
+    );
   }
 
   return NextResponse.json({ mfaRequired: false });

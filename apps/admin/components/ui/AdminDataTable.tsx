@@ -10,7 +10,15 @@ import { EmptyState } from './EmptyState';
 // (icon badge -> headline -> CTA) without each call site needing to opt in separately.
 function InboxIcon() {
   return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+    <svg
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      aria-hidden="true"
+    >
       <path
         d="M3 12h4.5l1.5 3h6l1.5-3H21M4 7l-1 5v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7l-1-5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1Z"
         strokeLinecap="round"

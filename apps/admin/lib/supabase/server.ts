@@ -72,7 +72,8 @@ export async function getServerSupabaseClient() {
       global: { headers: { Authorization: `Bearer ${bearerToken}` } },
     });
     const resolveUser = client.auth.getUser.bind(client.auth);
-    client.auth.getUser = ((jwt?: string) => resolveUser(jwt ?? bearerToken)) as SupabaseClient['auth']['getUser'];
+    client.auth.getUser = ((jwt?: string) =>
+      resolveUser(jwt ?? bearerToken)) as SupabaseClient['auth']['getUser'];
     return client;
   }
 

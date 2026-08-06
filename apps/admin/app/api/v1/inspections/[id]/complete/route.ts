@@ -46,26 +46,39 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
   const canWrite = await requireOrgRole(supabase, inspection.org_id, 'agent');
   if (!canWrite) {
     return NextResponse.json(
-      { error: { code: 'forbidden', message: 'You do not have permission to complete this inspection.' } },
+      {
+        error: {
+          code: 'forbidden',
+          message: 'You do not have permission to complete this inspection.',
+        },
+      },
       { status: 403 },
     );
   }
 
   if (inspection.status === 'completed') {
     return NextResponse.json(
-      { error: { code: 'already_completed', message: 'This inspection has already been completed.' } },
+      {
+        error: {
+          code: 'already_completed',
+          message: 'This inspection has already been completed.',
+        },
+      },
       { status: 409 },
     );
   }
 
-  const hasBothSignatures = Boolean(inspection.landlord_signed_at) && Boolean(inspection.tenant_signed_at);
-  const hasRefusalLogged = Boolean(inspection.landlord_signed_at) && Boolean(inspection.tenant_refusal_reason);
+  const hasBothSignatures =
+    Boolean(inspection.landlord_signed_at) && Boolean(inspection.tenant_signed_at);
+  const hasRefusalLogged =
+    Boolean(inspection.landlord_signed_at) && Boolean(inspection.tenant_refusal_reason);
   if (!hasBothSignatures && !hasRefusalLogged) {
     return NextResponse.json(
       {
         error: {
           code: 'signatures_incomplete',
-          message: 'Completion requires the landlord and tenant to both sign, or a logged tenant refusal reason.',
+          message:
+            'Completion requires the landlord and tenant to both sign, or a logged tenant refusal reason.',
         },
       },
       { status: 400 },

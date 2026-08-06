@@ -36,7 +36,12 @@ describe('NoticesList', () => {
   });
 
   it('does not show an acknowledgement control for a notice that does not require one', () => {
-    render(<NoticesList announcements={[{ ...REQUIRES_ACK, requiresAcknowledgement: false }]} acknowledgedIds={[]} />);
+    render(
+      <NoticesList
+        announcements={[{ ...REQUIRES_ACK, requiresAcknowledgement: false }]}
+        acknowledgedIds={[]}
+      />,
+    );
     expect(screen.queryByText('Acknowledge')).toBeNull();
     expect(screen.queryByText('Acknowledged')).toBeNull();
   });

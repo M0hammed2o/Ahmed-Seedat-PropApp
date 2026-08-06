@@ -36,7 +36,9 @@ const DEMO_APPLICATIONS: Application[] = [
  * status is dormant, no V1 UI path ever sets it, so it's deliberately not counted here.
  */
 export default async function ApplicationsPage() {
-  const applications: Application[] = ADMIN_DEMO_MODE ? DEMO_APPLICATIONS : await loadApplications();
+  const applications: Application[] = ADMIN_DEMO_MODE
+    ? DEMO_APPLICATIONS
+    : await loadApplications();
 
   const newCount = applications.filter((a) => a.status === 'submitted').length;
   const reviewing = applications.filter((a) => a.status === 'reviewing').length;

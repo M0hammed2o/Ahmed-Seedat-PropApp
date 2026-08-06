@@ -113,7 +113,7 @@ Everything else — routine reminders, marketing, non-urgent status updates — 
 | `document_missing_required`, `id_document_expiring`                                                                                                 | `lease` (identity/lease-compliance documents)                                                                           |
 | `account_security_event`                                                                                                                            | `security` — **not gated by `whatsapp_enabled`**, sent regardless of preference, per the "not optional" rule above      |
 | `owner_statement_available`                                                                                                                         | `rent` (financial-statement family; no dedicated "accounting" category exists yet — revisit if the category list grows) |
-| `tenant_invitation`                                                                                                                                 | `lease` (identity/lease-onboarding family, same category as `document_missing_required`/`id_document_expiring` above)  |
+| `tenant_invitation`                                                                                                                                 | `lease` (identity/lease-onboarding family, same category as `document_missing_required`/`id_document_expiring` above)   |
 
 ## 3. Personalization — templates, not generic text
 

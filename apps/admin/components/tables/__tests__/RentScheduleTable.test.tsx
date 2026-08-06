@@ -35,7 +35,13 @@ describe('RentScheduleTable', () => {
   });
 
   it('does not show Issue invoice for a non-pending row even when canPost is true', () => {
-    render(<RentScheduleTable data={[{ ...PENDING, status: 'invoiced' }]} canPost onChanged={() => {}} />);
+    render(
+      <RentScheduleTable
+        data={[{ ...PENDING, status: 'invoiced' }]}
+        canPost
+        onChanged={() => {}}
+      />,
+    );
     expect(screen.queryByText('Issue invoice')).toBeNull();
   });
 });

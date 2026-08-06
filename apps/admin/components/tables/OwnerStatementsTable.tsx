@@ -42,7 +42,11 @@ const columns: ColumnDef<OwnerStatementWithOwnerName, unknown>[] = [
     header: 'Status',
     accessorKey: 'status',
     cell: (info) => (
-      <StatusBadge presentation={OWNER_STATEMENT_STATUS_PRESENTATION[info.getValue() as OwnerStatement['status']]} />
+      <StatusBadge
+        presentation={
+          OWNER_STATEMENT_STATUS_PRESENTATION[info.getValue() as OwnerStatement['status']]
+        }
+      />
     ),
   },
 ];
@@ -55,6 +59,11 @@ export function OwnerStatementsTable({
   emptyAction?: ReactNode;
 }) {
   return (
-    <AdminDataTable emptyMessage="No owner statements yet" emptyAction={emptyAction} data={data} columns={columns} />
+    <AdminDataTable
+      emptyMessage="No owner statements yet"
+      emptyAction={emptyAction}
+      data={data}
+      columns={columns}
+    />
   );
 }

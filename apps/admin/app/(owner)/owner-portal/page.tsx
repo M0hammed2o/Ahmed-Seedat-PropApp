@@ -42,26 +42,38 @@ export default async function OwnerPortalHomePage() {
     {
       icon: Banknote,
       title: 'Distributions',
-      body: data.outstandingBalance > 0 ? `${currency(data.outstandingBalance)} outstanding` : 'Fully paid out',
+      body:
+        data.outstandingBalance > 0
+          ? `${currency(data.outstandingBalance)} outstanding`
+          : 'Fully paid out',
       href: '/owner-portal/distributions',
     },
     {
       icon: Wrench,
       title: 'Maintenance',
-      body: data.openMaintenanceCount === 0 ? 'No open requests' : `${data.openMaintenanceCount} open request${data.openMaintenanceCount === 1 ? '' : 's'}`,
+      body:
+        data.openMaintenanceCount === 0
+          ? 'No open requests'
+          : `${data.openMaintenanceCount} open request${data.openMaintenanceCount === 1 ? '' : 's'}`,
       href: '/owner-portal/maintenance',
     },
     {
       icon: FileText,
       title: 'Documents',
-      body: data.documentsCount === 0 ? 'No documents yet' : `${data.documentsCount} document${data.documentsCount === 1 ? '' : 's'}`,
+      body:
+        data.documentsCount === 0
+          ? 'No documents yet'
+          : `${data.documentsCount} document${data.documentsCount === 1 ? '' : 's'}`,
       href: '/owner-portal/documents',
     },
   ];
 
   return (
     <div className="space-y-5 animate-rise">
-      <PageHeader title="Welcome back" subtitle="Your properties, distributions, maintenance, and documents in one place." />
+      <PageHeader
+        title="Welcome back"
+        subtitle="Your properties, distributions, maintenance, and documents in one place."
+      />
 
       <div className="mx-auto grid w-full max-w-3xl gap-4 sm:grid-cols-2">
         {cards.map((c) => (
@@ -74,8 +86,12 @@ export default async function OwnerPortalHomePage() {
               <c.icon className="h-[18px] w-[18px]" aria-hidden="true" />
             </span>
             <span className="min-w-0">
-              <span className="block truncate text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">{c.title}</span>
-              <span className="block truncate text-xs text-light-textMuted dark:text-dark-textMuted">{c.body}</span>
+              <span className="block truncate text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+                {c.title}
+              </span>
+              <span className="block truncate text-xs text-light-textMuted dark:text-dark-textMuted">
+                {c.body}
+              </span>
             </span>
           </Link>
         ))}
@@ -89,21 +105,32 @@ async function loadData(): Promise<OwnerOverview> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { propertyCount: 0, outstandingBalance: 0, openMaintenanceCount: 0, documentsCount: 0 };
+  if (!user)
+    return { propertyCount: 0, outstandingBalance: 0, openMaintenanceCount: 0, documentsCount: 0 };
 
-  const [propertiesResult, statementsResult, maintenanceResult, documentsResult] = await Promise.all([
-    supabase.from('properties').select('id'),
-    supabase.from('owner_statements').select('outstanding_balance'),
-    supabase.from('maintenance_tickets').select('status'),
-    supabase.from('documents').select('id').is('deleted_at', null),
-  ]);
-  if (propertiesResult.error) throw new Error(`Failed to load properties: ${propertiesResult.error.message}`);
-  if (statementsResult.error) throw new Error(`Failed to load statements: ${statementsResult.error.message}`);
-  if (maintenanceResult.error) throw new Error(`Failed to load maintenance: ${maintenanceResult.error.message}`);
-  if (documentsResult.error) throw new Error(`Failed to load documents: ${documentsResult.error.message}`);
+  const [propertiesResult, statementsResult, maintenanceResult, documentsResult] =
+    await Promise.all([
+      supabase.from('properties').select('id'),
+      supabase.from('owner_statements').select('outstanding_balance'),
+      supabase.from('maintenance_tickets').select('status'),
+      supabase.from('documents').select('id').is('deleted_at', null),
+    ]);
+  if (propertiesResult.error)
+    throw new Error(`Failed to load properties: ${propertiesResult.error.message}`);
+  if (statementsResult.error)
+    throw new Error(`Failed to load statements: ${statementsResult.error.message}`);
+  if (maintenanceResult.error)
+    throw new Error(`Failed to load maintenance: ${maintenanceResult.error.message}`);
+  if (documentsResult.error)
+    throw new Error(`Failed to load documents: ${documentsResult.error.message}`);
 
-  const outstandingBalance = (statementsResult.data ?? []).reduce((sum, s) => sum + Number(s.outstanding_balance), 0);
-  const openMaintenanceCount = (maintenanceResult.data ?? []).filter((t) => t.status !== 'completed').length;
+  const outstandingBalance = (statementsResult.data ?? []).reduce(
+    (sum, s) => sum + Number(s.outstanding_balance),
+    0,
+  );
+  const openMaintenanceCount = (maintenanceResult.data ?? []).filter(
+    (t) => t.status !== 'completed',
+  ).length;
 
   return {
     propertyCount: propertiesResult.data?.length ?? 0,

@@ -103,7 +103,10 @@ export function InspectionForm({ orgId, propertyId, unitId }: InspectionFormProp
           <Button type="submit" variant="primary" disabled={submitting}>
             {submitting ? 'Saving…' : 'Schedule inspection'}
           </Button>
-          <Button type="button" onClick={() => router.push(`/properties/${propertyId}/units/${unitId}`)}>
+          <Button
+            type="button"
+            onClick={() => router.push(`/properties/${propertyId}/units/${unitId}`)}
+          >
             Cancel
           </Button>
         </div>

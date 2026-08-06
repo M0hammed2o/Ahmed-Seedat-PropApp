@@ -17,7 +17,9 @@ export function Avatar({
       : 'bg-light-surfaceStrong text-light-textMuted dark:bg-dark-surfaceStrong dark:text-dark-textMuted';
 
   return (
-    <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-[11px] font-semibold ${toneClass} ${className}`}>
+    <span
+      className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-[11px] font-semibold ${toneClass} ${className}`}
+    >
       {initials}
     </span>
   );

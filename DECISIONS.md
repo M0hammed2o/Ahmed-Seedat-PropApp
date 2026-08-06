@@ -125,11 +125,11 @@ One narrow, deliberate exception: `journal_entries.reversed_by_entry_id` may be 
 
 ## 2026-07-31 — `resolve_whatsapp_sender()`: cross-tenant EXECUTE-grant vulnerability found and fixed before shipping
 
-While building M17 (WhatsApp)'s resolution algorithm (`WHATSAPP.md` §1.2), checked the new `security definer` function's actual grants live (`select grantee, privilege_type from information_schema.role_routine_grants where routine_name = 'resolve_whatsapp_sender'`) rather than assuming migration 024's project-wide default-privilege grant was safe for this specific function — it wasn't. `resolve_whatsapp_sender(text)` takes an unscoped phone number and returns which org/entity/tenant/owner it belongs to; unlike `has_org_role()`-style functions (which only confirm the *caller's own* membership), this function's output is not naturally bounded by the caller's identity. Migration 024 grants `EXECUTE` on all functions, including future ones, to `anon`/`authenticated`/`service_role` by default — so both `anon` and `authenticated` had `EXECUTE` on it, meaning any client, even an unauthenticated one, could enumerate which org/tenant/owner record owns any phone number.
+While building M17 (WhatsApp)'s resolution algorithm (`WHATSAPP.md` §1.2), checked the new `security definer` function's actual grants live (`select grantee, privilege_type from information_schema.role_routine_grants where routine_name = 'resolve_whatsapp_sender'`) rather than assuming migration 024's project-wide default-privilege grant was safe for this specific function — it wasn't. `resolve_whatsapp_sender(text)` takes an unscoped phone number and returns which org/entity/tenant/owner it belongs to; unlike `has_org_role()`-style functions (which only confirm the _caller's own_ membership), this function's output is not naturally bounded by the caller's identity. Migration 024 grants `EXECUTE` on all functions, including future ones, to `anon`/`authenticated`/`service_role` by default — so both `anon` and `authenticated` had `EXECUTE` on it, meaning any client, even an unauthenticated one, could enumerate which org/tenant/owner record owns any phone number.
 
 **Fixed before the migration was ever committed**: added `revoke execute on function public.resolve_whatsapp_sender(text) from public, anon, authenticated;` to migration `20260101000040` itself, plus a dedicated regression test (`supabase/tests/email_whatsapp_isolation.test.sql`) proving an ordinary `authenticated` caller now gets `42501 permission denied`. Only `service_role` (the WhatsApp webhook handler's own execution context) can call it. Logged here because this is a real vulnerability class worth naming for future security-definer functions taking unscoped inputs, not just a one-off fix: **any `security definer` function whose input isn't already scoped to the caller's own org/identity needs its `EXECUTE` grant checked explicitly, never assumed safe from the project's default grants.**
 
-While reviewing this fix, applied the same check to the rest of the session's `security definer` functions and found one related, lower-severity gap in already-shipped code: `reverse_journal_entry()` (migration `20260101000035`) ran its authorization check (`has_org_role(v_original.org_id, 'accountant')`) *after* branching on the entry's `reversed_by_entry_id`/`is_reversal` state, so a caller with accountant rights in *any* org (not the entry's own org) could distinguish "not found" from "found but already reversed" from "found but is itself a reversal" for a foreign org's entry by its exception message — a low-severity information leak (requires guessing a valid UUID; no actual entry data is disclosed) but a real one. Fixed via a new migration (`20260101000041`, `CREATE OR REPLACE FUNCTION`, since 035 is already committed) that moves the authorization check immediately after the "not found" check, before any state-dependent branch — a caller without rights to the entry's org now gets the identical generic "not found" message regardless of the entry's real state.
+While reviewing this fix, applied the same check to the rest of the session's `security definer` functions and found one related, lower-severity gap in already-shipped code: `reverse_journal_entry()` (migration `20260101000035`) ran its authorization check (`has_org_role(v_original.org_id, 'accountant')`) _after_ branching on the entry's `reversed_by_entry_id`/`is_reversal` state, so a caller with accountant rights in _any_ org (not the entry's own org) could distinguish "not found" from "found but already reversed" from "found but is itself a reversal" for a foreign org's entry by its exception message — a low-severity information leak (requires guessing a valid UUID; no actual entry data is disclosed) but a real one. Fixed via a new migration (`20260101000041`, `CREATE OR REPLACE FUNCTION`, since 035 is already committed) that moves the authorization check immediately after the "not found" check, before any state-dependent branch — a caller without rights to the entry's org now gets the identical generic "not found" message regardless of the entry's real state.
 
 ## 2026-08-01 — M18 (AI): audit_events cutover done now, not deferred further; staged-endpoint SSRF guard added proactively
 
@@ -166,7 +166,7 @@ than assumed.** `MOBILE_ARCHITECTURE_DECISION.md` confirms zero native code exis
 and this session's environment has no Xcode (requires macOS — an OS constraint, not a missing
 package) and no confirmed Android toolchain. Rather than silently skip native platforms or
 silently write unverifiable `.swift`/`.kt` source and present it as done, asked Mohammed directly:
-spec-only, best-effort unverified source, or skip entirely. Answer: spec-only, explicitly *not* as
+spec-only, best-effort unverified source, or skip entirely. Answer: spec-only, explicitly _not_ as
 a way of skipping native platforms — `NATIVE_IOS_SPEC.md`/`NATIVE_ANDROID_SPEC.md` were written to
 the full depth Mohammed specified (navigation, screens, component mapping, HIG/M3 compliance,
 state management, offline, accessibility, animations, notifications, deep links, biometric auth,
@@ -394,7 +394,7 @@ button for the same moment would be friction without adding information.
 
 **Decided**: kept `approve_application()` and the approve/decline decision panel entirely
 unchanged. It already does exactly what was asked ("on approval, proceed to tenant and lease
-creation") — the correction was about what happens *before* a decision, not the decision/lease-
+creation") — the correction was about what happens _before_ a decision, not the decision/lease-
 creation step itself.
 
 Verified with real execution, not just code review, since this touches a live migration: local
@@ -417,7 +417,7 @@ portal this session spent all day building pages for.
 **Root cause**: `PERMISSIONS.md`'s "never merge role systems" principle was followed correctly at
 the page/layout level (every `(dashboard)` page checks `resolvePortalSession()`, every
 `(super-admin)` page checks `getAdminSession()`, independently) but never applied at the single
-shared entry point (`/` and `/login`) that has to decide *which* portal a given signed-in user
+shared entry point (`/` and `/login`) that has to decide _which_ portal a given signed-in user
 should land in. Not caught earlier because every module built this session was reached directly by
 URL during its own smoke test (`/units`, `/tenants`, etc.), never through the actual login → root
 redirect chain — the first time that exact path was exercised end-to-end was building the
@@ -485,7 +485,7 @@ completes.
 ## 2026-08-01 — Android Maintenance ticket submission deferred: a real gap between API_SPEC.md's contract and the actual server implementation
 
 While scoping the Android Maintenance vertical slice, `MOBILE_ARCHITECTURE_DECISION.md` §6/§7 was
-explicit that ticket *submission* (not just viewing) is the native-app write-path priority. Checked
+explicit that ticket _submission_ (not just viewing) is the native-app write-path priority. Checked
 what wiring a real `POST /api/v1/maintenance-tickets` call from Android would take before building
 it, and found `apps/admin`'s API routes authenticate exclusively via `getServerSupabaseClient()`
 (cookie-session-only) — they never read an `Authorization: Bearer` header, despite `API_SPEC.md`
@@ -559,7 +559,7 @@ on would ever exercise.
 
 Mohammed's instruction this date changed the project's primary objective twice in the same session, each stated explicitly rather than left inferable:
 
-**First**: the immediate objective is no longer Android/iOS development — it is shipping a production-ready PWA "ready for paying customers," commercially competing with established property-management platforms, launching on PayFast recurring subscriptions (three tiers: Starter R299/mo, Professional R699/mo, Business R1499/mo, 30-day free trial on all). Android/iOS are explicitly frozen "until the PWA has successfully launched with real paying customers" — not deprioritized, frozen. His own refinement of the objective, adopted verbatim as the north star: *"Launch the first commercially viable version of PropVault that can onboard, bill, and support real paying customers without further engineering work."*
+**First**: the immediate objective is no longer Android/iOS development — it is shipping a production-ready PWA "ready for paying customers," commercially competing with established property-management platforms, launching on PayFast recurring subscriptions (three tiers: Starter R299/mo, Professional R699/mo, Business R1499/mo, 30-day free trial on all). Android/iOS are explicitly frozen "until the PWA has successfully launched with real paying customers" — not deprioritized, frozen. His own refinement of the objective, adopted verbatim as the north star: _"Launch the first commercially viable version of PropVault that can onboard, bill, and support real paying customers without further engineering work."_
 
 **Second, and the more consequential reversal**: PropVault is repositioned from a property-management tool to a **Property Governance Platform** — the actual stated business problem is families/trusts who co-own property having no way to verify where rental income went, who approved an expense, or whether a distribution was calculated correctly. A full architecture review was run against this requirement (research-only, no code — findings: ownership-percentage support already exists at the DB layer via `property_owners`/`owners`, but property-level visibility does not exist anywhere in the RLS/permission model, confirmed by `PWA_V1_COMPLETION_PLAN.md` row 17). That review's recommendation was to defer shared-ownership/property-permissions/owner-portal work to V2, given the scale of the existing PWA-launch scope already outstanding (billing, testing infra, and production deployment were each independently found close to zero this session).
 
@@ -589,7 +589,7 @@ form field.
 
 **Identity linking**: Supabase's native `linkIdentity()`/`unlinkIdentity()`/`getUserIdentities()`
 are used as-is (`LinkedAccountsPanel.tsx`) rather than a custom merge system — Supabase already
-requires the caller to be authenticated as the account being linked *to* before adding a second
+requires the caller to be authenticated as the account being linked _to_ before adding a second
 provider, which structurally satisfies "never merge based only on unverified browser-supplied
 email" without any bespoke matching logic to get wrong. No automatic cross-account merge was built.
 
@@ -618,7 +618,7 @@ about a specific, non-obvious PL/pgSQL semantic that would otherwise silently de
 control the very first time someone tried a wrong code twice.
 
 **A short code alone never discloses tenant information**: `accept_tenant_invitation()` requires
-either the full token or a short code *combined with* the email/phone already on file for that
+either the full token or a short code _combined with_ the email/phone already on file for that
 tenant record — a short code without a matching identity factor returns the same generic
 `invalid_code` result as a wrong code entirely, never partial confirmation that a code exists.
 
@@ -628,4 +628,4 @@ Google/Apple production credentials (impossible without Mohammed's own accounts 
 `Unknown` pending external setup in `AUTHENTICATION.md` §7, tracked as `TECHNICAL_DEBT_REGISTER.md`
 TD-29), no production deploy. Full technical detail (schema, RLS, RPC signatures, API routes,
 conflict-handling matrix, external OAuth setup steps) lives in `AUTHENTICATION.md`, not duplicated
-here — this entry exists to record the *decisions*, not restate the implementation.
+here — this entry exists to record the _decisions_, not restate the implementation.

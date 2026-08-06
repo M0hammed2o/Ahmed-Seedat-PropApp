@@ -123,7 +123,11 @@ export default async function UnitDetailPage({ params }: RouteParams) {
   const unit = mapUnitRow(data);
 
   const [leasesResult, applicationsResult, inspectionsResult] = await Promise.all([
-    supabase.from('leases').select('*').eq('unit_id', unitId).order('start_date', { ascending: false }),
+    supabase
+      .from('leases')
+      .select('*')
+      .eq('unit_id', unitId)
+      .order('start_date', { ascending: false }),
     supabase
       .from('applications')
       .select('*')
@@ -136,8 +140,10 @@ export default async function UnitDetailPage({ params }: RouteParams) {
       .order('scheduled_at', { ascending: false }),
   ]);
   if (leasesResult.error) throw new Error(`Failed to load leases: ${leasesResult.error.message}`);
-  if (applicationsResult.error) throw new Error(`Failed to load applications: ${applicationsResult.error.message}`);
-  if (inspectionsResult.error) throw new Error(`Failed to load inspections: ${inspectionsResult.error.message}`);
+  if (applicationsResult.error)
+    throw new Error(`Failed to load applications: ${applicationsResult.error.message}`);
+  if (inspectionsResult.error)
+    throw new Error(`Failed to load inspections: ${inspectionsResult.error.message}`);
 
   const leases: LeaseRow[] = (leasesResult.data ?? []).map(mapLeaseRow);
   const applications: Application[] = (applicationsResult.data ?? []).map(mapApplicationRow);
@@ -238,11 +244,15 @@ function UnitDetailView({
         <dl className="grid grid-cols-2 gap-x-4 gap-y-5 text-sm lg:grid-cols-4">
           <div>
             <dt className="text-light-textMuted dark:text-dark-textMuted">Bedrooms</dt>
-            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">{unit.bedrooms ?? '—'}</dd>
+            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">
+              {unit.bedrooms ?? '—'}
+            </dd>
           </div>
           <div>
             <dt className="text-light-textMuted dark:text-dark-textMuted">Bathrooms</dt>
-            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">{unit.bathrooms ?? '—'}</dd>
+            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">
+              {unit.bathrooms ?? '—'}
+            </dd>
           </div>
           <div>
             <dt className="text-light-textMuted dark:text-dark-textMuted">Size</dt>
@@ -279,7 +289,10 @@ function UnitDetailView({
           {canEdit && applications.length > 0 ? addApplicationAction : null}
         </div>
         <div className="mt-3">
-          <ApplicationsTable data={applications} emptyAction={canEdit ? addApplicationAction : undefined} />
+          <ApplicationsTable
+            data={applications}
+            emptyAction={canEdit ? addApplicationAction : undefined}
+          />
         </div>
       </div>
 
@@ -291,7 +304,10 @@ function UnitDetailView({
           {canEdit && inspections.length > 0 ? addInspectionAction : null}
         </div>
         <div className="mt-3">
-          <InspectionsTable data={inspections} emptyAction={canEdit ? addInspectionAction : undefined} />
+          <InspectionsTable
+            data={inspections}
+            emptyAction={canEdit ? addInspectionAction : undefined}
+          />
         </div>
       </div>
 

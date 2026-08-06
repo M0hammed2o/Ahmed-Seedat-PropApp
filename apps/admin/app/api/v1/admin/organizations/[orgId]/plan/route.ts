@@ -44,9 +44,18 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       { status: 400 },
     );
   }
-  if (parsed.data.planId === undefined && parsed.data.priceOverride === undefined && parsed.data.discountPct === undefined) {
+  if (
+    parsed.data.planId === undefined &&
+    parsed.data.priceOverride === undefined &&
+    parsed.data.discountPct === undefined
+  ) {
     return NextResponse.json(
-      { error: { code: 'no_changes', message: 'At least one of planId, priceOverride, or discountPct is required.' } },
+      {
+        error: {
+          code: 'no_changes',
+          message: 'At least one of planId, priceOverride, or discountPct is required.',
+        },
+      },
       { status: 400 },
     );
   }
@@ -78,8 +87,12 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     .insert({
       org_id: orgId,
       plan_id: parsed.data.planId ?? current.plan_id,
-      price_override: parsed.data.priceOverride !== undefined ? parsed.data.priceOverride : current.price_override,
-      discount_pct: parsed.data.discountPct !== undefined ? parsed.data.discountPct : current.discount_pct,
+      price_override:
+        parsed.data.priceOverride !== undefined
+          ? parsed.data.priceOverride
+          : current.price_override,
+      discount_pct:
+        parsed.data.discountPct !== undefined ? parsed.data.discountPct : current.discount_pct,
       promotional_credit: current.promotional_credit,
       billing_cycle: current.billing_cycle,
       current_period_start: new Date().toISOString().slice(0, 10),
@@ -103,8 +116,16 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     action: 'organization.plan_change',
     entityType: 'organization_subscriptions',
     entityId: updated.id,
-    before: { plan_id: current.plan_id, price_override: current.price_override, discount_pct: current.discount_pct },
-    after: { plan_id: updated.plan_id, price_override: updated.price_override, discount_pct: updated.discount_pct },
+    before: {
+      plan_id: current.plan_id,
+      price_override: current.price_override,
+      discount_pct: current.discount_pct,
+    },
+    after: {
+      plan_id: updated.plan_id,
+      price_override: updated.price_override,
+      discount_pct: updated.discount_pct,
+    },
   });
 
   return NextResponse.json({

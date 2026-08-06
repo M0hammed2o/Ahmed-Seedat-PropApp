@@ -72,7 +72,7 @@ live feature already, not partial.
 
 **Say:** "This is a tenant's full record — contact details, status, and (in production) their lease
 and payment history. What I want to show next is new work from this week: how a landlord actually
-gets a tenant *into* the system with portal access, without that tenant ever having to re-type
+gets a tenant _into_ the system with portal access, without that tenant ever having to re-type
 information staff already captured."
 
 **Business problem:** Landlords already have the tenant's name, ID, lease terms, and deposit
@@ -89,6 +89,7 @@ that.
 the profile card.
 
 **Click:**
+
 1. Leave delivery set to **Email**, tick **"Also generate a short activation code"**.
 2. Click **Send invitation**.
 3. Point out the result: a one-time activation link, a short code (`DEMO1234`), the masked

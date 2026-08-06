@@ -35,14 +35,18 @@ const CANDIDATE: RentSchedule = {
 
 describe('BankTransactionsTable', () => {
   it('renders transaction rows with formatted amount and status', () => {
-    render(<BankTransactionsTable data={[UNMATCHED]} canPost={false} rentScheduleCandidates={[]} />);
+    render(
+      <BankTransactionsTable data={[UNMATCHED]} canPost={false} rentScheduleCandidates={[]} />,
+    );
     expect(screen.getByText('EFT rent payment')).toBeTruthy();
     expect(screen.getByText(/^R12.500$/)).toBeTruthy();
     expect(screen.getByText('Unmatched')).toBeTruthy();
   });
 
   it('shows a Match control with rent-schedule candidates for an unmatched row when canPost', () => {
-    render(<BankTransactionsTable data={[UNMATCHED]} canPost rentScheduleCandidates={[CANDIDATE]} />);
+    render(
+      <BankTransactionsTable data={[UNMATCHED]} canPost rentScheduleCandidates={[CANDIDATE]} />,
+    );
     expect(screen.getByText('Match')).toBeTruthy();
   });
 
@@ -52,7 +56,13 @@ describe('BankTransactionsTable', () => {
   });
 
   it('hides the actions column entirely when canPost is false', () => {
-    render(<BankTransactionsTable data={[UNMATCHED]} canPost={false} rentScheduleCandidates={[CANDIDATE]} />);
+    render(
+      <BankTransactionsTable
+        data={[UNMATCHED]}
+        canPost={false}
+        rentScheduleCandidates={[CANDIDATE]}
+      />,
+    );
     expect(screen.queryByText('Match')).toBeNull();
   });
 

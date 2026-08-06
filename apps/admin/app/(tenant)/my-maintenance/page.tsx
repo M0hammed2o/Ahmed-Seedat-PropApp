@@ -65,16 +65,29 @@ export default async function MyMaintenancePage() {
           <table className="w-full text-left text-sm">
             <thead className="border-b border-light-border bg-light-surfaceStrong dark:border-dark-border dark:bg-dark-surfaceStrong">
               <tr>
-                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Summary</th>
-                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Priority</th>
-                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Status</th>
-                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Submitted</th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Summary
+                </th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Priority
+                </th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Status
+                </th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Submitted
+                </th>
               </tr>
             </thead>
             <tbody>
               {tickets.map((t) => (
-                <tr key={t.id} className="border-b border-light-border last:border-0 dark:border-dark-border">
-                  <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">{t.summary}</td>
+                <tr
+                  key={t.id}
+                  className="border-b border-light-border last:border-0 dark:border-dark-border"
+                >
+                  <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">
+                    {t.summary}
+                  </td>
                   <td className="px-4 py-3">
                     <StatusBadge presentation={MAINTENANCE_PRIORITY_PRESENTATION[t.priority]} />
                   </td>

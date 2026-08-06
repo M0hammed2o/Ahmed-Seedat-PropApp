@@ -8,7 +8,10 @@ const SIGNED_URL_TTL_SECONDS = 60 * 10;
 
 type RouteParams = { params: Promise<{ id: string }> };
 
-async function loadVisibleTemplate(supabase: Awaited<ReturnType<typeof getServerSupabaseClient>>, id: string) {
+async function loadVisibleTemplate(
+  supabase: Awaited<ReturnType<typeof getServerSupabaseClient>>,
+  id: string,
+) {
   return supabase.from('lease_templates').select('*').eq('id', id).maybeSingle();
 }
 
@@ -48,7 +51,10 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     .from('documents')
     .createSignedUrl(data.storage_path, SIGNED_URL_TTL_SECONDS);
 
-  return NextResponse.json({ leaseTemplate: mapLeaseTemplateRow(data), signedUrl: signed?.signedUrl ?? null });
+  return NextResponse.json({
+    leaseTemplate: mapLeaseTemplateRow(data),
+    signedUrl: signed?.signedUrl ?? null,
+  });
 }
 
 /**
@@ -87,7 +93,12 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   const canWrite = await requireOrgRole(supabase, existing.org_id, 'manager');
   if (!canWrite) {
     return NextResponse.json(
-      { error: { code: 'forbidden', message: 'Only principals and managers can manage lease templates.' } },
+      {
+        error: {
+          code: 'forbidden',
+          message: 'Only principals and managers can manage lease templates.',
+        },
+      },
       { status: 403 },
     );
   }
@@ -119,7 +130,9 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   const setDefault = bodyParsed.data.setDefault === true;
 
   if (setDefault) {
-    const { error: rpcError } = await supabase.rpc('set_default_lease_template', { p_template_id: id });
+    const { error: rpcError } = await supabase.rpc('set_default_lease_template', {
+      p_template_id: id,
+    });
     if (rpcError) {
       return NextResponse.json(
         { error: { code: 'lease_template_set_default_failed', message: rpcError.message } },

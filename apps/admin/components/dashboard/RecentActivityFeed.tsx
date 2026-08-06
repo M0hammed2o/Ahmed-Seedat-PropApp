@@ -30,7 +30,10 @@ export function RecentActivityFeed({ items }: { items: ActivityItem[] }) {
   return (
     <ul className="divide-y divide-light-border dark:divide-dark-border">
       {items.map((item) => (
-        <li key={item.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+        <li
+          key={item.id}
+          className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
+        >
           <span className="min-w-0 truncate text-sm text-light-textPrimary dark:text-dark-textPrimary">
             {item.description}
           </span>

@@ -13,7 +13,11 @@ export function ApplicationsFilterClient({ applications }: { applications: Appli
 
   return (
     <div className="space-y-4">
-      <SearchBar value={query} onChange={setQuery} placeholder="Search applications by applicant name or email" />
+      <SearchBar
+        value={query}
+        onChange={setQuery}
+        placeholder="Search applications by applicant name or email"
+      />
       <ApplicationsTable data={filtered} />
     </div>
   );

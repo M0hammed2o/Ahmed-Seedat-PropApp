@@ -20,14 +20,15 @@ export class MockLLMProvider implements LLMProvider {
       return {
         replyText:
           count === 0
-            ? "Nothing is overdue right now -- every active lease is current."
+            ? 'Nothing is overdue right now -- every active lease is current.'
             : `${count} lease${count === 1 ? ' is' : 's are'} overdue on rent right now.`,
         costMetadata: mockCost(),
       };
     }
 
     if (text.includes('portfolio') || text.includes("how's")) {
-      const { rentOverdue, rentDueSoon, openMaintenanceTickets, leasesExpiringSoon } = input.context;
+      const { rentOverdue, rentDueSoon, openMaintenanceTickets, leasesExpiringSoon } =
+        input.context;
       return {
         replyText: `Overdue rent: ${rentOverdue.length}. Rent due soon: ${rentDueSoon.length}. Open maintenance tickets: ${openMaintenanceTickets.length}. Leases expiring soon: ${leasesExpiringSoon.length}.`,
         costMetadata: mockCost(),
@@ -50,7 +51,7 @@ export class MockLLMProvider implements LLMProvider {
 
     return {
       replyText:
-        "I can answer questions about your portfolio (try \"What's overdue?\") or help you record an expense -- what would you like to do?",
+        'I can answer questions about your portfolio (try "What\'s overdue?") or help you record an expense -- what would you like to do?',
       costMetadata: mockCost(),
     };
   }

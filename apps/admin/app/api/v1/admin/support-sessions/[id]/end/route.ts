@@ -33,16 +33,27 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     );
   }
   if (!session) {
-    return NextResponse.json({ error: { code: 'not_found', message: 'Support session not found.' } }, { status: 404 });
+    return NextResponse.json(
+      { error: { code: 'not_found', message: 'Support session not found.' } },
+      { status: 404 },
+    );
   }
   if (session.platform_admin_id !== guard.session.id) {
     return NextResponse.json(
-      { error: { code: 'forbidden', message: 'You can only end a support session you opened yourself.' } },
+      {
+        error: {
+          code: 'forbidden',
+          message: 'You can only end a support session you opened yourself.',
+        },
+      },
       { status: 403 },
     );
   }
   if (session.ended_at) {
-    return NextResponse.json({ supportSession: mapSupportAccessSessionRow(session) }, { status: 200 });
+    return NextResponse.json(
+      { supportSession: mapSupportAccessSessionRow(session) },
+      { status: 200 },
+    );
   }
 
   const { data: updated, error: updateError } = await serviceClient

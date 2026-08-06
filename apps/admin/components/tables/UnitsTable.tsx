@@ -72,7 +72,9 @@ function buildColumns(showProperty: boolean): ColumnDef<UnitRow, unknown>[] {
     {
       header: 'Status',
       accessorKey: 'status',
-      cell: (info) => <StatusBadge presentation={UNIT_STATUS_PRESENTATION[info.getValue() as Unit['status']]} />,
+      cell: (info) => (
+        <StatusBadge presentation={UNIT_STATUS_PRESENTATION[info.getValue() as Unit['status']]} />
+      ),
     },
   );
 

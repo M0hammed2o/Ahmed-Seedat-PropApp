@@ -53,7 +53,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   const canWrite = await requireOrgRole(supabase, entry.org_id, 'accountant');
   if (!canWrite) {
     return NextResponse.json(
-      { error: { code: 'forbidden', message: 'You do not have permission to reverse this journal entry.' } },
+      {
+        error: {
+          code: 'forbidden',
+          message: 'You do not have permission to reverse this journal entry.',
+        },
+      },
       { status: 403 },
     );
   }

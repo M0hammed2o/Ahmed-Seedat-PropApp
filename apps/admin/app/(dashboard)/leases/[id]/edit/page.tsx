@@ -58,6 +58,12 @@ export default async function EditLeasePage({ params }: RouteParams) {
   if (!canEdit) redirect(`/leases/${id}`);
 
   return (
-    <LeaseForm mode="edit" orgId={lease.orgId} unitId={lease.unitId} propertyId={units?.property_id ?? ''} lease={lease} />
+    <LeaseForm
+      mode="edit"
+      orgId={lease.orgId}
+      unitId={lease.unitId}
+      propertyId={units?.property_id ?? ''}
+      lease={lease}
+    />
   );
 }

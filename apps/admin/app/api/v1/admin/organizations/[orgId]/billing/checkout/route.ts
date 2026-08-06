@@ -65,7 +65,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json(result, { status: 201 });
   } catch (err) {
     return NextResponse.json(
-      { error: { code: 'billing_checkout_failed', message: err instanceof Error ? err.message : 'Checkout failed.' } },
+      {
+        error: {
+          code: 'billing_checkout_failed',
+          message: err instanceof Error ? err.message : 'Checkout failed.',
+        },
+      },
       { status: 422 },
     );
   }

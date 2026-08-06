@@ -15,8 +15,12 @@ export function OccupancyMeter({ occupied, vacant }: { occupied: number; vacant:
   if (total === 0) {
     return (
       <div className="flex h-[160px] flex-col items-center justify-center gap-1 text-center">
-        <p className="text-sm font-medium text-light-textPrimary dark:text-dark-textPrimary">No units yet</p>
-        <p className="text-xs text-light-textMuted dark:text-dark-textMuted">Add a property and units to see occupancy.</p>
+        <p className="text-sm font-medium text-light-textPrimary dark:text-dark-textPrimary">
+          No units yet
+        </p>
+        <p className="text-xs text-light-textMuted dark:text-dark-textMuted">
+          Add a property and units to see occupancy.
+        </p>
       </div>
     );
   }
@@ -28,7 +32,14 @@ export function OccupancyMeter({ occupied, vacant }: { occupied: number; vacant:
       <div className="relative h-[132px] w-[132px] shrink-0">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
-            <Pie data={data} dataKey="value" innerRadius={42} outerRadius={62} paddingAngle={total > 1 ? 3 : 0} stroke="none">
+            <Pie
+              data={data}
+              dataKey="value"
+              innerRadius={42}
+              outerRadius={62}
+              paddingAngle={total > 1 ? 3 : 0}
+              stroke="none"
+            >
               {data.map((d) => (
                 <Cell key={d.name} fill={d.color} />
               ))}
@@ -46,7 +57,9 @@ export function OccupancyMeter({ occupied, vacant }: { occupied: number; vacant:
           <li key={d.name} className="flex items-center justify-between gap-2 text-[13px]">
             <span className="flex min-w-0 items-center gap-2">
               <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: d.color }} />
-              <span className="truncate text-light-textSecondary dark:text-dark-textSecondary">{d.name}</span>
+              <span className="truncate text-light-textSecondary dark:text-dark-textSecondary">
+                {d.name}
+              </span>
             </span>
             <span className="tabular-nums-feature font-semibold text-light-textPrimary dark:text-dark-textPrimary">
               {d.value}

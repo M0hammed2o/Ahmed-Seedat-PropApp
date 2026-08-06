@@ -12,15 +12,26 @@ export async function GET() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.json({ error: { code: 'unauthenticated', message: 'Sign in required.' } }, { status: 401 });
+    return NextResponse.json(
+      { error: { code: 'unauthenticated', message: 'Sign in required.' } },
+      { status: 401 },
+    );
   }
 
   const { data, error } = await supabase.auth.mfa.listFactors();
   if (error) {
-    return NextResponse.json({ error: { code: 'mfa_factors_failed', message: 'Could not load MFA status.' } }, { status: 500 });
+    return NextResponse.json(
+      { error: { code: 'mfa_factors_failed', message: 'Could not load MFA status.' } },
+      { status: 500 },
+    );
   }
 
   return NextResponse.json({
-    factors: (data?.totp ?? []).map((f) => ({ id: f.id, friendlyName: f.friendly_name ?? null, status: f.status, createdAt: f.created_at })),
+    factors: (data?.totp ?? []).map((f) => ({
+      id: f.id,
+      friendlyName: f.friendly_name ?? null,
+      status: f.status,
+      createdAt: f.created_at,
+    })),
   });
 }

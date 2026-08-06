@@ -31,7 +31,11 @@ export default async function SubscriptionsPage() {
         ).toISOString(),
       }))
     : (
-        await listPlatformOrganizations(getServiceRoleClient(), {}, { limit: 50, beforeFilter: null })
+        await listPlatformOrganizations(
+          getServiceRoleClient(),
+          {},
+          { limit: 50, beforeFilter: null },
+        )
       ).map((org) => ({
         orgId: org.orgId,
         legalName: org.legalName,

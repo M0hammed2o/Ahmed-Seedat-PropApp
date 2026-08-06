@@ -97,7 +97,11 @@ export const LEASE_STATUS_PRESENTATION: Record<LeaseStatus, StatusPresentation> 
 export const MAINTENANCE_STATUS_PRESENTATION: Record<MaintenanceStatus, StatusPresentation> = {
   to_do: { label: 'To do', icon: 'eye', colorToken: 'statusNeedsReview' },
   in_progress: { label: 'In progress', icon: 'spinner', colorToken: 'statusProcessing' },
-  pending_approval: { label: 'Pending approval', icon: 'alert-triangle', colorToken: 'statusUnpaid' },
+  pending_approval: {
+    label: 'Pending approval',
+    icon: 'alert-triangle',
+    colorToken: 'statusUnpaid',
+  },
   completed: { label: 'Completed', icon: 'check', colorToken: 'statusPaid' },
 };
 
@@ -126,7 +130,10 @@ export const APPLICATION_STATUS_PRESENTATION: Record<ApplicationStatus, StatusPr
   withdrawn: { label: 'Withdrawn', icon: 'slash', colorToken: 'statusVoid' },
 };
 
-export const APPLICATION_SCREENING_STATUS_PRESENTATION: Record<ApplicationScreeningStatus, StatusPresentation> = {
+export const APPLICATION_SCREENING_STATUS_PRESENTATION: Record<
+  ApplicationScreeningStatus,
+  StatusPresentation
+> = {
   not_started: { label: 'Not started', icon: 'dot', colorToken: 'statusVoid' },
   in_progress: { label: 'In progress', icon: 'spinner', colorToken: 'statusProcessing' },
   passed: { label: 'Passed', icon: 'check', colorToken: 'statusPaid' },
@@ -159,11 +166,18 @@ export function applicationDisplayPresentation(app: {
 export const INSPECTION_STATUS_PRESENTATION: Record<InspectionStatus, StatusPresentation> = {
   scheduled: { label: 'Scheduled', icon: 'eye', colorToken: 'statusNeedsReview' },
   in_progress: { label: 'In progress', icon: 'spinner', colorToken: 'statusProcessing' },
-  awaiting_signature: { label: 'Awaiting signature', icon: 'alert-triangle', colorToken: 'statusUnpaid' },
+  awaiting_signature: {
+    label: 'Awaiting signature',
+    icon: 'alert-triangle',
+    colorToken: 'statusUnpaid',
+  },
   completed: { label: 'Completed', icon: 'check', colorToken: 'statusPaid' },
 };
 
-export const INSPECTION_CONDITION_RATING_PRESENTATION: Record<InspectionConditionRating, StatusPresentation> = {
+export const INSPECTION_CONDITION_RATING_PRESENTATION: Record<
+  InspectionConditionRating,
+  StatusPresentation
+> = {
   good: { label: 'Good', icon: 'check', colorToken: 'statusPaid' },
   fair: { label: 'Fair', icon: 'dot', colorToken: 'statusProcessing' },
   poor: { label: 'Poor', icon: 'alert-triangle', colorToken: 'statusNeedsReview' },
@@ -193,15 +207,19 @@ export const INVOICE_STATUS_PRESENTATION: Record<InvoiceStatus, StatusPresentati
 };
 
 // TASKS.md M20 (Payments/bank-matching vertical slice).
-export const BANK_TRANSACTION_MATCH_STATUS_PRESENTATION: Record<BankTransactionMatchStatus, StatusPresentation> = {
+export const BANK_TRANSACTION_MATCH_STATUS_PRESENTATION: Record<
+  BankTransactionMatchStatus,
+  StatusPresentation
+> = {
   unmatched: { label: 'Unmatched', icon: 'eye', colorToken: 'statusNeedsReview' },
   matched: { label: 'Matched', icon: 'check', colorToken: 'statusPaid' },
   ignored: { label: 'Ignored', icon: 'slash', colorToken: 'statusVoid' },
 };
 
 // TASKS.md M14 part 3 (Owner Statements), same draft/issued/paid shape as InvoiceStatus.
-export const OWNER_STATEMENT_STATUS_PRESENTATION: Record<OwnerStatementStatus, StatusPresentation> = {
-  draft: { label: 'Draft', icon: 'eye', colorToken: 'statusNeedsReview' },
-  issued: { label: 'Issued', icon: 'spinner', colorToken: 'statusProcessing' },
-  paid: { label: 'Paid', icon: 'check', colorToken: 'statusPaid' },
-};
+export const OWNER_STATEMENT_STATUS_PRESENTATION: Record<OwnerStatementStatus, StatusPresentation> =
+  {
+    draft: { label: 'Draft', icon: 'eye', colorToken: 'statusNeedsReview' },
+    issued: { label: 'Issued', icon: 'spinner', colorToken: 'statusProcessing' },
+    paid: { label: 'Paid', icon: 'check', colorToken: 'statusPaid' },
+  };

@@ -44,9 +44,13 @@ export function NotificationsList({ notifications }: { notifications: AppNotific
           }`}
         >
           <div>
-            <p className="font-medium text-light-textPrimary dark:text-dark-textPrimary">{n.title}</p>
+            <p className="font-medium text-light-textPrimary dark:text-dark-textPrimary">
+              {n.title}
+            </p>
             {n.body ? (
-              <p className="mt-0.5 text-xs text-light-textSecondary dark:text-dark-textSecondary">{n.body}</p>
+              <p className="mt-0.5 text-xs text-light-textSecondary dark:text-dark-textSecondary">
+                {n.body}
+              </p>
             ) : null}
             <p className="mt-1 text-[11px] text-light-textMuted dark:text-dark-textMuted">
               {new Date(n.createdAt).toLocaleString('en-ZA')}

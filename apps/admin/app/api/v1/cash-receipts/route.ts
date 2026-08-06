@@ -48,7 +48,9 @@ export async function GET(request: NextRequest) {
   const cashReceipts = rows.map(mapCashReceiptRow);
   const last = rows[rows.length - 1];
   const nextCursor =
-    rows.length === limit && last ? encodeCursor({ createdAt: last.created_at, id: last.id }) : null;
+    rows.length === limit && last
+      ? encodeCursor({ createdAt: last.created_at, id: last.id })
+      : null;
 
   return NextResponse.json({ cashReceipts, next_cursor: nextCursor });
 }
@@ -104,7 +106,11 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { data, error } = await supabase.from('cash_receipts').select('*').eq('id', receiptId).single();
+  const { data, error } = await supabase
+    .from('cash_receipts')
+    .select('*')
+    .eq('id', receiptId)
+    .single();
   if (error) {
     return NextResponse.json(
       { error: { code: 'cash_receipt_fetch_failed', message: error.message } },

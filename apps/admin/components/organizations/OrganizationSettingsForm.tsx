@@ -100,23 +100,46 @@ export function OrganizationSettingsForm({ organization }: { organization: Organ
             {error}
           </p>
         ) : null}
-        {saved ? <p className="text-xs text-light-statusPaid dark:text-dark-statusPaid">Saved.</p> : null}
+        {saved ? (
+          <p className="text-xs text-light-statusPaid dark:text-dark-statusPaid">Saved.</p>
+        ) : null}
 
         <div className="grid grid-cols-2 gap-4">
           <Field label="Legal name" error={fieldErrors.legalName}>
-            <input required value={form.legalName} onChange={(e) => set('legalName', e.target.value)} className={inputClass} />
+            <input
+              required
+              value={form.legalName}
+              onChange={(e) => set('legalName', e.target.value)}
+              className={inputClass}
+            />
           </Field>
           <Field label="Trading name (optional)" error={fieldErrors.tradingName}>
-            <input value={form.tradingName} onChange={(e) => set('tradingName', e.target.value)} className={inputClass} />
+            <input
+              value={form.tradingName}
+              onChange={(e) => set('tradingName', e.target.value)}
+              className={inputClass}
+            />
           </Field>
           <Field label="CIPC registration no." error={fieldErrors.cipcRegNo}>
-            <input value={form.cipcRegNo} onChange={(e) => set('cipcRegNo', e.target.value)} className={inputClass} />
+            <input
+              value={form.cipcRegNo}
+              onChange={(e) => set('cipcRegNo', e.target.value)}
+              className={inputClass}
+            />
           </Field>
           <Field label="VAT no." error={fieldErrors.vatNo}>
-            <input value={form.vatNo} onChange={(e) => set('vatNo', e.target.value)} className={inputClass} />
+            <input
+              value={form.vatNo}
+              onChange={(e) => set('vatNo', e.target.value)}
+              className={inputClass}
+            />
           </Field>
           <Field label="SARS tax no." error={fieldErrors.sarsTaxNo}>
-            <input value={form.sarsTaxNo} onChange={(e) => set('sarsTaxNo', e.target.value)} className={inputClass} />
+            <input
+              value={form.sarsTaxNo}
+              onChange={(e) => set('sarsTaxNo', e.target.value)}
+              className={inputClass}
+            />
           </Field>
           <Field label="POPIA information officer" error={fieldErrors.popiaInformationOfficer}>
             <input
@@ -145,13 +168,27 @@ export function OrganizationSettingsForm({ organization }: { organization: Organ
             />
           </Field>
           <Field label="Fidelity Fund Certificate no." error={fieldErrors.ffcNumber}>
-            <input value={form.ffcNumber} onChange={(e) => set('ffcNumber', e.target.value)} className={inputClass} />
+            <input
+              value={form.ffcNumber}
+              onChange={(e) => set('ffcNumber', e.target.value)}
+              className={inputClass}
+            />
           </Field>
           <Field label="FFC issued" error={fieldErrors.ffcIssued}>
-            <input type="date" value={form.ffcIssued} onChange={(e) => set('ffcIssued', e.target.value)} className={inputClass} />
+            <input
+              type="date"
+              value={form.ffcIssued}
+              onChange={(e) => set('ffcIssued', e.target.value)}
+              className={inputClass}
+            />
           </Field>
           <Field label="FFC expires" error={fieldErrors.ffcExpires}>
-            <input type="date" value={form.ffcExpires} onChange={(e) => set('ffcExpires', e.target.value)} className={inputClass} />
+            <input
+              type="date"
+              value={form.ffcExpires}
+              onChange={(e) => set('ffcExpires', e.target.value)}
+              className={inputClass}
+            />
           </Field>
         </div>
 
@@ -166,13 +203,23 @@ export function OrganizationSettingsForm({ organization }: { organization: Organ
 const inputClass =
   'mt-1 block w-full rounded-md border border-light-border bg-transparent px-3 py-2 text-sm text-light-textPrimary dark:border-dark-border dark:text-dark-textPrimary';
 
-function Field({ label, error, children }: { label: string; error?: string[]; children: React.ReactNode }) {
+function Field({
+  label,
+  error,
+  children,
+}: {
+  label: string;
+  error?: string[];
+  children: React.ReactNode;
+}) {
   return (
     <label className="block text-xs">
       <span className="text-light-textMuted dark:text-dark-textMuted">{label}</span>
       {children}
       {error?.length ? (
-        <p className="mt-1 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">{error[0]}</p>
+        <p className="mt-1 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">
+          {error[0]}
+        </p>
       ) : null}
     </label>
   );

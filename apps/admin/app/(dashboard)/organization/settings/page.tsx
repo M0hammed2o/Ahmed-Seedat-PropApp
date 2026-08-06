@@ -56,7 +56,9 @@ export default async function OrganizationSettingsPage() {
   }
 
   const membership = findActiveMembership(session, activeOrg.orgId);
-  const canManage = Boolean(membership && (membership.role === 'principal' || membership.role === 'manager'));
+  const canManage = Boolean(
+    membership && (membership.role === 'principal' || membership.role === 'manager'),
+  );
   if (!canManage) {
     return (
       <div className="space-y-5 animate-rise">
@@ -67,12 +69,20 @@ export default async function OrganizationSettingsPage() {
   }
 
   const supabase = await getServerSupabaseClient();
-  const { data, error } = await supabase.from('organizations').select('*').eq('id', activeOrg.orgId).single();
-  if (error || !data) throw new Error(`Failed to load organization: ${error?.message ?? 'not found'}`);
+  const { data, error } = await supabase
+    .from('organizations')
+    .select('*')
+    .eq('id', activeOrg.orgId)
+    .single();
+  if (error || !data)
+    throw new Error(`Failed to load organization: ${error?.message ?? 'not found'}`);
 
   return (
     <div className="space-y-5 animate-rise">
-      <PageHeader title="Organization settings" subtitle="Registration, tax, and trust-account details." />
+      <PageHeader
+        title="Organization settings"
+        subtitle="Registration, tax, and trust-account details."
+      />
       <OrganizationSettingsForm organization={mapOrganizationRow(data)} />
       <p className="text-sm text-light-textSecondary dark:text-dark-textSecondary">
         Manage the templates used when creating a new lease at{' '}

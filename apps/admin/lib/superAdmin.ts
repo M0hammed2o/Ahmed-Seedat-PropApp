@@ -97,7 +97,9 @@ async function fetchLatestSubscriptionsByOrg(
   if (orgIds.length === 0) return new Map();
   const { data, error } = await client
     .from('organization_subscriptions')
-    .select('id, org_id, plan_id, price_override, discount_pct, promotional_credit, billing_cycle, current_period_end, next_payment_date, status')
+    .select(
+      'id, org_id, plan_id, price_override, discount_pct, promotional_credit, billing_cycle, current_period_end, next_payment_date, status',
+    )
     .in('org_id', orgIds)
     .order('current_period_start', { ascending: false });
   if (error) throw new Error(`Failed to fetch organization_subscriptions: ${error.message}`);
@@ -109,14 +111,23 @@ async function fetchLatestSubscriptionsByOrg(
   return latestByOrg;
 }
 
-async function fetchPlansById(client: SupabaseClient, planIds: string[]): Promise<Map<string, PlanRow>> {
+async function fetchPlansById(
+  client: SupabaseClient,
+  planIds: string[],
+): Promise<Map<string, PlanRow>> {
   if (planIds.length === 0) return new Map();
-  const { data, error } = await client.from('plans').select('id, code, name, base_price').in('id', planIds);
+  const { data, error } = await client
+    .from('plans')
+    .select('id, code, name, base_price')
+    .in('id', planIds);
   if (error) throw new Error(`Failed to fetch plans: ${error.message}`);
   return new Map((data ?? []).map((row) => [row.id as string, row as PlanRow]));
 }
 
-async function fetchCountsByOrg(client: SupabaseClient, orgIds: string[]): Promise<Map<string, CountsRow>> {
+async function fetchCountsByOrg(
+  client: SupabaseClient,
+  orgIds: string[],
+): Promise<Map<string, CountsRow>> {
   if (orgIds.length === 0) return new Map();
   const { data, error } = await client.rpc('admin_organization_counts', { p_org_ids: orgIds });
   if (error) throw new Error(`Failed to fetch admin_organization_counts: ${error.message}`);
@@ -139,7 +150,11 @@ export async function listPlatformOrganizations(
   // wrongly conclude there's no next page).
   let planOrgIdFilter: string[] | null = null;
   if (filters.planCode) {
-    const { data: plan, error: planError } = await client.from('plans').select('id').eq('code', filters.planCode).maybeSingle();
+    const { data: plan, error: planError } = await client
+      .from('plans')
+      .select('id')
+      .eq('code', filters.planCode)
+      .maybeSingle();
     if (planError) throw new Error(`Failed to resolve plan code: ${planError.message}`);
     if (!plan) return []; // unknown plan code -- no organization can match it
     const { data: matchingSubs, error: subsError } = await client
@@ -198,31 +213,55 @@ export async function getPlatformOrganizationDetail(
   monthStart.setUTCDate(1);
   monthStart.setUTCHours(0, 0, 0, 0);
 
-  const [subscriptionsByOrg, counts, usageResult, currentEventsResult, paymentsResult, auditResult] = await Promise.all([
+  const [
+    subscriptionsByOrg,
+    counts,
+    usageResult,
+    currentEventsResult,
+    paymentsResult,
+    auditResult,
+  ] = await Promise.all([
     fetchLatestSubscriptionsByOrg(client, [orgId]),
     fetchCountsByOrg(client, [orgId]),
-    client.from('usage_snapshots').select('usage_type, period, total_quantity').eq('org_id', orgId).order('period', { ascending: false }).limit(20),
+    client
+      .from('usage_snapshots')
+      .select('usage_type, period, total_quantity')
+      .eq('org_id', orgId)
+      .order('period', { ascending: false })
+      .limit(20),
     // usage_snapshots is empty for every org until the rollup job (TD-20) exists -- summed live
     // from usage_events instead, same approach as lib/ai.ts's checkAiUsageCap().
-    client.from('usage_events').select('usage_type, quantity').eq('org_id', orgId).gte('recorded_at', monthStart.toISOString()),
+    client
+      .from('usage_events')
+      .select('usage_type, quantity')
+      .eq('org_id', orgId)
+      .gte('recorded_at', monthStart.toISOString()),
     client
       .from('subscription_payments')
-      .select('id, org_id, subscription_id, amount, currency, status, payment_method, provider_reference, paid_at, created_at')
+      .select(
+        'id, org_id, subscription_id, amount, currency, status, payment_method, provider_reference, paid_at, created_at',
+      )
       .eq('org_id', orgId)
       .order('created_at', { ascending: false })
       .limit(10),
     // PWA_V1_COMPLETION_PLAN.md #14 -- audit_events existed with zero UI reading it anywhere.
     client
       .from('audit_events')
-      .select('id, org_id, actor_user_id, actor_type, action, entity_type, entity_id, before, after, ip_address, ai_conversation_id, ai_message_id, created_at')
+      .select(
+        'id, org_id, actor_user_id, actor_type, action, entity_type, entity_id, before, after, ip_address, ai_conversation_id, ai_message_id, created_at',
+      )
       .eq('org_id', orgId)
       .order('created_at', { ascending: false })
       .limit(20),
   ]);
-  if (usageResult.error) throw new Error(`Failed to fetch usage_snapshots: ${usageResult.error.message}`);
-  if (currentEventsResult.error) throw new Error(`Failed to fetch usage_events: ${currentEventsResult.error.message}`);
-  if (paymentsResult.error) throw new Error(`Failed to fetch subscription_payments: ${paymentsResult.error.message}`);
-  if (auditResult.error) throw new Error(`Failed to fetch audit_events: ${auditResult.error.message}`);
+  if (usageResult.error)
+    throw new Error(`Failed to fetch usage_snapshots: ${usageResult.error.message}`);
+  if (currentEventsResult.error)
+    throw new Error(`Failed to fetch usage_events: ${currentEventsResult.error.message}`);
+  if (paymentsResult.error)
+    throw new Error(`Failed to fetch subscription_payments: ${paymentsResult.error.message}`);
+  if (auditResult.error)
+    throw new Error(`Failed to fetch audit_events: ${auditResult.error.message}`);
 
   const currentPeriodTotals: Record<string, number> = {};
   for (const t of USAGE_TYPES) currentPeriodTotals[t] = 0;
@@ -232,7 +271,9 @@ export async function getPlatformOrganizationDetail(
   }
 
   const subscription = subscriptionsByOrg.get(orgId);
-  const plansById = subscription ? await fetchPlansById(client, [subscription.plan_id]) : new Map<string, PlanRow>();
+  const plansById = subscription
+    ? await fetchPlansById(client, [subscription.plan_id])
+    : new Map<string, PlanRow>();
   const summary = assembleSummary(
     org as OrganizationRow,
     subscription,
@@ -322,7 +363,9 @@ export function mapSupportAccessSessionRow(row: {
  * to keep one fresh, and a live aggregate is not actually costly at today's org counts). Churn
  * rate is deliberately excluded (SUPER_ADMIN.md §7.2 flags it as needing a dedicated helper view).
  */
-export async function computePlatformMetrics(client: SupabaseClient): Promise<PlatformDashboardMetrics> {
+export async function computePlatformMetrics(
+  client: SupabaseClient,
+): Promise<PlatformDashboardMetrics> {
   const monthStart = new Date();
   monthStart.setUTCDate(1);
   monthStart.setUTCHours(0, 0, 0, 0);
@@ -341,16 +384,29 @@ export async function computePlatformMetrics(client: SupabaseClient): Promise<Pl
     staffResult,
   ] = await Promise.all([
     client.from('organizations').select('status, created_at'),
-    client.from('organization_subscriptions').select('org_id, price_override, billing_cycle, plan_id, status').eq('status', 'active'),
-    client.from('subscription_payments').select('amount').eq('status', 'paid').gte('paid_at', monthStart.toISOString()),
+    client
+      .from('organization_subscriptions')
+      .select('org_id, price_override, billing_cycle, plan_id, status')
+      .eq('status', 'active'),
+    client
+      .from('subscription_payments')
+      .select('amount')
+      .eq('status', 'paid')
+      .gte('paid_at', monthStart.toISOString()),
     client.from('subscription_payments').select('amount').eq('status', 'pending'),
-    client.from('subscription_payments').select('id', { count: 'exact', head: true }).eq('status', 'failed'),
+    client
+      .from('subscription_payments')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'failed'),
     client.from('organization_subscriptions').select('promotional_credit').eq('status', 'active'),
     client.from('properties').select('id', { count: 'exact', head: true }),
     client.from('units').select('id', { count: 'exact', head: true }),
     client.from('owners').select('id', { count: 'exact', head: true }),
     client.from('tenants').select('id', { count: 'exact', head: true }),
-    client.from('organization_members').select('id', { count: 'exact', head: true }).eq('status', 'active'),
+    client
+      .from('organization_members')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'active'),
   ]);
   for (const result of [
     orgStatusResult,
@@ -361,18 +417,32 @@ export async function computePlatformMetrics(client: SupabaseClient): Promise<Pl
   ]) {
     if (result.error) throw new Error(`Platform metrics query failed: ${result.error.message}`);
   }
-  if (failedPaymentsResult.error) throw new Error(`Platform metrics query failed: ${failedPaymentsResult.error.message}`);
-  if (propertiesResult.error) throw new Error(`Platform metrics query failed: ${propertiesResult.error.message}`);
-  if (unitsResult.error) throw new Error(`Platform metrics query failed: ${unitsResult.error.message}`);
-  if (ownersResult.error) throw new Error(`Platform metrics query failed: ${ownersResult.error.message}`);
-  if (tenantsResult.error) throw new Error(`Platform metrics query failed: ${tenantsResult.error.message}`);
-  if (staffResult.error) throw new Error(`Platform metrics query failed: ${staffResult.error.message}`);
+  if (failedPaymentsResult.error)
+    throw new Error(`Platform metrics query failed: ${failedPaymentsResult.error.message}`);
+  if (propertiesResult.error)
+    throw new Error(`Platform metrics query failed: ${propertiesResult.error.message}`);
+  if (unitsResult.error)
+    throw new Error(`Platform metrics query failed: ${unitsResult.error.message}`);
+  if (ownersResult.error)
+    throw new Error(`Platform metrics query failed: ${ownersResult.error.message}`);
+  if (tenantsResult.error)
+    throw new Error(`Platform metrics query failed: ${tenantsResult.error.message}`);
+  if (staffResult.error)
+    throw new Error(`Platform metrics query failed: ${staffResult.error.message}`);
 
-  const orgRows = (orgStatusResult.data ?? []) as Array<{ status: OrganizationStatus; created_at: string }>;
+  const orgRows = (orgStatusResult.data ?? []) as Array<{
+    status: OrganizationStatus;
+    created_at: string;
+  }>;
   const organizationsByStatus = Object.fromEntries(
-    ORGANIZATION_STATUSES.map((status) => [status, orgRows.filter((o) => o.status === status).length]),
+    ORGANIZATION_STATUSES.map((status) => [
+      status,
+      orgRows.filter((o) => o.status === status).length,
+    ]),
   ) as Record<OrganizationStatus, number>;
-  const newOrganizationsThisMonth = orgRows.filter((o) => o.created_at >= monthStart.toISOString()).length;
+  const newOrganizationsThisMonth = orgRows.filter(
+    (o) => o.created_at >= monthStart.toISOString(),
+  ).length;
 
   const activeSubs = (activeSubscriptionsResult.data ?? []) as Array<{
     org_id: string;
@@ -387,18 +457,15 @@ export async function computePlatformMetrics(client: SupabaseClient): Promise<Pl
     return sum + (sub.billing_cycle === 'annual' ? price / 12 : price);
   }, 0);
 
-  const revenueThisMonth = ((paymentsThisMonthResult.data ?? []) as Array<{ amount: number }>).reduce(
-    (sum, row) => sum + row.amount,
-    0,
-  );
-  const outstandingRevenue = ((pendingPaymentsResult.data ?? []) as Array<{ amount: number }>).reduce(
-    (sum, row) => sum + row.amount,
-    0,
-  );
-  const totalCreditsIssued = ((creditsResult.data ?? []) as Array<{ promotional_credit: number }>).reduce(
-    (sum, row) => sum + row.promotional_credit,
-    0,
-  );
+  const revenueThisMonth = (
+    (paymentsThisMonthResult.data ?? []) as Array<{ amount: number }>
+  ).reduce((sum, row) => sum + row.amount, 0);
+  const outstandingRevenue = (
+    (pendingPaymentsResult.data ?? []) as Array<{ amount: number }>
+  ).reduce((sum, row) => sum + row.amount, 0);
+  const totalCreditsIssued = (
+    (creditsResult.data ?? []) as Array<{ promotional_credit: number }>
+  ).reduce((sum, row) => sum + row.promotional_credit, 0);
 
   return {
     totalOrganizations: orgRows.length,

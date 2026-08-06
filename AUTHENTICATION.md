@@ -35,19 +35,19 @@ genuinely low-effort, and no Microsoft credentials/decision exist. Not built.
 
 ## 3. Flows
 
-| Flow | Where | Notes |
-|---|---|---|
-| Create account | `/register` | Email/password + Terms/Privacy version acceptance, or OAuth buttons |
-| Email verification | Supabase-sent link → `/auth/callback` | `[auth.email] enable_confirmations = true` (`supabase/config.toml`) |
-| Sign in | `/login` | Email/password or OAuth; `?next=` carries continuation |
-| Sign out | `AppShell`'s account menu | Unchanged, pre-existing |
-| Google / Apple sign-in | `components/auth/OAuthButtons.tsx` | Shared by `/login` and `/register` |
-| Forgot / reset password | `/forgot-password` → `/reset-password` | Unchanged, pre-existing (built in an earlier phase) |
-| Session expiry | `proxy.ts`'s auth gate | Now preserves `?next=` on redirect to `/login` (previously dropped the original path entirely — a real gap fixed alongside this change) |
-| Auth callback | `/auth/callback/route.ts` | Single landing point for OAuth, email verification, and (pre-existing) password reset codes. Handles `?code=` (PKCE, the current default) and `?token_hash=&type=` (legacy OTP-link shape) |
-| Provider error | `/auth/callback` → `/login?error=` | Shown as a banner on `/login` |
-| Invitation continuation | `?next=` end-to-end | A user who clicks Google/Apple (or registers) from an org-invite or tenant-activation page returns to that exact page once authenticated |
-| Suspended/archived org | `has_org_role()` (migration `20260101000057`) / `accept_tenant_invitation()` (`org_inactive`) | Suspended orgs stay viewer-accessible; archived orgs block new tenant links entirely — see §5 |
+| Flow                    | Where                                                                                         | Notes                                                                                                                                                                                      |
+| ----------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Create account          | `/register`                                                                                   | Email/password + Terms/Privacy version acceptance, or OAuth buttons                                                                                                                        |
+| Email verification      | Supabase-sent link → `/auth/callback`                                                         | `[auth.email] enable_confirmations = true` (`supabase/config.toml`)                                                                                                                        |
+| Sign in                 | `/login`                                                                                      | Email/password or OAuth; `?next=` carries continuation                                                                                                                                     |
+| Sign out                | `AppShell`'s account menu                                                                     | Unchanged, pre-existing                                                                                                                                                                    |
+| Google / Apple sign-in  | `components/auth/OAuthButtons.tsx`                                                            | Shared by `/login` and `/register`                                                                                                                                                         |
+| Forgot / reset password | `/forgot-password` → `/reset-password`                                                        | Unchanged, pre-existing (built in an earlier phase)                                                                                                                                        |
+| Session expiry          | `proxy.ts`'s auth gate                                                                        | Now preserves `?next=` on redirect to `/login` (previously dropped the original path entirely — a real gap fixed alongside this change)                                                    |
+| Auth callback           | `/auth/callback/route.ts`                                                                     | Single landing point for OAuth, email verification, and (pre-existing) password reset codes. Handles `?code=` (PKCE, the current default) and `?token_hash=&type=` (legacy OTP-link shape) |
+| Provider error          | `/auth/callback` → `/login?error=`                                                            | Shown as a banner on `/login`                                                                                                                                                              |
+| Invitation continuation | `?next=` end-to-end                                                                           | A user who clicks Google/Apple (or registers) from an org-invite or tenant-activation page returns to that exact page once authenticated                                                   |
+| Suspended/archived org  | `has_org_role()` (migration `20260101000057`) / `accept_tenant_invitation()` (`org_inactive`) | Suspended orgs stay viewer-accessible; archived orgs block new tenant links entirely — see §5                                                                                              |
 
 ## 4. Account identity rules (never multiple identities for one person)
 
@@ -106,7 +106,7 @@ function comment.
   `already_linked`, `email_mismatch`.
 - **Suspended vs. archived org**: a suspended org's tenant can still activate and use their
   portal (tenant self-access was never gated by org status — `has_org_role()`'s status
-  enforcement, TD-17, only ever governed *staff* access). An archived org rejects new tenant
+  enforcement, TD-17, only ever governed _staff_ access). An archived org rejects new tenant
   links entirely (`org_inactive`), matching `has_org_role()`'s own archived-org exclusion.
 - **Delivery**: email (`dispatchEmail`, template `tenant_invitation`), WhatsApp
   (`dispatchWhatsApp`, template `tenant_invitation`, WHATSAPP.md §2's pre-approved trigger list),
@@ -120,6 +120,7 @@ function comment.
 ## 6. External setup required (not done here — no real credentials exist in this environment)
 
 **Google:**
+
 1. Google Cloud Console → OAuth consent screen (External, or Internal if using Workspace).
 2. Create an OAuth 2.0 Client ID (Web application).
 3. Authorised redirect URI: `https://<your-supabase-project-ref>.supabase.co/auth/v1/callback`
@@ -130,6 +131,7 @@ function comment.
    Providers → Google (config.toml only governs the local CLI).
 
 **Apple:**
+
 1. Apple Developer account → Certificates, Identifiers & Profiles.
 2. Create a Services ID (this is the OAuth "client ID" Supabase expects) with **Sign in with
    Apple** enabled.
@@ -140,6 +142,7 @@ function comment.
    `[auth.external.apple].enabled` to `true`, and mirror into the hosted project's Dashboard.
 
 **Supabase project (either provider):**
+
 - Auth → Settings → **Enable Manual Linking** (required for `LinkedAccountsPanel.tsx` to work at
   all — see §4).
 - Confirm **Automatic linking** stays off (the safe default this design relies on).

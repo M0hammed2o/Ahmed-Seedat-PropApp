@@ -57,7 +57,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     .single();
   if (ledgerError || !ledger) {
     return NextResponse.json(
-      { error: { code: 'trust_ledger_not_found', message: ledgerError?.message ?? 'Trust ledger not found.' } },
+      {
+        error: {
+          code: 'trust_ledger_not_found',
+          message: ledgerError?.message ?? 'Trust ledger not found.',
+        },
+      },
       { status: 404 },
     );
   }
@@ -76,7 +81,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     );
   }
 
-  const { data, error: fetchError } = await supabase.from('trust_ledgers').select('*').eq('id', id).single();
+  const { data, error: fetchError } = await supabase
+    .from('trust_ledgers')
+    .select('*')
+    .eq('id', id)
+    .single();
   if (fetchError) {
     return NextResponse.json(
       { error: { code: 'trust_ledger_fetch_failed', message: fetchError.message } },

@@ -63,8 +63,8 @@ export default async function TrialBalancePage({ searchParams }: SearchParams) {
         subtitle="Live SUM(debit)/SUM(credit) per account — never a stored snapshot."
         actions={
           <Pill tone={balanced ? 'success' : 'destructive'} dot>
-            {balanced ? 'Balanced' : 'Not balanced — investigate'} (Debit R{totalDebit.toLocaleString('en-ZA')} / Credit R
-            {totalCredit.toLocaleString('en-ZA')})
+            {balanced ? 'Balanced' : 'Not balanced — investigate'} (Debit R
+            {totalDebit.toLocaleString('en-ZA')} / Credit R{totalCredit.toLocaleString('en-ZA')})
           </Pill>
         }
       />
@@ -86,9 +86,15 @@ export default async function TrialBalancePage({ searchParams }: SearchParams) {
           <table className="w-full text-left text-sm">
             <thead className="border-b border-light-border bg-light-surfaceStrong dark:border-dark-border dark:bg-dark-surfaceStrong">
               <tr>
-                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Code</th>
-                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Account</th>
-                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Type</th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Code
+                </th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Account
+                </th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Type
+                </th>
                 <th className="px-4 py-3 text-right font-medium text-light-textSecondary dark:text-dark-textSecondary">
                   Debit
                 </th>
@@ -103,15 +109,25 @@ export default async function TrialBalancePage({ searchParams }: SearchParams) {
             <tbody>
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-light-textMuted dark:text-dark-textMuted">
+                  <td
+                    colSpan={6}
+                    className="px-4 py-6 text-center text-light-textMuted dark:text-dark-textMuted"
+                  >
                     No accounts for this filter.
                   </td>
                 </tr>
               ) : (
                 rows.map((row) => (
-                  <tr key={row.accountId} className="border-b border-light-border last:border-b-0 dark:border-dark-border">
-                    <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">{row.accountCode}</td>
-                    <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">{row.accountName}</td>
+                  <tr
+                    key={row.accountId}
+                    className="border-b border-light-border last:border-b-0 dark:border-dark-border"
+                  >
+                    <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">
+                      {row.accountCode}
+                    </td>
+                    <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">
+                      {row.accountName}
+                    </td>
                     <td className="px-4 py-3 capitalize text-light-textSecondary dark:text-dark-textSecondary">
                       {row.accountType}
                     </td>
@@ -150,9 +166,12 @@ function FilterLink({ label, active, href }: { label: string; active: boolean; h
   );
 }
 
-async function loadTrialBalance(
-  ledgerClass?: LedgerClass,
-): Promise<{ rows: TrialBalanceRow[]; balanced: boolean; totalDebit: number; totalCredit: number }> {
+async function loadTrialBalance(ledgerClass?: LedgerClass): Promise<{
+  rows: TrialBalanceRow[];
+  balanced: boolean;
+  totalDebit: number;
+  totalCredit: number;
+}> {
   const session = await resolvePortalSession();
   const activeOrg = session?.organizations.find((m) => m.status === 'active');
   if (!activeOrg) return { rows: [], balanced: true, totalDebit: 0, totalCredit: 0 };

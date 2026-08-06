@@ -39,7 +39,12 @@ export async function POST(request: NextRequest) {
   const tenantRow = tenant?.[0];
   if (!tenantRow) {
     return NextResponse.json(
-      { error: { code: 'not_a_tenant', message: 'This account has no tenant identity to submit a ticket with.' } },
+      {
+        error: {
+          code: 'not_a_tenant',
+          message: 'This account has no tenant identity to submit a ticket with.',
+        },
+      },
       { status: 403 },
     );
   }

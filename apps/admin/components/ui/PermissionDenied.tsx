@@ -16,7 +16,9 @@ export function PermissionDenied({
       <h2 className="mt-4 text-base font-semibold text-light-textPrimary dark:text-dark-textPrimary">
         Access restricted
       </h2>
-      <p className="mt-1 max-w-sm text-sm text-light-textSecondary dark:text-dark-textSecondary">{message}</p>
+      <p className="mt-1 max-w-sm text-sm text-light-textSecondary dark:text-dark-textSecondary">
+        {message}
+      </p>
     </div>
   );
 }

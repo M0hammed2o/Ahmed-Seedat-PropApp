@@ -52,7 +52,10 @@ function OwnerDetailView({ owner, canEdit }: { owner: Owner; canEdit: boolean })
   return (
     <div className="space-y-6 animate-rise">
       <div>
-        <Link href="/owners" className="text-xs text-light-textSecondary hover:underline dark:text-dark-textSecondary">
+        <Link
+          href="/owners"
+          className="text-xs text-light-textSecondary hover:underline dark:text-dark-textSecondary"
+        >
           ← Back to owners
         </Link>
         <div className="mt-2">
@@ -76,11 +79,15 @@ function OwnerDetailView({ owner, canEdit }: { owner: Owner; canEdit: boolean })
         <dl className="grid grid-cols-2 gap-x-4 gap-y-5 text-sm lg:grid-cols-4">
           <div>
             <dt className="text-light-textMuted dark:text-dark-textMuted">Email</dt>
-            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">{owner.email ?? '—'}</dd>
+            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">
+              {owner.email ?? '—'}
+            </dd>
           </div>
           <div>
             <dt className="text-light-textMuted dark:text-dark-textMuted">Phone</dt>
-            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">{owner.phone ?? '—'}</dd>
+            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">
+              {owner.phone ?? '—'}
+            </dd>
           </div>
         </dl>
       </Panel>

@@ -1,6 +1,14 @@
 'use client';
 
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 
 interface MoneyFlowPoint {
   month: string;
@@ -9,13 +17,26 @@ interface MoneyFlowPoint {
   expenses: number;
 }
 
-function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: string }) {
+function ChartTooltip({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean;
+  payload?: { name: string; value: number; color: string }[];
+  label?: string;
+}) {
   if (!active || !payload?.length) return null;
   return (
     <div className="rounded-lg border border-light-border bg-light-surfaceRaised px-3 py-2 text-xs shadow-lift dark:border-dark-border dark:bg-dark-surfaceRaised">
-      <p className="mb-1 font-semibold uppercase tracking-wide text-light-textMuted dark:text-dark-textMuted">{label}</p>
+      <p className="mb-1 font-semibold uppercase tracking-wide text-light-textMuted dark:text-dark-textMuted">
+        {label}
+      </p>
       {payload.map((p) => (
-        <p key={p.name} className="flex items-center gap-1.5 font-medium tabular-nums-feature text-light-textPrimary dark:text-dark-textPrimary">
+        <p
+          key={p.name}
+          className="flex items-center gap-1.5 font-medium tabular-nums-feature text-light-textPrimary dark:text-dark-textPrimary"
+        >
           <span className="inline-block h-2 w-2 rounded-full" style={{ background: p.color }} />
           {p.name}: R{p.value.toLocaleString('en-ZA')}
         </p>
@@ -36,7 +57,9 @@ export function MoneyFlowChart({ data }: { data: MoneyFlowPoint[] }) {
   if (!hasActivity) {
     return (
       <div className="flex h-[288px] flex-col items-center justify-center gap-2 text-center">
-        <p className="text-sm font-medium text-light-textPrimary dark:text-dark-textPrimary">No money activity yet</p>
+        <p className="text-sm font-medium text-light-textPrimary dark:text-dark-textPrimary">
+          No money activity yet
+        </p>
         <p className="max-w-xs text-xs text-light-textMuted dark:text-dark-textMuted">
           This chart fills in once rent is billed, collected, or an expense is recorded.
         </p>
@@ -59,11 +82,35 @@ export function MoneyFlowChart({ data }: { data: MoneyFlowPoint[] }) {
             </linearGradient>
           </defs>
           <CartesianGrid vertical={false} stroke="var(--chart-grid)" />
-          <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: 'var(--chart-muted)' }} />
-          <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: 'var(--chart-muted)' }} width={48} />
+          <XAxis
+            dataKey="month"
+            tickLine={false}
+            axisLine={false}
+            tick={{ fontSize: 11, fill: 'var(--chart-muted)' }}
+          />
+          <YAxis
+            tickLine={false}
+            axisLine={false}
+            tick={{ fontSize: 11, fill: 'var(--chart-muted)' }}
+            width={48}
+          />
           <Tooltip content={<ChartTooltip />} cursor={{ stroke: 'var(--chart-grid)' }} />
-          <Area type="monotone" dataKey="billed" name="Billed" stroke="var(--chart-1)" strokeWidth={2.4} fill="url(#gBilled)" />
-          <Area type="monotone" dataKey="collected" name="Collected" stroke="var(--chart-3)" strokeWidth={2} fill="url(#gCollected)" />
+          <Area
+            type="monotone"
+            dataKey="billed"
+            name="Billed"
+            stroke="var(--chart-1)"
+            strokeWidth={2.4}
+            fill="url(#gBilled)"
+          />
+          <Area
+            type="monotone"
+            dataKey="collected"
+            name="Collected"
+            stroke="var(--chart-3)"
+            strokeWidth={2}
+            fill="url(#gCollected)"
+          />
           <Area
             type="monotone"
             dataKey="expenses"

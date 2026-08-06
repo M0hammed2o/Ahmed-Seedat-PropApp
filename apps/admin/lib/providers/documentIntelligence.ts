@@ -1,5 +1,10 @@
 import 'server-only';
-import { TextractClient, AnalyzeExpenseCommand, AnalyzeDocumentCommand, DetectDocumentTextCommand } from '@aws-sdk/client-textract';
+import {
+  TextractClient,
+  AnalyzeExpenseCommand,
+  AnalyzeDocumentCommand,
+  DetectDocumentTextCommand,
+} from '@aws-sdk/client-textract';
 import type { Block } from '@aws-sdk/client-textract';
 import type {
   ClassificationResult,
@@ -48,7 +53,10 @@ export class MockDocumentIntelligenceProvider implements DocumentIntelligencePro
     };
   }
 
-  async extractFields(_input: ProcessingInput, documentType: DocumentType): Promise<FieldExtractionResult> {
+  async extractFields(
+    _input: ProcessingInput,
+    documentType: DocumentType,
+  ): Promise<FieldExtractionResult> {
     await delay(100);
 
     if (documentType === 'lease') {
@@ -95,13 +103,24 @@ export function getTextractConfig(): TextractConfig | null {
 // well under this, multi-page leases are the more likely case to hit it.
 const MAX_SYNC_BYTES = 5 * 1024 * 1024;
 
-async function fetchDocumentBytes(input: ProcessingInput, providerName: string): Promise<Uint8Array> {
+async function fetchDocumentBytes(
+  input: ProcessingInput,
+  providerName: string,
+): Promise<Uint8Array> {
   if (!input.signedUrl) {
-    throw new ProviderError('No signedUrl provided -- the caller must resolve one before invoking a real DocumentIntelligenceProvider', 'non_retryable', providerName);
+    throw new ProviderError(
+      'No signedUrl provided -- the caller must resolve one before invoking a real DocumentIntelligenceProvider',
+      'non_retryable',
+      providerName,
+    );
   }
   const response = await fetch(input.signedUrl);
   if (!response.ok) {
-    throw new ProviderError(`Failed to download document from signed URL (${response.status})`, 'retryable', providerName);
+    throw new ProviderError(
+      `Failed to download document from signed URL (${response.status})`,
+      'retryable',
+      providerName,
+    );
   }
   const bytes = new Uint8Array(await response.arrayBuffer());
   if (bytes.byteLength > MAX_SYNC_BYTES) {
@@ -118,7 +137,8 @@ function blocksToRawText(blocks: Block[] | undefined): { rawText: string; confid
   const lines = (blocks ?? []).filter((b) => b.BlockType === 'LINE');
   const rawText = lines.map((b) => b.Text ?? '').join('\n');
   const confidences = lines.map((b) => (b.Confidence ?? 0) / 100).filter((c) => c > 0);
-  const confidence = confidences.length > 0 ? confidences.reduce((a, b) => a + b, 0) / confidences.length : 0;
+  const confidence =
+    confidences.length > 0 ? confidences.reduce((a, b) => a + b, 0) / confidences.length : 0;
   return { rawText, confidence };
 }
 
@@ -131,7 +151,9 @@ function classifyFromText(rawText: string): { documentType: DocumentType; confid
   if (/\blease agreement\b|\btenancy agreement\b|\blandlord\b.*\btenant\b/.test(text)) {
     return { documentType: 'lease', confidence: 0.55 };
   }
-  if (/\binvoice\b|\bstatement\b|\bamount due\b|\baccount number\b|\bmunicipal(ity)?\b/.test(text)) {
+  if (
+    /\binvoice\b|\bstatement\b|\bamount due\b|\baccount number\b|\bmunicipal(ity)?\b/.test(text)
+  ) {
     return { documentType: 'bill', confidence: 0.55 };
   }
   return { documentType: 'other', confidence: 0.3 };
@@ -144,7 +166,10 @@ function parseCurrencyToNumber(raw: string | undefined): number | undefined {
   return Number.isFinite(value) ? value : undefined;
 }
 
-function toExtractedField<T>(value: T | undefined, confidence: number): ExtractedField<T> | undefined {
+function toExtractedField<T>(
+  value: T | undefined,
+  confidence: number,
+): ExtractedField<T> | undefined {
   return value === undefined ? undefined : { value, confidence };
 }
 
@@ -157,7 +182,9 @@ const LEASE_QUERIES: { alias: keyof FieldExtractionResult; text: string }[] = [
   { alias: 'propertyAddress', text: 'What is the address of the rental property?' },
 ];
 
-function extractQueryAnswers(blocks: Block[] | undefined): Map<string, { text: string; confidence: number }> {
+function extractQueryAnswers(
+  blocks: Block[] | undefined,
+): Map<string, { text: string; confidence: number }> {
   const blockById = new Map((blocks ?? []).map((b) => [b.Id, b]));
   const results = new Map<string, { text: string; confidence: number }>();
   for (const block of blocks ?? []) {
@@ -165,7 +192,10 @@ function extractQueryAnswers(blocks: Block[] | undefined): Map<string, { text: s
     const answerRelation = block.Relationships?.find((r) => r.Type === 'ANSWER');
     const answerBlock = answerRelation?.Ids?.[0] ? blockById.get(answerRelation.Ids[0]) : undefined;
     if (answerBlock?.Text) {
-      results.set(block.Query.Alias, { text: answerBlock.Text, confidence: (answerBlock.Confidence ?? 0) / 100 });
+      results.set(block.Query.Alias, {
+        text: answerBlock.Text,
+        confidence: (answerBlock.Confidence ?? 0) / 100,
+      });
     }
   }
   return results;
@@ -215,7 +245,10 @@ export class AWSTextractDocumentIntelligenceProvider implements DocumentIntellig
     return { rawText, confidence, metadata: this.metadata(Date.now() - start) };
   }
 
-  async extractFields(input: ProcessingInput, documentType: DocumentType): Promise<FieldExtractionResult> {
+  async extractFields(
+    input: ProcessingInput,
+    documentType: DocumentType,
+  ): Promise<FieldExtractionResult> {
     const start = Date.now();
     if (documentType === 'lease') {
       return this.extractLeaseFields(input, start);
@@ -223,15 +256,24 @@ export class AWSTextractDocumentIntelligenceProvider implements DocumentIntellig
     return this.extractBillFields(input, start);
   }
 
-  private async detectText(input: ProcessingInput): Promise<{ rawText: string; confidence: number }> {
+  private async detectText(
+    input: ProcessingInput,
+  ): Promise<{ rawText: string; confidence: number }> {
     const bytes = await fetchDocumentBytes(input, this.providerName);
-    const response = await this.client.send(new DetectDocumentTextCommand({ Document: { Bytes: bytes } }));
+    const response = await this.client.send(
+      new DetectDocumentTextCommand({ Document: { Bytes: bytes } }),
+    );
     return blocksToRawText(response.Blocks);
   }
 
-  private async extractBillFields(input: ProcessingInput, start: number): Promise<FieldExtractionResult> {
+  private async extractBillFields(
+    input: ProcessingInput,
+    start: number,
+  ): Promise<FieldExtractionResult> {
     const bytes = await fetchDocumentBytes(input, this.providerName);
-    const response = await this.client.send(new AnalyzeExpenseCommand({ Document: { Bytes: bytes } }));
+    const response = await this.client.send(
+      new AnalyzeExpenseCommand({ Document: { Bytes: bytes } }),
+    );
     const summaryFields = response.ExpenseDocuments?.[0]?.SummaryFields ?? [];
 
     const byType = new Map<string, { text: string; confidence: number }>();
@@ -242,7 +284,8 @@ export class AWSTextractDocumentIntelligenceProvider implements DocumentIntellig
         byType.set(type, { text, confidence: (field.ValueDetection?.Confidence ?? 0) / 100 });
       }
     }
-    const find = (...types: string[]) => types.map((t) => byType.get(t)).find((v) => v !== undefined);
+    const find = (...types: string[]) =>
+      types.map((t) => byType.get(t)).find((v) => v !== undefined);
 
     const supplierName = find('VENDOR_NAME');
     const accountNumber = find('ACCOUNT_NUMBER');
@@ -251,15 +294,26 @@ export class AWSTextractDocumentIntelligenceProvider implements DocumentIntellig
     const statementDate = find('INVOICE_RECEIPT_DATE', 'STATEMENT_DATE');
     const invoiceNumber = find('INVOICE_RECEIPT_ID');
 
-    const confidences = [supplierName, accountNumber, amountDue, dueDate, statementDate, invoiceNumber]
+    const confidences = [
+      supplierName,
+      accountNumber,
+      amountDue,
+      dueDate,
+      statementDate,
+      invoiceNumber,
+    ]
       .filter((v): v is { text: string; confidence: number } => v !== undefined)
       .map((v) => v.confidence);
-    const overallConfidence = confidences.length > 0 ? confidences.reduce((a, b) => a + b, 0) / confidences.length : 0;
+    const overallConfidence =
+      confidences.length > 0 ? confidences.reduce((a, b) => a + b, 0) / confidences.length : 0;
 
     return {
       supplierName: toExtractedField(supplierName?.text, supplierName?.confidence ?? 0),
       accountNumber: toExtractedField(accountNumber?.text, accountNumber?.confidence ?? 0),
-      amountDue: toExtractedField(parseCurrencyToNumber(amountDue?.text), amountDue?.confidence ?? 0),
+      amountDue: toExtractedField(
+        parseCurrencyToNumber(amountDue?.text),
+        amountDue?.confidence ?? 0,
+      ),
       dueDate: toExtractedField(dueDate?.text, dueDate?.confidence ?? 0),
       statementDate: toExtractedField(statementDate?.text, statementDate?.confidence ?? 0),
       invoiceNumber: toExtractedField(invoiceNumber?.text, invoiceNumber?.confidence ?? 0),
@@ -268,7 +322,10 @@ export class AWSTextractDocumentIntelligenceProvider implements DocumentIntellig
     };
   }
 
-  private async extractLeaseFields(input: ProcessingInput, start: number): Promise<FieldExtractionResult> {
+  private async extractLeaseFields(
+    input: ProcessingInput,
+    start: number,
+  ): Promise<FieldExtractionResult> {
     const bytes = await fetchDocumentBytes(input, this.providerName);
     const response = await this.client.send(
       new AnalyzeDocumentCommand({
@@ -287,12 +344,19 @@ export class AWSTextractDocumentIntelligenceProvider implements DocumentIntellig
     const propertyAddress = answers.get('propertyAddress');
 
     const confidences = [...answers.values()].map((v) => v.confidence);
-    const overallConfidence = confidences.length > 0 ? confidences.reduce((a, b) => a + b, 0) / confidences.length : 0;
+    const overallConfidence =
+      confidences.length > 0 ? confidences.reduce((a, b) => a + b, 0) / confidences.length : 0;
 
     return {
       tenantName: toExtractedField(tenantName?.text, tenantName?.confidence ?? 0),
-      rentAmount: toExtractedField(parseCurrencyToNumber(rentAmount?.text), rentAmount?.confidence ?? 0),
-      depositAmount: toExtractedField(parseCurrencyToNumber(depositAmount?.text), depositAmount?.confidence ?? 0),
+      rentAmount: toExtractedField(
+        parseCurrencyToNumber(rentAmount?.text),
+        rentAmount?.confidence ?? 0,
+      ),
+      depositAmount: toExtractedField(
+        parseCurrencyToNumber(depositAmount?.text),
+        depositAmount?.confidence ?? 0,
+      ),
       leaseStartDate: toExtractedField(leaseStartDate?.text, leaseStartDate?.confidence ?? 0),
       leaseEndDate: toExtractedField(leaseEndDate?.text, leaseEndDate?.confidence ?? 0),
       propertyAddress: toExtractedField(propertyAddress?.text, propertyAddress?.confidence ?? 0),
@@ -306,7 +370,12 @@ export class AWSTextractDocumentIntelligenceProvider implements DocumentIntellig
     // left null (DocumentIntelligenceProvider's own type treats null as "unknown," not zero)
     // rather than guessing a number that would misrepresent real spend on any usage/cost dashboard
     // reading this field.
-    return { providerName: this.providerName, providerVersion: null, processingDurationMs, estimatedCostUsd: null };
+    return {
+      providerName: this.providerName,
+      providerVersion: null,
+      processingDurationMs,
+      estimatedCostUsd: null,
+    };
   }
 }
 

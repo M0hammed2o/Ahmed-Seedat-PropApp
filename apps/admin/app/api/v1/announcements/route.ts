@@ -21,7 +21,10 @@ export async function GET(request: NextRequest) {
   const orgId = url.searchParams.get('filter[org_id]');
   const propertyId = url.searchParams.get('filter[property_id]');
 
-  let query = supabase.from('announcements').select('*').order('published_at', { ascending: false });
+  let query = supabase
+    .from('announcements')
+    .select('*')
+    .order('published_at', { ascending: false });
   if (orgId) query = query.eq('org_id', orgId);
   if (propertyId) query = query.eq('property_id', propertyId);
 

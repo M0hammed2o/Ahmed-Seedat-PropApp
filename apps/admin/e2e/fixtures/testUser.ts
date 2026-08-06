@@ -17,7 +17,9 @@ export interface TestUser {
 export async function createConfirmedTestUser(label: string): Promise<TestUser> {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!serviceRoleKey) {
-    throw new Error('SUPABASE_SERVICE_ROLE_KEY is not set -- playwright.config.ts should inject it into the webServer env, but tests also need it directly.');
+    throw new Error(
+      'SUPABASE_SERVICE_ROLE_KEY is not set -- playwright.config.ts should inject it into the webServer env, but tests also need it directly.',
+    );
   }
 
   const email = `e2e-${label}-${Date.now()}@propertyvault.example`;
@@ -34,7 +36,9 @@ export async function createConfirmedTestUser(label: string): Promise<TestUser> 
   });
   if (!response.ok) {
     const body = await response.text();
-    throw new Error(`Failed to create test user via Supabase Admin API (${response.status}): ${body}`);
+    throw new Error(
+      `Failed to create test user via Supabase Admin API (${response.status}): ${body}`,
+    );
   }
   const created = (await response.json()) as { id: string };
 

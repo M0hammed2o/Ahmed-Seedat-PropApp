@@ -1,7 +1,13 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Mail, Phone, FileText, ShieldCheck } from 'lucide-react';
-import type { Tenant, TenantInvitation, Lease, RentSchedule, MaintenanceTicket } from '@propvault/types';
+import type {
+  Tenant,
+  TenantInvitation,
+  Lease,
+  RentSchedule,
+  MaintenanceTicket,
+} from '@propvault/types';
 import {
   TENANT_STATUS_PRESENTATION,
   LEASE_STATUS_PRESENTATION,
@@ -33,7 +39,11 @@ function currency(n: number): string {
 }
 
 function longDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-ZA', { day: '2-digit', month: 'long', year: 'numeric' });
+  return new Date(iso).toLocaleDateString('en-ZA', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  });
 }
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -83,9 +93,33 @@ const DEMO_LEASE_CONTEXT: LeaseContext = {
 };
 
 const DEMO_RENT_SCHEDULES: RentSchedule[] = [
-  { id: 'demo-rs-1', orgId: 'demo-org-1', leaseId: 'demo-lease-1', dueDate: '2026-08-01', amount: 12500, status: 'overdue', generatedAt: '2026-08-01T00:00:00Z' },
-  { id: 'demo-rs-2', orgId: 'demo-org-1', leaseId: 'demo-lease-1', dueDate: '2026-07-01', amount: 12500, status: 'paid', generatedAt: '2026-07-01T00:00:00Z' },
-  { id: 'demo-rs-3', orgId: 'demo-org-1', leaseId: 'demo-lease-1', dueDate: '2026-06-01', amount: 12500, status: 'paid', generatedAt: '2026-06-01T00:00:00Z' },
+  {
+    id: 'demo-rs-1',
+    orgId: 'demo-org-1',
+    leaseId: 'demo-lease-1',
+    dueDate: '2026-08-01',
+    amount: 12500,
+    status: 'overdue',
+    generatedAt: '2026-08-01T00:00:00Z',
+  },
+  {
+    id: 'demo-rs-2',
+    orgId: 'demo-org-1',
+    leaseId: 'demo-lease-1',
+    dueDate: '2026-07-01',
+    amount: 12500,
+    status: 'paid',
+    generatedAt: '2026-07-01T00:00:00Z',
+  },
+  {
+    id: 'demo-rs-3',
+    orgId: 'demo-org-1',
+    leaseId: 'demo-lease-1',
+    dueDate: '2026-06-01',
+    amount: 12500,
+    status: 'paid',
+    generatedAt: '2026-06-01T00:00:00Z',
+  },
 ];
 
 // Same id/content as maintenance/[id]/page.tsx's own DEMO_TICKET -- so clicking through from here
@@ -210,7 +244,9 @@ async function loadLeaseContext(tenantId: string): Promise<LeaseContext | null> 
       | null;
   }[];
 
-  const candidates = rows.map((r) => r.leases).filter((l): l is NonNullable<typeof l> => l !== null);
+  const candidates = rows
+    .map((r) => r.leases)
+    .filter((l): l is NonNullable<typeof l> => l !== null);
   candidates.sort((a, b) => {
     if (a.status === 'active' && b.status !== 'active') return -1;
     if (b.status === 'active' && a.status !== 'active') return 1;
@@ -285,7 +321,9 @@ function TenantDetailView({
               </h1>
               <p className="truncate text-[13px] text-light-textMuted dark:text-dark-textMuted">
                 {leaseContext
-                  ? [leaseContext.unitLabel, leaseContext.propertyNickname].filter(Boolean).join(' · ')
+                  ? [leaseContext.unitLabel, leaseContext.propertyNickname]
+                      .filter(Boolean)
+                      .join(' · ')
                   : 'No active lease'}
                 {' · tenant since '}
                 {longDate(tenant.createdAt)}
@@ -320,7 +358,9 @@ function TenantDetailView({
           <div className="mt-5 grid grid-cols-2 gap-4 border-t border-light-border pt-4 sm:grid-cols-3 dark:border-dark-border">
             {stats.map((s) => (
               <div key={s.label}>
-                <p className="text-[11px] text-light-textMuted dark:text-dark-textMuted">{s.label}</p>
+                <p className="text-[11px] text-light-textMuted dark:text-dark-textMuted">
+                  {s.label}
+                </p>
                 <p
                   className={`tabular mt-0.5 text-[17px] font-semibold ${
                     s.danger
@@ -382,7 +422,9 @@ function TenantDetailView({
               <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-light-surfaceStrong text-light-textMuted dark:bg-dark-surfaceStrong dark:text-dark-textMuted">
                 <ShieldCheck className="h-4 w-4" aria-hidden="true" />
               </span>
-              <p className="text-[13px] text-light-textMuted dark:text-dark-textMuted">Not captured yet.</p>
+              <p className="text-[13px] text-light-textMuted dark:text-dark-textMuted">
+                Not captured yet.
+              </p>
             </div>
           </Panel>
         </div>
@@ -422,7 +464,9 @@ function LeaseTab({ leaseContext }: { leaseContext: LeaseContext | null }) {
       {rows.map(([k, v]) => (
         <div key={k} className="grid grid-cols-[140px_minmax(0,1fr)] gap-3 px-5 py-3 text-[13px]">
           <dt className="text-light-textMuted dark:text-dark-textMuted">{k}</dt>
-          <dd className="truncate font-medium text-light-textPrimary dark:text-dark-textPrimary">{v}</dd>
+          <dd className="truncate font-medium text-light-textPrimary dark:text-dark-textPrimary">
+            {v}
+          </dd>
         </div>
       ))}
       <div className="grid grid-cols-[140px_minmax(0,1fr)] gap-3 px-5 py-3 text-[13px]">
@@ -448,7 +492,11 @@ function PaymentsTab({ rentSchedules }: { rentSchedules: RentSchedule[] }) {
       {rentSchedules.map((r) => (
         <li key={r.id} className="flex items-center justify-between px-5 py-3.5 text-[13px]">
           <span className="font-medium text-light-textPrimary dark:text-dark-textPrimary">
-            {new Date(r.dueDate).toLocaleDateString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric' })}
+            {new Date(r.dueDate).toLocaleDateString('en-ZA', {
+              day: '2-digit',
+              month: 'short',
+              year: 'numeric',
+            })}
           </span>
           <span className="flex items-center gap-3">
             <span className="tabular font-semibold text-light-textPrimary dark:text-dark-textPrimary">
@@ -477,7 +525,10 @@ function MaintenanceTab({ tickets }: { tickets: MaintenanceTicket[] }) {
     <ul className="divide-y divide-light-border dark:divide-dark-border">
       {tickets.map((t) => (
         <li key={t.id} className="px-5 py-3.5">
-          <Link href={`/maintenance/${t.id}`} className="flex items-center justify-between gap-3 hover:underline">
+          <Link
+            href={`/maintenance/${t.id}`}
+            className="flex items-center justify-between gap-3 hover:underline"
+          >
             <span className="truncate text-[13px] font-medium text-light-textPrimary dark:text-dark-textPrimary">
               {t.summary}
             </span>

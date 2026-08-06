@@ -26,9 +26,19 @@ export async function POST(request: NextRequest) {
   // Rate limited by both IP and user id -- a short-code guessing attempt is bounded on two axes
   // (an attacker signed in as themselves trying many codes; the same attacker trying many
   // accounts from one IP), on top of the RPC's own per-invitation failed_attempt_count lockout.
-  const limitedByUser = await rateLimitOrRespond(supabase, `tenant-invitation-accept:user:${user.id}`, 15, 60);
+  const limitedByUser = await rateLimitOrRespond(
+    supabase,
+    `tenant-invitation-accept:user:${user.id}`,
+    15,
+    60,
+  );
   if (limitedByUser) return limitedByUser;
-  const limitedByIp = await rateLimitOrRespond(supabase, `tenant-invitation-accept:ip:${requestIp(request)}`, 30, 60);
+  const limitedByIp = await rateLimitOrRespond(
+    supabase,
+    `tenant-invitation-accept:ip:${requestIp(request)}`,
+    30,
+    60,
+  );
   if (limitedByIp) return limitedByIp;
 
   let body: unknown;
@@ -70,7 +80,14 @@ export async function POST(request: NextRequest) {
   const result = data?.[0];
   if (!result || !result.success) {
     return NextResponse.json(
-      { error: { code: result?.error_code ?? 'unknown', message: ACCEPT_ERROR_MESSAGES[result?.error_code as string] ?? 'This invitation could not be accepted.' } },
+      {
+        error: {
+          code: result?.error_code ?? 'unknown',
+          message:
+            ACCEPT_ERROR_MESSAGES[result?.error_code as string] ??
+            'This invitation could not be accepted.',
+        },
+      },
       { status: 400 },
     );
   }
@@ -86,6 +103,7 @@ const ACCEPT_ERROR_MESSAGES: Record<string, string> = {
   expired: 'This invitation has expired. Ask your landlord to send a new one.',
   already_used: 'This invitation has already been used.',
   org_inactive: 'This organization is no longer active.',
-  already_linked: 'This tenant record is already linked to a different account. Contact your landlord.',
+  already_linked:
+    'This tenant record is already linked to a different account. Contact your landlord.',
   email_mismatch: 'This invitation does not match your account email. Contact your landlord.',
 };

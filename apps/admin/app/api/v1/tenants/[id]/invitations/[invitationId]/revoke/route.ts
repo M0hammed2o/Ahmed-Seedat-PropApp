@@ -33,20 +33,33 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     );
   }
   if (!invite) {
-    return NextResponse.json({ error: { code: 'not_found', message: 'Invitation not found.' } }, { status: 404 });
+    return NextResponse.json(
+      { error: { code: 'not_found', message: 'Invitation not found.' } },
+      { status: 404 },
+    );
   }
 
   const canWrite = await requireOrgRole(supabase, invite.org_id, 'agent');
   if (!canWrite) {
     return NextResponse.json(
-      { error: { code: 'forbidden', message: 'You do not have permission to revoke this invitation.' } },
+      {
+        error: {
+          code: 'forbidden',
+          message: 'You do not have permission to revoke this invitation.',
+        },
+      },
       { status: 403 },
     );
   }
 
   if (invite.accepted_at) {
     return NextResponse.json(
-      { error: { code: 'already_accepted', message: 'This invitation was already accepted and cannot be revoked.' } },
+      {
+        error: {
+          code: 'already_accepted',
+          message: 'This invitation was already accepted and cannot be revoked.',
+        },
+      },
       { status: 409 },
     );
   }

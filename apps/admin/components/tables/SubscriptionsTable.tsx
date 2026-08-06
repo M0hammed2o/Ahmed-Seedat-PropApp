@@ -61,7 +61,8 @@ const columns: ColumnDef<SubscriptionRow, unknown>[] = [
     cell: (info) => {
       const value = info.getValue() as string | null;
       if (!value) return '—';
-      const presentation = ORGANIZATION_STATUS_PRESENTATION[value as keyof typeof ORGANIZATION_STATUS_PRESENTATION];
+      const presentation =
+        ORGANIZATION_STATUS_PRESENTATION[value as keyof typeof ORGANIZATION_STATUS_PRESENTATION];
       return presentation ? <StatusBadge presentation={presentation} /> : value.replace('_', ' ');
     },
   },

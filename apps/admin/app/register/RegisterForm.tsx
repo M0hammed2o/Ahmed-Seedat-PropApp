@@ -74,7 +74,12 @@ export function RegisterForm() {
       const body = await response.json();
 
       if (!response.ok) {
-        setSubmitError(response.status === 429 ? 'Too many attempts. Try again shortly.' : (body.error?.message ?? 'Could not create your account. Check your details and try again.'));
+        setSubmitError(
+          response.status === 429
+            ? 'Too many attempts. Try again shortly.'
+            : (body.error?.message ??
+                'Could not create your account. Check your details and try again.'),
+        );
         return;
       }
 
@@ -138,7 +143,9 @@ export function RegisterForm() {
           <span className="h-px flex-1 bg-light-border dark:bg-dark-border" />
         </div>
 
-        <label className="block text-xs text-light-textSecondary dark:text-dark-textSecondary">Email</label>
+        <label className="block text-xs text-light-textSecondary dark:text-dark-textSecondary">
+          Email
+        </label>
         <input
           required
           type="email"
@@ -147,9 +154,15 @@ export function RegisterForm() {
           onChange={(e) => setEmail(e.target.value)}
           className={inputClass}
         />
-        {fieldErrors.email?.length ? <p className="mt-1 text-xs text-light-danger dark:text-dark-danger">{fieldErrors.email[0]}</p> : null}
+        {fieldErrors.email?.length ? (
+          <p className="mt-1 text-xs text-light-danger dark:text-dark-danger">
+            {fieldErrors.email[0]}
+          </p>
+        ) : null}
 
-        <label className="mt-4 block text-xs text-light-textSecondary dark:text-dark-textSecondary">Password</label>
+        <label className="mt-4 block text-xs text-light-textSecondary dark:text-dark-textSecondary">
+          Password
+        </label>
         <input
           required
           type="password"
@@ -158,9 +171,15 @@ export function RegisterForm() {
           onChange={(e) => setPassword(e.target.value)}
           className={inputClass}
         />
-        {fieldErrors.password?.length ? <p className="mt-1 text-xs text-light-danger dark:text-dark-danger">{fieldErrors.password[0]}</p> : null}
+        {fieldErrors.password?.length ? (
+          <p className="mt-1 text-xs text-light-danger dark:text-dark-danger">
+            {fieldErrors.password[0]}
+          </p>
+        ) : null}
 
-        <label className="mt-4 block text-xs text-light-textSecondary dark:text-dark-textSecondary">Confirm password</label>
+        <label className="mt-4 block text-xs text-light-textSecondary dark:text-dark-textSecondary">
+          Confirm password
+        </label>
         <input
           required
           type="password"
@@ -170,36 +189,62 @@ export function RegisterForm() {
           className={inputClass}
         />
         {fieldErrors.confirmPassword?.length ? (
-          <p className="mt-1 text-xs text-light-danger dark:text-dark-danger">{fieldErrors.confirmPassword[0]}</p>
+          <p className="mt-1 text-xs text-light-danger dark:text-dark-danger">
+            {fieldErrors.confirmPassword[0]}
+          </p>
         ) : null}
 
         <label className="mt-4 flex items-start gap-2 text-xs text-light-textSecondary dark:text-dark-textSecondary">
-          <input type="checkbox" className="mt-0.5" checked={acceptedTerms} onChange={(e) => setAcceptedTerms(e.target.checked)} />
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={acceptedTerms}
+            onChange={(e) => setAcceptedTerms(e.target.checked)}
+          />
           <span>
             I agree to the{' '}
-            <Link href="/terms" target="_blank" className="text-light-accent hover:underline dark:text-dark-accent">
+            <Link
+              href="/terms"
+              target="_blank"
+              className="text-light-accent hover:underline dark:text-dark-accent"
+            >
               Terms of Service
             </Link>
           </span>
         </label>
         {fieldErrors.acceptedTermsVersion?.length ? (
-          <p className="mt-1 text-xs text-light-danger dark:text-dark-danger">{fieldErrors.acceptedTermsVersion[0]}</p>
+          <p className="mt-1 text-xs text-light-danger dark:text-dark-danger">
+            {fieldErrors.acceptedTermsVersion[0]}
+          </p>
         ) : null}
 
         <label className="mt-2 flex items-start gap-2 text-xs text-light-textSecondary dark:text-dark-textSecondary">
-          <input type="checkbox" className="mt-0.5" checked={acceptedPrivacy} onChange={(e) => setAcceptedPrivacy(e.target.checked)} />
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={acceptedPrivacy}
+            onChange={(e) => setAcceptedPrivacy(e.target.checked)}
+          />
           <span>
             I agree to the{' '}
-            <Link href="/privacy" target="_blank" className="text-light-accent hover:underline dark:text-dark-accent">
+            <Link
+              href="/privacy"
+              target="_blank"
+              className="text-light-accent hover:underline dark:text-dark-accent"
+            >
               Privacy Policy
             </Link>
           </span>
         </label>
         {fieldErrors.acceptedPrivacyVersion?.length ? (
-          <p className="mt-1 text-xs text-light-danger dark:text-dark-danger">{fieldErrors.acceptedPrivacyVersion[0]}</p>
+          <p className="mt-1 text-xs text-light-danger dark:text-dark-danger">
+            {fieldErrors.acceptedPrivacyVersion[0]}
+          </p>
         ) : null}
 
-        {submitError ? <p className="mt-3 text-sm text-light-danger dark:text-dark-danger">{submitError}</p> : null}
+        {submitError ? (
+          <p className="mt-3 text-sm text-light-danger dark:text-dark-danger">{submitError}</p>
+        ) : null}
 
         <Button type="submit" variant="primary" disabled={submitting} className="mt-6 w-full">
           {submitting ? 'Creating account…' : 'Create account'}
@@ -207,7 +252,10 @@ export function RegisterForm() {
 
         <p className="mt-4 text-center text-xs text-light-textSecondary dark:text-dark-textSecondary">
           Already have an account?{' '}
-          <Link href={`/login?next=${encodeURIComponent(next)}`} className="text-light-accent hover:underline dark:text-dark-accent">
+          <Link
+            href={`/login?next=${encodeURIComponent(next)}`}
+            className="text-light-accent hover:underline dark:text-dark-accent"
+          >
             Sign in
           </Link>
         </p>

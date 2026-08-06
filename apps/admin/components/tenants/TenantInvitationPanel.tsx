@@ -14,16 +14,22 @@ interface CreatedInvitation {
 }
 
 function statusFor(invite: TenantInvitation): { label: string; tone: string } {
-  if (invite.acceptedAt) return { label: 'Accepted', tone: 'text-light-statusPaid dark:text-dark-statusPaid' };
-  if (invite.revokedAt) return { label: 'Revoked', tone: 'text-light-textMuted dark:text-dark-textMuted' };
-  if (new Date(invite.expiresAt) <= new Date()) return { label: 'Expired', tone: 'text-light-statusOverdue dark:text-dark-statusOverdue' };
+  if (invite.acceptedAt)
+    return { label: 'Accepted', tone: 'text-light-statusPaid dark:text-dark-statusPaid' };
+  if (invite.revokedAt)
+    return { label: 'Revoked', tone: 'text-light-textMuted dark:text-dark-textMuted' };
+  if (new Date(invite.expiresAt) <= new Date())
+    return { label: 'Expired', tone: 'text-light-statusOverdue dark:text-dark-statusOverdue' };
   return { label: 'Pending', tone: 'text-light-accent dark:text-dark-accent' };
 }
 
 /** Deterministic, obviously-fake fixture -- never a real token/code, matching TaxPackClient's
  * demoTaxPackResponse() pattern (no live API call, no persisted state, PWA_V1_COMPLETION_PLAN.md
  * demo-mode discipline). */
-function demoCreatedInvitation(channel: TenantInvitationDeliveryChannel, includeShortCode: boolean): CreatedInvitation {
+function demoCreatedInvitation(
+  channel: TenantInvitationDeliveryChannel,
+  includeShortCode: boolean,
+): CreatedInvitation {
   return {
     token: 'demo-mode-token-not-real',
     shortCode: channel === 'manual' || includeShortCode ? 'DEMO1234' : null,
@@ -51,7 +57,9 @@ export function TenantInvitationPanel({
   demoMode?: boolean;
 }) {
   const router = useRouter();
-  const [channel, setChannel] = useState<TenantInvitationDeliveryChannel>(hasEmail ? 'email' : hasPhone ? 'whatsapp' : 'manual');
+  const [channel, setChannel] = useState<TenantInvitationDeliveryChannel>(
+    hasEmail ? 'email' : hasPhone ? 'whatsapp' : 'manual',
+  );
   const [includeShortCode, setIncludeShortCode] = useState(!hasEmail && !hasPhone);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,7 +72,9 @@ export function TenantInvitationPanel({
   const [demoInvitations, setDemoInvitations] = useState<TenantInvitation[]>(invitations);
 
   const effectiveInvitations = demoMode ? demoInvitations : invitations;
-  const active = effectiveInvitations.find((i) => !i.acceptedAt && !i.revokedAt && new Date(i.expiresAt) > new Date());
+  const active = effectiveInvitations.find(
+    (i) => !i.acceptedAt && !i.revokedAt && new Date(i.expiresAt) > new Date(),
+  );
 
   async function send() {
     setSubmitting(true);
@@ -81,7 +91,12 @@ export function TenantInvitationPanel({
             orgId: 'demo-org-1',
             tenantId,
             deliveryChannel: channel,
-            destinationHint: channel === 'email' ? 'n***@example.com' : channel === 'whatsapp' ? '+27 ** *** *134' : null,
+            destinationHint:
+              channel === 'email'
+                ? 'n***@example.com'
+                : channel === 'whatsapp'
+                  ? '+27 ** *** *134'
+                  : null,
             expiresAt: fake.expiresAt,
             acceptedAt: null,
             acceptedByUserId: null,
@@ -105,7 +120,12 @@ export function TenantInvitationPanel({
         setError(body.error?.message ?? 'Failed to send invitation.');
         return;
       }
-      setCreated({ token: body.token, shortCode: body.shortCode, acceptUrl: body.acceptUrl, expiresAt: body.expiresAt });
+      setCreated({
+        token: body.token,
+        shortCode: body.shortCode,
+        acceptUrl: body.acceptUrl,
+        expiresAt: body.expiresAt,
+      });
       router.refresh();
     } catch {
       setError('Failed to send invitation — check your connection and try again.');
@@ -120,10 +140,17 @@ export function TenantInvitationPanel({
     try {
       if (demoMode) {
         await new Promise((r) => setTimeout(r, 300));
-        setDemoInvitations((prev) => prev.map((i) => (i.id === invitationId ? { ...i, revokedAt: new Date().toISOString() } : i)));
+        setDemoInvitations((prev) =>
+          prev.map((i) =>
+            i.id === invitationId ? { ...i, revokedAt: new Date().toISOString() } : i,
+          ),
+        );
         return;
       }
-      const response = await fetch(`/api/v1/tenants/${tenantId}/invitations/${invitationId}/revoke`, { method: 'POST' });
+      const response = await fetch(
+        `/api/v1/tenants/${tenantId}/invitations/${invitationId}/revoke`,
+        { method: 'POST' },
+      );
       if (!response.ok) {
         const body = await response.json();
         setError(body.error?.message ?? 'Failed to revoke invitation.');
@@ -143,12 +170,16 @@ export function TenantInvitationPanel({
 
   return (
     <Panel className="max-w-xl">
-      <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">Portal invitation</h2>
+      <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+        Portal invitation
+      </h2>
       <p className="mt-1 text-xs text-light-textMuted dark:text-dark-textMuted">
         Give this tenant access to their own lease, payments, documents, and maintenance history.
       </p>
 
-      {error ? <p className="mt-2 text-xs text-light-danger dark:text-dark-danger">{error}</p> : null}
+      {error ? (
+        <p className="mt-2 text-xs text-light-danger dark:text-dark-danger">{error}</p>
+      ) : null}
 
       {created ? (
         <div className="mt-3 space-y-2 rounded-lg border border-light-accent/30 bg-light-accent/5 p-3 dark:border-dark-accent/30 dark:bg-dark-accent/5">
@@ -156,20 +187,30 @@ export function TenantInvitationPanel({
             Invitation sent — save this now, it won't be shown again.
           </p>
           <div className="flex items-center gap-2">
-            <input readOnly value={created.acceptUrl} className="min-w-0 flex-1 rounded-md border border-light-border bg-transparent px-2 py-1 text-xs text-light-textPrimary dark:border-dark-border dark:text-dark-textPrimary" />
+            <input
+              readOnly
+              value={created.acceptUrl}
+              className="min-w-0 flex-1 rounded-md border border-light-border bg-transparent px-2 py-1 text-xs text-light-textPrimary dark:border-dark-border dark:text-dark-textPrimary"
+            />
             <Button size="sm" onClick={() => copy(created.acceptUrl, 'token')}>
               {copied === 'token' ? 'Copied' : 'Copy link'}
             </Button>
           </div>
           {created.shortCode ? (
             <div className="flex items-center gap-2">
-              <input readOnly value={created.shortCode} className="min-w-0 flex-1 rounded-md border border-light-border bg-transparent px-2 py-1 text-xs font-mono text-light-textPrimary dark:border-dark-border dark:text-dark-textPrimary" />
+              <input
+                readOnly
+                value={created.shortCode}
+                className="min-w-0 flex-1 rounded-md border border-light-border bg-transparent px-2 py-1 text-xs font-mono text-light-textPrimary dark:border-dark-border dark:text-dark-textPrimary"
+              />
               <Button size="sm" onClick={() => copy(created.shortCode!, 'code')}>
                 {copied === 'code' ? 'Copied' : 'Copy code'}
               </Button>
             </div>
           ) : null}
-          <p className="text-[11px] text-light-textMuted dark:text-dark-textMuted">Expires {new Date(created.expiresAt).toLocaleString('en-ZA')}.</p>
+          <p className="text-[11px] text-light-textMuted dark:text-dark-textMuted">
+            Expires {new Date(created.expiresAt).toLocaleString('en-ZA')}.
+          </p>
         </div>
       ) : null}
 
@@ -223,14 +264,20 @@ export function TenantInvitationPanel({
 
       {effectiveInvitations.length > 0 ? (
         <div className="mt-4">
-          <p className="text-xs font-medium text-light-textSecondary dark:text-dark-textSecondary">History</p>
+          <p className="text-xs font-medium text-light-textSecondary dark:text-dark-textSecondary">
+            History
+          </p>
           <ul className="mt-1 space-y-1">
             {effectiveInvitations.map((invite) => {
               const status = statusFor(invite);
               return (
-                <li key={invite.id} className="flex items-center justify-between text-[11px] text-light-textMuted dark:text-dark-textMuted">
+                <li
+                  key={invite.id}
+                  className="flex items-center justify-between text-[11px] text-light-textMuted dark:text-dark-textMuted"
+                >
                   <span>
-                    {new Date(invite.createdAt).toLocaleDateString('en-ZA')} via {invite.deliveryChannel}
+                    {new Date(invite.createdAt).toLocaleDateString('en-ZA')} via{' '}
+                    {invite.deliveryChannel}
                   </span>
                   <span className={status.tone}>{status.label}</span>
                 </li>

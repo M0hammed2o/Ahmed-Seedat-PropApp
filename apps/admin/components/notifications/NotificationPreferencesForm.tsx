@@ -18,7 +18,11 @@ function defaultsFor(category: NotificationCategory): NotificationPreference {
   return { userId: '', category, emailEnabled: true, pushEnabled: true, whatsappEnabled: true };
 }
 
-export function NotificationPreferencesForm({ preferences }: { preferences: NotificationPreference[] }) {
+export function NotificationPreferencesForm({
+  preferences,
+}: {
+  preferences: NotificationPreference[];
+}) {
   const router = useRouter();
   const byCategory = new Map(preferences.map((p) => [p.category, p]));
   const [busy, setBusy] = useState<string | null>(null);
@@ -58,7 +62,9 @@ export function NotificationPreferencesForm({ preferences }: { preferences: Noti
         <table className="w-full text-left text-sm">
           <thead className="border-b border-light-border bg-light-surfaceRaised dark:border-dark-border dark:bg-dark-surfaceRaised">
             <tr>
-              <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Category</th>
+              <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                Category
+              </th>
               <th className="px-4 py-3 text-center font-medium text-light-textSecondary dark:text-dark-textSecondary">
                 Email
               </th>
@@ -74,18 +80,25 @@ export function NotificationPreferencesForm({ preferences }: { preferences: Noti
             {NOTIFICATION_CATEGORIES.map((category) => {
               const pref = byCategory.get(category) ?? defaultsFor(category);
               return (
-                <tr key={category} className="border-b border-light-border last:border-b-0 dark:border-dark-border">
-                  <td className="px-4 py-3 capitalize text-light-textPrimary dark:text-dark-textPrimary">{category}</td>
-                  {(['emailEnabled', 'pushEnabled', 'whatsappEnabled'] as ChannelKey[]).map((channel) => (
-                    <td key={channel} className="px-4 py-3 text-center">
-                      <input
-                        type="checkbox"
-                        checked={pref[channel]}
-                        disabled={busy === `${category}:${channel}`}
-                        onChange={(e) => toggle(category, channel, e.target.checked)}
-                      />
-                    </td>
-                  ))}
+                <tr
+                  key={category}
+                  className="border-b border-light-border last:border-b-0 dark:border-dark-border"
+                >
+                  <td className="px-4 py-3 capitalize text-light-textPrimary dark:text-dark-textPrimary">
+                    {category}
+                  </td>
+                  {(['emailEnabled', 'pushEnabled', 'whatsappEnabled'] as ChannelKey[]).map(
+                    (channel) => (
+                      <td key={channel} className="px-4 py-3 text-center">
+                        <input
+                          type="checkbox"
+                          checked={pref[channel]}
+                          disabled={busy === `${category}:${channel}`}
+                          onChange={(e) => toggle(category, channel, e.target.checked)}
+                        />
+                      </td>
+                    ),
+                  )}
                 </tr>
               );
             })}

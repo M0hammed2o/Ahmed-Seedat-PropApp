@@ -4,7 +4,11 @@ import type { BankTransaction, OwnerStatement } from '@propvault/types';
 import { OWNER_STATEMENT_STATUS_PRESENTATION } from '@propvault/ui';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapOwnerStatementRow, mapBankTransactionRow } from '@/lib/accounting';
-import { resolvePortalSession, findActiveMembership, canPostAccountingRecords } from '@/lib/orgSession';
+import {
+  resolvePortalSession,
+  findActiveMembership,
+  canPostAccountingRecords,
+} from '@/lib/orgSession';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { IssueOwnerStatementButton } from '@/components/accounting/IssueOwnerStatementButton';
@@ -110,7 +114,9 @@ function OwnerStatementDetailView({
         <PageHeader
           title={ownerName}
           subtitle={`${statement.periodStart} – ${statement.periodEnd}`}
-          actions={<StatusBadge presentation={OWNER_STATEMENT_STATUS_PRESENTATION[statement.status]} />}
+          actions={
+            <StatusBadge presentation={OWNER_STATEMENT_STATUS_PRESENTATION[statement.status]} />
+          }
         />
       </div>
 
@@ -156,7 +162,10 @@ function OwnerStatementDetailView({
       ) : null}
 
       {statement.status === 'issued' && canPost ? (
-        <ConfirmOwnerStatementPayoutControl ownerStatementId={statement.id} candidates={payoutCandidates} />
+        <ConfirmOwnerStatementPayoutControl
+          ownerStatementId={statement.id}
+          candidates={payoutCandidates}
+        />
       ) : null}
 
       {statement.status === 'paid' ? (

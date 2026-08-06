@@ -63,9 +63,13 @@ function DisplayNameSection({ initialDisplayName }: { initialDisplayName: string
   return (
     <Panel className="max-w-xl">
       <form onSubmit={handleSubmit} className="space-y-3">
-        <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">Display name</h2>
+        <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+          Display name
+        </h2>
         {error ? <p className="text-xs text-light-danger dark:text-dark-danger">{error}</p> : null}
-        {saved ? <p className="text-xs text-light-statusPaid dark:text-dark-statusPaid">Saved.</p> : null}
+        {saved ? (
+          <p className="text-xs text-light-statusPaid dark:text-dark-statusPaid">Saved.</p>
+        ) : null}
         <input
           required
           value={displayName}
@@ -112,11 +116,14 @@ function EmailSection({ initialEmail }: { initialEmail: string }) {
   return (
     <Panel className="max-w-xl">
       <form onSubmit={handleSubmit} className="space-y-3">
-        <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">Email address</h2>
+        <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+          Email address
+        </h2>
         {error ? <p className="text-xs text-light-danger dark:text-dark-danger">{error}</p> : null}
         {done ? (
           <p className="text-xs text-light-statusPaid dark:text-dark-statusPaid">
-            Confirmation links sent to both your old and new address — the change takes effect once you confirm.
+            Confirmation links sent to both your old and new address — the change takes effect once
+            you confirm.
           </p>
         ) : null}
         <input
@@ -179,9 +186,15 @@ function PasswordSection() {
   return (
     <Panel className="max-w-xl">
       <form onSubmit={handleSubmit} className="space-y-3">
-        <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">Password</h2>
+        <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+          Password
+        </h2>
         {error ? <p className="text-xs text-light-danger dark:text-dark-danger">{error}</p> : null}
-        {done ? <p className="text-xs text-light-statusPaid dark:text-dark-statusPaid">Password updated.</p> : null}
+        {done ? (
+          <p className="text-xs text-light-statusPaid dark:text-dark-statusPaid">
+            Password updated.
+          </p>
+        ) : null}
         <label className="block text-xs">
           <span className="text-light-textMuted dark:text-dark-textMuted">New password</span>
           <input
@@ -193,7 +206,9 @@ function PasswordSection() {
           />
         </label>
         <label className="block text-xs">
-          <span className="text-light-textMuted dark:text-dark-textMuted">Confirm new password</span>
+          <span className="text-light-textMuted dark:text-dark-textMuted">
+            Confirm new password
+          </span>
           <input
             type="password"
             autoComplete="new-password"

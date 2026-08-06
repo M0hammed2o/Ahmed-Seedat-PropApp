@@ -2,7 +2,11 @@ import { redirect } from 'next/navigation';
 import { TaxPackClient } from '@/components/accounting/TaxPackClient';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { PermissionDenied } from '@/components/ui/PermissionDenied';
-import { resolvePortalSession, findActiveMembership, canPostAccountingRecords } from '@/lib/orgSession';
+import {
+  resolvePortalSession,
+  findActiveMembership,
+  canPostAccountingRecords,
+} from '@/lib/orgSession';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 /**
@@ -15,7 +19,10 @@ export default async function TaxPackPage() {
   if (ADMIN_DEMO_MODE) {
     return (
       <div className="space-y-5 animate-rise">
-        <PageHeader title="Tax Pack" subtitle="South African tax-year summary, computed from your ledger." />
+        <PageHeader
+          title="Tax Pack"
+          subtitle="South African tax-year summary, computed from your ledger."
+        />
         <TaxPackClient orgId="demo-org-1" demoMode />
       </div>
     );
@@ -39,7 +46,10 @@ export default async function TaxPackPage() {
 
   return (
     <div className="space-y-5 animate-rise">
-      <PageHeader title="Tax Pack" subtitle="South African tax-year summary, computed from your ledger." />
+      <PageHeader
+        title="Tax Pack"
+        subtitle="South African tax-year summary, computed from your ledger."
+      />
       <TaxPackClient orgId={activeOrg.orgId} />
     </div>
   );

@@ -34,11 +34,17 @@ export function PropertiesGridClient({
   const [view, setView] = useState<'grid' | 'list'>('grid');
 
   const filteredCards = useMemo(
-    () => cards.filter((c) => (c.nickname + c.city + c.fullAddress).toLowerCase().includes(query.toLowerCase())),
+    () =>
+      cards.filter((c) =>
+        (c.nickname + c.city + c.fullAddress).toLowerCase().includes(query.toLowerCase()),
+      ),
     [cards, query],
   );
   const filteredIds = useMemo(() => new Set(filteredCards.map((c) => c.id)), [filteredCards]);
-  const filteredTableData = useMemo(() => tableData.filter((p) => filteredIds.has(p.id)), [tableData, filteredIds]);
+  const filteredTableData = useMemo(
+    () => tableData.filter((p) => filteredIds.has(p.id)),
+    [tableData, filteredIds],
+  );
 
   if (cards.length === 0) {
     return <PropertiesTable data={[]} emptyAction={emptyAction} />;
@@ -49,7 +55,10 @@ export function PropertiesGridClient({
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 sm:flex sm:flex-wrap sm:justify-between">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <div className="relative">
-            <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+            <Search
+              className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+              aria-hidden="true"
+            />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -89,7 +98,9 @@ export function PropertiesGridClient({
 
       {view === 'grid' ? (
         filteredCards.length === 0 ? (
-          <p className="panel py-12 text-center text-sm text-muted-foreground">No properties match &quot;{query}&quot;.</p>
+          <p className="panel py-12 text-center text-sm text-muted-foreground">
+            No properties match &quot;{query}&quot;.
+          </p>
         ) : (
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             {filteredCards.map((c) => (

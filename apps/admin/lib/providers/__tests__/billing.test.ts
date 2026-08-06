@@ -63,7 +63,9 @@ describe('MockBillingGatewayProvider', () => {
 
   it('parseWebhookEvent rejects a malformed payload rather than silently defaulting fields', () => {
     const provider = new MockBillingGatewayProvider();
-    expect(() => provider.parseWebhookEvent(JSON.stringify({ type: 'payment_succeeded' }))).toThrow();
+    expect(() =>
+      provider.parseWebhookEvent(JSON.stringify({ type: 'payment_succeeded' })),
+    ).toThrow();
   });
 
   it('parseWebhookEvent round-trips a well-formed payload', () => {

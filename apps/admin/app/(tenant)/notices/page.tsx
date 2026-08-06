@@ -28,7 +28,10 @@ export default async function NoticesPage() {
 
   return (
     <div className="space-y-5 animate-rise">
-      <PageHeader title="Notices" subtitle="Announcements from your landlord or property manager." />
+      <PageHeader
+        title="Notices"
+        subtitle="Announcements from your landlord or property manager."
+      />
 
       {announcements.length === 0 ? (
         <EmptyState icon={<span className="text-lg">📣</span>} title="No notices yet" />
@@ -39,7 +42,10 @@ export default async function NoticesPage() {
   );
 }
 
-async function loadNotices(): Promise<{ announcements: Announcement[]; acknowledgedIds: string[] }> {
+async function loadNotices(): Promise<{
+  announcements: Announcement[];
+  acknowledgedIds: string[];
+}> {
   const supabase = await getServerSupabaseClient();
 
   const { data: announcementRows, error: announcementError } = await supabase

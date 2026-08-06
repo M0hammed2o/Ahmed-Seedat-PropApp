@@ -31,7 +31,9 @@ export function MaintenanceFilterClient({ tickets }: { tickets: MaintenanceTicke
             type="button"
             onClick={() => setView('board')}
             className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium ${
-              view === 'board' ? 'bg-primary-soft text-accent-foreground' : 'text-muted-foreground hover:text-foreground'
+              view === 'board'
+                ? 'bg-primary-soft text-accent-foreground'
+                : 'text-muted-foreground hover:text-foreground'
             }`}
           >
             <Columns3 className="h-3.5 w-3.5" aria-hidden="true" /> Board
@@ -40,7 +42,9 @@ export function MaintenanceFilterClient({ tickets }: { tickets: MaintenanceTicke
             type="button"
             onClick={() => setView('table')}
             className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium ${
-              view === 'table' ? 'bg-primary-soft text-accent-foreground' : 'text-muted-foreground hover:text-foreground'
+              view === 'table'
+                ? 'bg-primary-soft text-accent-foreground'
+                : 'text-muted-foreground hover:text-foreground'
             }`}
           >
             <Rows3 className="h-3.5 w-3.5" aria-hidden="true" /> Table
@@ -48,7 +52,11 @@ export function MaintenanceFilterClient({ tickets }: { tickets: MaintenanceTicke
         </div>
       </div>
 
-      {view === 'board' ? <MaintenanceBoard tickets={filtered} /> : <MaintenanceTable data={filtered} />}
+      {view === 'board' ? (
+        <MaintenanceBoard tickets={filtered} />
+      ) : (
+        <MaintenanceTable data={filtered} />
+      )}
     </div>
   );
 }

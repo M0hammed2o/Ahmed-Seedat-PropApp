@@ -32,8 +32,8 @@ earlier verdigris placeholder palette. Type scale/spacing/radii remain centralis
 - **Typography**: Plus Jakarta Sans (display — headings only, tight `-0.02em` tracking) + Inter
   (body), both self-hosted via `next/font/google` (build-time download, zero external request at
   runtime — CSP-safe, matching this project's own hydration-CSP lesson). 6-step scale — `display
-  32/40/700`, `title 24/32/700`, `heading 18/24/600`, `body 15/22/400`, `caption 13/18/400`, `micro
-  11/14/500` (size/line-height/weight).
+32/40/700`, `title 24/32/700`, `heading 18/24/600`, `body 15/22/400`, `caption 13/18/400`, `micro
+11/14/500` (size/line-height/weight).
 - **Spacing**: 4px base unit, scale `[0,4,8,12,16,24,32,48,64]`.
 - **Radii**: `sm 4, md 8, lg 12, xl 16, card 20, panel 24, pill 999` — `card`/`panel` are the
   redesign's elevated-surface radii (`rounded-card`/`rounded-panel` Tailwind utilities), `sm`-`xl`
@@ -62,15 +62,15 @@ status enum to `statusPresentation.ts` rather than inventing an inline colour ma
 `SubscriptionsTable.tsx`/`CustomersTable.tsx` (M19) currently do the latter and should be migrated
 when next touched, not as a standalone refactor.
 
-| Status | Icon | Label |
-| --- | --- | --- |
-| paid | check | Paid |
-| unpaid | dot | Unpaid |
-| overdue | alert-triangle | Overdue |
-| needs_review | eye | Needs review |
-| processing | spinner | Processing |
-| disputed | flag | Disputed |
-| void | slash | Void |
+| Status       | Icon           | Label        |
+| ------------ | -------------- | ------------ |
+| paid         | check          | Paid         |
+| unpaid       | dot            | Unpaid       |
+| overdue      | alert-triangle | Overdue      |
+| needs_review | eye            | Needs review |
+| processing   | spinner        | Processing   |
+| disputed     | flag           | Disputed     |
+| void         | slash          | Void         |
 
 ## Buttons
 
@@ -110,7 +110,7 @@ Three variants, one size scale, never colour-only for meaning:
 - **Explainer card** ("How it works", reused from PropView per `DESIGN_REVIEW.md` §2): `surface`
   background one step lighter/darker than the page background, no border, `body`-scale text,
   2–3 sentences max. Used directly beneath an empty state or a rules-engine-generated feed (e.g.
-  Portfolio Intelligence) to disclose *how* the content was produced — required, not optional,
+  Portfolio Intelligence) to disclose _how_ the content was produced — required, not optional,
   wherever `AI_ARCHITECTURE.md` §2's "nothing is estimated or made up" guarantee needs a visible
   home.
 

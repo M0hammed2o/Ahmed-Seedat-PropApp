@@ -17,9 +17,16 @@ export default async function TenantProfilePage() {
     return (
       <div className="space-y-5 animate-rise">
         <PageHeader title="My Profile" />
-        <AccountSettingsForm initialDisplayName="Demo Tenant" initialEmail="demo-tenant@example.com" />
+        <AccountSettingsForm
+          initialDisplayName="Demo Tenant"
+          initialEmail="demo-tenant@example.com"
+        />
         <LinkedAccountsPanel />
-        <TenantContactForm fullName="Demo Tenant" initialEmail="demo-tenant@example.com" initialPhone="+27 82 555 0100" />
+        <TenantContactForm
+          fullName="Demo Tenant"
+          initialEmail="demo-tenant@example.com"
+          initialPhone="+27 82 555 0100"
+        />
       </div>
     );
   }
@@ -40,7 +47,8 @@ export default async function TenantProfilePage() {
     supabase.from('profiles').select('display_name').eq('id', session.userId).maybeSingle(),
     supabase.from('tenants').select('full_name, email, phone').eq('id', session.tenantId).single(),
   ]);
-  if (tenantResult.error) throw new Error(`Failed to load tenant profile: ${tenantResult.error.message}`);
+  if (tenantResult.error)
+    throw new Error(`Failed to load tenant profile: ${tenantResult.error.message}`);
 
   return (
     <div className="space-y-5 animate-rise">

@@ -108,7 +108,9 @@ export function LeaseForm({ mode, orgId, unitId, propertyId, lease }: LeaseFormP
       const body = await response.json();
       if (!response.ok) {
         setFieldErrors(body.error?.field_errors ?? {});
-        setError(body.error?.message ?? `Failed to ${mode === 'create' ? 'create' : 'update'} lease.`);
+        setError(
+          body.error?.message ?? `Failed to ${mode === 'create' ? 'create' : 'update'} lease.`,
+        );
         return;
       }
       router.push(`/leases/${body.lease.id}`);
@@ -125,108 +127,116 @@ export function LeaseForm({ mode, orgId, unitId, propertyId, lease }: LeaseFormP
       <PageHeader title={mode === 'create' ? 'Add lease' : 'Edit lease'} />
 
       <Panel className="max-w-xl">
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {error ? (
-          <p className="rounded-md border border-light-danger bg-light-danger/10 px-3 py-2 text-xs text-light-danger dark:border-dark-danger dark:bg-dark-danger/10 dark:text-dark-danger">
-            {error}
-          </p>
-        ) : null}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error ? (
+            <p className="rounded-md border border-light-danger bg-light-danger/10 px-3 py-2 text-xs text-light-danger dark:border-dark-danger dark:bg-dark-danger/10 dark:text-dark-danger">
+              {error}
+            </p>
+          ) : null}
 
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="Start date" error={fieldErrors.startDate}>
-            <input
-              required
-              type="date"
-              value={form.startDate}
-              onChange={(e) => set('startDate', e.target.value)}
-              className={inputClass}
-            />
-          </Field>
-          <Field label="End date (optional)" error={fieldErrors.endDate}>
-            <input
-              type="date"
-              value={form.endDate}
-              onChange={(e) => set('endDate', e.target.value)}
-              className={inputClass}
-            />
-          </Field>
-          <Field label="Rent amount (ZAR)" error={fieldErrors.rentAmount}>
-            <input
-              required
-              type="number"
-              min={0}
-              step={0.01}
-              value={form.rentAmount}
-              onChange={(e) => set('rentAmount', e.target.value)}
-              className={inputClass}
-            />
-          </Field>
-          <Field label="Deposit amount (ZAR)" error={fieldErrors.depositAmount}>
-            <input
-              type="number"
-              min={0}
-              step={0.01}
-              value={form.depositAmount}
-              onChange={(e) => set('depositAmount', e.target.value)}
-              className={inputClass}
-            />
-          </Field>
-        </div>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Start date" error={fieldErrors.startDate}>
+              <input
+                required
+                type="date"
+                value={form.startDate}
+                onChange={(e) => set('startDate', e.target.value)}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="End date (optional)" error={fieldErrors.endDate}>
+              <input
+                type="date"
+                value={form.endDate}
+                onChange={(e) => set('endDate', e.target.value)}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Rent amount (ZAR)" error={fieldErrors.rentAmount}>
+              <input
+                required
+                type="number"
+                min={0}
+                step={0.01}
+                value={form.rentAmount}
+                onChange={(e) => set('rentAmount', e.target.value)}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Deposit amount (ZAR)" error={fieldErrors.depositAmount}>
+              <input
+                type="number"
+                min={0}
+                step={0.01}
+                value={form.depositAmount}
+                onChange={(e) => set('depositAmount', e.target.value)}
+                className={inputClass}
+              />
+            </Field>
+          </div>
 
-        {mode === 'create' && templates.length > 0 ? (
-          <Field label="Lease template (optional reference)">
-            <select value={templateId} onChange={(e) => setTemplateId(e.target.value)} className={inputClass}>
-              <option value="">None</option>
-              {templates.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                  {t.isDefault ? ' (default)' : ''}
-                </option>
-              ))}
-            </select>
-            {templateSignedUrl ? (
-              <a
-                href={templateSignedUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-1 inline-block text-xs text-light-accent hover:underline dark:text-dark-accent"
+          {mode === 'create' && templates.length > 0 ? (
+            <Field label="Lease template (optional reference)">
+              <select
+                value={templateId}
+                onChange={(e) => setTemplateId(e.target.value)}
+                className={inputClass}
               >
-                Open template in a new tab
-              </a>
-            ) : null}
-          </Field>
-        ) : null}
+                <option value="">None</option>
+                {templates.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                    {t.isDefault ? ' (default)' : ''}
+                  </option>
+                ))}
+              </select>
+              {templateSignedUrl ? (
+                <a
+                  href={templateSignedUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-1 inline-block text-xs text-light-accent hover:underline dark:text-dark-accent"
+                >
+                  Open template in a new tab
+                </a>
+              ) : null}
+            </Field>
+          ) : null}
 
-        {mode === 'edit' ? (
-          <Field label="Status">
-            <select
-              value={form.status}
-              onChange={(e) => set('status', e.target.value as LeaseStatus)}
-              className={inputClass}
+          {mode === 'edit' ? (
+            <Field label="Status">
+              <select
+                value={form.status}
+                onChange={(e) => set('status', e.target.value as LeaseStatus)}
+                className={inputClass}
+              >
+                {LEASE_STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          ) : null}
+
+          <div className="flex gap-2 pt-2">
+            <Button type="submit" variant="primary" disabled={submitting}>
+              {submitting ? 'Saving…' : mode === 'create' ? 'Create lease' : 'Save changes'}
+            </Button>
+            <Button
+              type="button"
+              onClick={() =>
+                router.push(
+                  mode === 'create'
+                    ? `/properties/${propertyId}/units/${unitId}`
+                    : `/leases/${lease!.id}`,
+                )
+              }
             >
-              {LEASE_STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </Field>
-        ) : null}
-
-        <div className="flex gap-2 pt-2">
-          <Button type="submit" variant="primary" disabled={submitting}>
-            {submitting ? 'Saving…' : mode === 'create' ? 'Create lease' : 'Save changes'}
-          </Button>
-          <Button
-            type="button"
-            onClick={() =>
-              router.push(mode === 'create' ? `/properties/${propertyId}/units/${unitId}` : `/leases/${lease!.id}`)
-            }
-          >
-            Cancel
-          </Button>
-        </div>
-      </form>
+              Cancel
+            </Button>
+          </div>
+        </form>
       </Panel>
     </div>
   );
@@ -235,13 +245,23 @@ export function LeaseForm({ mode, orgId, unitId, propertyId, lease }: LeaseFormP
 const inputClass =
   'mt-1 block w-full rounded-md border border-light-border bg-transparent px-3 py-2 text-sm text-light-textPrimary dark:border-dark-border dark:text-dark-textPrimary';
 
-function Field({ label, error, children }: { label: string; error?: string[]; children: ReactNode }) {
+function Field({
+  label,
+  error,
+  children,
+}: {
+  label: string;
+  error?: string[];
+  children: ReactNode;
+}) {
   return (
     <label className="block text-xs">
       <span className="text-light-textMuted dark:text-dark-textMuted">{label}</span>
       {children}
       {error?.length ? (
-        <p className="mt-1 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">{error[0]}</p>
+        <p className="mt-1 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">
+          {error[0]}
+        </p>
       ) : null}
     </label>
   );

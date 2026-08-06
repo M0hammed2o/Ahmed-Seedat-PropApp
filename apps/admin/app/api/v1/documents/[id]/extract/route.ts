@@ -52,7 +52,12 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
   }
   if (!document.org_id) {
     return NextResponse.json(
-      { error: { code: 'not_org_scoped', message: 'This document predates org-scoping and cannot be processed here.' } },
+      {
+        error: {
+          code: 'not_org_scoped',
+          message: 'This document predates org-scoping and cannot be processed here.',
+        },
+      },
       { status: 400 },
     );
   }
@@ -60,7 +65,12 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
   const canWrite = await requireOrgRole(supabase, document.org_id, 'agent');
   if (!canWrite) {
     return NextResponse.json(
-      { error: { code: 'forbidden', message: 'You do not have permission to process this document.' } },
+      {
+        error: {
+          code: 'forbidden',
+          message: 'You do not have permission to process this document.',
+        },
+      },
       { status: 403 },
     );
   }
@@ -96,7 +106,12 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     .createSignedUrl(document.storage_path, SIGNED_URL_TTL_SECONDS);
   if (signedUrlError || !signedUrlData) {
     return NextResponse.json(
-      { error: { code: 'signed_url_failed', message: signedUrlError?.message ?? 'Could not create a signed URL for this document.' } },
+      {
+        error: {
+          code: 'signed_url_failed',
+          message: signedUrlError?.message ?? 'Could not create a signed URL for this document.',
+        },
+      },
       { status: 500 },
     );
   }
@@ -110,7 +125,10 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
   };
 
   try {
-    const extraction = await provider.extractFields(processingInput, document.document_type as 'bill' | 'lease');
+    const extraction = await provider.extractFields(
+      processingInput,
+      document.document_type as 'bill' | 'lease',
+    );
 
     const { data: resultRow, error: resultError } = await serviceRole
       .from('extraction_results')
@@ -126,11 +144,17 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
 
     await serviceRole.from('extraction_jobs').update({ status: 'succeeded' }).eq('id', job.id);
 
-    return NextResponse.json({ extractionResult: mapExtractionResultRow(resultRow), extractionJobId: job.id });
+    return NextResponse.json({
+      extractionResult: mapExtractionResultRow(resultRow),
+      extractionJobId: job.id,
+    });
   } catch (err) {
     await serviceRole
       .from('extraction_jobs')
-      .update({ status: 'failed', error_message: err instanceof Error ? err.message : 'Unknown error' })
+      .update({
+        status: 'failed',
+        error_message: err instanceof Error ? err.message : 'Unknown error',
+      })
       .eq('id', job.id);
 
     return NextResponse.json(

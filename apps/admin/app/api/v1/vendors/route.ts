@@ -46,7 +46,9 @@ export async function GET(request: NextRequest) {
   const vendors = rows.map(mapVendorRow);
   const last = rows[rows.length - 1];
   const nextCursor =
-    rows.length === limit && last ? encodeCursor({ createdAt: last.created_at, id: last.id }) : null;
+    rows.length === limit && last
+      ? encodeCursor({ createdAt: last.created_at, id: last.id })
+      : null;
 
   return NextResponse.json({ vendors, next_cursor: nextCursor });
 }
@@ -90,7 +92,12 @@ export async function POST(request: NextRequest) {
   const canWrite = await requireOrgRole(supabase, parsed.data.orgId, 'agent');
   if (!canWrite) {
     return NextResponse.json(
-      { error: { code: 'forbidden', message: 'You do not have permission to add vendors to this organization.' } },
+      {
+        error: {
+          code: 'forbidden',
+          message: 'You do not have permission to add vendors to this organization.',
+        },
+      },
       { status: 403 },
     );
   }

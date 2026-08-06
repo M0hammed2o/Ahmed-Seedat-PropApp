@@ -37,7 +37,9 @@ export function RecordExpenseButton({ expenseId }: { expenseId: string }) {
   return (
     <div className="mt-4 rounded-lg border border-light-border p-4 dark:border-dark-border">
       {error ? (
-        <p className="mb-2 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">{error}</p>
+        <p className="mb-2 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">
+          {error}
+        </p>
       ) : null}
       <label className="flex items-center gap-2 text-xs text-light-textSecondary dark:text-dark-textSecondary">
         <input

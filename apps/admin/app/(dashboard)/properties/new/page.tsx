@@ -17,7 +17,8 @@ export default async function NewPropertyPage() {
   // view-only) -- checked here for a fast redirect rather than letting the user land on a form
   // they can't submit; POST /api/v1/properties re-checks this server-side regardless
   // (API_SPEC.md §11 "never only in the UI"), this is a UX nicety on top of that.
-  const canCreate = findActiveMembership(session, activeOrg.orgId) && canWriteOrgRecords(activeOrg.role);
+  const canCreate =
+    findActiveMembership(session, activeOrg.orgId) && canWriteOrgRecords(activeOrg.role);
   if (!canCreate) redirect('/properties');
 
   return <NewPropertyForm orgId={activeOrg.orgId} />;

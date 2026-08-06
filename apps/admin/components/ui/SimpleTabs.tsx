@@ -6,7 +6,13 @@ import { useState, type ReactNode } from 'react';
 // treatment (2026-08-04 Lovable-adoption batch, UI_INTEGRATION_PLAN.md) without pulling in
 // Radix's tabs primitive as a new dependency for one page -- plain useState, no new package,
 // same visual result (pill-style TabsList, active tab in a raised card).
-export function SimpleTabs({ tabs, defaultTab }: { tabs: { label: string; content: ReactNode }[]; defaultTab?: string }) {
+export function SimpleTabs({
+  tabs,
+  defaultTab,
+}: {
+  tabs: { label: string; content: ReactNode }[];
+  defaultTab?: string;
+}) {
   const [active, setActive] = useState(defaultTab ?? tabs[0]?.label ?? '');
   const activeTab = tabs.find((t) => t.label === active) ?? tabs[0];
 
@@ -20,7 +26,9 @@ export function SimpleTabs({ tabs, defaultTab }: { tabs: { label: string; conten
             onClick={() => setActive(t.label)}
             aria-current={t.label === active}
             className={`shrink-0 rounded-lg px-3.5 py-1.5 text-[13px] font-medium transition-colors ${
-              t.label === active ? 'bg-card text-foreground shadow-card' : 'text-muted-foreground hover:text-foreground'
+              t.label === active
+                ? 'bg-card text-foreground shadow-card'
+                : 'text-muted-foreground hover:text-foreground'
             }`}
           >
             {t.label}

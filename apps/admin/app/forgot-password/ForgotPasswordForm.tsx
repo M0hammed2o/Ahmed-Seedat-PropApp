@@ -39,7 +39,11 @@ export function ForgotPasswordForm() {
       });
       setSubmitting(false);
       if (!response.ok) {
-        setError(response.status === 429 ? 'Too many attempts. Try again shortly.' : 'Something went wrong sending the reset email. Try again.');
+        setError(
+          response.status === 429
+            ? 'Too many attempts. Try again shortly.'
+            : 'Something went wrong sending the reset email. Try again.',
+        );
         return;
       }
       setSent(true);
@@ -62,8 +66,8 @@ export function ForgotPasswordForm() {
         {sent ? (
           <>
             <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
-              If an account exists for <span className="font-medium">{email}</span>, a password reset
-              link is on its way. Check your inbox.
+              If an account exists for <span className="font-medium">{email}</span>, a password
+              reset link is on its way. Check your inbox.
             </p>
             <Link href="/login" className="mt-6 block">
               <Button variant="secondary" className="w-full">
@@ -89,7 +93,9 @@ export function ForgotPasswordForm() {
               className="mt-1 w-full rounded-lg border border-light-border bg-transparent px-3 py-2 text-sm text-light-textPrimary outline-none focus:border-light-accent/40 focus:ring-4 focus:ring-light-accent/10 dark:border-dark-border dark:text-dark-textPrimary dark:focus:border-dark-accent/40 dark:focus:ring-dark-accent/10"
             />
 
-            {error ? <p className="mt-3 text-sm text-light-danger dark:text-dark-danger">{error}</p> : null}
+            {error ? (
+              <p className="mt-3 text-sm text-light-danger dark:text-dark-danger">{error}</p>
+            ) : null}
 
             <Button type="submit" variant="primary" disabled={submitting} className="mt-6 w-full">
               {submitting ? 'Sending…' : 'Send reset link'}

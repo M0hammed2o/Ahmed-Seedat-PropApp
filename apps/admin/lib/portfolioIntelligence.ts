@@ -62,43 +62,59 @@ function severityForInvoiceUnpaid(daysPastDue: number): PortfolioInsightSeverity
   return 'info';
 }
 
-async function evaluateRules(client: SupabaseClient, orgId: string, now: Date): Promise<EvaluatedInsight[]> {
+async function evaluateRules(
+  client: SupabaseClient,
+  orgId: string,
+  now: Date,
+): Promise<EvaluatedInsight[]> {
   const today = now.toISOString().slice(0, 10);
   const insights: EvaluatedInsight[] = [];
 
-  const [overdueResult, pendingResult, expiringLeasesResult, openTicketsResult, unpaidInvoicesResult] =
-    await Promise.all([
-      client
-        .from('rent_schedules')
-        .select('id, due_date, amount, lease_id')
-        .eq('org_id', orgId)
-        .eq('status', 'overdue'),
-      client
-        .from('rent_schedules')
-        .select('id, due_date, amount, lease_id')
-        .eq('org_id', orgId)
-        .eq('status', 'pending')
-        .gte('due_date', today), // upper bound (due within the current week) filtered in JS below
-      client
-        .from('leases')
-        .select('id, end_date')
-        .eq('org_id', orgId)
-        .eq('status', 'active')
-        .not('end_date', 'is', null),
-      client
-        .from('maintenance_tickets')
-        .select('id, summary, priority, status, created_at')
-        .eq('org_id', orgId)
-        .in('status', ['to_do', 'in_progress', 'pending_approval']),
-      client
-        .from('invoices')
-        .select('id, period, amount, status')
-        .eq('org_id', orgId)
-        .neq('status', 'paid'),
-    ]);
+  const [
+    overdueResult,
+    pendingResult,
+    expiringLeasesResult,
+    openTicketsResult,
+    unpaidInvoicesResult,
+  ] = await Promise.all([
+    client
+      .from('rent_schedules')
+      .select('id, due_date, amount, lease_id')
+      .eq('org_id', orgId)
+      .eq('status', 'overdue'),
+    client
+      .from('rent_schedules')
+      .select('id, due_date, amount, lease_id')
+      .eq('org_id', orgId)
+      .eq('status', 'pending')
+      .gte('due_date', today), // upper bound (due within the current week) filtered in JS below
+    client
+      .from('leases')
+      .select('id, end_date')
+      .eq('org_id', orgId)
+      .eq('status', 'active')
+      .not('end_date', 'is', null),
+    client
+      .from('maintenance_tickets')
+      .select('id, summary, priority, status, created_at')
+      .eq('org_id', orgId)
+      .in('status', ['to_do', 'in_progress', 'pending_approval']),
+    client
+      .from('invoices')
+      .select('id, period, amount, status')
+      .eq('org_id', orgId)
+      .neq('status', 'paid'),
+  ]);
 
-  for (const result of [overdueResult, pendingResult, expiringLeasesResult, openTicketsResult, unpaidInvoicesResult]) {
-    if (result.error) throw new Error(`Portfolio Intelligence rule query failed: ${result.error.message}`);
+  for (const result of [
+    overdueResult,
+    pendingResult,
+    expiringLeasesResult,
+    openTicketsResult,
+    unpaidInvoicesResult,
+  ]) {
+    if (result.error)
+      throw new Error(`Portfolio Intelligence rule query failed: ${result.error.message}`);
   }
 
   for (const row of overdueResult.data ?? []) {
@@ -109,7 +125,14 @@ async function evaluateRules(client: SupabaseClient, orgId: string, now: Date): 
       message: `Rent of ${row.amount} is ${daysOverdue} day${daysOverdue === 1 ? '' : 's'} overdue (due ${row.due_date}).`,
       dataSource: {
         insight_type: 'rent_overdue',
-        triggering_records: [{ table: 'rent_schedules', id: row.id as string, due_date: row.due_date, amount: row.amount }],
+        triggering_records: [
+          {
+            table: 'rent_schedules',
+            id: row.id as string,
+            due_date: row.due_date,
+            amount: row.amount,
+          },
+        ],
       },
       severity: severityForRentOverdue(daysOverdue),
     });
@@ -127,7 +150,9 @@ async function evaluateRules(client: SupabaseClient, orgId: string, now: Date): 
       message: `Rent of ${row.amount} is due ${daysUntilDue <= 0 ? 'today' : `in ${daysUntilDue} day${daysUntilDue === 1 ? '' : 's'}`} (${dueDate}).`,
       dataSource: {
         insight_type: 'rent_due_soon',
-        triggering_records: [{ table: 'rent_schedules', id: row.id as string, due_date: dueDate, amount: row.amount }],
+        triggering_records: [
+          { table: 'rent_schedules', id: row.id as string, due_date: dueDate, amount: row.amount },
+        ],
       },
       severity: severityForRentDueSoon(daysUntilDue),
     });
@@ -160,7 +185,14 @@ async function evaluateRules(client: SupabaseClient, orgId: string, now: Date): 
       message: `Maintenance ticket "${row.summary}" (${row.priority} priority) has been open ${daysOpen} day${daysOpen === 1 ? '' : 's'}.`,
       dataSource: {
         insight_type: 'maintenance_open',
-        triggering_records: [{ table: 'maintenance_tickets', id: row.id as string, priority: row.priority, status: row.status }],
+        triggering_records: [
+          {
+            table: 'maintenance_tickets',
+            id: row.id as string,
+            priority: row.priority,
+            status: row.status,
+          },
+        ],
       },
       severity: severityForMaintenanceOpen(daysOpen, row.priority as string),
     });
@@ -175,7 +207,9 @@ async function evaluateRules(client: SupabaseClient, orgId: string, now: Date): 
       message: `Invoice of ${row.amount} for period ${row.period} is ${daysPastDue} day${daysPastDue === 1 ? '' : 's'} past due.`,
       dataSource: {
         insight_type: 'invoice_unpaid',
-        triggering_records: [{ table: 'invoices', id: row.id as string, period: row.period, amount: row.amount }],
+        triggering_records: [
+          { table: 'invoices', id: row.id as string, period: row.period, amount: row.amount },
+        ],
       },
       severity: severityForInvoiceUnpaid(daysPastDue),
     });
@@ -197,7 +231,10 @@ export interface ReconcileResult {
  * auto-dismisses ones that no longer trigger (e.g. rent that was overdue and is now paid) so the
  * feed never shows a stale insight.
  */
-export async function reconcilePortfolioInsights(client: SupabaseClient, orgId: string): Promise<ReconcileResult> {
+export async function reconcilePortfolioInsights(
+  client: SupabaseClient,
+  orgId: string,
+): Promise<ReconcileResult> {
   const now = new Date();
   const fresh = await evaluateRules(client, orgId, now);
   const freshByKey = new Map(fresh.map((insight) => [insight.key, insight]));
@@ -207,7 +244,8 @@ export async function reconcilePortfolioInsights(client: SupabaseClient, orgId: 
     .select('id, insight_type, data_source, severity, message')
     .eq('org_id', orgId)
     .is('dismissed_at', null);
-  if (existingError) throw new Error(`Failed to load existing portfolio_insights: ${existingError.message}`);
+  if (existingError)
+    throw new Error(`Failed to load existing portfolio_insights: ${existingError.message}`);
 
   const existingByKey = new Map<string, { id: string; severity: string; message: string }>();
   for (const row of existingRows ?? []) {
@@ -240,9 +278,14 @@ export async function reconcilePortfolioInsights(client: SupabaseClient, orgId: 
     } else if (existing.severity !== insight.severity || existing.message !== insight.message) {
       const { error } = await client
         .from('portfolio_insights')
-        .update({ message: insight.message, severity: insight.severity, generated_at: now.toISOString() })
+        .update({
+          message: insight.message,
+          severity: insight.severity,
+          generated_at: now.toISOString(),
+        })
         .eq('id', existing.id);
-      if (error) throw new Error(`Failed to update portfolio_insights row ${existing.id}: ${error.message}`);
+      if (error)
+        throw new Error(`Failed to update portfolio_insights row ${existing.id}: ${error.message}`);
       updated += 1;
     }
   }
@@ -261,7 +304,8 @@ export async function reconcilePortfolioInsights(client: SupabaseClient, orgId: 
       .from('portfolio_insights')
       .update({ dismissed_at: now.toISOString() })
       .in('id', staleIds);
-    if (error) throw new Error(`Failed to auto-resolve stale portfolio_insights rows: ${error.message}`);
+    if (error)
+      throw new Error(`Failed to auto-resolve stale portfolio_insights rows: ${error.message}`);
     autoResolved = staleIds.length;
   }
 

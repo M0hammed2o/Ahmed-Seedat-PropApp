@@ -25,19 +25,33 @@ export async function POST(request: NextRequest) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: { code: 'invalid_json', message: 'Request body must be valid JSON.' } }, { status: 400 });
+    return NextResponse.json(
+      { error: { code: 'invalid_json', message: 'Request body must be valid JSON.' } },
+      { status: 400 },
+    );
   }
 
   const parsed = signupSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
-      { error: { code: 'validation_failed', message: 'Check the highlighted fields.', field_errors: parsed.error.flatten().fieldErrors } },
+      {
+        error: {
+          code: 'validation_failed',
+          message: 'Check the highlighted fields.',
+          field_errors: parsed.error.flatten().fieldErrors,
+        },
+      },
       { status: 400 },
     );
   }
 
   const serviceClient = getServiceRoleClient();
-  const limited = await rateLimitOrRespond(serviceClient, `auth-signup-ip:${requestIp(request)}`, RATE_LIMITS.signupAttemptsPerMinute, 60);
+  const limited = await rateLimitOrRespond(
+    serviceClient,
+    `auth-signup-ip:${requestIp(request)}`,
+    RATE_LIMITS.signupAttemptsPerMinute,
+    60,
+  );
   if (limited) return limited;
 
   const supabase = await getServerSupabaseClient();
@@ -53,7 +67,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error: {
-          code: /already registered|already exists/i.test(error.message) ? 'account_exists' : 'signup_failed',
+          code: /already registered|already exists/i.test(error.message)
+            ? 'account_exists'
+            : 'signup_failed',
           message: /already registered|already exists/i.test(error.message)
             ? 'An account with this email already exists. Try signing in instead.'
             : 'Could not create your account. Check your details and try again.',

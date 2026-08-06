@@ -4,7 +4,11 @@ import type { Expense } from '@propvault/types';
 import { EXPENSE_STATUS_PRESENTATION } from '@propvault/ui';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapExpenseRow } from '@/lib/accounting';
-import { resolvePortalSession, findActiveMembership, canPostAccountingRecords } from '@/lib/orgSession';
+import {
+  resolvePortalSession,
+  findActiveMembership,
+  canPostAccountingRecords,
+} from '@/lib/orgSession';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { RecordExpenseButton } from '@/components/accounting/RecordExpenseButton';
@@ -65,7 +69,9 @@ function ExpenseDetailView({ expense, canPost }: { expense: Expense; canPost: bo
         />
       </div>
 
-      {expense.status === 'pending' && canPost ? <RecordExpenseButton expenseId={expense.id} /> : null}
+      {expense.status === 'pending' && canPost ? (
+        <RecordExpenseButton expenseId={expense.id} />
+      ) : null}
 
       {expense.journalEntryId ? (
         <p className="mt-4 text-xs text-light-textMuted dark:text-dark-textMuted">

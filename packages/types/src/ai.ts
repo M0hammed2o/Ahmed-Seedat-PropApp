@@ -1,4 +1,9 @@
-import type { AiMessageRole, PortfolioInsightSeverity, PortfolioInsightType, UsageType } from './enums';
+import type {
+  AiMessageRole,
+  PortfolioInsightSeverity,
+  PortfolioInsightType,
+  UsageType,
+} from './enums';
 import type { ProviderError } from './documentIntelligence';
 
 // AI_ARCHITECTURE.md §1: Conversational Assistant data model + vendor-agnostic LLM provider
@@ -42,8 +47,18 @@ export interface AssembledOrgContext {
   generatedAt: string;
   rentOverdue: Array<{ leaseId: string; tenantName: string; amount: number; daysOverdue: number }>;
   rentDueSoon: Array<{ leaseId: string; tenantName: string; amount: number; dueDate: string }>;
-  recentExpenses: Array<{ expenseId: string; category: string; amount: number; recordedAt: string }>;
-  openMaintenanceTickets: Array<{ ticketId: string; title: string; priority: string; status: string }>;
+  recentExpenses: Array<{
+    expenseId: string;
+    category: string;
+    amount: number;
+    recordedAt: string;
+  }>;
+  openMaintenanceTickets: Array<{
+    ticketId: string;
+    title: string;
+    priority: string;
+    status: string;
+  }>;
   leasesExpiringSoon: Array<{ leaseId: string; tenantName: string; endDate: string }>;
 }
 

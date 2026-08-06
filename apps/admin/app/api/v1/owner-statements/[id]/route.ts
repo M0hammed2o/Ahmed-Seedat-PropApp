@@ -21,7 +21,12 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
   const { data, error } = await supabase.from('owner_statements').select('*').eq('id', id).single();
   if (error || !data) {
     return NextResponse.json(
-      { error: { code: 'owner_statement_not_found', message: error?.message ?? 'Owner statement not found.' } },
+      {
+        error: {
+          code: 'owner_statement_not_found',
+          message: error?.message ?? 'Owner statement not found.',
+        },
+      },
       { status: 404 },
     );
   }

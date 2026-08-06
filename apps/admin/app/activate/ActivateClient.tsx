@@ -93,7 +93,9 @@ export function ActivateClient() {
         </h1>
 
         {stage === 'checking-session' || stage === 'confirming' ? (
-          <p className="mt-3 text-sm text-light-textSecondary dark:text-dark-textSecondary">Activating your account…</p>
+          <p className="mt-3 text-sm text-light-textSecondary dark:text-dark-textSecondary">
+            Activating your account…
+          </p>
         ) : null}
 
         {stage === 'signed-out' ? (
@@ -146,11 +148,19 @@ export function ActivateClient() {
 
         {stage === 'success' ? (
           <>
-            <CheckCircle2 size={32} className="mx-auto mt-4 text-light-statusPaid dark:text-dark-statusPaid" aria-hidden="true" />
+            <CheckCircle2
+              size={32}
+              className="mx-auto mt-4 text-light-statusPaid dark:text-dark-statusPaid"
+              aria-hidden="true"
+            />
             <p className="mt-2 text-sm text-light-textSecondary dark:text-dark-textSecondary">
               Your account is now linked. You can see your lease, payments, documents, and more.
             </p>
-            <Button variant="primary" className="mt-4 w-full" onClick={() => router.replace('/my-lease')}>
+            <Button
+              variant="primary"
+              className="mt-4 w-full"
+              onClick={() => router.replace('/my-lease')}
+            >
               Go to my portal
             </Button>
           </>
@@ -158,7 +168,11 @@ export function ActivateClient() {
 
         {stage === 'error' ? (
           <>
-            <XCircle size={32} className="mx-auto mt-4 text-light-danger dark:text-dark-danger" aria-hidden="true" />
+            <XCircle
+              size={32}
+              className="mx-auto mt-4 text-light-danger dark:text-dark-danger"
+              aria-hidden="true"
+            />
             <p className="mt-2 text-sm text-light-danger dark:text-dark-danger">{errorMessage}</p>
             <p className="mt-3 text-xs text-light-textMuted dark:text-dark-textMuted">
               If this keeps happening, contact your landlord or property manager for help.

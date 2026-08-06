@@ -41,7 +41,9 @@ describe('ApplicationsTable', () => {
   });
 
   it('shows the actual decision ("Approved"), not the generic "Decided" label, for a decided row', () => {
-    render(<ApplicationsTable data={[{ ...APPLICATION, status: 'decided', decision: 'approved' }]} />);
+    render(
+      <ApplicationsTable data={[{ ...APPLICATION, status: 'decided', decision: 'approved' }]} />,
+    );
     expect(screen.getByText('Approved')).toBeTruthy();
     expect(screen.queryByText('Decided')).toBeNull();
   });

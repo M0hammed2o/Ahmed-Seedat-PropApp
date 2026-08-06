@@ -1,12 +1,21 @@
 import { redirect } from 'next/navigation';
 import { ExpenseForm } from '@/components/accounting/ExpenseForm';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
-import { resolvePortalSession, findActiveMembership, canPostAccountingRecords } from '@/lib/orgSession';
+import {
+  resolvePortalSession,
+  findActiveMembership,
+  canPostAccountingRecords,
+} from '@/lib/orgSession';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 export default async function NewExpensePage() {
   if (ADMIN_DEMO_MODE) {
-    return <ExpenseForm orgId="demo-org-1" properties={[{ id: 'demo-property-1', nickname: 'Sea Point Apartment' }]} />;
+    return (
+      <ExpenseForm
+        orgId="demo-org-1"
+        properties={[{ id: 'demo-property-1', nickname: 'Sea Point Apartment' }]}
+      />
+    );
   }
 
   const session = await resolvePortalSession();

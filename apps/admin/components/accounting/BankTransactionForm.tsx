@@ -5,7 +5,11 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { PageHeader } from '@/components/ui/PageHeader';
 
-export function BankTransactionForm({ bankAccounts }: { bankAccounts: { id: string; bankName: string }[] }) {
+export function BankTransactionForm({
+  bankAccounts,
+}: {
+  bankAccounts: { id: string; bankName: string }[];
+}) {
   const router = useRouter();
   const [bankAccountId, setBankAccountId] = useState(bankAccounts[0]?.id ?? '');
   const [transactionDate, setTransactionDate] = useState('');
@@ -64,7 +68,11 @@ export function BankTransactionForm({ bankAccounts }: { bankAccounts: { id: stri
         ) : null}
         <label className="block text-xs">
           <span className="text-light-textMuted dark:text-dark-textMuted">Bank account</span>
-          <select value={bankAccountId} onChange={(e) => setBankAccountId(e.target.value)} className={inputClass}>
+          <select
+            value={bankAccountId}
+            onChange={(e) => setBankAccountId(e.target.value)}
+            className={inputClass}
+          >
             {bankAccounts.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.bankName}
@@ -84,15 +92,30 @@ export function BankTransactionForm({ bankAccounts }: { bankAccounts: { id: stri
         </label>
         <label className="block text-xs">
           <span className="text-light-textMuted dark:text-dark-textMuted">Amount (ZAR)</span>
-          <input required type="number" step={0.01} value={amount} onChange={(e) => setAmount(e.target.value)} className={inputClass} />
+          <input
+            required
+            type="number"
+            step={0.01}
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            className={inputClass}
+          />
         </label>
         <label className="block text-xs">
           <span className="text-light-textMuted dark:text-dark-textMuted">Description</span>
-          <input value={description} onChange={(e) => setDescription(e.target.value)} className={inputClass} />
+          <input
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            className={inputClass}
+          />
         </label>
         <label className="block text-xs">
           <span className="text-light-textMuted dark:text-dark-textMuted">Reference</span>
-          <input value={reference} onChange={(e) => setReference(e.target.value)} className={inputClass} />
+          <input
+            value={reference}
+            onChange={(e) => setReference(e.target.value)}
+            className={inputClass}
+          />
         </label>
         <div className="flex gap-2 pt-2">
           <Button type="submit" variant="primary" disabled={submitting}>

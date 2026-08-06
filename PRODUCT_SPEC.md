@@ -32,14 +32,14 @@ Each row: what it is, which portal(s) it appears in, V1 or V2, and where the ful
 
 ### 3.1 Identity & organization
 
-| Module                                                        | Portals           | V1? | Design doc                                                                        |
-| ------------------------------------------------------------- | ----------------- | --- | --------------------------------------------------------------------------------- |
-| Authentication (sign up/in/out, password reset, email verify) | Web, iOS, Android | V1  | `AUTHENTICATION.md`, `PERMISSIONS.md`, `SECURITY.md` §Auth, `ARCHITECTURE.md` §Retained from PropVault |
-| Web account creation (email/password, Google OAuth, Apple OAuth) — **added 2026-08-03, PRODUCT DECISION 1** | Web | V1 | `AUTHENTICATION.md`, `DECISIONS.md` 2026-08-03 |
-| Tenant activation (secure invitation/activation-code linking to an existing `tenants` record) — **added 2026-08-03, PRODUCT DECISION 2** | Web | V1 | `AUTHENTICATION.md` §5, `DATABASE.md` §4 (`tenant_invitations`), `DECISIONS.md` 2026-08-03 |
-| Organizations (compliance profile: CIPC/VAT/SARS/POPIA/FFC)   | Web               | V1  | `DATABASE.md` §1, §Organisation                                                   |
-| Team Seats / staff invites & roles                            | Web               | V1  | `DATABASE.md` §2, `PERMISSIONS.md` §2                                             |
-| Workspaces (multi-org membership switcher)                    | Web, iOS, Android | V1  | `DATABASE.md` §2, evidenced IMG_8053                                              |
+| Module                                                                                                                                   | Portals           | V1? | Design doc                                                                                             |
+| ---------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | --- | ------------------------------------------------------------------------------------------------------ |
+| Authentication (sign up/in/out, password reset, email verify)                                                                            | Web, iOS, Android | V1  | `AUTHENTICATION.md`, `PERMISSIONS.md`, `SECURITY.md` §Auth, `ARCHITECTURE.md` §Retained from PropVault |
+| Web account creation (email/password, Google OAuth, Apple OAuth) — **added 2026-08-03, PRODUCT DECISION 1**                              | Web               | V1  | `AUTHENTICATION.md`, `DECISIONS.md` 2026-08-03                                                         |
+| Tenant activation (secure invitation/activation-code linking to an existing `tenants` record) — **added 2026-08-03, PRODUCT DECISION 2** | Web               | V1  | `AUTHENTICATION.md` §5, `DATABASE.md` §4 (`tenant_invitations`), `DECISIONS.md` 2026-08-03             |
+| Organizations (compliance profile: CIPC/VAT/SARS/POPIA/FFC)                                                                              | Web               | V1  | `DATABASE.md` §1, §Organisation                                                                        |
+| Team Seats / staff invites & roles                                                                                                       | Web               | V1  | `DATABASE.md` §2, `PERMISSIONS.md` §2                                                                  |
+| Workspaces (multi-org membership switcher)                                                                                               | Web, iOS, Android | V1  | `DATABASE.md` §2, evidenced IMG_8053                                                                   |
 
 ### 3.2 Portfolio
 

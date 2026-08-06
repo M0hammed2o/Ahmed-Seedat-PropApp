@@ -29,7 +29,9 @@ describe('AnnouncementsTable', () => {
   it('renders an expiry date and "Required" when set', () => {
     render(
       <AnnouncementsTable
-        data={[{ ...ANNOUNCEMENT, requiresAcknowledgement: true, expiresAt: '2026-09-01T00:00:00Z' }]}
+        data={[
+          { ...ANNOUNCEMENT, requiresAcknowledgement: true, expiresAt: '2026-09-01T00:00:00Z' },
+        ]}
       />,
     );
     expect(screen.getByText('Required')).toBeTruthy();

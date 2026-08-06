@@ -5,7 +5,11 @@ import { RentDueClient } from '@/components/accounting/RentDueClient';
 import { AdminMetricCard } from '@/components/ui/AdminMetricCard';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
-import { resolvePortalSession, findActiveMembership, canPostAccountingRecords } from '@/lib/orgSession';
+import {
+  resolvePortalSession,
+  findActiveMembership,
+  canPostAccountingRecords,
+} from '@/lib/orgSession';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 type SearchParams = { searchParams: Promise<{ status?: string }> };
@@ -31,7 +35,8 @@ const DEMO_RENT_SCHEDULE: RentSchedule[] = [
  */
 export default async function RentDuePage({ searchParams }: SearchParams) {
   const { status } = await searchParams;
-  const statusFilter = status && (RENT_SCHEDULE_STATUSES as readonly string[]).includes(status) ? status : undefined;
+  const statusFilter =
+    status && (RENT_SCHEDULE_STATUSES as readonly string[]).includes(status) ? status : undefined;
 
   const rentSchedule: RentSchedule[] = ADMIN_DEMO_MODE
     ? DEMO_RENT_SCHEDULE.filter((r) => !statusFilter || r.status === statusFilter)
@@ -59,7 +64,12 @@ export default async function RentDuePage({ searchParams }: SearchParams) {
       <div className="flex gap-2">
         <FilterLink label="All" active={!statusFilter} href="/accounting/rent-due" />
         {RENT_SCHEDULE_STATUSES.map((s) => (
-          <FilterLink key={s} label={s} active={statusFilter === s} href={`/accounting/rent-due?status=${s}`} />
+          <FilterLink
+            key={s}
+            label={s}
+            active={statusFilter === s}
+            href={`/accounting/rent-due?status=${s}`}
+          />
         ))}
       </div>
 

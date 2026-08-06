@@ -30,7 +30,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ organizations: summaries, next_cursor: nextCursor });
   } catch (err) {
     return NextResponse.json(
-      { error: { code: 'organizations_list_failed', message: err instanceof Error ? err.message : 'Unknown error' } },
+      {
+        error: {
+          code: 'organizations_list_failed',
+          message: err instanceof Error ? err.message : 'Unknown error',
+        },
+      },
       { status: 500 },
     );
   }

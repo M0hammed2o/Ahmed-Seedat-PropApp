@@ -17,7 +17,11 @@ import { DEMO_CUSTOMERS } from '@/lib/demo/adminMockData';
  * references `owner_user_id` at all.
  */
 async function getCustomers(): Promise<CustomerRow[]> {
-  const summaries = await listPlatformOrganizations(getServiceRoleClient(), {}, { limit: 50, beforeFilter: null });
+  const summaries = await listPlatformOrganizations(
+    getServiceRoleClient(),
+    {},
+    { limit: 50, beforeFilter: null },
+  );
   return summaries.map((org) => ({
     id: org.orgId,
     displayName: org.legalName,

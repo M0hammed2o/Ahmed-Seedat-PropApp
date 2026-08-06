@@ -5,7 +5,10 @@ import { SearchBar } from '@/components/ui/SearchBar';
 import { CustomersTable, type CustomerRow } from './CustomersTable';
 
 export function CustomersFilterClient({ customers }: { customers: CustomerRow[] }) {
-  const { query, setQuery, filtered } = useListSearch(customers, (c) => `${c.displayName ?? ''} ${c.id}`);
+  const { query, setQuery, filtered } = useListSearch(
+    customers,
+    (c) => `${c.displayName ?? ''} ${c.id}`,
+  );
 
   return (
     <div className="space-y-4">

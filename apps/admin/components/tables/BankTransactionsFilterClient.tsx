@@ -21,8 +21,16 @@ export function BankTransactionsFilterClient({
 
   return (
     <div className="space-y-4">
-      <SearchBar value={query} onChange={setQuery} placeholder="Search transactions by description or reference" />
-      <BankTransactionsTable data={filtered} canPost={canPost} rentScheduleCandidates={rentScheduleCandidates} />
+      <SearchBar
+        value={query}
+        onChange={setQuery}
+        placeholder="Search transactions by description or reference"
+      />
+      <BankTransactionsTable
+        data={filtered}
+        canPost={canPost}
+        rentScheduleCandidates={rentScheduleCandidates}
+      />
     </div>
   );
 }

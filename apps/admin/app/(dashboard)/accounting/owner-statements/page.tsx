@@ -1,11 +1,18 @@
 import type { OwnerStatement } from '@propvault/types';
-import { OwnerStatementsTable, type OwnerStatementWithOwnerName } from '@/components/tables/OwnerStatementsTable';
+import {
+  OwnerStatementsTable,
+  type OwnerStatementWithOwnerName,
+} from '@/components/tables/OwnerStatementsTable';
 import { AdminMetricCard } from '@/components/ui/AdminMetricCard';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { GenerateOwnerStatementsButton } from '@/components/accounting/GenerateOwnerStatementsButton';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapOwnerStatementRow } from '@/lib/accounting';
-import { resolvePortalSession, findActiveMembership, canPostAccountingRecords } from '@/lib/orgSession';
+import {
+  resolvePortalSession,
+  findActiveMembership,
+  canPostAccountingRecords,
+} from '@/lib/orgSession';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 const DEMO_STATEMENTS: OwnerStatementWithOwnerName[] = [
@@ -75,7 +82,8 @@ async function loadOwnerStatements(): Promise<OwnerStatementWithOwnerName[]> {
   if (error) throw new Error(`Failed to load owner statements: ${error.message}`);
   return (data ?? []).map((row) => {
     const statement: OwnerStatement = mapOwnerStatementRow(row);
-    const ownerName = (row as { owners?: { name?: string } | null }).owners?.name ?? 'Unknown owner';
+    const ownerName =
+      (row as { owners?: { name?: string } | null }).owners?.name ?? 'Unknown owner';
     return { ...statement, ownerName };
   });
 }

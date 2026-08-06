@@ -54,23 +54,44 @@ export default async function OwnerPropertiesPage() {
           <table className="w-full text-left text-sm">
             <thead className="border-b border-light-border bg-light-surfaceStrong dark:border-dark-border dark:bg-dark-surfaceStrong">
               <tr>
-                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Property</th>
-                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Address</th>
-                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Type</th>
-                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">My share</th>
-                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Status</th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Property
+                </th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Address
+                </th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Type
+                </th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  My share
+                </th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Status
+                </th>
               </tr>
             </thead>
             <tbody>
               {properties.map((p) => (
-                <tr key={p.id} className="border-b border-light-border last:border-b-0 dark:border-dark-border">
-                  <td className="px-4 py-3 font-medium text-light-textPrimary dark:text-dark-textPrimary">{p.nickname}</td>
-                  <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">{p.fullAddress}</td>
-                  <td className="px-4 py-3 capitalize text-light-textPrimary dark:text-dark-textPrimary">{p.propertyType}</td>
+                <tr
+                  key={p.id}
+                  className="border-b border-light-border last:border-b-0 dark:border-dark-border"
+                >
+                  <td className="px-4 py-3 font-medium text-light-textPrimary dark:text-dark-textPrimary">
+                    {p.nickname}
+                  </td>
+                  <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">
+                    {p.fullAddress}
+                  </td>
+                  <td className="px-4 py-3 capitalize text-light-textPrimary dark:text-dark-textPrimary">
+                    {p.propertyType}
+                  </td>
                   <td className="px-4 py-3 tabular text-light-textPrimary dark:text-dark-textPrimary">
                     {p.ownershipPct === null ? '—' : `${p.ownershipPct}%`}
                   </td>
-                  <td className="px-4 py-3 capitalize text-light-textPrimary dark:text-dark-textPrimary">{p.status}</td>
+                  <td className="px-4 py-3 capitalize text-light-textPrimary dark:text-dark-textPrimary">
+                    {p.status}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -91,7 +112,10 @@ async function loadOwnerProperties(): Promise<OwnerPropertyRow[]> {
   // The caller's own owner record(s) -- an owner can in principle have more than one `owners` row
   // (one per org, same edge case resolveOwnerSession() documents); ownership_pct is looked up per
   // owner_id below, so this covers that correctly rather than assuming exactly one.
-  const { data: ownerRows, error: ownerError } = await supabase.from('owners').select('id').eq('user_id', user.id);
+  const { data: ownerRows, error: ownerError } = await supabase
+    .from('owners')
+    .select('id')
+    .eq('user_id', user.id);
   if (ownerError) throw new Error(`Failed to load owner record: ${ownerError.message}`);
   const ownerIds = (ownerRows ?? []).map((o) => o.id as string);
   if (ownerIds.length === 0) return [];

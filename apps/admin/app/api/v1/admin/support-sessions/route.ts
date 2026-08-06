@@ -55,7 +55,10 @@ export async function POST(request: NextRequest) {
     );
   }
   if (!org) {
-    return NextResponse.json({ error: { code: 'not_found', message: 'Organization not found.' } }, { status: 404 });
+    return NextResponse.json(
+      { error: { code: 'not_found', message: 'Organization not found.' } },
+      { status: 404 },
+    );
   }
 
   const { data: existing, error: existingError } = await serviceClient
@@ -72,12 +75,19 @@ export async function POST(request: NextRequest) {
     );
   }
   if (existing) {
-    return NextResponse.json({ supportSession: mapSupportAccessSessionRow(existing) }, { status: 200 });
+    return NextResponse.json(
+      { supportSession: mapSupportAccessSessionRow(existing) },
+      { status: 200 },
+    );
   }
 
   const { data: created, error: createError } = await serviceClient
     .from('support_access_sessions')
-    .insert({ platform_admin_id: guard.session.id, org_id: parsed.data.orgId, reason: parsed.data.reason })
+    .insert({
+      platform_admin_id: guard.session.id,
+      org_id: parsed.data.orgId,
+      reason: parsed.data.reason,
+    })
     .select('*')
     .single();
   if (createError) {
@@ -97,5 +107,8 @@ export async function POST(request: NextRequest) {
     after: { reason: parsed.data.reason },
   });
 
-  return NextResponse.json({ supportSession: mapSupportAccessSessionRow(created) }, { status: 201 });
+  return NextResponse.json(
+    { supportSession: mapSupportAccessSessionRow(created) },
+    { status: 201 },
+  );
 }

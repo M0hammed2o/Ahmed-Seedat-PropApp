@@ -49,5 +49,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     after: { period: periodStart, reset_count: (data ?? []).length },
   });
 
-  return NextResponse.json({ reset: (data ?? []).map((row) => ({ id: row.id, usageType: row.usage_type })) });
+  return NextResponse.json({
+    reset: (data ?? []).map((row) => ({ id: row.id, usageType: row.usage_type })),
+  });
 }

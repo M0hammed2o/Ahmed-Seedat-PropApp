@@ -51,7 +51,9 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 
   const { data, error } = await supabase
     .from('property_owners')
-    .select('property_id, owner_id, ownership_pct, created_at, owners(id, name, owner_type, email, phone)')
+    .select(
+      'property_id, owner_id, ownership_pct, created_at, owners(id, name, owner_type, email, phone)',
+    )
     .eq('property_id', propertyId);
 
   if (error) {
@@ -105,7 +107,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       {
         error: {
           code: 'forbidden',
-          message: 'You do not have permission to change this property\'s owners.',
+          message: "You do not have permission to change this property's owners.",
         },
       },
       { status: 403 },

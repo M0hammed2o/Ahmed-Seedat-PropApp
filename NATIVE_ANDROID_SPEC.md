@@ -57,12 +57,12 @@ RootNavHost
 **Identical screen list and grouping to `NATIVE_IOS_SPEC.md` §3/§4** — restated here only where
 the Android composable naming differs from the SwiftUI view naming, for implementer clarity:
 
-| Concept | iOS | Android |
-| --- | --- | --- |
-| Screen | `View` (e.g. `PropertyDetailView`) | `Screen` composable (e.g. `PropertyDetailScreen`) |
-| List | `List` | `LazyColumn` |
+| Concept                    | iOS                                    | Android                                                                                                                        |
+| -------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Screen                     | `View` (e.g. `PropertyDetailView`)     | `Screen` composable (e.g. `PropertyDetailScreen`)                                                                              |
+| List                       | `List`                                 | `LazyColumn`                                                                                                                   |
 | Board/kanban (Maintenance) | `Picker(.segmented)` + filtered `List` | `TabRow` (Material 3) + filtered `LazyColumn`, or `LazyRow` of `LazyColumn`s for a true multi-column board on tablet (see §14) |
-| Detail | `NavigationLink` push | `navController.navigate(route)` |
+| Detail                     | `NavigationLink` push                  | `navController.navigate(route)`                                                                                                |
 
 Every screen name, grouping, and data source (which endpoint each screen reads/writes) is
 identical to `NATIVE_IOS_SPEC.md` §3/§4 — including the same two flagged open schema gaps (Tasks &
@@ -71,18 +71,18 @@ nonexistent schema) and the same tenant-self-RLS-branch dependency for `MyLeaseV
 
 ## 4. Component mapping — `DESIGN_SYSTEM.md` → Jetpack Compose / Material 3
 
-| Design system spec | Compose implementation |
-| --- | --- |
+| Design system spec                               | Compose implementation                                                                                                                                                                                                                                                                                                         |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Buttons (primary/secondary/destructive, 3 sizes) | `Button` (primary, `ButtonDefaults.buttonColors`), `OutlinedButton` (secondary), `Button` with `ButtonDefaults.buttonColors(containerColor = errorContainer)` (destructive) — Material 3's own filled/outlined/text button taxonomy maps directly onto the 3-variant spec, no custom `ButtonStyle` needed the way iOS requires |
-| KPI/stat card | `Card` (Material 3 `ElevatedCard` for `low` elevation) containing a circular `Surface` icon badge (`tone.copy(alpha = 0.1f)` background) + `MaterialTheme.typography.headlineSmall` number + `labelMedium` label |
-| List-row card | `ListItem` (Material 3 component — built-in leading/trailing icon slots, two-line text, exactly matches the spec's anatomy natively) |
-| Explainer card | `Card` with `CardDefaults.cardColors(containerColor = surfaceVariant)`, `bodyMedium` text |
-| Tables | Not used — same reasoning as iOS, `LazyColumn` row-based lists throughout |
-| Segmented control | Material 3 `SingleChoiceSegmentedButtonRow` |
-| Empty state | Custom `EmptyStateComposable` (`Icon` in a tinted `Box`, `titleMedium` headline, `bodySmall` description, optional `Button`) — no Material 3 built-in, matches the same custom-component need as iOS's pre-17 fallback |
-| Modal | `AlertDialog` (Material 3) for confirm/cancel; `ModalBottomSheet` for short focused tasks (mirrors the AI Assistant drawer) |
-| Alerts/toasts | Inline: a `Card`/`Surface` banner at the top of the affected section. Transient: Compose `SnackbarHost`/`Snackbar` — Android's native toast-equivalent mechanism, used exactly where `NATIVE_IOS_SPEC.md` specifies a custom `.toast()` modifier (Android has this natively, iOS doesn't) |
-| Skeleton loading | `Modifier.placeholder()` (via a small shimmer modifier, or Compose's `AnimatedVisibility`-driven shimmer `Brush`) over real layout shape — never a spinner for known-shape content, same rule as iOS |
+| KPI/stat card                                    | `Card` (Material 3 `ElevatedCard` for `low` elevation) containing a circular `Surface` icon badge (`tone.copy(alpha = 0.1f)` background) + `MaterialTheme.typography.headlineSmall` number + `labelMedium` label                                                                                                               |
+| List-row card                                    | `ListItem` (Material 3 component — built-in leading/trailing icon slots, two-line text, exactly matches the spec's anatomy natively)                                                                                                                                                                                           |
+| Explainer card                                   | `Card` with `CardDefaults.cardColors(containerColor = surfaceVariant)`, `bodyMedium` text                                                                                                                                                                                                                                      |
+| Tables                                           | Not used — same reasoning as iOS, `LazyColumn` row-based lists throughout                                                                                                                                                                                                                                                      |
+| Segmented control                                | Material 3 `SingleChoiceSegmentedButtonRow`                                                                                                                                                                                                                                                                                    |
+| Empty state                                      | Custom `EmptyStateComposable` (`Icon` in a tinted `Box`, `titleMedium` headline, `bodySmall` description, optional `Button`) — no Material 3 built-in, matches the same custom-component need as iOS's pre-17 fallback                                                                                                         |
+| Modal                                            | `AlertDialog` (Material 3) for confirm/cancel; `ModalBottomSheet` for short focused tasks (mirrors the AI Assistant drawer)                                                                                                                                                                                                    |
+| Alerts/toasts                                    | Inline: a `Card`/`Surface` banner at the top of the affected section. Transient: Compose `SnackbarHost`/`Snackbar` — Android's native toast-equivalent mechanism, used exactly where `NATIVE_IOS_SPEC.md` specifies a custom `.toast()` modifier (Android has this natively, iOS doesn't)                                      |
+| Skeleton loading                                 | `Modifier.placeholder()` (via a small shimmer modifier, or Compose's `AnimatedVisibility`-driven shimmer `Brush`) over real layout shape — never a spinner for known-shape content, same rule as iOS                                                                                                                           |
 
 ## 5. Material Design 3 compliance
 

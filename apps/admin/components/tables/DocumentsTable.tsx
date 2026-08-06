@@ -22,7 +22,9 @@ const columns: ColumnDef<DocumentRecord, unknown>[] = [
   {
     header: 'Type',
     accessorKey: 'documentType',
-    cell: (info) => <span className="capitalize">{(info.getValue() as string).replace('_', ' ')}</span>,
+    cell: (info) => (
+      <span className="capitalize">{(info.getValue() as string).replace('_', ' ')}</span>
+    ),
   },
   {
     header: 'Size',
@@ -36,6 +38,19 @@ const columns: ColumnDef<DocumentRecord, unknown>[] = [
   },
 ];
 
-export function DocumentsTable({ data, emptyAction }: { data: DocumentRecord[]; emptyAction?: ReactNode }) {
-  return <AdminDataTable emptyMessage="No documents yet" emptyAction={emptyAction} data={data} columns={columns} />;
+export function DocumentsTable({
+  data,
+  emptyAction,
+}: {
+  data: DocumentRecord[];
+  emptyAction?: ReactNode;
+}) {
+  return (
+    <AdminDataTable
+      emptyMessage="No documents yet"
+      emptyAction={emptyAction}
+      data={data}
+      columns={columns}
+    />
+  );
 }

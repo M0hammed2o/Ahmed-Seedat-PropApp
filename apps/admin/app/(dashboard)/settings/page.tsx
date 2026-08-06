@@ -37,17 +37,27 @@ export default async function SettingsPage() {
     );
   }
 
-  const { data: profile } = await supabase.from('profiles').select('display_name').eq('id', user.id).maybeSingle();
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('display_name')
+    .eq('id', user.id)
+    .maybeSingle();
 
   return (
     <div className="space-y-5 animate-rise">
       <PageHeader title="Account settings" subtitle="Your name, email, and password." />
-      <AccountSettingsForm initialDisplayName={profile?.display_name ?? ''} initialEmail={user.email ?? ''} />
+      <AccountSettingsForm
+        initialDisplayName={profile?.display_name ?? ''}
+        initialEmail={user.email ?? ''}
+      />
       <LinkedAccountsPanel />
       <MfaSettingsPanel />
       <p className="text-sm text-light-textSecondary dark:text-dark-textSecondary">
         Manage which emails and notifications you receive at{' '}
-        <Link href="/notifications/preferences" className="text-light-accent hover:underline dark:text-dark-accent">
+        <Link
+          href="/notifications/preferences"
+          className="text-light-accent hover:underline dark:text-dark-accent"
+        >
           Notification preferences
         </Link>
         .

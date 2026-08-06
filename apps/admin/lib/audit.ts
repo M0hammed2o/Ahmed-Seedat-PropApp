@@ -26,7 +26,10 @@ export interface AuditEventInput {
   after?: Record<string, unknown> | null;
 }
 
-export async function writeAuditEvent(client: SupabaseClient, input: AuditEventInput): Promise<void> {
+export async function writeAuditEvent(
+  client: SupabaseClient,
+  input: AuditEventInput,
+): Promise<void> {
   const { error } = await client.from('audit_events').insert({
     org_id: input.orgId,
     actor_user_id: input.actorUserId,
@@ -37,5 +40,9 @@ export async function writeAuditEvent(client: SupabaseClient, input: AuditEventI
     before: input.before ?? null,
     after: input.after ?? null,
   });
-  if (error) console.error(`[audit] failed to write audit_events row for action "${input.action}"`, error.message);
+  if (error)
+    console.error(
+      `[audit] failed to write audit_events row for action "${input.action}"`,
+      error.message,
+    );
 }

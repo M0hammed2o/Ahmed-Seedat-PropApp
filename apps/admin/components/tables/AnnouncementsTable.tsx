@@ -27,8 +27,19 @@ const columns: ColumnDef<Announcement, unknown>[] = [
   },
 ];
 
-export function AnnouncementsTable({ data, emptyAction }: { data: Announcement[]; emptyAction?: ReactNode }) {
+export function AnnouncementsTable({
+  data,
+  emptyAction,
+}: {
+  data: Announcement[];
+  emptyAction?: ReactNode;
+}) {
   return (
-    <AdminDataTable emptyMessage="No announcements yet" emptyAction={emptyAction} data={data} columns={columns} />
+    <AdminDataTable
+      emptyMessage="No announcements yet"
+      emptyAction={emptyAction}
+      data={data}
+      columns={columns}
+    />
   );
 }

@@ -99,29 +99,34 @@ export function OcrPanel({
       }
     >
       {error ? (
-        <p className="mb-3 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">{error}</p>
+        <p className="mb-3 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">
+          {error}
+        </p>
       ) : null}
 
       {!extractionResult ? (
         canAct ? (
           <>
             <p className="text-xs text-light-textMuted dark:text-dark-textMuted">
-              No extraction yet. This never applies fields automatically — you'll review them here first.
+              No extraction yet. This never applies fields automatically — you'll review them here
+              first.
             </p>
             <Button className="mt-3" size="sm" disabled={busy} onClick={extract}>
               {busy ? 'Extracting…' : 'Extract fields'}
             </Button>
           </>
         ) : (
-          <p className="text-xs text-light-textMuted dark:text-dark-textMuted">No extraction yet.</p>
+          <p className="text-xs text-light-textMuted dark:text-dark-textMuted">
+            No extraction yet.
+          </p>
         )
       ) : (
         <>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-5 text-sm lg:grid-cols-3">
             {Object.entries(FIELD_LABELS).map(([key, label]) => {
-              const field = extractionResult.rawProviderOutput[key as keyof FieldExtractionResult] as
-                | { value: unknown; confidence: number }
-                | undefined;
+              const field = extractionResult.rawProviderOutput[
+                key as keyof FieldExtractionResult
+              ] as { value: unknown; confidence: number } | undefined;
               if (!field) return null;
               return (
                 <div key={key}>
@@ -141,11 +146,19 @@ export function OcrPanel({
           </p>
           {!extractionResult.reviewedAt ? (
             canAct ? (
-              <Button className="mt-3" variant="primary" size="sm" disabled={busy} onClick={confirmReviewed}>
+              <Button
+                className="mt-3"
+                variant="primary"
+                size="sm"
+                disabled={busy}
+                onClick={confirmReviewed}
+              >
                 {busy ? 'Saving…' : 'Confirm reviewed'}
               </Button>
             ) : (
-              <p className="mt-2 text-xs text-light-textMuted dark:text-dark-textMuted">Not yet reviewed.</p>
+              <p className="mt-2 text-xs text-light-textMuted dark:text-dark-textMuted">
+                Not yet reviewed.
+              </p>
             )
           ) : null}
         </>

@@ -25,14 +25,22 @@ const columns: ColumnDef<MaintenanceTicket, unknown>[] = [
     header: 'Priority',
     accessorKey: 'priority',
     cell: (info) => (
-      <StatusBadge presentation={MAINTENANCE_PRIORITY_PRESENTATION[info.getValue() as MaintenanceTicket['priority']]} />
+      <StatusBadge
+        presentation={
+          MAINTENANCE_PRIORITY_PRESENTATION[info.getValue() as MaintenanceTicket['priority']]
+        }
+      />
     ),
   },
   {
     header: 'Status',
     accessorKey: 'status',
     cell: (info) => (
-      <StatusBadge presentation={MAINTENANCE_STATUS_PRESENTATION[info.getValue() as MaintenanceTicket['status']]} />
+      <StatusBadge
+        presentation={
+          MAINTENANCE_STATUS_PRESENTATION[info.getValue() as MaintenanceTicket['status']]
+        }
+      />
     ),
   },
 ];
@@ -45,6 +53,11 @@ export function MaintenanceTable({
   emptyAction?: ReactNode;
 }) {
   return (
-    <AdminDataTable emptyMessage="No maintenance tickets yet" emptyAction={emptyAction} data={data} columns={columns} />
+    <AdminDataTable
+      emptyMessage="No maintenance tickets yet"
+      emptyAction={emptyAction}
+      data={data}
+      columns={columns}
+    />
   );
 }

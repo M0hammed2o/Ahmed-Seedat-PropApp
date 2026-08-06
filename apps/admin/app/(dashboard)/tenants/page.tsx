@@ -54,7 +54,10 @@ export default async function TenantsPage() {
 
 async function loadTenants(): Promise<Tenant[]> {
   const supabase = await getServerSupabaseClient();
-  const { data, error } = await supabase.from('tenants').select('*').order('created_at', { ascending: false });
+  const { data, error } = await supabase
+    .from('tenants')
+    .select('*')
+    .order('created_at', { ascending: false });
   if (error) throw new Error(`Failed to load tenants: ${error.message}`);
   return (data ?? []).map(mapTenantRow);
 }

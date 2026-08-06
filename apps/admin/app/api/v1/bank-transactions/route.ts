@@ -25,7 +25,10 @@ export async function GET(request: NextRequest) {
   const bankAccountId = url.searchParams.get('filter[bank_account_id]');
   const matchStatus = url.searchParams.get('filter[match_status]');
 
-  let query = supabase.from('bank_transactions').select('*').order('transaction_date', { ascending: false });
+  let query = supabase
+    .from('bank_transactions')
+    .select('*')
+    .order('transaction_date', { ascending: false });
   if (bankAccountId) query = query.eq('bank_account_id', bankAccountId);
   if (matchStatus) query = query.eq('match_status', matchStatus);
 

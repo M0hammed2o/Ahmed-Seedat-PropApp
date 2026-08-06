@@ -31,7 +31,12 @@ export type PropertyCreateInput = z.infer<typeof propertyCreateSchema>;
 // added to the update schema only, not propertyCreateSchema (UI_INTEGRATION_PLAN.md Lovable
 // Portfolio Value card, 2026-08-04).
 export const propertyUpdateSchema = propertySchema.partial().extend({
-  estimatedValue: z.number().min(0, 'Estimated value cannot be negative').max(1_000_000_000).optional().nullable(),
+  estimatedValue: z
+    .number()
+    .min(0, 'Estimated value cannot be negative')
+    .max(1_000_000_000)
+    .optional()
+    .nullable(),
   estimatedValueAsOf: z.string().date('Use YYYY-MM-DD').optional().nullable(),
 });
 export type PropertyUpdateInput = z.infer<typeof propertyUpdateSchema>;

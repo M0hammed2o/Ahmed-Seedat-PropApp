@@ -43,7 +43,11 @@ export default async function EditMaintenancePage({ params }: RouteParams) {
   if (!session) redirect('/login');
 
   const supabase = await getServerSupabaseClient();
-  const { data, error } = await supabase.from('maintenance_tickets').select('*').eq('id', id).maybeSingle();
+  const { data, error } = await supabase
+    .from('maintenance_tickets')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
   if (error) throw new Error(`Failed to load maintenance ticket: ${error.message}`);
   if (!data) notFound();
 
@@ -52,5 +56,12 @@ export default async function EditMaintenancePage({ params }: RouteParams) {
   const canEdit = membership && canWriteOrgRecords(membership.role);
   if (!canEdit) redirect(`/maintenance/${id}`);
 
-  return <MaintenanceForm mode="edit" orgId={ticket.orgId} propertyId={ticket.propertyId} ticket={ticket} />;
+  return (
+    <MaintenanceForm
+      mode="edit"
+      orgId={ticket.orgId}
+      propertyId={ticket.propertyId}
+      ticket={ticket}
+    />
+  );
 }

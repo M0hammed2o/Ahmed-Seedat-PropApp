@@ -36,9 +36,15 @@ export async function GET() {
   if ('response' in guard) return guard.response;
 
   const serviceClient = getServiceRoleClient();
-  const { data, error } = await serviceClient.from('plans').select('*').order('base_price', { ascending: true });
+  const { data, error } = await serviceClient
+    .from('plans')
+    .select('*')
+    .order('base_price', { ascending: true });
   if (error) {
-    return NextResponse.json({ error: { code: 'plans_list_failed', message: error.message } }, { status: 500 });
+    return NextResponse.json(
+      { error: { code: 'plans_list_failed', message: error.message } },
+      { status: 500 },
+    );
   }
   return NextResponse.json({ plans: (data ?? []).map(mapPlanRow) });
 }
@@ -104,7 +110,10 @@ export async function POST(request: NextRequest) {
     .select('*')
     .single();
   if (error) {
-    return NextResponse.json({ error: { code: 'plan_create_failed', message: error.message } }, { status: 500 });
+    return NextResponse.json(
+      { error: { code: 'plan_create_failed', message: error.message } },
+      { status: 500 },
+    );
   }
 
   await writeAuditEvent(serviceClient, {

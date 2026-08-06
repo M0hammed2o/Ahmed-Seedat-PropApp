@@ -45,7 +45,12 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
   const canWrite = await requireOrgRole(supabase, existing.org_id, 'agent');
   if (!canWrite) {
     return NextResponse.json(
-      { error: { code: 'forbidden', message: 'You do not have permission to withdraw this application.' } },
+      {
+        error: {
+          code: 'forbidden',
+          message: 'You do not have permission to withdraw this application.',
+        },
+      },
       { status: 403 },
     );
   }

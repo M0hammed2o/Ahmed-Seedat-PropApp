@@ -73,12 +73,20 @@ export default async function MyLeasePage() {
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-light-textMuted dark:text-dark-textMuted">Start date</dt>
-                  <dd className="mt-1 text-light-textPrimary dark:text-dark-textPrimary">{lease.startDate}</dd>
+                  <dt className="text-xs text-light-textMuted dark:text-dark-textMuted">
+                    Start date
+                  </dt>
+                  <dd className="mt-1 text-light-textPrimary dark:text-dark-textPrimary">
+                    {lease.startDate}
+                  </dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-light-textMuted dark:text-dark-textMuted">End date</dt>
-                  <dd className="mt-1 text-light-textPrimary dark:text-dark-textPrimary">{lease.endDate ?? 'Ongoing'}</dd>
+                  <dt className="text-xs text-light-textMuted dark:text-dark-textMuted">
+                    End date
+                  </dt>
+                  <dd className="mt-1 text-light-textPrimary dark:text-dark-textPrimary">
+                    {lease.endDate ?? 'Ongoing'}
+                  </dd>
                 </div>
               </dl>
             </div>

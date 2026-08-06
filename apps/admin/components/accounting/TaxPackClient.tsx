@@ -133,11 +133,15 @@ export function TaxPackClient({ orgId, demoMode = false }: { orgId: string; demo
       </div>
 
       {error ? (
-        <p className="mt-4 text-sm text-light-statusOverdue dark:text-dark-statusOverdue">{error}</p>
+        <p className="mt-4 text-sm text-light-statusOverdue dark:text-dark-statusOverdue">
+          {error}
+        </p>
       ) : null}
 
       {loading ? (
-        <p className="mt-4 text-sm text-light-textSecondary dark:text-dark-textSecondary">Loading…</p>
+        <p className="mt-4 text-sm text-light-textSecondary dark:text-dark-textSecondary">
+          Loading…
+        </p>
       ) : null}
 
       {!loading && data ? (
@@ -150,7 +154,9 @@ export function TaxPackClient({ orgId, demoMode = false }: { orgId: string; demo
               </p>
             </div>
             <div className="rounded-lg border border-light-border p-4 dark:border-dark-border">
-              <p className="text-light-textSecondary dark:text-dark-textSecondary">Total expenses</p>
+              <p className="text-light-textSecondary dark:text-dark-textSecondary">
+                Total expenses
+              </p>
               <p className="mt-1 text-lg font-semibold text-light-textPrimary dark:text-dark-textPrimary">
                 R{data.totalExpenses.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
               </p>
@@ -175,7 +181,10 @@ export function TaxPackClient({ orgId, demoMode = false }: { orgId: string; demo
             <tbody>
               {data.lines.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="py-6 text-center text-light-textMuted dark:text-dark-textMuted">
+                  <td
+                    colSpan={4}
+                    className="py-6 text-center text-light-textMuted dark:text-dark-textMuted"
+                  >
                     No income or expense activity for this tax year.
                   </td>
                 </tr>
@@ -188,7 +197,9 @@ export function TaxPackClient({ orgId, demoMode = false }: { orgId: string; demo
                     <td className="py-2 capitalize text-light-textSecondary dark:text-dark-textSecondary">
                       {line.accountType}
                     </td>
-                    <td className="py-2 text-light-textPrimary dark:text-dark-textPrimary">{line.accountName}</td>
+                    <td className="py-2 text-light-textPrimary dark:text-dark-textPrimary">
+                      {line.accountName}
+                    </td>
                     <td className="py-2 text-right font-medium text-light-textPrimary dark:text-dark-textPrimary">
                       R{line.amount.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
                     </td>
@@ -198,7 +209,9 @@ export function TaxPackClient({ orgId, demoMode = false }: { orgId: string; demo
             </tbody>
           </table>
 
-          <p className="mt-6 text-xs text-light-textMuted dark:text-dark-textMuted">{data.disclaimer}</p>
+          <p className="mt-6 text-xs text-light-textMuted dark:text-dark-textMuted">
+            {data.disclaimer}
+          </p>
         </>
       ) : null}
     </div>

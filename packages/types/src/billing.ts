@@ -4,7 +4,8 @@
 // touching the subscription business logic that calls it, mirroring
 // DocumentIntelligenceProvider/EmailProvider/WhatsAppProvider's shape.
 
-export type BillingEventType = 'payment_succeeded' | 'payment_failed' | 'subscription_cancelled' | 'refund_processed';
+export type BillingEventType =
+  'payment_succeeded' | 'payment_failed' | 'subscription_cancelled' | 'refund_processed';
 
 export interface CreateCustomerInput {
   orgId: string;

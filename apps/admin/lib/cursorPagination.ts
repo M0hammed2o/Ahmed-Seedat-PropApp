@@ -17,7 +17,9 @@ export function parseListQuery(request: NextRequest): { limit: number; cursor: C
   const url = new URL(request.url);
   const limitRaw = Number(url.searchParams.get('limit'));
   const limit =
-    Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(MAX_LIMIT, Math.floor(limitRaw)) : DEFAULT_LIMIT;
+    Number.isFinite(limitRaw) && limitRaw > 0
+      ? Math.min(MAX_LIMIT, Math.floor(limitRaw))
+      : DEFAULT_LIMIT;
 
   const cursorRaw = url.searchParams.get('cursor');
   let cursor: CursorPage | null = null;

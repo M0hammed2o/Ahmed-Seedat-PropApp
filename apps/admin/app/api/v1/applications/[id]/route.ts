@@ -23,7 +23,11 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     );
   }
 
-  const { data, error } = await supabase.from('applications').select('*').eq('id', id).maybeSingle();
+  const { data, error } = await supabase
+    .from('applications')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
   if (error) {
     return NextResponse.json(
       { error: { code: 'application_fetch_failed', message: error.message } },

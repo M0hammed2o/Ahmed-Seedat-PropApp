@@ -30,7 +30,9 @@ const columns: ColumnDef<Inspection, unknown>[] = [
     header: 'Status',
     accessorKey: 'status',
     cell: (info) => (
-      <StatusBadge presentation={INSPECTION_STATUS_PRESENTATION[info.getValue() as Inspection['status']]} />
+      <StatusBadge
+        presentation={INSPECTION_STATUS_PRESENTATION[info.getValue() as Inspection['status']]}
+      />
     ),
   },
 ];
@@ -43,6 +45,11 @@ export function InspectionsTable({
   emptyAction?: ReactNode;
 }) {
   return (
-    <AdminDataTable emptyMessage="No inspections yet" emptyAction={emptyAction} data={data} columns={columns} />
+    <AdminDataTable
+      emptyMessage="No inspections yet"
+      emptyAction={emptyAction}
+      data={data}
+      columns={columns}
+    />
   );
 }

@@ -48,7 +48,10 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
   if (!canWrite) {
     return NextResponse.json(
       {
-        error: { code: 'forbidden', message: 'You do not have permission to screen this application.' },
+        error: {
+          code: 'forbidden',
+          message: 'You do not have permission to screen this application.',
+        },
       },
       { status: 403 },
     );
@@ -93,5 +96,8 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     );
   }
 
-  return NextResponse.json({ application: mapApplicationRow(data), screeningReference: result.reference });
+  return NextResponse.json({
+    application: mapApplicationRow(data),
+    screeningReference: result.reference,
+  });
 }

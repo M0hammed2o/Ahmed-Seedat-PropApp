@@ -34,7 +34,10 @@ export default async function LeaseTemplatesPage() {
   if (ADMIN_DEMO_MODE) {
     return (
       <div className="space-y-5 animate-rise">
-        <PageHeader title="Lease Templates" subtitle="Upload, replace, and manage your organization's lease templates." />
+        <PageHeader
+          title="Lease Templates"
+          subtitle="Upload, replace, and manage your organization's lease templates."
+        />
         <LeaseTemplatesSettings orgId="demo-org-1" templates={DEMO_TEMPLATES} />
       </div>
     );
@@ -52,7 +55,9 @@ export default async function LeaseTemplatesPage() {
   }
 
   const membership = findActiveMembership(session, activeOrg.orgId);
-  const canManage = Boolean(membership && (membership.role === 'principal' || membership.role === 'manager'));
+  const canManage = Boolean(
+    membership && (membership.role === 'principal' || membership.role === 'manager'),
+  );
   if (!canManage) {
     return (
       <div className="space-y-5 animate-rise">
@@ -73,8 +78,14 @@ export default async function LeaseTemplatesPage() {
 
   return (
     <div className="space-y-5 animate-rise">
-      <PageHeader title="Lease Templates" subtitle="Upload, replace, and manage your organization's lease templates." />
-      <LeaseTemplatesSettings orgId={activeOrg.orgId} templates={(data ?? []).map(mapLeaseTemplateRow)} />
+      <PageHeader
+        title="Lease Templates"
+        subtitle="Upload, replace, and manage your organization's lease templates."
+      />
+      <LeaseTemplatesSettings
+        orgId={activeOrg.orgId}
+        templates={(data ?? []).map(mapLeaseTemplateRow)}
+      />
     </div>
   );
 }

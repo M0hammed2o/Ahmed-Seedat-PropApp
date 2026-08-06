@@ -26,7 +26,9 @@ const TEXT_CLASSES: Record<StatusPresentation['colorToken'], string> = {
 
 export function StatusBadge({ presentation }: { presentation: StatusPresentation }) {
   return (
-    <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${TEXT_CLASSES[presentation.colorToken]}`}>
+    <span
+      className={`inline-flex items-center gap-1.5 text-xs font-medium ${TEXT_CLASSES[presentation.colorToken]}`}
+    >
       <span className={`h-1.5 w-1.5 rounded-full ${BG_CLASSES[presentation.colorToken]}`} />
       {presentation.label}
     </span>

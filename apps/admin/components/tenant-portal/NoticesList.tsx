@@ -52,7 +52,9 @@ export function NoticesList({
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">{a.title}</p>
+                <p className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+                  {a.title}
+                </p>
                 <p className="mt-1 text-xs text-light-textMuted dark:text-dark-textMuted">
                   {a.publishedAt.slice(0, 10)}
                 </p>

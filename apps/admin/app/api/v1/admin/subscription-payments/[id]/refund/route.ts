@@ -41,7 +41,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   const serviceClient = getServiceRoleClient();
 
   try {
-    await refundSubscriptionPayment(serviceClient, { subscriptionPaymentId: id, idempotencyKey: parsed.data.idempotencyKey });
+    await refundSubscriptionPayment(serviceClient, {
+      subscriptionPaymentId: id,
+      idempotencyKey: parsed.data.idempotencyKey,
+    });
 
     await writeAuditEvent(serviceClient, {
       orgId: null,
@@ -55,7 +58,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ status: 'refunded' });
   } catch (err) {
     return NextResponse.json(
-      { error: { code: 'billing_refund_failed', message: err instanceof Error ? err.message : 'Refund failed.' } },
+      {
+        error: {
+          code: 'billing_refund_failed',
+          message: err instanceof Error ? err.message : 'Refund failed.',
+        },
+      },
       { status: 422 },
     );
   }

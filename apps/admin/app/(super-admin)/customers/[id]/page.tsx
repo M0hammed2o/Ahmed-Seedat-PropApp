@@ -105,9 +105,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
         </div>
         <div>
           <dt className="text-light-textMuted dark:text-dark-textMuted">Units</dt>
-          <dd className="text-light-textPrimary dark:text-dark-textPrimary">
-            {detail.unitsCount}
-          </dd>
+          <dd className="text-light-textPrimary dark:text-dark-textPrimary">{detail.unitsCount}</dd>
         </div>
         <div>
           <dt className="text-light-textMuted dark:text-dark-textMuted">Tenants</dt>
@@ -117,9 +115,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
         </div>
         <div>
           <dt className="text-light-textMuted dark:text-dark-textMuted">Staff</dt>
-          <dd className="text-light-textPrimary dark:text-dark-textPrimary">
-            {detail.staffCount}
-          </dd>
+          <dd className="text-light-textPrimary dark:text-dark-textPrimary">{detail.staffCount}</dd>
         </div>
         <div>
           <dt className="text-light-textMuted dark:text-dark-textMuted">Plan</dt>
@@ -135,7 +131,9 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
         </div>
         <div>
           <dt className="text-light-textMuted dark:text-dark-textMuted">Account status</dt>
-          <dd><StatusBadge presentation={ORGANIZATION_STATUS_PRESENTATION[detail.status]} /></dd>
+          <dd>
+            <StatusBadge presentation={ORGANIZATION_STATUS_PRESENTATION[detail.status]} />
+          </dd>
         </div>
       </dl>
 
@@ -148,11 +146,17 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
 
       <BillingPanel orgId={detail.orgId} currentUserRole={session.role} />
 
-      <UsagePanel periodStart={detail.currentPeriodUsage.periodStart} totals={detail.currentPeriodUsage.totals} />
+      <UsagePanel
+        periodStart={detail.currentPeriodUsage.periodStart}
+        totals={detail.currentPeriodUsage.totals}
+      />
 
       <AuditLogPanel events={detail.recentAuditEvents} />
 
-      <SupportSessionControl orgId={detail.orgId} canStart={isRoleAtLeast(session.role, 'support_admin')} />
+      <SupportSessionControl
+        orgId={detail.orgId}
+        canStart={isRoleAtLeast(session.role, 'support_admin')}
+      />
     </div>
   );
 }

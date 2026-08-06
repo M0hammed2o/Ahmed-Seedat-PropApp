@@ -127,8 +127,16 @@ export default async function PropertyDetailPage({ params }: RouteParams) {
   const property = mapPropertyRow(data);
 
   const [unitsResult, ticketsResult, documentsResult] = await Promise.all([
-    supabase.from('units').select('*').eq('property_id', id).order('unit_label', { ascending: true }),
-    supabase.from('maintenance_tickets').select('*').eq('property_id', id).order('created_at', { ascending: false }),
+    supabase
+      .from('units')
+      .select('*')
+      .eq('property_id', id)
+      .order('unit_label', { ascending: true }),
+    supabase
+      .from('maintenance_tickets')
+      .select('*')
+      .eq('property_id', id)
+      .order('created_at', { ascending: false }),
     supabase
       .from('documents')
       .select('id, original_file_name, document_type, updated_at')
@@ -137,10 +145,13 @@ export default async function PropertyDetailPage({ params }: RouteParams) {
       .limit(8),
   ]);
   if (unitsResult.error) throw new Error(`Failed to load units: ${unitsResult.error.message}`);
-  if (ticketsResult.error) throw new Error(`Failed to load maintenance tickets: ${ticketsResult.error.message}`);
+  if (ticketsResult.error)
+    throw new Error(`Failed to load maintenance tickets: ${ticketsResult.error.message}`);
 
   const units: UnitRow[] = (unitsResult.data ?? []).map(mapUnitRow);
-  const maintenanceTickets: MaintenanceTicket[] = (ticketsResult.data ?? []).map(mapMaintenanceTicketRow);
+  const maintenanceTickets: MaintenanceTicket[] = (ticketsResult.data ?? []).map(
+    mapMaintenanceTicketRow,
+  );
   const documents: PropertyDocument[] = (documentsResult.data ?? []).map((d) => ({
     id: d.id,
     originalFileName: d.original_file_name,
@@ -176,13 +187,23 @@ async function loadPropertyTenants(
 ): Promise<PropertyTenant[]> {
   if (units.length === 0) return [];
   const unitIds = units.map((u) => u.id);
-  const { data: leases } = await supabase.from('leases').select('id, unit_id, rent_amount').in('unit_id', unitIds).eq('status', 'active');
+  const { data: leases } = await supabase
+    .from('leases')
+    .select('id, unit_id, rent_amount')
+    .in('unit_id', unitIds)
+    .eq('status', 'active');
   if (!leases || leases.length === 0) return [];
   const leaseIds = leases.map((l) => l.id);
-  const { data: leaseTenants } = await supabase.from('lease_tenants').select('lease_id, tenant_id').in('lease_id', leaseIds);
+  const { data: leaseTenants } = await supabase
+    .from('lease_tenants')
+    .select('lease_id, tenant_id')
+    .in('lease_id', leaseIds);
   const tenantIds = [...new Set((leaseTenants ?? []).map((lt) => lt.tenant_id))];
   if (tenantIds.length === 0) return [];
-  const { data: tenants } = await supabase.from('tenants').select('id, full_name').in('id', tenantIds);
+  const { data: tenants } = await supabase
+    .from('tenants')
+    .select('id, full_name')
+    .in('id', tenantIds);
   const tenantNameById = new Map((tenants ?? []).map((t) => [t.id, t.full_name]));
   const unitLabelById = new Map(units.map((u) => [u.id, u.unitLabel]));
   const unitByLease = new Map(leases.map((l) => [l.id, l.unit_id]));
@@ -218,7 +239,11 @@ async function loadPropertyAccounting(
 
   const [{ data: schedules }, { data: expenses }] = await Promise.all([
     leaseIds.length > 0
-      ? supabase.from('rent_schedules').select('amount, status, due_date').in('lease_id', leaseIds).gte('due_date', yearStart)
+      ? supabase
+          .from('rent_schedules')
+          .select('amount, status, due_date')
+          .in('lease_id', leaseIds)
+          .gte('due_date', yearStart)
       : Promise.resolve({ data: [] as { amount: number; status: string; due_date: string }[] }),
     supabase
       .from('expenses')
@@ -237,7 +262,11 @@ async function loadPropertyAccounting(
 }
 
 function currency(n: number): string {
-  return new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 }).format(n);
+  return new Intl.NumberFormat('en-ZA', {
+    style: 'currency',
+    currency: 'ZAR',
+    maximumFractionDigits: 0,
+  }).format(n);
 }
 
 function PropertyDetailView({
@@ -279,7 +308,10 @@ function PropertyDetailView({
 
   return (
     <>
-      <Link href="/properties" className="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground hover:text-foreground">
+      <Link
+        href="/properties"
+        className="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground hover:text-foreground"
+      >
         ← All properties
       </Link>
 
@@ -288,7 +320,11 @@ function PropertyDetailView({
           local placeholder graphic, never a hotlinked/fabricated image (same rule as the card grid). */}
       <div className="panel overflow-hidden">
         <div className="relative h-[220px]">
-          <img src={imageSrc} alt={`${property.nickname} building`} className="h-full w-full object-cover" />
+          <img
+            src={imageSrc}
+            alt={`${property.nickname} building`}
+            className="h-full w-full object-cover"
+          />
           <div className="absolute inset-0 bg-gradient-to-t from-foreground/75 to-transparent" />
           <div className="absolute right-5 bottom-5 left-5 grid grid-cols-[minmax(0,1fr)_auto] items-end gap-4">
             <div className="min-w-0">
@@ -300,9 +336,12 @@ function PropertyDetailView({
                   {property.propertyType.replace('_', ' ')}
                 </span>
               </div>
-              <h1 className="truncate font-display text-[26px] font-bold text-white">{property.nickname}</h1>
+              <h1 className="truncate font-display text-[26px] font-bold text-white">
+                {property.nickname}
+              </h1>
               <p className="flex items-center gap-1 truncate text-[13px] text-white/80">
-                <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> {property.fullAddress}
+                <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />{' '}
+                {property.fullAddress}
               </p>
             </div>
           </div>
@@ -310,22 +349,40 @@ function PropertyDetailView({
 
         <div className="grid grid-cols-2 sm:grid-cols-4">
           {[
-            { label: 'Valuation', value: property.estimatedValue !== null ? currency(property.estimatedValue) : 'Not available' },
+            {
+              label: 'Valuation',
+              value:
+                property.estimatedValue !== null
+                  ? currency(property.estimatedValue)
+                  : 'Not available',
+            },
             { label: 'Income YTD', value: currency(accounting.incomeYtd) },
             { label: 'Expenses YTD', value: currency(accounting.expensesYtd) },
-            { label: 'Occupancy', value: `${units.length > 0 ? Math.round((occupiedCount / units.length) * 100) : 0}%` },
+            {
+              label: 'Occupancy',
+              value: `${units.length > 0 ? Math.round((occupiedCount / units.length) * 100) : 0}%`,
+            },
           ].map((s) => (
             <div key={s.label} className="border-t border-border px-5 py-4">
               <p className="text-[11px] text-muted-foreground">{s.label}</p>
-              <p className="tabular mt-0.5 font-display text-lg font-bold text-foreground">{s.value}</p>
+              <p className="tabular mt-0.5 font-display text-lg font-bold text-foreground">
+                {s.value}
+              </p>
             </div>
           ))}
         </div>
       </div>
 
       {canManage ? (
-        <Panel title="Property valuation" description="Optional -- feeds the Owner Dashboard's Portfolio Value card. Never estimated automatically.">
-          <ValuationForm propertyId={property.id} currentValue={property.estimatedValue} currentAsOf={property.estimatedValueAsOf} />
+        <Panel
+          title="Property valuation"
+          description="Optional -- feeds the Owner Dashboard's Portfolio Value card. Never estimated automatically."
+        >
+          <ValuationForm
+            propertyId={property.id}
+            currentValue={property.estimatedValue}
+            currentAsOf={property.estimatedValueAsOf}
+          />
         </Panel>
       ) : null}
 
@@ -339,11 +396,15 @@ function PropertyDetailView({
                 <dl className="grid grid-cols-2 gap-x-4 gap-y-5 text-sm lg:grid-cols-4">
                   <div>
                     <dt className="text-muted-foreground">Type</dt>
-                    <dd className="mt-0.5 capitalize text-foreground">{property.propertyType.replace('_', ' ')}</dd>
+                    <dd className="mt-0.5 capitalize text-foreground">
+                      {property.propertyType.replace('_', ' ')}
+                    </dd>
                   </div>
                   <div>
                     <dt className="text-muted-foreground">Municipal account</dt>
-                    <dd className="mt-0.5 text-foreground">{property.municipalAccountNumber ?? '—'}</dd>
+                    <dd className="mt-0.5 text-foreground">
+                      {property.municipalAccountNumber ?? '—'}
+                    </dd>
                   </div>
                   <div>
                     <dt className="text-muted-foreground">Postal code</dt>
@@ -367,7 +428,9 @@ function PropertyDetailView({
             label: `Units (${units.length})`,
             content: (
               <div>
-                {canManage && units.length > 0 ? <div className="mb-3 flex justify-end">{addUnitAction}</div> : null}
+                {canManage && units.length > 0 ? (
+                  <div className="mb-3 flex justify-end">{addUnitAction}</div>
+                ) : null}
                 <UnitsTable data={units} emptyAction={canManage ? addUnitAction : undefined} />
               </div>
             ),
@@ -380,7 +443,10 @@ function PropertyDetailView({
                   {tenants.map((t) => (
                     <Panel key={t.id} bodyClassName="p-5">
                       <div className="flex items-center gap-3">
-                        <Avatar initials={initialsFor(t.fullName)} className="h-10 w-10 text-[13px]" />
+                        <Avatar
+                          initials={initialsFor(t.fullName)}
+                          className="h-10 w-10 text-[13px]"
+                        />
                         <div className="min-w-0">
                           <p className="truncate font-semibold text-foreground">{t.fullName}</p>
                           <p className="text-[11px] text-muted-foreground">{t.unitLabel}</p>
@@ -388,13 +454,17 @@ function PropertyDetailView({
                       </div>
                       <div className="mt-4 flex items-center justify-between text-[12px]">
                         <span className="text-muted-foreground">Monthly rent</span>
-                        <span className="tabular font-semibold text-foreground">{currency(t.rentAmount)}</span>
+                        <span className="tabular font-semibold text-foreground">
+                          {currency(t.rentAmount)}
+                        </span>
                       </div>
                     </Panel>
                   ))}
                 </div>
               ) : (
-                <p className="panel py-8 text-center text-sm text-muted-foreground">No tenants linked to this property yet.</p>
+                <p className="panel py-8 text-center text-sm text-muted-foreground">
+                  No tenants linked to this property yet.
+                </p>
               ),
           },
           {
@@ -404,27 +474,41 @@ function PropertyDetailView({
                 <Panel bodyClassName="p-5">
                   <ul className="grid gap-3 md:grid-cols-2">
                     {documents.map((d) => (
-                      <li key={d.id} className="flex items-center gap-3 rounded-xl border border-border p-3.5">
+                      <li
+                        key={d.id}
+                        className="flex items-center gap-3 rounded-xl border border-border p-3.5"
+                      >
                         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-primary-soft text-[10px] font-bold text-primary">
                           {d.originalFileName.split('.').pop()?.toUpperCase() ?? 'DOC'}
                         </span>
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-[13px] font-medium text-foreground">{d.originalFileName}</p>
+                          <p className="truncate text-[13px] font-medium text-foreground">
+                            {d.originalFileName}
+                          </p>
                           <p className="text-[11px] text-muted-foreground capitalize">
-                            {d.documentType.replace('_', ' ')} · {new Date(d.updatedAt).toLocaleDateString('en-ZA')}
+                            {d.documentType.replace('_', ' ')} ·{' '}
+                            {new Date(d.updatedAt).toLocaleDateString('en-ZA')}
                           </p>
                         </div>
                       </li>
                     ))}
                   </ul>
-                  <Link href="/documents" className="mt-4 inline-block text-[12px] font-medium text-primary hover:underline">
+                  <Link
+                    href="/documents"
+                    className="mt-4 inline-block text-[12px] font-medium text-primary hover:underline"
+                  >
                     View all documents →
                   </Link>
                 </Panel>
               ) : (
                 <div className="panel py-8 text-center">
-                  <p className="text-sm text-muted-foreground">No documents uploaded for this property yet.</p>
-                  <Link href="/documents/new" className="mt-2 inline-block text-[12px] font-medium text-primary hover:underline">
+                  <p className="text-sm text-muted-foreground">
+                    No documents uploaded for this property yet.
+                  </p>
+                  <Link
+                    href="/documents/new"
+                    className="mt-2 inline-block text-[12px] font-medium text-primary hover:underline"
+                  >
                     Upload a document →
                   </Link>
                 </div>
@@ -434,8 +518,13 @@ function PropertyDetailView({
             label: `Maintenance (${maintenanceTickets.length})`,
             content: (
               <div>
-                {canManage && maintenanceTickets.length > 0 ? <div className="mb-3 flex justify-end">{reportIssueAction}</div> : null}
-                <MaintenanceTable data={maintenanceTickets} emptyAction={canManage ? reportIssueAction : undefined} />
+                {canManage && maintenanceTickets.length > 0 ? (
+                  <div className="mb-3 flex justify-end">{reportIssueAction}</div>
+                ) : null}
+                <MaintenanceTable
+                  data={maintenanceTickets}
+                  emptyAction={canManage ? reportIssueAction : undefined}
+                />
               </div>
             ),
           },
@@ -445,13 +534,20 @@ function PropertyDetailView({
               <div className="grid gap-4 sm:grid-cols-2">
                 <Panel bodyClassName="p-5">
                   <p className="text-[11px] text-muted-foreground">Income YTD</p>
-                  <p className="tabular mt-1 font-display text-xl font-bold text-foreground">{currency(accounting.incomeYtd)}</p>
+                  <p className="tabular mt-1 font-display text-xl font-bold text-foreground">
+                    {currency(accounting.incomeYtd)}
+                  </p>
                 </Panel>
                 <Panel bodyClassName="p-5">
                   <p className="text-[11px] text-muted-foreground">Expenses YTD</p>
-                  <p className="tabular mt-1 font-display text-xl font-bold text-foreground">{currency(accounting.expensesYtd)}</p>
+                  <p className="tabular mt-1 font-display text-xl font-bold text-foreground">
+                    {currency(accounting.expensesYtd)}
+                  </p>
                 </Panel>
-                <Link href="/accounting/rent-due" className="col-span-2 text-[12px] font-medium text-primary hover:underline">
+                <Link
+                  href="/accounting/rent-due"
+                  className="col-span-2 text-[12px] font-medium text-primary hover:underline"
+                >
                   View full accounting →
                 </Link>
               </div>

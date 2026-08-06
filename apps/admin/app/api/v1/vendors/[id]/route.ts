@@ -6,7 +6,10 @@ import { mapVendorRow } from '@/lib/operations';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
-async function loadVisibleVendor(supabase: Awaited<ReturnType<typeof getServerSupabaseClient>>, id: string) {
+async function loadVisibleVendor(
+  supabase: Awaited<ReturnType<typeof getServerSupabaseClient>>,
+  id: string,
+) {
   return supabase.from('vendors').select('*').eq('id', id).maybeSingle();
 }
 
@@ -106,7 +109,12 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   if (parsed.data.email !== undefined) patch.email = parsed.data.email;
   if (parsed.data.isExternal !== undefined) patch.is_external = parsed.data.isExternal;
 
-  const { data, error } = await supabase.from('vendors').update(patch).eq('id', id).select('*').single();
+  const { data, error } = await supabase
+    .from('vendors')
+    .update(patch)
+    .eq('id', id)
+    .select('*')
+    .single();
 
   if (error) {
     return NextResponse.json(

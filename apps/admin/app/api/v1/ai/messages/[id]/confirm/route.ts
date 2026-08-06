@@ -46,22 +46,39 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
   if (message.confirmed) {
     return NextResponse.json(
-      { error: { code: 'already_confirmed', message: 'This staged change has already been confirmed.' } },
+      {
+        error: {
+          code: 'already_confirmed',
+          message: 'This staged change has already been confirmed.',
+        },
+      },
       { status: 409 },
     );
   }
-  const stagedChange = message.staged_changes as
-    | { endpoint: string; method: string; body: Record<string, unknown> }
-    | null;
+  const stagedChange = message.staged_changes as {
+    endpoint: string;
+    method: string;
+    body: Record<string, unknown>;
+  } | null;
   if (!stagedChange) {
     return NextResponse.json(
-      { error: { code: 'no_staged_change', message: 'This message has no staged change to confirm.' } },
+      {
+        error: {
+          code: 'no_staged_change',
+          message: 'This message has no staged change to confirm.',
+        },
+      },
       { status: 400 },
     );
   }
   if (!isValidStagedEndpoint(stagedChange.endpoint)) {
     return NextResponse.json(
-      { error: { code: 'invalid_staged_endpoint', message: 'This staged change targets an unrecognized endpoint.' } },
+      {
+        error: {
+          code: 'invalid_staged_endpoint',
+          message: 'This staged change targets an unrecognized endpoint.',
+        },
+      },
       { status: 400 },
     );
   }

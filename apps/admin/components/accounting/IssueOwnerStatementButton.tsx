@@ -15,7 +15,9 @@ export function IssueOwnerStatementButton({ ownerStatementId }: { ownerStatement
     setBusy(true);
     setError(null);
     try {
-      const response = await fetch(`/api/v1/owner-statements/${ownerStatementId}/issue`, { method: 'POST' });
+      const response = await fetch(`/api/v1/owner-statements/${ownerStatementId}/issue`, {
+        method: 'POST',
+      });
       if (!response.ok) {
         const body = await response.json();
         setError(body.error?.message ?? 'Failed to issue statement.');
@@ -32,7 +34,9 @@ export function IssueOwnerStatementButton({ ownerStatementId }: { ownerStatement
   return (
     <div className="mt-4">
       {error ? (
-        <p className="mb-2 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">{error}</p>
+        <p className="mb-2 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">
+          {error}
+        </p>
       ) : null}
       <Button variant="primary" size="sm" disabled={busy} onClick={issue}>
         {busy ? 'Issuing…' : 'Issue statement'}

@@ -36,7 +36,11 @@ export async function POST(request: NextRequest) {
   let horizonMonths = 1;
   try {
     const body = await request.json();
-    if (typeof body?.horizonMonths === 'number' && body.horizonMonths >= 1 && body.horizonMonths <= 12) {
+    if (
+      typeof body?.horizonMonths === 'number' &&
+      body.horizonMonths >= 1 &&
+      body.horizonMonths <= 12
+    ) {
       horizonMonths = Math.floor(body.horizonMonths);
     }
   } catch {
@@ -75,7 +79,12 @@ export async function POST(request: NextRequest) {
     action: 'rent_schedules.generate',
     entityType: 'rent_schedules',
     entityId: 'bulk',
-    after: { through: throughIso, leases_processed: rows.length, leases_with_new_rows: leasesWithNewRows, total_created: totalCreated },
+    after: {
+      through: throughIso,
+      leases_processed: rows.length,
+      leases_with_new_rows: leasesWithNewRows,
+      total_created: totalCreated,
+    },
   });
 
   return NextResponse.json({

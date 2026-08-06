@@ -76,7 +76,11 @@ const NAV_SECTIONS: NavSection[] = [
       { href: '/accounting/rent-due', label: 'Rent Due', icon: navIcon(Receipt) },
       { href: '/accounting/expenses', label: 'Expenses', icon: navIcon(Wallet) },
       { href: '/accounting/bank-accounts', label: 'Bank Accounts', icon: navIcon(Landmark) },
-      { href: '/accounting/bank-transactions', label: 'Bank Transactions', icon: navIcon(ArrowLeftRight) },
+      {
+        href: '/accounting/bank-transactions',
+        label: 'Bank Transactions',
+        icon: navIcon(ArrowLeftRight),
+      },
       { href: '/accounting/owner-statements', label: 'Owner Statements', icon: navIcon(HandCoins) },
       { href: '/accounting/trial-balance', label: 'Trial Balance', icon: navIcon(Scale) },
       { href: '/accounting/tax-pack', label: 'Tax Pack', icon: navIcon(FileSpreadsheet) },
@@ -96,7 +100,9 @@ export default async function PortalLayout({ children }: { children: React.React
   const session = ADMIN_DEMO_MODE
     ? {
         userId: 'demo-user-1',
-        organizations: [{ orgId: 'demo-org-1', role: 'principal' as const, status: 'active' as const }],
+        organizations: [
+          { orgId: 'demo-org-1', role: 'principal' as const, status: 'active' as const },
+        ],
         ownerIdentities: [],
         isPlatformAdmin: false,
         supportSessions: [],
@@ -108,11 +114,15 @@ export default async function PortalLayout({ children }: { children: React.React
   const activeOrg = session.organizations.find((m) => m.status === 'active');
   if (!activeOrg) redirect('/onboarding/create-organization');
 
-  const notifications: HeaderNotification[] = ADMIN_DEMO_MODE ? [] : await loadHeaderNotifications();
+  const notifications: HeaderNotification[] = ADMIN_DEMO_MODE
+    ? []
+    : await loadHeaderNotifications();
   const sidebarSubtitle = ADMIN_DEMO_MODE
     ? 'Demo organization · 12 units'
     : await loadSidebarSubtitle(activeOrg.orgId);
-  const collectionHealth = ADMIN_DEMO_MODE ? DEMO_COLLECTION_HEALTH : await loadCollectionHealth(activeOrg.orgId);
+  const collectionHealth = ADMIN_DEMO_MODE
+    ? DEMO_COLLECTION_HEALTH
+    : await loadCollectionHealth(activeOrg.orgId);
   const displayName = ADMIN_DEMO_MODE ? undefined : await loadDisplayName();
 
   // A support-session-derived entry is never a real membership -- treat it as read-only
@@ -121,8 +131,11 @@ export default async function PortalLayout({ children }: { children: React.React
   // enforcement, but there's no reason to show a control that can only ever 403/be silently
   // filtered).
   const activeSupportSession = session.supportSessions.find((s) => s.orgId === activeOrg.orgId);
-  const supportSessionOrgName = activeSupportSession ? await loadOrgLegalName(activeOrg.orgId) : undefined;
-  const canManageOrg = !activeSupportSession && (activeOrg.role === 'principal' || activeOrg.role === 'manager');
+  const supportSessionOrgName = activeSupportSession
+    ? await loadOrgLegalName(activeOrg.orgId)
+    : undefined;
+  const canManageOrg =
+    !activeSupportSession && (activeOrg.role === 'principal' || activeOrg.role === 'manager');
   // Billing is principal-only, stricter than canManageOrg -- it moves real money (subscription
   // checkout/cancellation), not just organization metadata, matching PATCH .../billing/*'s own
   // super_admin-only floor at the platform-admin layer.
@@ -135,21 +148,27 @@ export default async function PortalLayout({ children }: { children: React.React
           { href: '/organization/lease-templates', label: 'Lease templates' },
         ]
       : []),
-    ...(canManageBilling ? [{ href: '/organization/billing', label: 'Billing & subscription' }] : []),
+    ...(canManageBilling
+      ? [{ href: '/organization/billing', label: 'Billing & subscription' }]
+      : []),
   ];
 
   return (
     <AppShell
       productLabel={branding.productName}
       navSections={NAV_SECTIONS}
-      identityLine={activeSupportSession ? 'support mode (read-only)' : activeOrg.role.replace('_', ' ')}
+      identityLine={
+        activeSupportSession ? 'support mode (read-only)' : activeOrg.role.replace('_', ' ')
+      }
       displayName={displayName}
       demoBadge={ADMIN_DEMO_MODE}
       notifications={notifications}
       accountMenuLinks={accountMenuLinks}
       homeLabel="Portfolio"
       sidebarSubtitle={sidebarSubtitle}
-      sidebarFooterWidget={collectionHealth ? <CollectionHealthWidget {...collectionHealth} /> : undefined}
+      sidebarFooterWidget={
+        collectionHealth ? <CollectionHealthWidget {...collectionHealth} /> : undefined
+      }
       banner={
         activeSupportSession ? (
           <SupportModeBanner session={activeSupportSession} orgName={supportSessionOrgName} />
@@ -165,7 +184,11 @@ export default async function PortalLayout({ children }: { children: React.React
 // branch (migration 20260101000057), so this plain caller-scoped read just works.
 async function loadOrgLegalName(orgId: string): Promise<string | undefined> {
   const supabase = await getServerSupabaseClient();
-  const { data } = await supabase.from('organizations').select('legal_name').eq('id', orgId).maybeSingle();
+  const { data } = await supabase
+    .from('organizations')
+    .select('legal_name')
+    .eq('id', orgId)
+    .maybeSingle();
   return data?.legal_name;
 }
 
@@ -210,7 +233,11 @@ export interface CollectionHealthData {
   tenantsInArrears: number;
 }
 
-const DEMO_COLLECTION_HEALTH: CollectionHealthData = { pct: 94, outstanding: 6200, tenantsInArrears: 1 };
+const DEMO_COLLECTION_HEALTH: CollectionHealthData = {
+  pct: 94,
+  outstanding: 6200,
+  tenantsInArrears: 1,
+};
 
 // Real equivalent of Lovable's static "Collection health 94.2%" sidebar card -- this month's
 // billed-vs-collected ratio and the real count of distinct leases currently carrying an
@@ -258,6 +285,10 @@ async function loadDisplayName(): Promise<string | undefined> {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return undefined;
-  const { data } = await supabase.from('profiles').select('display_name').eq('id', user.id).maybeSingle();
+  const { data } = await supabase
+    .from('profiles')
+    .select('display_name')
+    .eq('id', user.id)
+    .maybeSingle();
   return data?.display_name ?? undefined;
 }

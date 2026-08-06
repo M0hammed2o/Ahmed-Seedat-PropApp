@@ -15,9 +15,26 @@ vi.mock('@/components/auth/OAuthButtons', () => ({
   OAuthButtons: () => null,
 }));
 
-function fillAndSubmit(overrides: Partial<{ email: string; password: string; confirmPassword: string; terms: boolean; privacy: boolean }> = {}) {
-  const values = { email: 'new-user@example.com', password: 'a-real-password-1', confirmPassword: 'a-real-password-1', terms: true, privacy: true, ...overrides };
-  fireEvent.change(document.querySelector('input[type="email"]')!, { target: { value: values.email } });
+function fillAndSubmit(
+  overrides: Partial<{
+    email: string;
+    password: string;
+    confirmPassword: string;
+    terms: boolean;
+    privacy: boolean;
+  }> = {},
+) {
+  const values = {
+    email: 'new-user@example.com',
+    password: 'a-real-password-1',
+    confirmPassword: 'a-real-password-1',
+    terms: true,
+    privacy: true,
+    ...overrides,
+  };
+  fireEvent.change(document.querySelector('input[type="email"]')!, {
+    target: { value: values.email },
+  });
   const passwordInputs = document.querySelectorAll('input[type="password"]');
   fireEvent.change(passwordInputs[0]!, { target: { value: values.password } });
   fireEvent.change(passwordInputs[1]!, { target: { value: values.confirmPassword } });
@@ -61,12 +78,19 @@ describe('RegisterForm', () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 422,
-      json: async () => ({ error: { code: 'account_exists', message: 'An account with this email already exists. Try signing in instead.' } }),
+      json: async () => ({
+        error: {
+          code: 'account_exists',
+          message: 'An account with this email already exists. Try signing in instead.',
+        },
+      }),
     }) as unknown as typeof fetch;
     render(<RegisterForm />);
     fillAndSubmit();
 
-    await waitFor(() => expect(screen.getByText(/account with this email already exists/)).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByText(/account with this email already exists/)).toBeTruthy(),
+    );
     expect(replace).not.toHaveBeenCalled();
   });
 
@@ -74,7 +98,9 @@ describe('RegisterForm', () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 429,
-      json: async () => ({ error: { code: 'rate_limited', message: 'Too many requests. Try again shortly.' } }),
+      json: async () => ({
+        error: { code: 'rate_limited', message: 'Too many requests. Try again shortly.' },
+      }),
     }) as unknown as typeof fetch;
     render(<RegisterForm />);
     fillAndSubmit();
@@ -83,7 +109,10 @@ describe('RegisterForm', () => {
   });
 
   it('shows the "check your email" state when signup succeeds with no immediate session (email confirmations on)', async () => {
-    global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ hasSession: false }) }) as unknown as typeof fetch;
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ hasSession: false }),
+    }) as unknown as typeof fetch;
     render(<RegisterForm />);
     fillAndSubmit();
 
@@ -91,7 +120,10 @@ describe('RegisterForm', () => {
   });
 
   it('redirects immediately when signup returns hasSession: true (email confirmations off)', async () => {
-    global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ hasSession: true }) }) as unknown as typeof fetch;
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ hasSession: true }),
+    }) as unknown as typeof fetch;
     render(<RegisterForm />);
     fillAndSubmit();
 

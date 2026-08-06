@@ -46,7 +46,12 @@ describe('ActivateClient', () => {
       'fetch',
       vi.fn().mockResolvedValue({
         ok: false,
-        json: async () => ({ error: { code: 'invalid_code', message: 'That code or email doesn’t match. Double-check and try again.' } }),
+        json: async () => ({
+          error: {
+            code: 'invalid_code',
+            message: 'That code or email doesn’t match. Double-check and try again.',
+          },
+        }),
       }),
     );
 

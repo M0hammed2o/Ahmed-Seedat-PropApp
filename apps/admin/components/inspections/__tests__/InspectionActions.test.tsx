@@ -41,7 +41,13 @@ const ITEM: InspectionItem = {
 
 describe('InspectionActions', () => {
   it('shows the completed summary and no signature panel once completed', () => {
-    render(<InspectionActions inspection={{ ...BASE, status: 'completed', completedAt: '2026-08-05T10:00:00Z' }} items={[]} canAct />);
+    render(
+      <InspectionActions
+        inspection={{ ...BASE, status: 'completed', completedAt: '2026-08-05T10:00:00Z' }}
+        items={[]}
+        canAct
+      />,
+    );
     expect(screen.getByText(/Completed/)).toBeTruthy();
     expect(screen.queryByText('Signatures')).toBeNull();
   });
@@ -65,7 +71,11 @@ describe('InspectionActions', () => {
   it('enables completion once both signatures are present', () => {
     render(
       <InspectionActions
-        inspection={{ ...BASE, landlordSignedAt: '2026-08-05T09:00:00Z', tenantSignedAt: '2026-08-05T09:05:00Z' }}
+        inspection={{
+          ...BASE,
+          landlordSignedAt: '2026-08-05T09:00:00Z',
+          tenantSignedAt: '2026-08-05T09:05:00Z',
+        }}
         items={[]}
         canAct
       />,

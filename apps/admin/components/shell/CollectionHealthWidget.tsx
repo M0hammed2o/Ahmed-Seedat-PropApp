@@ -21,7 +21,10 @@ export function CollectionHealthWidget({
         <Pill tone={tone}>{pct}%</Pill>
       </div>
       <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-surface-strong">
-        <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(100, pct)}%` }} />
+        <div
+          className="h-full rounded-full bg-primary"
+          style={{ width: `${Math.min(100, pct)}%` }}
+        />
       </div>
       <p className="mt-2 text-[11px] text-muted-foreground">
         {outstanding > 0

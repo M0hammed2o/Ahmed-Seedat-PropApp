@@ -21,7 +21,11 @@ export function LeasesFilterClient({
 
   return (
     <div className="space-y-4">
-      <SearchBar value={query} onChange={setQuery} placeholder="Search leases by unit or property" />
+      <SearchBar
+        value={query}
+        onChange={setQuery}
+        placeholder="Search leases by unit or property"
+      />
       <LeasesTable data={filtered} showUnit emptyMessage={emptyMessage} emptyAction={emptyAction} />
     </div>
   );

@@ -38,7 +38,10 @@ export default async function OwnerDocumentsPage() {
 
   return (
     <div className="space-y-5 animate-rise">
-      <PageHeader title="Documents" subtitle="Bills, statements, and other evidence for your properties." />
+      <PageHeader
+        title="Documents"
+        subtitle="Bills, statements, and other evidence for your properties."
+      />
 
       {documents.length === 0 ? (
         <div className="rounded-card border border-light-border bg-light-surfaceRaised dark:border-dark-border dark:bg-dark-surfaceRaised">
@@ -53,19 +56,36 @@ export default async function OwnerDocumentsPage() {
           <table className="w-full text-left text-sm">
             <thead className="border-b border-light-border bg-light-surfaceStrong dark:border-dark-border dark:bg-dark-surfaceStrong">
               <tr>
-                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">File</th>
-                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Property</th>
-                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Type</th>
-                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Size</th>
-                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Added</th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  File
+                </th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Property
+                </th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Type
+                </th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Size
+                </th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Added
+                </th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody>
               {documents.map((doc) => (
-                <tr key={doc.id} className="border-b border-light-border last:border-b-0 dark:border-dark-border">
-                  <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">{doc.originalFileName}</td>
-                  <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">{doc.propertyNickname ?? '—'}</td>
+                <tr
+                  key={doc.id}
+                  className="border-b border-light-border last:border-b-0 dark:border-dark-border"
+                >
+                  <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">
+                    {doc.originalFileName}
+                  </td>
+                  <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">
+                    {doc.propertyNickname ?? '—'}
+                  </td>
                   <td className="px-4 py-3 capitalize text-light-textPrimary dark:text-dark-textPrimary">
                     {doc.documentType.replace(/_/g, ' ')}
                   </td>
@@ -86,7 +106,9 @@ export default async function OwnerDocumentsPage() {
                         View
                       </a>
                     ) : (
-                      <span className="text-light-textMuted dark:text-dark-textMuted">Unavailable</span>
+                      <span className="text-light-textMuted dark:text-dark-textMuted">
+                        Unavailable
+                      </span>
                     )}
                   </td>
                 </tr>
@@ -103,7 +125,9 @@ async function loadOwnerDocuments(): Promise<OwnerDocumentRow[]> {
   const supabase = await getServerSupabaseClient();
   const { data, error } = await supabase
     .from('documents')
-    .select('id, original_file_name, document_type, storage_path, file_size_bytes, created_at, properties(nickname)')
+    .select(
+      'id, original_file_name, document_type, storage_path, file_size_bytes, created_at, properties(nickname)',
+    )
     .is('deleted_at', null)
     .order('created_at', { ascending: false });
   if (error) throw new Error(`Failed to load documents: ${error.message}`);

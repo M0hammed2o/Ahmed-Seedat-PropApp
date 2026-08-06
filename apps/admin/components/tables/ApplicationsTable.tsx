@@ -25,7 +25,11 @@ const columns: ColumnDef<Application, unknown>[] = [
       </Link>
     ),
   },
-  { header: 'Email', accessorKey: 'applicantEmail', cell: (info) => (info.getValue() as string | null) ?? '—' },
+  {
+    header: 'Email',
+    accessorKey: 'applicantEmail',
+    cell: (info) => (info.getValue() as string | null) ?? '—',
+  },
   {
     header: 'Applied',
     accessorKey: 'createdAt',
@@ -34,7 +38,9 @@ const columns: ColumnDef<Application, unknown>[] = [
   {
     header: 'Status',
     id: 'displayStatus',
-    cell: (info) => <StatusBadge presentation={applicationDisplayPresentation(info.row.original)} />,
+    cell: (info) => (
+      <StatusBadge presentation={applicationDisplayPresentation(info.row.original)} />
+    ),
   },
 ];
 
@@ -46,6 +52,11 @@ export function ApplicationsTable({
   emptyAction?: ReactNode;
 }) {
   return (
-    <AdminDataTable emptyMessage="No applications yet" emptyAction={emptyAction} data={data} columns={columns} />
+    <AdminDataTable
+      emptyMessage="No applications yet"
+      emptyAction={emptyAction}
+      data={data}
+      columns={columns}
+    />
   );
 }

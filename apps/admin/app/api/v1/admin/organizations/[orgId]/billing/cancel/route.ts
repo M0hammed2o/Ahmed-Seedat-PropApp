@@ -34,7 +34,12 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ status: 'cancelled' });
   } catch (err) {
     return NextResponse.json(
-      { error: { code: 'billing_cancel_failed', message: err instanceof Error ? err.message : 'Cancellation failed.' } },
+      {
+        error: {
+          code: 'billing_cancel_failed',
+          message: err instanceof Error ? err.message : 'Cancellation failed.',
+        },
+      },
       { status: 422 },
     );
   }

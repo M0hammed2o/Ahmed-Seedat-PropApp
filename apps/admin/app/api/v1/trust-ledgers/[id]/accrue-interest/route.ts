@@ -36,7 +36,11 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     );
   }
 
-  const { data, error: fetchError } = await supabase.from('trust_ledgers').select('*').eq('id', id).single();
+  const { data, error: fetchError } = await supabase
+    .from('trust_ledgers')
+    .select('*')
+    .eq('id', id)
+    .single();
   if (fetchError) {
     return NextResponse.json(
       { error: { code: 'trust_ledger_fetch_failed', message: fetchError.message } },

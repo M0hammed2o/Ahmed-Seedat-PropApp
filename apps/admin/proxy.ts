@@ -185,7 +185,10 @@ export function isTrustedOrigin(request: NextRequest): boolean {
  */
 export async function proxy(request: NextRequest) {
   if (!isTrustedOrigin(request)) {
-    return NextResponse.json({ error: { code: 'csrf_origin_mismatch', message: 'Request origin could not be verified.' } }, { status: 403 });
+    return NextResponse.json(
+      { error: { code: 'csrf_origin_mismatch', message: 'Request origin could not be verified.' } },
+      { status: 403 },
+    );
   }
 
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64');

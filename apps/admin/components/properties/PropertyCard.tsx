@@ -29,7 +29,8 @@ function currency(n: number): string {
 // hosted placeholder graphic (apps/admin/public/property-placeholder.svg -- no external request,
 // full rights) when it doesn't, per the explicit "never a hotlinked/fabricated photo" instruction.
 export function PropertyCard({ property }: { property: PropertyCardData }) {
-  const occupancyPct = property.unitsCount > 0 ? Math.round((property.occupiedCount / property.unitsCount) * 100) : 0;
+  const occupancyPct =
+    property.unitsCount > 0 ? Math.round((property.occupiedCount / property.unitsCount) * 100) : 0;
   const imageSrc = property.imagePath ?? '/property-placeholder.svg';
 
   return (
@@ -40,7 +41,11 @@ export function PropertyCard({ property }: { property: PropertyCardData }) {
       <div className="relative h-[168px] overflow-hidden">
         <img
           src={imageSrc}
-          alt={property.imagePath ? `${property.nickname} exterior in ${property.city}` : 'No property photo uploaded yet'}
+          alt={
+            property.imagePath
+              ? `${property.nickname} exterior in ${property.city}`
+              : 'No property photo uploaded yet'
+          }
           loading="lazy"
           className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
         />
@@ -52,7 +57,9 @@ export function PropertyCard({ property }: { property: PropertyCardData }) {
         </div>
         <div className="absolute right-3 bottom-3 left-3 flex items-end justify-between gap-2">
           <div className="min-w-0">
-            <p className="truncate font-display text-[17px] font-bold text-white">{property.nickname}</p>
+            <p className="truncate font-display text-[17px] font-bold text-white">
+              {property.nickname}
+            </p>
             <p className="flex items-center gap-1 truncate text-[11px] text-white/80">
               <MapPin className="h-3 w-3 shrink-0" aria-hidden="true" /> {property.fullAddress}
             </p>
@@ -67,17 +74,23 @@ export function PropertyCard({ property }: { property: PropertyCardData }) {
         <div className="grid grid-cols-3 gap-3">
           <div>
             <p className="text-[10px] tracking-wide text-muted-foreground uppercase">Income</p>
-            <p className="tabular text-[15px] font-semibold text-foreground">{currency(property.monthlyIncome)}</p>
+            <p className="tabular text-[15px] font-semibold text-foreground">
+              {currency(property.monthlyIncome)}
+            </p>
           </div>
           <div>
             <p className="text-[10px] tracking-wide text-muted-foreground uppercase">Outstanding</p>
-            <p className={`tabular text-[15px] font-semibold ${property.outstanding > 0 ? 'text-destructive' : 'text-foreground'}`}>
+            <p
+              className={`tabular text-[15px] font-semibold ${property.outstanding > 0 ? 'text-destructive' : 'text-foreground'}`}
+            >
               {currency(property.outstanding)}
             </p>
           </div>
           <div>
             <p className="text-[10px] tracking-wide text-muted-foreground uppercase">Units</p>
-            <p className="tabular text-[15px] font-semibold text-foreground">{property.unitsCount}</p>
+            <p className="tabular text-[15px] font-semibold text-foreground">
+              {property.unitsCount}
+            </p>
           </div>
         </div>
         <div>

@@ -34,7 +34,10 @@ const TEMPLATE_CATEGORY: Partial<Record<DispatchableWhatsAppType, 'rent' | 'main
 
 export type DispatchableWhatsAppType = Extract<
   WhatsAppNotificationType,
-  'owner_statement_available' | 'payment_accepted' | 'maintenance_update_critical' | 'tenant_invitation'
+  | 'owner_statement_available'
+  | 'payment_accepted'
+  | 'maintenance_update_critical'
+  | 'tenant_invitation'
 >;
 
 function toE164(phone: string | null | undefined): string | null {

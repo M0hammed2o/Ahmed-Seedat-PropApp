@@ -19,7 +19,11 @@ export function RentDueClient({ data, canPost }: { data: RentSchedule[]; canPost
 
   return (
     <div className="space-y-4">
-      <SearchBar value={query} onChange={setQuery} placeholder="Search by due date, amount, or status" />
+      <SearchBar
+        value={query}
+        onChange={setQuery}
+        placeholder="Search by due date, amount, or status"
+      />
       <RentScheduleTable data={filtered} canPost={canPost} onChanged={() => router.refresh()} />
     </div>
   );

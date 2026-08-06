@@ -27,7 +27,12 @@ export async function GET(request: NextRequest) {
 
   if (!orgId || !Number.isInteger(taxYear)) {
     return NextResponse.json(
-      { error: { code: 'validation_failed', message: 'org_id and a numeric tax_year are required.' } },
+      {
+        error: {
+          code: 'validation_failed',
+          message: 'org_id and a numeric tax_year are required.',
+        },
+      },
       { status: 400 },
     );
   }
@@ -52,10 +57,15 @@ export async function GET(request: NextRequest) {
     amount: number;
   }>;
 
-  const propertyIds = Array.from(new Set(typedRows.map((r) => r.property_id).filter((id): id is string => !!id)));
+  const propertyIds = Array.from(
+    new Set(typedRows.map((r) => r.property_id).filter((id): id is string => !!id)),
+  );
   const propertyNames = new Map<string, string>();
   if (propertyIds.length > 0) {
-    const { data: properties } = await supabase.from('properties').select('id, nickname').in('id', propertyIds);
+    const { data: properties } = await supabase
+      .from('properties')
+      .select('id, nickname')
+      .in('id', propertyIds);
     for (const p of properties ?? []) propertyNames.set(p.id, p.nickname);
   }
 
@@ -68,8 +78,12 @@ export async function GET(request: NextRequest) {
     amount: r.amount,
   }));
 
-  const totalIncome = lines.filter((l) => l.accountType === 'income').reduce((sum, l) => sum + l.amount, 0);
-  const totalExpenses = lines.filter((l) => l.accountType === 'expense').reduce((sum, l) => sum + l.amount, 0);
+  const totalIncome = lines
+    .filter((l) => l.accountType === 'income')
+    .reduce((sum, l) => sum + l.amount, 0);
+  const totalExpenses = lines
+    .filter((l) => l.accountType === 'expense')
+    .reduce((sum, l) => sum + l.amount, 0);
 
   return NextResponse.json({
     taxYear,
@@ -78,6 +92,6 @@ export async function GET(request: NextRequest) {
     totalExpenses,
     netIncome: totalIncome - totalExpenses,
     disclaimer:
-      "This tax pack is not tax advice. Income shown is payments actually received in the period and expenses come from the ledger — bond interest, wear-and-tear, and other allowances are not tracked or estimated. Confirm treatment with SARS or a registered tax practitioner before filing.",
+      'This tax pack is not tax advice. Income shown is payments actually received in the period and expenses come from the ledger — bond interest, wear-and-tear, and other allowances are not tracked or estimated. Confirm treatment with SARS or a registered tax practitioner before filing.',
   });
 }

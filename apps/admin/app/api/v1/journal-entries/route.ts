@@ -43,7 +43,10 @@ export async function GET(request: NextRequest) {
   if (toDate) query = query.lte('entry_date', toDate);
   // Cursor pagination here keys off posted_at, not created_at (journal_entries has no
   // created_at/updated_at columns by design -- posted_at is the one immutable timestamp).
-  if (cursor) query = query.or(`posted_at.lt.${cursor.createdAt},and(posted_at.eq.${cursor.createdAt},id.lt.${cursor.id})`);
+  if (cursor)
+    query = query.or(
+      `posted_at.lt.${cursor.createdAt},and(posted_at.eq.${cursor.createdAt},id.lt.${cursor.id})`,
+    );
 
   const { data, error } = await query;
   if (error) {

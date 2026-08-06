@@ -31,20 +31,40 @@ afterEach(() => {
 
 describe('TenantInvitationPanel', () => {
   it('shows the send form (not a pending-invite row) when there is no active invitation', () => {
-    render(<TenantInvitationPanel tenantId="tenant-1" hasEmail hasPhone={false} invitations={[]} />);
+    render(
+      <TenantInvitationPanel tenantId="tenant-1" hasEmail hasPhone={false} invitations={[]} />,
+    );
     expect(screen.getByText('Send invitation')).toBeTruthy();
   });
 
   it('shows the pending invitation + Revoke button instead of the send form when one is already active', () => {
-    render(<TenantInvitationPanel tenantId="tenant-1" hasEmail hasPhone={false} invitations={[baseInvitation]} />);
+    render(
+      <TenantInvitationPanel
+        tenantId="tenant-1"
+        hasEmail
+        hasPhone={false}
+        invitations={[baseInvitation]}
+      />,
+    );
     expect(screen.queryByText('Send invitation')).toBeNull();
     expect(screen.getByText('Revoke')).toBeTruthy();
     expect(screen.getByText(/Pending via email/)).toBeTruthy();
   });
 
   it('treats an accepted invitation as no-longer-active -- shows the send form again, not a stale pending row', () => {
-    const accepted = { ...baseInvitation, acceptedAt: new Date().toISOString(), acceptedByUserId: 'tenant-user-1' };
-    render(<TenantInvitationPanel tenantId="tenant-1" hasEmail hasPhone={false} invitations={[accepted]} />);
+    const accepted = {
+      ...baseInvitation,
+      acceptedAt: new Date().toISOString(),
+      acceptedByUserId: 'tenant-user-1',
+    };
+    render(
+      <TenantInvitationPanel
+        tenantId="tenant-1"
+        hasEmail
+        hasPhone={false}
+        invitations={[accepted]}
+      />,
+    );
     expect(screen.getByText('Send invitation')).toBeTruthy();
     expect(screen.getByText('Accepted')).toBeTruthy(); // in the history list
   });
@@ -64,11 +84,20 @@ describe('TenantInvitationPanel', () => {
       }),
     );
 
-    render(<TenantInvitationPanel tenantId="tenant-1" hasEmail={false} hasPhone={false} invitations={[]} />);
+    render(
+      <TenantInvitationPanel
+        tenantId="tenant-1"
+        hasEmail={false}
+        hasPhone={false}
+        invitations={[]}
+      />,
+    );
     fireEvent.click(screen.getByText('Send invitation'));
 
     await waitFor(() => expect(screen.getByText(/won't be shown again/)).toBeTruthy());
-    expect(screen.getByDisplayValue('http://localhost:3000/activate?token=raw-token-value')).toBeTruthy();
+    expect(
+      screen.getByDisplayValue('http://localhost:3000/activate?token=raw-token-value'),
+    ).toBeTruthy();
     expect(screen.getByDisplayValue('ABCD1234')).toBeTruthy();
   });
 
@@ -77,13 +106,24 @@ describe('TenantInvitationPanel', () => {
       'fetch',
       vi.fn().mockResolvedValue({
         ok: false,
-        json: async () => ({ error: { code: 'no_destination', message: 'This tenant has no email address on file.' } }),
+        json: async () => ({
+          error: { code: 'no_destination', message: 'This tenant has no email address on file.' },
+        }),
       }),
     );
 
-    render(<TenantInvitationPanel tenantId="tenant-1" hasEmail={false} hasPhone={false} invitations={[]} />);
+    render(
+      <TenantInvitationPanel
+        tenantId="tenant-1"
+        hasEmail={false}
+        hasPhone={false}
+        invitations={[]}
+      />,
+    );
     fireEvent.click(screen.getByText('Send invitation'));
 
-    await waitFor(() => expect(screen.getByText('This tenant has no email address on file.')).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByText('This tenant has no email address on file.')).toBeTruthy(),
+    );
   });
 });

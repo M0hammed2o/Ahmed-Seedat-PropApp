@@ -32,7 +32,11 @@ export default async function NewDocumentPage() {
       .eq('org_id', activeOrg.orgId)
       .eq('status', 'active')
       .order('nickname', { ascending: true }),
-    supabase.from('document_categories').select('id, label').eq('is_default', true).order('label', { ascending: true }),
+    supabase
+      .from('document_categories')
+      .select('id, label')
+      .eq('is_default', true)
+      .order('label', { ascending: true }),
     // For the optional "tag as tenant-visible" field (PWA_V1_COMPLETION_PLAN.md #10) -- lets
     // staff explicitly mark a document (e.g. the signed lease) visible to that lease's tenant(s)
     // via documents_select_tenant_self, without a blanket per-property grant.
@@ -41,13 +45,20 @@ export default async function NewDocumentPage() {
       .select('id, units(unit_label, properties(nickname))')
       .order('created_at', { ascending: false }),
   ]);
-  if (propertiesResult.error) throw new Error(`Failed to load properties: ${propertiesResult.error.message}`);
-  if (categoriesResult.error) throw new Error(`Failed to load categories: ${categoriesResult.error.message}`);
+  if (propertiesResult.error)
+    throw new Error(`Failed to load properties: ${propertiesResult.error.message}`);
+  if (categoriesResult.error)
+    throw new Error(`Failed to load categories: ${categoriesResult.error.message}`);
   if (leasesResult.error) throw new Error(`Failed to load leases: ${leasesResult.error.message}`);
 
   const leases = (leasesResult.data ?? []).map((row) => {
-    const units = row.units as unknown as { unit_label: string; properties: { nickname: string } | null } | null;
-    const label = units ? `${units.properties?.nickname ?? 'Property'} — ${units.unit_label}` : row.id;
+    const units = row.units as unknown as {
+      unit_label: string;
+      properties: { nickname: string } | null;
+    } | null;
+    const label = units
+      ? `${units.properties?.nickname ?? 'Property'} — ${units.unit_label}`
+      : row.id;
     return { id: row.id as string, label };
   });
 

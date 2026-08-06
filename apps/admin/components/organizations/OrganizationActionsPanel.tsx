@@ -48,14 +48,22 @@ export function OrganizationActionsPanel({
   const [discountPct, setDiscountPct] = useState('');
   const [planMessage, setPlanMessage] = useState<string | null>(null);
 
-  async function runStatusAction(action: 'activate' | 'suspend' | 'archive', nextStatus: OrganizationStatus) {
-    if (action === 'archive' && !window.confirm(`Archive ${legalName}? This removes it from active billing/usage.`)) {
+  async function runStatusAction(
+    action: 'activate' | 'suspend' | 'archive',
+    nextStatus: OrganizationStatus,
+  ) {
+    if (
+      action === 'archive' &&
+      !window.confirm(`Archive ${legalName}? This removes it from active billing/usage.`)
+    ) {
       return;
     }
     setPending(action);
     setError(null);
     try {
-      const response = await fetch(`/api/v1/admin/organizations/${orgId}/${action}`, { method: 'POST' });
+      const response = await fetch(`/api/v1/admin/organizations/${orgId}/${action}`, {
+        method: 'POST',
+      });
       const body = await response.json();
       if (!response.ok) {
         setError(body.error?.message ?? `Failed to ${action} organization.`);
@@ -92,7 +100,9 @@ export function OrganizationActionsPanel({
         setError(body.error?.message ?? 'Failed to issue credit.');
         return;
       }
-      setCreditMessage(`Credit issued -- new promotional credit balance: R${body.subscription.promotionalCredit}`);
+      setCreditMessage(
+        `Credit issued -- new promotional credit balance: R${body.subscription.promotionalCredit}`,
+      );
       setCreditOpen(false);
       setCreditAmount('');
       setCreditReason('');
@@ -152,8 +162,12 @@ export function OrganizationActionsPanel({
 
   return (
     <div className="mt-6 rounded-lg border border-light-border bg-light-surfaceRaised p-4 dark:border-dark-border dark:bg-dark-surfaceRaised">
-      <h2 className="text-sm font-medium text-light-textPrimary dark:text-dark-textPrimary">Actions</h2>
-      <p className="mt-1 text-xs text-light-textMuted dark:text-dark-textMuted">Current status: {currentStatus}</p>
+      <h2 className="text-sm font-medium text-light-textPrimary dark:text-dark-textPrimary">
+        Actions
+      </h2>
+      <p className="mt-1 text-xs text-light-textMuted dark:text-dark-textMuted">
+        Current status: {currentStatus}
+      </p>
 
       {error ? (
         <p className="mt-3 rounded-md border border-light-danger bg-light-danger/10 px-3 py-2 text-xs text-light-danger dark:border-dark-danger dark:bg-dark-danger/10 dark:text-dark-danger">
@@ -233,7 +247,12 @@ export function OrganizationActionsPanel({
                 />
               </label>
               <div className="flex gap-2">
-                <Button size="sm" variant="primary" disabled={pending !== null} onClick={submitCredit}>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  disabled={pending !== null}
+                  onClick={submitCredit}
+                >
                   {pending === 'credit' ? 'Issuing…' : 'Issue'}
                 </Button>
                 <Button size="sm" onClick={() => setCreditOpen(false)}>
@@ -251,7 +270,9 @@ export function OrganizationActionsPanel({
             ) : (
               <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
                 <label className="text-xs">
-                  <span className="text-light-textMuted dark:text-dark-textMuted">New plan (optional)</span>
+                  <span className="text-light-textMuted dark:text-dark-textMuted">
+                    New plan (optional)
+                  </span>
                   <select
                     value={planId}
                     onChange={(e) => setPlanId(e.target.value)}
@@ -266,7 +287,9 @@ export function OrganizationActionsPanel({
                   </select>
                 </label>
                 <label className="text-xs">
-                  <span className="text-light-textMuted dark:text-dark-textMuted">Discount % (optional)</span>
+                  <span className="text-light-textMuted dark:text-dark-textMuted">
+                    Discount % (optional)
+                  </span>
                   <input
                     type="number"
                     min="0"
@@ -278,7 +301,12 @@ export function OrganizationActionsPanel({
                   />
                 </label>
                 <div className="flex gap-2">
-                  <Button size="sm" variant="primary" disabled={pending !== null} onClick={submitPlanChange}>
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    disabled={pending !== null}
+                    onClick={submitPlanChange}
+                  >
                     {pending === 'plan' ? 'Saving…' : 'Save'}
                   </Button>
                   <Button size="sm" onClick={() => setPlanOpen(false)}>

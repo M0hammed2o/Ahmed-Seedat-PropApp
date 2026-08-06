@@ -27,7 +27,9 @@ const DEMO_NOTIFICATIONS: AppNotification[] = [
  * milestone.
  */
 export default async function NotificationsPage() {
-  const notifications: AppNotification[] = ADMIN_DEMO_MODE ? DEMO_NOTIFICATIONS : await loadNotifications();
+  const notifications: AppNotification[] = ADMIN_DEMO_MODE
+    ? DEMO_NOTIFICATIONS
+    : await loadNotifications();
   const unreadCount = notifications.filter((n) => !n.readAt).length;
 
   return (

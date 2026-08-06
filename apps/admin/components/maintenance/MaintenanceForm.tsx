@@ -56,7 +56,10 @@ export function MaintenanceForm({ mode, orgId, propertyId, ticket }: Maintenance
     setError(null);
     setFieldErrors({});
     try {
-      const url = mode === 'create' ? '/api/v1/maintenance-tickets' : `/api/v1/maintenance-tickets/${ticket!.id}`;
+      const url =
+        mode === 'create'
+          ? '/api/v1/maintenance-tickets'
+          : `/api/v1/maintenance-tickets/${ticket!.id}`;
       const payload =
         mode === 'create'
           ? {
@@ -80,7 +83,9 @@ export function MaintenanceForm({ mode, orgId, propertyId, ticket }: Maintenance
       const body = await response.json();
       if (!response.ok) {
         setFieldErrors(body.error?.field_errors ?? {});
-        setError(body.error?.message ?? `Failed to ${mode === 'create' ? 'create' : 'update'} ticket.`);
+        setError(
+          body.error?.message ?? `Failed to ${mode === 'create' ? 'create' : 'update'} ticket.`,
+        );
         return;
       }
       router.push(`/maintenance/${body.maintenanceTicket.id}`);
@@ -163,7 +168,11 @@ export function MaintenanceForm({ mode, orgId, propertyId, ticket }: Maintenance
           </Button>
           <Button
             type="button"
-            onClick={() => router.push(mode === 'create' ? `/properties/${propertyId}` : `/maintenance/${ticket!.id}`)}
+            onClick={() =>
+              router.push(
+                mode === 'create' ? `/properties/${propertyId}` : `/maintenance/${ticket!.id}`,
+              )
+            }
           >
             Cancel
           </Button>
@@ -176,13 +185,23 @@ export function MaintenanceForm({ mode, orgId, propertyId, ticket }: Maintenance
 const inputClass =
   'mt-1 block w-full rounded-md border border-light-border bg-transparent px-3 py-2 text-sm text-light-textPrimary dark:border-dark-border dark:text-dark-textPrimary';
 
-function Field({ label, error, children }: { label: string; error?: string[]; children: ReactNode }) {
+function Field({
+  label,
+  error,
+  children,
+}: {
+  label: string;
+  error?: string[];
+  children: ReactNode;
+}) {
   return (
     <label className="block text-xs">
       <span className="text-light-textMuted dark:text-dark-textMuted">{label}</span>
       {children}
       {error?.length ? (
-        <p className="mt-1 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">{error[0]}</p>
+        <p className="mt-1 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">
+          {error[0]}
+        </p>
       ) : null}
     </label>
   );

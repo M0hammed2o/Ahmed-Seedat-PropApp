@@ -61,7 +61,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     );
   }
 
-  const { data, error: fetchError } = await supabase.from('owner_statements').select('*').eq('id', id).single();
+  const { data, error: fetchError } = await supabase
+    .from('owner_statements')
+    .select('*')
+    .eq('id', id)
+    .single();
   if (fetchError) {
     return NextResponse.json(
       { error: { code: 'owner_statement_fetch_failed', message: fetchError.message } },

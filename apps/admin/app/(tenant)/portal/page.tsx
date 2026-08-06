@@ -82,7 +82,13 @@ export default async function TenantPortalHomePage() {
       title: 'My lease',
       body: data.lease
         ? `${data.lease.propertyNickname ?? 'Property'} — ${data.lease.unitLabel ?? 'Unit'} · Ends ${
-            data.lease.endDate ? new Date(data.lease.endDate).toLocaleDateString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric' }) : 'ongoing'
+            data.lease.endDate
+              ? new Date(data.lease.endDate).toLocaleDateString('en-ZA', {
+                  day: '2-digit',
+                  month: 'short',
+                  year: 'numeric',
+                })
+              : 'ongoing'
           }`
         : 'No lease on file',
       href: '/my-lease',
@@ -112,16 +118,24 @@ export default async function TenantPortalHomePage() {
     {
       icon: Home,
       title: 'Documents',
-      body: data.documentsCount === 0 ? 'No documents shared yet' : `${data.documentsCount} document${data.documentsCount === 1 ? '' : 's'} shared`,
+      body:
+        data.documentsCount === 0
+          ? 'No documents shared yet'
+          : `${data.documentsCount} document${data.documentsCount === 1 ? '' : 's'} shared`,
       href: '/my-documents',
     },
   ];
 
-  const leaseProgress = data.lease ? computeLeaseProgress(data.lease.startDate, data.lease.endDate) : null;
+  const leaseProgress = data.lease
+    ? computeLeaseProgress(data.lease.startDate, data.lease.endDate)
+    : null;
 
   return (
     <div className="space-y-5 animate-rise">
-      <PageHeader title="Welcome back" subtitle="Your lease, payments, requests, and documents in one place." />
+      <PageHeader
+        title="Welcome back"
+        subtitle="Your lease, payments, requests, and documents in one place."
+      />
 
       <div className="mx-auto w-full max-w-3xl space-y-4">
         <Panel bodyClassName="p-6">
@@ -150,12 +164,17 @@ export default async function TenantPortalHomePage() {
               {leaseProgress ? (
                 <div className="mt-5 border-t border-light-border pt-4 dark:border-dark-border">
                   <div className="mb-1.5 flex justify-between text-xs">
-                    <span className="text-light-textMuted dark:text-dark-textMuted">Lease progress</span>
+                    <span className="text-light-textMuted dark:text-dark-textMuted">
+                      Lease progress
+                    </span>
                     <span className="font-medium text-light-textPrimary dark:text-dark-textPrimary">
                       {leaseProgress.elapsed} of {leaseProgress.total} months
                     </span>
                   </div>
-                  <Meter value={(leaseProgress.elapsed / leaseProgress.total) * 100} tone="success" />
+                  <Meter
+                    value={(leaseProgress.elapsed / leaseProgress.total) * 100}
+                    tone="success"
+                  />
                 </div>
               ) : (
                 <p className="mt-5 border-t border-light-border pt-4 text-xs text-light-textMuted dark:border-dark-border dark:text-dark-textMuted">
@@ -164,7 +183,9 @@ export default async function TenantPortalHomePage() {
               )}
             </>
           ) : (
-            <p className="text-sm text-light-textMuted dark:text-dark-textMuted">No lease on file yet.</p>
+            <p className="text-sm text-light-textMuted dark:text-dark-textMuted">
+              No lease on file yet.
+            </p>
           )}
         </Panel>
 
@@ -179,8 +200,12 @@ export default async function TenantPortalHomePage() {
                 <c.icon className="h-[18px] w-[18px]" aria-hidden="true" />
               </span>
               <span className="min-w-0">
-                <span className="block truncate text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">{c.title}</span>
-                <span className="block truncate text-xs text-light-textMuted dark:text-dark-textMuted">{c.body}</span>
+                <span className="block truncate text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+                  {c.title}
+                </span>
+                <span className="block truncate text-xs text-light-textMuted dark:text-dark-textMuted">
+                  {c.body}
+                </span>
               </span>
             </Link>
           ))}
@@ -188,16 +213,24 @@ export default async function TenantPortalHomePage() {
 
         <Panel title="Notices & announcements" bodyClassName="p-0">
           {data.notices.length === 0 ? (
-            <p className="px-5 py-8 text-center text-xs text-light-textMuted dark:text-dark-textMuted">No notices yet.</p>
+            <p className="px-5 py-8 text-center text-xs text-light-textMuted dark:text-dark-textMuted">
+              No notices yet.
+            </p>
           ) : (
             <ul className="divide-y divide-light-border dark:divide-dark-border">
               {data.notices.map((n) => (
                 <li key={n.id} className="flex items-center gap-3 px-5 py-4">
                   <NoticeIcon title={n.title} />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[13px] font-medium text-light-textPrimary dark:text-dark-textPrimary">{n.title}</p>
+                    <p className="truncate text-[13px] font-medium text-light-textPrimary dark:text-dark-textPrimary">
+                      {n.title}
+                    </p>
                     <p className="text-[11px] text-light-textMuted dark:text-dark-textMuted">
-                      {new Date(n.publishedAt).toLocaleDateString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      {new Date(n.publishedAt).toLocaleDateString('en-ZA', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric',
+                      })}
                     </p>
                   </div>
                 </li>
@@ -205,7 +238,10 @@ export default async function TenantPortalHomePage() {
             </ul>
           )}
           <div className="border-t border-light-border px-5 py-3 dark:border-dark-border">
-            <Link href="/notices" className="text-xs font-medium text-light-accent dark:text-dark-accent">
+            <Link
+              href="/notices"
+              className="text-xs font-medium text-light-accent dark:text-dark-accent"
+            >
               View all notices
             </Link>
           </div>
@@ -221,16 +257,30 @@ export default async function TenantPortalHomePage() {
 // keyword -- a real, stable mapping from real content, never a random or fabricated assignment.
 function NoticeIcon({ title }: { title: string }) {
   const lower = title.toLowerCase();
-  const Icon = lower.includes('statement') || lower.includes('invoice') ? Bell : lower.includes('confirm') || lower.includes('contact') ? User : Megaphone;
-  return <Icon className="h-4 w-4 shrink-0 text-light-textMuted dark:text-dark-textMuted" aria-hidden="true" />;
+  const Icon =
+    lower.includes('statement') || lower.includes('invoice')
+      ? Bell
+      : lower.includes('confirm') || lower.includes('contact')
+        ? User
+        : Megaphone;
+  return (
+    <Icon
+      className="h-4 w-4 shrink-0 text-light-textMuted dark:text-dark-textMuted"
+      aria-hidden="true"
+    />
+  );
 }
 
-function computeLeaseProgress(startDate: string, endDate: string | null): { elapsed: number; total: number } | null {
+function computeLeaseProgress(
+  startDate: string,
+  endDate: string | null,
+): { elapsed: number; total: number } | null {
   if (!endDate) return null;
   const start = new Date(startDate);
   const end = new Date(endDate);
   const now = new Date();
-  const monthsBetween = (a: Date, b: Date) => (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth());
+  const monthsBetween = (a: Date, b: Date) =>
+    (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth());
   const total = Math.max(1, monthsBetween(start, end));
   const elapsed = Math.min(total, Math.max(0, monthsBetween(start, now)));
   return { elapsed, total };
@@ -246,14 +296,20 @@ async function loadData(): Promise<PortalOverview> {
       .order('start_date', { ascending: false })
       .limit(1)
       .maybeSingle(),
-    supabase.from('maintenance_tickets').select('summary, status, created_at').order('created_at', { ascending: false }),
+    supabase
+      .from('maintenance_tickets')
+      .select('summary, status, created_at')
+      .order('created_at', { ascending: false }),
     supabase.from('documents').select('id').is('deleted_at', null),
     supabase.from('announcements').select('*').order('published_at', { ascending: false }).limit(3),
   ]);
   if (leaseResult.error) throw new Error(`Failed to load lease: ${leaseResult.error.message}`);
-  if (maintenanceResult.error) throw new Error(`Failed to load maintenance: ${maintenanceResult.error.message}`);
-  if (documentsResult.error) throw new Error(`Failed to load documents: ${documentsResult.error.message}`);
-  if (noticesResult.error) throw new Error(`Failed to load notices: ${noticesResult.error.message}`);
+  if (maintenanceResult.error)
+    throw new Error(`Failed to load maintenance: ${maintenanceResult.error.message}`);
+  if (documentsResult.error)
+    throw new Error(`Failed to load documents: ${documentsResult.error.message}`);
+  if (noticesResult.error)
+    throw new Error(`Failed to load notices: ${noticesResult.error.message}`);
 
   const leaseRow = leaseResult.data as
     | (Record<string, unknown> & {
@@ -279,7 +335,13 @@ async function loadData(): Promise<PortalOverview> {
     const schedules = rentSchedules ?? [];
     paidCount = schedules.filter((r) => r.status === 'paid').length;
     overdueCount = schedules.filter((r) => r.status === 'overdue').length;
-    const nextDue = schedules.find((r) => r.status === 'pending' || r.status === 'invoiced' || r.status === 'overdue' || r.status === 'partial');
+    const nextDue = schedules.find(
+      (r) =>
+        r.status === 'pending' ||
+        r.status === 'invoiced' ||
+        r.status === 'overdue' ||
+        r.status === 'partial',
+    );
 
     lease = {
       unitLabel: leaseRow.units?.unit_label ?? null,

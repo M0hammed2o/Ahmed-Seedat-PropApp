@@ -41,7 +41,11 @@ export async function startSubscriptionCheckout(
     .single();
   if (planError || !plan) throw new Error(planError?.message ?? 'Plan not found');
 
-  const customer = await provider.createCustomer({ orgId: org.id, legalName: org.legal_name, email: `billing+${org.id}@proplyst.example` });
+  const customer = await provider.createCustomer({
+    orgId: org.id,
+    legalName: org.legal_name,
+    email: `billing+${org.id}@proplyst.example`,
+  });
   const subscription = await provider.createSubscription({
     orgId: org.id,
     providerCustomerId: customer.providerCustomerId,
@@ -68,7 +72,8 @@ export async function startSubscriptionCheckout(
     })
     .select('id')
     .single();
-  if (subInsertError || !orgSubscription) throw new Error(subInsertError?.message ?? 'Failed to create subscription');
+  if (subInsertError || !orgSubscription)
+    throw new Error(subInsertError?.message ?? 'Failed to create subscription');
 
   const { data: payment, error: paymentInsertError } = await serviceClient
     .from('subscription_payments')
@@ -82,7 +87,8 @@ export async function startSubscriptionCheckout(
     })
     .select('id')
     .single();
-  if (paymentInsertError || !payment) throw new Error(paymentInsertError?.message ?? 'Failed to create pending payment');
+  if (paymentInsertError || !payment)
+    throw new Error(paymentInsertError?.message ?? 'Failed to create pending payment');
 
   return {
     checkoutUrl: subscription.checkoutUrl,
@@ -142,11 +148,20 @@ export async function processBillingWebhookEvent(
 
   if (payment) {
     const paymentStatus =
-      event.type === 'payment_succeeded' ? 'paid' : event.type === 'refund_processed' ? 'refunded' : event.type === 'payment_failed' ? 'failed' : null;
+      event.type === 'payment_succeeded'
+        ? 'paid'
+        : event.type === 'refund_processed'
+          ? 'refunded'
+          : event.type === 'payment_failed'
+            ? 'failed'
+            : null;
     if (paymentStatus) {
       await serviceClient
         .from('subscription_payments')
-        .update({ status: paymentStatus, paid_at: paymentStatus === 'paid' ? new Date().toISOString() : null })
+        .update({
+          status: paymentStatus,
+          paid_at: paymentStatus === 'paid' ? new Date().toISOString() : null,
+        })
         .eq('id', payment.id);
     }
 
@@ -157,19 +172,32 @@ export async function processBillingWebhookEvent(
       if (event.providerSubscriptionToken) {
         subscriptionUpdate.provider_subscription_token = event.providerSubscriptionToken;
       }
-      await serviceClient.from('organization_subscriptions').update(subscriptionUpdate).eq('id', payment.subscription_id);
+      await serviceClient
+        .from('organization_subscriptions')
+        .update(subscriptionUpdate)
+        .eq('id', payment.subscription_id);
       // Clears overdue_since (not just status) -- a recovered org must re-enter the full 7-day
       // grace period if it goes overdue again later, not resume a clock left over from last time.
-      await serviceClient.from('organizations').update({ status: 'active', overdue_since: null }).eq('id', orgId);
+      await serviceClient
+        .from('organizations')
+        .update({ status: 'active', overdue_since: null })
+        .eq('id', orgId);
     } else if (event.type === 'payment_failed') {
       // Anchors expire_trials_and_suspend_overdue()'s 7-day grace period (20260101000076). Only
       // set on the FIRST failure while already overdue -- a second failed retry before the org
       // recovers must not push the grace-period clock forward, or an org that keeps failing every
       // few days would never actually reach the suspend threshold.
-      const { data: currentOrg } = await serviceClient.from('organizations').select('status, overdue_since').eq('id', orgId).single();
+      const { data: currentOrg } = await serviceClient
+        .from('organizations')
+        .select('status, overdue_since')
+        .eq('id', orgId)
+        .single();
       await serviceClient
         .from('organizations')
-        .update({ status: 'overdue', overdue_since: currentOrg?.overdue_since ?? new Date().toISOString() })
+        .update({
+          status: 'overdue',
+          overdue_since: currentOrg?.overdue_since ?? new Date().toISOString(),
+        })
         .eq('id', orgId);
 
       // Notify the org's principal -- a failed subscription charge is exactly the kind of event
@@ -203,7 +231,10 @@ export async function processBillingWebhookEvent(
         console.error('[emailDispatch] subscription_payment_issue dispatch failed', err);
       }
     } else if (event.type === 'subscription_cancelled') {
-      await serviceClient.from('organization_subscriptions').update({ status: 'cancelled' }).eq('id', payment.subscription_id);
+      await serviceClient
+        .from('organization_subscriptions')
+        .update({ status: 'cancelled' })
+        .eq('id', payment.subscription_id);
       await serviceClient.from('organizations').update({ status: 'cancelled' }).eq('id', orgId);
     }
   }
@@ -219,7 +250,10 @@ export async function processBillingWebhookEvent(
  * a raw gateway token, matching the "no DB access from a provider class, no gateway-internal
  * details in API contracts" boundary used throughout this codebase.
  */
-export async function cancelOrgSubscription(serviceClient: SupabaseClient, input: { orgId: string }): Promise<void> {
+export async function cancelOrgSubscription(
+  serviceClient: SupabaseClient,
+  input: { orgId: string },
+): Promise<void> {
   const provider = getBillingGatewayProvider();
 
   const { data: current, error } = await serviceClient
@@ -238,7 +272,10 @@ export async function cancelOrgSubscription(serviceClient: SupabaseClient, input
   }
 
   await provider.cancelSubscription(current.provider_subscription_token);
-  await serviceClient.from('organization_subscriptions').update({ status: 'cancelled' }).eq('id', current.id);
+  await serviceClient
+    .from('organization_subscriptions')
+    .update({ status: 'cancelled' })
+    .eq('id', current.id);
   await serviceClient.from('organizations').update({ status: 'cancelled' }).eq('id', input.orgId);
 }
 
@@ -255,10 +292,20 @@ export async function refundSubscriptionPayment(
     .eq('id', input.subscriptionPaymentId)
     .single();
   if (error || !payment) throw new Error(error?.message ?? 'Payment not found');
-  if (payment.status !== 'paid') throw new Error(`Payment ${input.subscriptionPaymentId} is not paid (status: ${payment.status})`);
-  if (!payment.provider_reference) throw new Error('Payment has no provider_reference to refund against');
+  if (payment.status !== 'paid')
+    throw new Error(
+      `Payment ${input.subscriptionPaymentId} is not paid (status: ${payment.status})`,
+    );
+  if (!payment.provider_reference)
+    throw new Error('Payment has no provider_reference to refund against');
 
-  await provider.refundPayment({ providerPaymentReference: payment.provider_reference, idempotencyKey: input.idempotencyKey });
+  await provider.refundPayment({
+    providerPaymentReference: payment.provider_reference,
+    idempotencyKey: input.idempotencyKey,
+  });
 
-  await serviceClient.from('subscription_payments').update({ status: 'refunded' }).eq('id', input.subscriptionPaymentId);
+  await serviceClient
+    .from('subscription_payments')
+    .update({ status: 'refunded' })
+    .eq('id', input.subscriptionPaymentId);
 }

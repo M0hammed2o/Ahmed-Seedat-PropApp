@@ -90,10 +90,18 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     entityType: 'organization_subscriptions',
     entityId: current.id,
     before: { promotional_credit: current.promotional_credit },
-    after: { promotional_credit: newTotal, amount_issued: parsed.data.amount, reason: parsed.data.reason },
+    after: {
+      promotional_credit: newTotal,
+      amount_issued: parsed.data.amount,
+      reason: parsed.data.reason,
+    },
   });
 
   return NextResponse.json({
-    subscription: { id: updated.id, orgId: updated.org_id, promotionalCredit: updated.promotional_credit },
+    subscription: {
+      id: updated.id,
+      orgId: updated.org_id,
+      promotionalCredit: updated.promotional_credit,
+    },
   });
 }

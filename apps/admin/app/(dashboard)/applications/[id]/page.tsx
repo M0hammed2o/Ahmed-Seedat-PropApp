@@ -43,7 +43,11 @@ export default async function ApplicationDetailPage({ params }: RouteParams) {
   }
 
   const supabase = await getServerSupabaseClient();
-  const { data, error } = await supabase.from('applications').select('*').eq('id', id).maybeSingle();
+  const { data, error } = await supabase
+    .from('applications')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
   if (error) throw new Error(`Failed to load application: ${error.message}`);
   if (!data) notFound();
   const application = mapApplicationRow(data);
@@ -55,7 +59,13 @@ export default async function ApplicationDetailPage({ params }: RouteParams) {
   return <ApplicationDetailView application={application} canAct={canAct} />;
 }
 
-function ApplicationDetailView({ application, canAct }: { application: Application; canAct: boolean }) {
+function ApplicationDetailView({
+  application,
+  canAct,
+}: {
+  application: Application;
+  canAct: boolean;
+}) {
   return (
     <div className="space-y-6 animate-rise">
       <div>
@@ -68,7 +78,9 @@ function ApplicationDetailView({ application, canAct }: { application: Applicati
         <div className="mt-2">
           <PageHeader
             title={application.applicantName}
-            actions={<StatusBadge presentation={APPLICATION_STATUS_PRESENTATION[application.status]} />}
+            actions={
+              <StatusBadge presentation={APPLICATION_STATUS_PRESENTATION[application.status]} />
+            }
           />
         </div>
       </div>
@@ -77,11 +89,15 @@ function ApplicationDetailView({ application, canAct }: { application: Applicati
         <dl className="grid grid-cols-2 gap-x-4 gap-y-5 text-sm lg:grid-cols-4">
           <div>
             <dt className="text-light-textMuted dark:text-dark-textMuted">Email</dt>
-            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">{application.applicantEmail ?? '—'}</dd>
+            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">
+              {application.applicantEmail ?? '—'}
+            </dd>
           </div>
           <div>
             <dt className="text-light-textMuted dark:text-dark-textMuted">Phone</dt>
-            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">{application.applicantPhone ?? '—'}</dd>
+            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">
+              {application.applicantPhone ?? '—'}
+            </dd>
           </div>
         </dl>
       </Panel>

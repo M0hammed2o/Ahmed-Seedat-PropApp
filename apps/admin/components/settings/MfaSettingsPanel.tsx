@@ -24,7 +24,11 @@ export function MfaSettingsPanel() {
   const [error, setError] = useState<string | null>(null);
   const [enrolling, setEnrolling] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [enrollment, setEnrollment] = useState<{ factorId: string; qrCode: string; secret: string } | null>(null);
+  const [enrollment, setEnrollment] = useState<{
+    factorId: string;
+    qrCode: string;
+    secret: string;
+  } | null>(null);
   const [code, setCode] = useState('');
 
   async function loadFactors() {
@@ -56,7 +60,11 @@ export function MfaSettingsPanel() {
       const response = await fetch('/api/v1/auth/mfa/enroll', { method: 'POST' });
       const body = await response.json();
       if (!response.ok) {
-        setError(response.status === 429 ? 'Too many attempts. Try again shortly.' : (body.error?.message ?? 'Could not start enrollment.'));
+        setError(
+          response.status === 429
+            ? 'Too many attempts. Try again shortly.'
+            : (body.error?.message ?? 'Could not start enrollment.'),
+        );
         return;
       }
       setEnrollment({ factorId: body.factorId, qrCode: body.qrCode, secret: body.secret });
@@ -81,7 +89,11 @@ export function MfaSettingsPanel() {
       });
       if (!response.ok) {
         const body = await response.json();
-        setError(response.status === 429 ? 'Too many attempts. Try again shortly.' : (body.error?.message ?? 'Incorrect code.'));
+        setError(
+          response.status === 429
+            ? 'Too many attempts. Try again shortly.'
+            : (body.error?.message ?? 'Incorrect code.'),
+        );
         return;
       }
       setEnrolling(false);
@@ -96,7 +108,12 @@ export function MfaSettingsPanel() {
   }
 
   async function removeFactor(factorId: string) {
-    if (!window.confirm('Remove two-factor authentication? You will only need your password to sign in.')) return;
+    if (
+      !window.confirm(
+        'Remove two-factor authentication? You will only need your password to sign in.',
+      )
+    )
+      return;
     setError(null);
     setBusy(true);
     try {
@@ -122,11 +139,15 @@ export function MfaSettingsPanel() {
 
   return (
     <Panel className="max-w-xl">
-      <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">Two-factor authentication</h2>
+      <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+        Two-factor authentication
+      </h2>
       <p className="mt-1 text-xs text-light-textSecondary dark:text-dark-textSecondary">
         Require a code from an authenticator app in addition to your password when signing in.
       </p>
-      {error ? <p className="mt-2 text-xs text-light-danger dark:text-dark-danger">{error}</p> : null}
+      {error ? (
+        <p className="mt-2 text-xs text-light-danger dark:text-dark-danger">{error}</p>
+      ) : null}
 
       {enrolling && enrollment ? (
         <form onSubmit={confirmEnroll} className="mt-4 space-y-3">
@@ -134,9 +155,14 @@ export function MfaSettingsPanel() {
             Scan this QR code with your authenticator app, then enter the 6-digit code it generates.
           </p>
           {/* Plain <img>, not next/image: a data: URI from Supabase's own MFA enroll response, not an optimizable remote image. */}
-          <img src={enrollment.qrCode} alt="Authenticator app QR code" className="h-40 w-40 rounded-md border border-light-border dark:border-dark-border" />
+          <img
+            src={enrollment.qrCode}
+            alt="Authenticator app QR code"
+            className="h-40 w-40 rounded-md border border-light-border dark:border-dark-border"
+          />
           <p className="text-[11px] text-light-textMuted dark:text-dark-textMuted">
-            Can't scan? Enter this code manually: <code className="font-mono">{enrollment.secret}</code>
+            Can't scan? Enter this code manually:{' '}
+            <code className="font-mono">{enrollment.secret}</code>
           </p>
           <input
             required
@@ -168,11 +194,19 @@ export function MfaSettingsPanel() {
       ) : factors.length > 0 ? (
         <div className="mt-4 space-y-2">
           {factors.map((factor) => (
-            <div key={factor.id} className="flex items-center justify-between rounded-lg border border-light-border px-3 py-2 dark:border-dark-border">
+            <div
+              key={factor.id}
+              className="flex items-center justify-between rounded-lg border border-light-border px-3 py-2 dark:border-dark-border"
+            >
               <span className="text-sm text-light-textPrimary dark:text-dark-textPrimary">
                 {factor.friendlyName ?? 'Authenticator app'} — enabled
               </span>
-              <Button size="sm" variant="destructive" disabled={busy} onClick={() => removeFactor(factor.id)}>
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={busy}
+                onClick={() => removeFactor(factor.id)}
+              >
                 Remove
               </Button>
             </div>

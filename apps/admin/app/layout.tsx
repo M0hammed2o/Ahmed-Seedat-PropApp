@@ -10,7 +10,11 @@ import './globals.css';
 // external Google Fonts CDN request at runtime, which would need a CSP script-src/style-src
 // exception (the exact class of external-resource issue already fixed this session for
 // hydration). CSS variables feed tailwind.config.ts's fontFamily.display/sans.
-const displayFont = Plus_Jakarta_Sans({ subsets: ['latin'], variable: '--font-display', weight: ['600', '700', '800'] });
+const displayFont = Plus_Jakarta_Sans({
+  subsets: ['latin'],
+  variable: '--font-display',
+  weight: ['600', '700', '800'],
+});
 const bodyFont = Inter({ subsets: ['latin'], variable: '--font-sans' });
 
 export const metadata: Metadata = {
@@ -60,7 +64,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const nonce = (await headers()).get('x-nonce') ?? undefined;
 
   return (
-    <html lang="en" suppressHydrationWarning className={`${displayFont.variable} ${bodyFont.variable}`}>
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${displayFont.variable} ${bodyFont.variable}`}
+    >
       <body className="font-sans">
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem nonce={nonce}>
           {children}

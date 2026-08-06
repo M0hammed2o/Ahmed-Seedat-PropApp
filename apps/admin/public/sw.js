@@ -13,7 +13,10 @@ const PRECACHE_URLS = [OFFLINE_URL];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_VERSION).then((cache) => cache.addAll(PRECACHE_URLS)).then(() => self.skipWaiting()),
+    caches
+      .open(CACHE_VERSION)
+      .then((cache) => cache.addAll(PRECACHE_URLS))
+      .then(() => self.skipWaiting()),
   );
 });
 
@@ -21,7 +24,9 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_VERSION).map((key) => caches.delete(key))))
+      .then((keys) =>
+        Promise.all(keys.filter((key) => key !== CACHE_VERSION).map((key) => caches.delete(key))),
+      )
       .then(() => self.clients.claim()),
   );
 });
@@ -46,7 +51,9 @@ self.addEventListener('fetch', (event) => {
   // dashboard, which is exactly the kind of state that must always be live.
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request).catch(() => caches.match(OFFLINE_URL).then((cached) => cached ?? Response.error())),
+      fetch(request).catch(() =>
+        caches.match(OFFLINE_URL).then((cached) => cached ?? Response.error()),
+      ),
     );
     return;
   }
@@ -54,7 +61,12 @@ self.addEventListener('fetch', (event) => {
   // Static, content-hashed build assets (Next.js fingerprints every /_next/static/ file by
   // content, so a cached copy can never go stale under a given URL) and this app's own small
   // public/ asset set: cache-first, falling back to network and caching the result for next time.
-  if (url.pathname.startsWith('/_next/static/') || url.pathname.startsWith('/icons/') || request.destination === 'image' || request.destination === 'font') {
+  if (
+    url.pathname.startsWith('/_next/static/') ||
+    url.pathname.startsWith('/icons/') ||
+    request.destination === 'image' ||
+    request.destination === 'font'
+  ) {
     event.respondWith(
       caches.match(request).then(
         (cached) =>

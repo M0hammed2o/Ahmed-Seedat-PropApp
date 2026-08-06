@@ -19,7 +19,12 @@ const RESULT: ExtractionResult = {
     tenantName: { value: 'Mock Tenant', confidence: 0.7 },
     rentAmount: { value: 8500, confidence: 0.65 },
     overallConfidence: 0.62,
-    metadata: { providerName: 'mock', providerVersion: '1.0.0', processingDurationMs: 100, estimatedCostUsd: 0 },
+    metadata: {
+      providerName: 'mock',
+      providerVersion: '1.0.0',
+      processingDurationMs: 100,
+      estimatedCostUsd: 0,
+    },
   },
   overallConfidence: 0.62,
   reviewedAt: null,
@@ -36,12 +41,16 @@ describe('OcrPanel', () => {
   });
 
   it('shows an "Extract fields" button when no extraction exists yet and the caller can act', () => {
-    render(<OcrPanel documentId="document-1" documentType="lease" extractionResult={null} canAct />);
+    render(
+      <OcrPanel documentId="document-1" documentType="lease" extractionResult={null} canAct />,
+    );
     expect(screen.getByText('Extract fields')).toBeTruthy();
   });
 
   it('shows extracted field values and a "Confirm reviewed" button once extraction exists but is unreviewed', () => {
-    render(<OcrPanel documentId="document-1" documentType="lease" extractionResult={RESULT} canAct />);
+    render(
+      <OcrPanel documentId="document-1" documentType="lease" extractionResult={RESULT} canAct />,
+    );
     expect(screen.getByText('Mock Tenant')).toBeTruthy();
     expect(screen.getByText('Confirm reviewed')).toBeTruthy();
   });
@@ -60,7 +69,14 @@ describe('OcrPanel', () => {
   });
 
   it('hides Extract/Confirm actions for a read-only caller', () => {
-    render(<OcrPanel documentId="document-1" documentType="lease" extractionResult={null} canAct={false} />);
+    render(
+      <OcrPanel
+        documentId="document-1"
+        documentType="lease"
+        extractionResult={null}
+        canAct={false}
+      />,
+    );
     expect(screen.queryByText('Extract fields')).toBeNull();
     expect(screen.getByText('No extraction yet.')).toBeTruthy();
   });

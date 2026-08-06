@@ -125,7 +125,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   // creation itself — the invite row (and its token) is the source of truth; the admin can always
   // re-share the link manually if the email never arrives. toUserId is null since the invitee has
   // no account yet.
-  const { data: org } = await supabase.from('organizations').select('legal_name').eq('id', orgId).maybeSingle();
+  const { data: org } = await supabase
+    .from('organizations')
+    .select('legal_name')
+    .eq('id', orgId)
+    .maybeSingle();
   const serviceClient = getServiceRoleClient();
   try {
     await dispatchEmail(serviceClient, {

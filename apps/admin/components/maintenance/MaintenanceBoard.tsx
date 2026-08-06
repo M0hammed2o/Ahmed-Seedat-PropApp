@@ -44,9 +44,13 @@ export function MaintenanceBoard({ tickets }: { tickets: MaintenanceTicket[] }) 
                     href={`/maintenance/${ticket.id}`}
                     className="block rounded-lg border border-light-border p-2.5 text-xs transition-colors hover:border-light-accent/30 hover:bg-light-accentSoft dark:border-dark-border dark:hover:border-dark-accent/30 dark:hover:bg-dark-accentSoft"
                   >
-                    <p className="font-medium text-light-textPrimary dark:text-dark-textPrimary">{ticket.summary}</p>
+                    <p className="font-medium text-light-textPrimary dark:text-dark-textPrimary">
+                      {ticket.summary}
+                    </p>
                     <div className="mt-1.5">
-                      <StatusBadge presentation={MAINTENANCE_PRIORITY_PRESENTATION[ticket.priority]} />
+                      <StatusBadge
+                        presentation={MAINTENANCE_PRIORITY_PRESENTATION[ticket.priority]}
+                      />
                     </div>
                   </Link>
                 ))

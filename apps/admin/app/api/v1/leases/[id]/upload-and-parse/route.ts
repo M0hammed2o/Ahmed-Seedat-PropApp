@@ -60,7 +60,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   const canWrite = await requireOrgRole(supabase, lease.org_id, 'agent');
   if (!canWrite) {
     return NextResponse.json(
-      { error: { code: 'forbidden', message: 'You do not have permission to parse documents for this lease.' } },
+      {
+        error: {
+          code: 'forbidden',
+          message: 'You do not have permission to parse documents for this lease.',
+        },
+      },
       { status: 403 },
     );
   }
@@ -152,7 +157,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     .createSignedUrl(document.storage_path, SIGNED_URL_TTL_SECONDS);
   if (signedUrlError || !signedUrlData) {
     return NextResponse.json(
-      { error: { code: 'signed_url_failed', message: signedUrlError?.message ?? 'Could not create a signed URL for this document.' } },
+      {
+        error: {
+          code: 'signed_url_failed',
+          message: signedUrlError?.message ?? 'Could not create a signed URL for this document.',
+        },
+      },
       { status: 500 },
     );
   }
@@ -166,9 +176,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const extraction = await provider.extractFields(processingInput, 'lease');
 
-    await serviceRole
-      .from('extraction_results')
-      .insert({ extraction_job_id: job.id, org_id: lease.org_id, raw_provider_output: extraction, overall_confidence: extraction.overallConfidence });
+    await serviceRole.from('extraction_results').insert({
+      extraction_job_id: job.id,
+      org_id: lease.org_id,
+      raw_provider_output: extraction,
+      overall_confidence: extraction.overallConfidence,
+    });
 
     await serviceRole.from('extraction_jobs').update({ status: 'succeeded' }).eq('id', job.id);
 
@@ -176,7 +189,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   } catch (err) {
     await serviceRole
       .from('extraction_jobs')
-      .update({ status: 'failed', error_message: err instanceof Error ? err.message : 'Unknown error' })
+      .update({
+        status: 'failed',
+        error_message: err instanceof Error ? err.message : 'Unknown error',
+      })
       .eq('id', job.id);
 
     return NextResponse.json(

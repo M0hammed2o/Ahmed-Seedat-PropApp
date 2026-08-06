@@ -29,7 +29,10 @@ function hotp(secret: Buffer, counter: number, digits = 6): string {
   const hmac = crypto.createHmac('sha1', secret).update(counterBuffer).digest();
   const offset = hmac[hmac.length - 1]! & 0x0f;
   const binary =
-    ((hmac[offset]! & 0x7f) << 24) | ((hmac[offset + 1]! & 0xff) << 16) | ((hmac[offset + 2]! & 0xff) << 8) | (hmac[offset + 3]! & 0xff);
+    ((hmac[offset]! & 0x7f) << 24) |
+    ((hmac[offset + 1]! & 0xff) << 16) |
+    ((hmac[offset + 2]! & 0xff) << 8) |
+    (hmac[offset + 3]! & 0xff);
   return String(binary % 10 ** digits).padStart(digits, '0');
 }
 
@@ -39,7 +42,11 @@ export function hotpFromAsciiSecret(asciiSecret: string, counter: number): strin
 }
 
 /** TOTP from a base32 secret (what Supabase's mfa.enroll() returns) at the current time. */
-export function generateTotpCode(base32Secret: string, stepSeconds = 30, at: number = Date.now()): string {
+export function generateTotpCode(
+  base32Secret: string,
+  stepSeconds = 30,
+  at: number = Date.now(),
+): string {
   const counter = Math.floor(at / 1000 / stepSeconds);
   return hotp(base32Decode(base32Secret), counter);
 }

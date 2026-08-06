@@ -28,7 +28,9 @@ const DEMO_ANNOUNCEMENTS: Announcement[] = [
  * Vendors, Announcements). Same direct-RLS-read pattern as every list page this milestone.
  */
 export default async function AnnouncementsPage() {
-  const announcements: Announcement[] = ADMIN_DEMO_MODE ? DEMO_ANNOUNCEMENTS : await loadAnnouncements();
+  const announcements: Announcement[] = ADMIN_DEMO_MODE
+    ? DEMO_ANNOUNCEMENTS
+    : await loadAnnouncements();
   const canWrite = ADMIN_DEMO_MODE ? true : await resolveCanWrite();
 
   const addAction = (

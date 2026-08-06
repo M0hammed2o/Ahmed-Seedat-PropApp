@@ -51,20 +51,41 @@ export default async function OwnerMaintenancePage() {
           <table className="w-full text-left text-sm">
             <thead className="border-b border-light-border bg-light-surfaceStrong dark:border-dark-border dark:bg-dark-surfaceStrong">
               <tr>
-                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Summary</th>
-                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Property</th>
-                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Priority</th>
-                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Status</th>
-                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Logged</th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Summary
+                </th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Property
+                </th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Priority
+                </th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Status
+                </th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Logged
+                </th>
               </tr>
             </thead>
             <tbody>
               {tickets.map((t) => (
-                <tr key={t.id} className="border-b border-light-border last:border-b-0 dark:border-dark-border">
-                  <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">{t.summary}</td>
-                  <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">{t.propertyNickname ?? '—'}</td>
-                  <td className="px-4 py-3 capitalize text-light-textPrimary dark:text-dark-textPrimary">{t.priority}</td>
-                  <td className="px-4 py-3 capitalize text-light-textPrimary dark:text-dark-textPrimary">{t.status.replace(/_/g, ' ')}</td>
+                <tr
+                  key={t.id}
+                  className="border-b border-light-border last:border-b-0 dark:border-dark-border"
+                >
+                  <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">
+                    {t.summary}
+                  </td>
+                  <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">
+                    {t.propertyNickname ?? '—'}
+                  </td>
+                  <td className="px-4 py-3 capitalize text-light-textPrimary dark:text-dark-textPrimary">
+                    {t.priority}
+                  </td>
+                  <td className="px-4 py-3 capitalize text-light-textPrimary dark:text-dark-textPrimary">
+                    {t.status.replace(/_/g, ' ')}
+                  </td>
                   <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">
                     {new Date(t.createdAt).toLocaleDateString('en-ZA')}
                   </td>

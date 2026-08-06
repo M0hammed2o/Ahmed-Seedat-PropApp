@@ -63,7 +63,11 @@ export function LoginForm() {
       });
       const body = await response.json();
       if (!response.ok) {
-        setSubmitError(response.status === 429 ? 'Too many attempts. Try again shortly.' : 'Invalid email or password.');
+        setSubmitError(
+          response.status === 429
+            ? 'Too many attempts. Try again shortly.'
+            : 'Invalid email or password.',
+        );
         return;
       }
       if (body.mfaRequired) {
@@ -88,7 +92,11 @@ export function LoginForm() {
       });
       if (!response.ok) {
         const body = await response.json();
-        setSubmitError(response.status === 429 ? 'Too many attempts. Try again shortly.' : (body.error?.message ?? 'Incorrect code.'));
+        setSubmitError(
+          response.status === 429
+            ? 'Too many attempts. Try again shortly.'
+            : (body.error?.message ?? 'Incorrect code.'),
+        );
         return;
       }
       completeSignIn();
@@ -116,7 +124,9 @@ export function LoginForm() {
             Open your authenticator app and enter the 6-digit code.
           </p>
 
-          <label className="mt-6 block text-xs text-light-textSecondary dark:text-dark-textSecondary">Code</label>
+          <label className="mt-6 block text-xs text-light-textSecondary dark:text-dark-textSecondary">
+            Code
+          </label>
           <input
             required
             inputMode="numeric"
@@ -127,9 +137,16 @@ export function LoginForm() {
             className="mt-1 w-full rounded-lg border border-light-border bg-transparent px-3 py-2 text-center text-lg tracking-[0.5em] text-light-textPrimary outline-none focus:border-light-accent/40 focus:ring-4 focus:ring-light-accent/10 dark:border-dark-border dark:text-dark-textPrimary dark:focus:border-dark-accent/40 dark:focus:ring-dark-accent/10"
           />
 
-          {submitError ? <p className="mt-3 text-sm text-light-danger dark:text-dark-danger">{submitError}</p> : null}
+          {submitError ? (
+            <p className="mt-3 text-sm text-light-danger dark:text-dark-danger">{submitError}</p>
+          ) : null}
 
-          <Button type="submit" variant="primary" disabled={mfaSubmitting || mfaCode.length !== 6} className="mt-6 w-full">
+          <Button
+            type="submit"
+            variant="primary"
+            disabled={mfaSubmitting || mfaCode.length !== 6}
+            className="mt-6 w-full"
+          >
             {mfaSubmitting ? 'Verifying…' : 'Verify'}
           </Button>
         </form>
@@ -177,7 +194,9 @@ export function LoginForm() {
           {...register('email')}
         />
         {errors.email ? (
-          <p className="mt-1 text-xs text-light-danger dark:text-dark-danger">{errors.email.message}</p>
+          <p className="mt-1 text-xs text-light-danger dark:text-dark-danger">
+            {errors.email.message}
+          </p>
         ) : null}
 
         <div className="mt-4 flex items-center justify-between">
@@ -198,10 +217,14 @@ export function LoginForm() {
           {...register('password')}
         />
         {errors.password ? (
-          <p className="mt-1 text-xs text-light-danger dark:text-dark-danger">{errors.password.message}</p>
+          <p className="mt-1 text-xs text-light-danger dark:text-dark-danger">
+            {errors.password.message}
+          </p>
         ) : null}
 
-        {submitError ? <p className="mt-3 text-sm text-light-danger dark:text-dark-danger">{submitError}</p> : null}
+        {submitError ? (
+          <p className="mt-3 text-sm text-light-danger dark:text-dark-danger">{submitError}</p>
+        ) : null}
 
         <Button type="submit" variant="primary" disabled={isSubmitting} className="mt-6 w-full">
           {isSubmitting ? 'Signing in…' : 'Sign in'}
@@ -209,7 +232,10 @@ export function LoginForm() {
 
         <p className="mt-4 text-center text-xs text-light-textSecondary dark:text-dark-textSecondary">
           Don't have an account?{' '}
-          <Link href={`/register?next=${encodeURIComponent(next)}`} className="text-light-accent hover:underline dark:text-dark-accent">
+          <Link
+            href={`/register?next=${encodeURIComponent(next)}`}
+            className="text-light-accent hover:underline dark:text-dark-accent"
+          >
             Create one
           </Link>
         </p>

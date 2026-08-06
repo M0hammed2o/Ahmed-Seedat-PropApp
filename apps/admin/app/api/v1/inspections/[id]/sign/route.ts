@@ -47,14 +47,24 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   const canWrite = await requireOrgRole(supabase, inspection.org_id, 'agent');
   if (!canWrite) {
     return NextResponse.json(
-      { error: { code: 'forbidden', message: 'You do not have permission to sign this inspection.' } },
+      {
+        error: {
+          code: 'forbidden',
+          message: 'You do not have permission to sign this inspection.',
+        },
+      },
       { status: 403 },
     );
   }
 
   if (inspection.status === 'completed') {
     return NextResponse.json(
-      { error: { code: 'already_completed', message: 'This inspection has already been completed.' } },
+      {
+        error: {
+          code: 'already_completed',
+          message: 'This inspection has already been completed.',
+        },
+      },
       { status: 409 },
     );
   }

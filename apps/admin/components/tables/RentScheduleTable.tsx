@@ -13,7 +13,13 @@ import { Button } from '@/components/ui/Button';
 // which enforces accountant+ internally (has_org_role(..., 'accountant')) regardless of whether
 // canPost hides the button here.
 
-function IssueInvoiceButton({ rentScheduleId, onIssued }: { rentScheduleId: string; onIssued: () => void }) {
+function IssueInvoiceButton({
+  rentScheduleId,
+  onIssued,
+}: {
+  rentScheduleId: string;
+  onIssued: () => void;
+}) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -21,7 +27,9 @@ function IssueInvoiceButton({ rentScheduleId, onIssued }: { rentScheduleId: stri
     setBusy(true);
     setError(null);
     try {
-      const response = await fetch(`/api/v1/rent-schedules/${rentScheduleId}/invoice`, { method: 'POST' });
+      const response = await fetch(`/api/v1/rent-schedules/${rentScheduleId}/invoice`, {
+        method: 'POST',
+      });
       if (!response.ok) {
         const body = await response.json();
         setError(body.error?.message ?? 'Failed to issue invoice.');
@@ -40,7 +48,11 @@ function IssueInvoiceButton({ rentScheduleId, onIssued }: { rentScheduleId: stri
       <Button size="sm" disabled={busy} onClick={issue}>
         {busy ? 'Issuing…' : 'Issue invoice'}
       </Button>
-      {error ? <p className="mt-1 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">{error}</p> : null}
+      {error ? (
+        <p className="mt-1 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -61,7 +73,11 @@ function buildColumns(canPost: boolean, onIssued: () => void): ColumnDef<RentSch
       header: 'Status',
       accessorKey: 'status',
       cell: (info) => (
-        <StatusBadge presentation={RENT_SCHEDULE_STATUS_PRESENTATION[info.getValue() as RentSchedule['status']]} />
+        <StatusBadge
+          presentation={
+            RENT_SCHEDULE_STATUS_PRESENTATION[info.getValue() as RentSchedule['status']]
+          }
+        />
       ),
     },
   ];

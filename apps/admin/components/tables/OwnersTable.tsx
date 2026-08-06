@@ -21,7 +21,11 @@ const columns: ColumnDef<Owner, unknown>[] = [
     accessorKey: 'name',
     cell: (info) => (
       <Link href={`/owners/${info.row.original.id}`} className="group flex items-center gap-2.5">
-        <Avatar initials={initialsFor(info.row.original.name)} tone="muted" className="h-7 w-7 text-[10px]" />
+        <Avatar
+          initials={initialsFor(info.row.original.name)}
+          tone="muted"
+          className="h-7 w-7 text-[10px]"
+        />
         <span className="font-medium text-light-accent group-hover:underline dark:text-dark-accent">
           {info.row.original.name}
         </span>
@@ -33,8 +37,16 @@ const columns: ColumnDef<Owner, unknown>[] = [
     accessorKey: 'ownerType',
     cell: (info) => <span className="capitalize">{info.getValue() as string}</span>,
   },
-  { header: 'Email', accessorKey: 'email', cell: (info) => (info.getValue() as string | null) ?? '—' },
-  { header: 'Phone', accessorKey: 'phone', cell: (info) => (info.getValue() as string | null) ?? '—' },
+  {
+    header: 'Email',
+    accessorKey: 'email',
+    cell: (info) => (info.getValue() as string | null) ?? '—',
+  },
+  {
+    header: 'Phone',
+    accessorKey: 'phone',
+    cell: (info) => (info.getValue() as string | null) ?? '—',
+  },
   {
     header: 'Status',
     accessorKey: 'status',
@@ -46,12 +58,13 @@ const columns: ColumnDef<Owner, unknown>[] = [
   },
 ];
 
-export function OwnersTable({
-  data,
-  emptyAction,
-}: {
-  data: Owner[];
-  emptyAction?: ReactNode;
-}) {
-  return <AdminDataTable emptyMessage="No owners yet" emptyAction={emptyAction} data={data} columns={columns} />;
+export function OwnersTable({ data, emptyAction }: { data: Owner[]; emptyAction?: ReactNode }) {
+  return (
+    <AdminDataTable
+      emptyMessage="No owners yet"
+      emptyAction={emptyAction}
+      data={data}
+      columns={columns}
+    />
+  );
 }

@@ -55,9 +55,9 @@ export function SupportSessionControl({ orgId, canStart }: { orgId: string; canS
           Start support session
         </Button>
         <p className="mt-1 text-xs text-light-textMuted dark:text-dark-textMuted">
-          Read-only access to this org's data, banner-visible for the duration. Write actions require a
-          separate, not-yet-built escalation step (SUPER_ADMIN.md §6) — none are available in support mode
-          today.
+          Read-only access to this org's data, banner-visible for the duration. Write actions
+          require a separate, not-yet-built escalation step (SUPER_ADMIN.md §6) — none are available
+          in support mode today.
         </p>
       </div>
     );
@@ -67,7 +67,9 @@ export function SupportSessionControl({ orgId, canStart }: { orgId: string; canS
     <form onSubmit={handleSubmit} className="mt-4 max-w-md space-y-2">
       {error ? <p className="text-xs text-light-danger dark:text-dark-danger">{error}</p> : null}
       <label className="block text-xs">
-        <span className="text-light-textMuted dark:text-dark-textMuted">Reason (required, at least 10 characters)</span>
+        <span className="text-light-textMuted dark:text-dark-textMuted">
+          Reason (required, at least 10 characters)
+        </span>
         <textarea
           required
           minLength={10}
@@ -78,7 +80,12 @@ export function SupportSessionControl({ orgId, canStart }: { orgId: string; canS
         />
       </label>
       <div className="flex gap-2">
-        <Button type="submit" variant="primary" size="sm" disabled={submitting || reason.length < 10}>
+        <Button
+          type="submit"
+          variant="primary"
+          size="sm"
+          disabled={submitting || reason.length < 10}
+        >
           {submitting ? 'Starting…' : 'Enter support mode'}
         </Button>
         <Button type="button" size="sm" onClick={() => setOpen(false)}>

@@ -30,7 +30,11 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     );
   }
 
-  const { data, error: fetchError } = await supabase.from('owner_statements').select('*').eq('id', id).single();
+  const { data, error: fetchError } = await supabase
+    .from('owner_statements')
+    .select('*')
+    .eq('id', id)
+    .single();
   if (fetchError) {
     return NextResponse.json(
       { error: { code: 'owner_statement_fetch_failed', message: fetchError.message } },
@@ -40,13 +44,20 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
 
   try {
     const serviceClient = getServiceRoleClient();
-    const { data: owner } = await serviceClient.from('owners').select('email, phone').eq('id', data.owner_id).maybeSingle();
+    const { data: owner } = await serviceClient
+      .from('owners')
+      .select('email, phone')
+      .eq('id', data.owner_id)
+      .maybeSingle();
 
     await dispatchEmail(serviceClient, {
       orgId: data.org_id,
       toAddress: owner?.email ?? null,
       templateName: 'owner_statement_ready',
-      templateVars: { period: `${data.period_start} – ${data.period_end}`, netPayable: data.net_payable },
+      templateVars: {
+        period: `${data.period_start} – ${data.period_end}`,
+        netPayable: data.net_payable,
+      },
       relatedEntityType: 'owner_statement',
       relatedEntityId: data.id,
       actorUserId: user.id,
@@ -56,7 +67,10 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       orgId: data.org_id,
       toPhone: owner?.phone ?? null,
       templateName: 'owner_statement_available',
-      variables: { period: `${data.period_start} – ${data.period_end}`, netPayable: String(data.net_payable) },
+      variables: {
+        period: `${data.period_start} – ${data.period_end}`,
+        netPayable: String(data.net_payable),
+      },
       relatedEntityType: 'owner_statement',
       relatedEntityId: data.id,
       actorUserId: user.id,

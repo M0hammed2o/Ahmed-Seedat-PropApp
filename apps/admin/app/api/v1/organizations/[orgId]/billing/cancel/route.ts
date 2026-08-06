@@ -19,13 +19,21 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.json({ error: { code: 'unauthenticated', message: 'Sign in required.' } }, { status: 401 });
+    return NextResponse.json(
+      { error: { code: 'unauthenticated', message: 'Sign in required.' } },
+      { status: 401 },
+    );
   }
 
   const isPrincipal = await requireOrgRole(supabase, orgId, 'principal');
   if (!isPrincipal) {
     return NextResponse.json(
-      { error: { code: 'forbidden', message: 'Only the organization principal can manage billing.' } },
+      {
+        error: {
+          code: 'forbidden',
+          message: 'Only the organization principal can manage billing.',
+        },
+      },
       { status: 403 },
     );
   }
@@ -47,7 +55,12 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ status: 'cancelled' });
   } catch (err) {
     return NextResponse.json(
-      { error: { code: 'billing_cancel_failed', message: err instanceof Error ? err.message : 'Cancellation failed.' } },
+      {
+        error: {
+          code: 'billing_cancel_failed',
+          message: err instanceof Error ? err.message : 'Cancellation failed.',
+        },
+      },
       { status: 422 },
     );
   }

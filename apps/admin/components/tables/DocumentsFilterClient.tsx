@@ -47,7 +47,8 @@ export function DocumentsFilterClient({
 
   const counts = useMemo(() => {
     const byType: Record<string, number> = { all: documents.length };
-    for (const t of DOCUMENT_TYPES) byType[t] = documents.filter((d) => d.documentType === t).length;
+    for (const t of DOCUMENT_TYPES)
+      byType[t] = documents.filter((d) => d.documentType === t).length;
     return byType;
   }, [documents]);
 
@@ -75,18 +76,25 @@ export function DocumentsFilterClient({
               type="button"
               onClick={() => setCategory(c)}
               className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium whitespace-nowrap transition-colors ${
-                category === c ? 'bg-card text-foreground shadow-card' : 'text-muted-foreground hover:text-foreground'
+                category === c
+                  ? 'bg-card text-foreground shadow-card'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               {c === 'all' ? 'All' : CATEGORY_LABELS[c]}
-              <span className="tabular rounded-md bg-surface-strong px-1.5 text-[10px]">{counts[c] ?? 0}</span>
+              <span className="tabular rounded-md bg-surface-strong px-1.5 text-[10px]">
+                {counts[c] ?? 0}
+              </span>
             </button>
           ))}
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
           <div className="relative hidden sm:block">
-            <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+            <Search
+              className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+              aria-hidden="true"
+            />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -117,7 +125,9 @@ export function DocumentsFilterClient({
 
       {view === 'grid' ? (
         filtered.length === 0 ? (
-          <p className="panel px-5 py-8 text-center text-sm text-muted-foreground">No documents match this filter</p>
+          <p className="panel px-5 py-8 text-center text-sm text-muted-foreground">
+            No documents match this filter
+          </p>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {filtered.map((d) => (
@@ -129,7 +139,9 @@ export function DocumentsFilterClient({
                 <div className="mb-3 grid h-24 place-items-center rounded-xl bg-surface">
                   <FileText className="h-7 w-7 text-muted-foreground" aria-hidden="true" />
                 </div>
-                <p className="truncate text-[13px] font-medium text-foreground">{d.originalFileName}</p>
+                <p className="truncate text-[13px] font-medium text-foreground">
+                  {d.originalFileName}
+                </p>
                 <p className="mt-0.5 text-[11px] text-muted-foreground">
                   {currency(d.fileSizeBytes)} · {new Date(d.createdAt).toLocaleDateString('en-ZA')}
                 </p>
@@ -141,7 +153,10 @@ export function DocumentsFilterClient({
           </div>
         )
       ) : (
-        <DocumentsTable data={filtered} emptyAction={filtered.length === 0 ? emptyAction : undefined} />
+        <DocumentsTable
+          data={filtered}
+          emptyAction={filtered.length === 0 ? emptyAction : undefined}
+        />
       )}
     </div>
   );

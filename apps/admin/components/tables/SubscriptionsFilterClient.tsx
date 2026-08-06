@@ -12,7 +12,11 @@ export function SubscriptionsFilterClient({ subscriptions }: { subscriptions: Su
 
   return (
     <div className="space-y-4">
-      <SearchBar value={query} onChange={setQuery} placeholder="Search subscriptions by organization or plan" />
+      <SearchBar
+        value={query}
+        onChange={setQuery}
+        placeholder="Search subscriptions by organization or plan"
+      />
       <SubscriptionsTable data={filtered} />
     </div>
   );

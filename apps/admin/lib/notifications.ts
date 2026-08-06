@@ -1,5 +1,10 @@
 import 'server-only';
-import type { Announcement, AppNotification, DevicePushToken, NotificationPreference } from '@propvault/types';
+import type {
+  Announcement,
+  AppNotification,
+  DevicePushToken,
+  NotificationPreference,
+} from '@propvault/types';
 
 // Communication-domain row mapping (apps/admin/app/api/v1/{announcements,notifications,
 // notification-preferences,device-push-tokens}).
@@ -64,7 +69,9 @@ interface NotificationPreferenceRow {
   whatsapp_enabled: boolean;
 }
 
-export function mapNotificationPreferenceRow(row: NotificationPreferenceRow): NotificationPreference {
+export function mapNotificationPreferenceRow(
+  row: NotificationPreferenceRow,
+): NotificationPreference {
   return {
     userId: row.user_id,
     category: row.category as NotificationPreference['category'],

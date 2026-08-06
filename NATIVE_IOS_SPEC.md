@@ -72,7 +72,7 @@ RootView
 - Each tab owns its own `NavigationStack` with its own path (`NavigationPath` per tab, preserved
   across tab switches — iOS-idiomatic; matches the persistent-state expectation of a native tab
   bar, unlike PropView's web-reload-per-route behavior).
-- Portal switch clears the *other* portal's navigation stacks (never leaves stale detail views
+- Portal switch clears the _other_ portal's navigation stacks (never leaves stale detail views
   live in the background across a portal switch — data-leakage-by-accident prevention, matching
   `PERMISSIONS.md`'s "never merge role systems" principle applied to UI state).
 - AI Assistant is a `.sheet` presentation (bottom-sheet drawer) reachable from a floating action
@@ -169,18 +169,18 @@ Account tab
 
 ## 5. Component mapping — `DESIGN_SYSTEM.md` → SwiftUI
 
-| Design system spec | SwiftUI implementation |
-| --- | --- |
+| Design system spec                               | SwiftUI implementation                                                                                                                                                                                        |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Buttons (primary/secondary/destructive, 3 sizes) | `Button` with a custom `ButtonStyle` per variant (`PrimaryButtonStyle`, `SecondaryButtonStyle`, `DestructiveButtonStyle`), reading colours from a generated `ColorTokens` enum (see §14, shared token format) |
-| KPI/stat card | `StatCardView` — `VStack` with a circular `.background(tone.opacity(0.1))` icon badge (SF Symbol), bold `.font(.title2.bold())` number, `.caption` label |
-| List-row card | `SwiftUI List` with custom row `View`, leading icon/avatar, `VStack(alignment: .leading)` two-line text, trailing `StatusBadgeView` and/or `chevron.right` |
-| Explainer card | `InfoCardView` — `RoundedRectangle` background at `Color(.secondarySystemBackground)`-equivalent token, `.font(.subheadline)` |
-| Tables (web `AdminDataTable` equivalent) | Native lists don't need a table primitive — iOS uses `List`/`LazyVStack` row-based layouts throughout, never a literal scrollable grid-table (HIG guidance: tables are a desktop pattern) |
-| Segmented control | Native `Picker(selection:) { }.pickerStyle(.segmented)` |
-| Empty state | `EmptyStateView` — `ContentUnavailableView` (iOS 17+) with custom icon/title/description, or a custom equivalent for earlier target OS versions |
-| Modal | `.sheet(isPresented:)` for confirm/cancel and short tasks; `.fullScreenCover` only for the sign-in flow |
-| Alerts/toasts | Inline: a top-of-section `Banner` view. Transient: a custom `.toast()` view modifier (SwiftUI has no built-in toast) auto-dismissing after `motionDuration.slow`-scaled duration |
-| Skeleton loading | `.redacted(reason: .placeholder)` modifier on real view hierarchy — never a bespoke shimmer view, since `.redacted` is the HIG-native mechanism |
+| KPI/stat card                                    | `StatCardView` — `VStack` with a circular `.background(tone.opacity(0.1))` icon badge (SF Symbol), bold `.font(.title2.bold())` number, `.caption` label                                                      |
+| List-row card                                    | `SwiftUI List` with custom row `View`, leading icon/avatar, `VStack(alignment: .leading)` two-line text, trailing `StatusBadgeView` and/or `chevron.right`                                                    |
+| Explainer card                                   | `InfoCardView` — `RoundedRectangle` background at `Color(.secondarySystemBackground)`-equivalent token, `.font(.subheadline)`                                                                                 |
+| Tables (web `AdminDataTable` equivalent)         | Native lists don't need a table primitive — iOS uses `List`/`LazyVStack` row-based layouts throughout, never a literal scrollable grid-table (HIG guidance: tables are a desktop pattern)                     |
+| Segmented control                                | Native `Picker(selection:) { }.pickerStyle(.segmented)`                                                                                                                                                       |
+| Empty state                                      | `EmptyStateView` — `ContentUnavailableView` (iOS 17+) with custom icon/title/description, or a custom equivalent for earlier target OS versions                                                               |
+| Modal                                            | `.sheet(isPresented:)` for confirm/cancel and short tasks; `.fullScreenCover` only for the sign-in flow                                                                                                       |
+| Alerts/toasts                                    | Inline: a top-of-section `Banner` view. Transient: a custom `.toast()` view modifier (SwiftUI has no built-in toast) auto-dismissing after `motionDuration.slow`-scaled duration                              |
+| Skeleton loading                                 | `.redacted(reason: .placeholder)` modifier on real view hierarchy — never a bespoke shimmer view, since `.redacted` is the HIG-native mechanism                                                               |
 
 ## 6. HIG compliance
 

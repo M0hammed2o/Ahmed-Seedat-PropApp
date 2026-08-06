@@ -73,8 +73,12 @@ export function LinkedAccountsPanel() {
 
   return (
     <Panel className="max-w-xl">
-      <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">Linked sign-in methods</h2>
-      {error ? <p className="mt-2 text-xs text-light-danger dark:text-dark-danger">{error}</p> : null}
+      <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+        Linked sign-in methods
+      </h2>
+      {error ? (
+        <p className="mt-2 text-xs text-light-danger dark:text-dark-danger">{error}</p>
+      ) : null}
       <div className="mt-3 space-y-2">
         {PROVIDERS.map((provider) => {
           const identity = identities.find((i) => i.provider === provider);
@@ -83,9 +87,15 @@ export function LinkedAccountsPanel() {
               key={provider}
               className="flex items-center justify-between rounded-lg border border-light-border px-3 py-2 dark:border-dark-border"
             >
-              <span className="text-sm capitalize text-light-textPrimary dark:text-dark-textPrimary">{provider}</span>
+              <span className="text-sm capitalize text-light-textPrimary dark:text-dark-textPrimary">
+                {provider}
+              </span>
               {identity ? (
-                <Button size="sm" disabled={pending === provider || identities.length < 2} onClick={() => unlink(identity)}>
+                <Button
+                  size="sm"
+                  disabled={pending === provider || identities.length < 2}
+                  onClick={() => unlink(identity)}
+                >
                   {pending === provider ? 'Unlinking…' : 'Unlink'}
                 </Button>
               ) : (

@@ -30,7 +30,9 @@ export function Panel({
               {title}
             </h2>
             {description ? (
-              <p className="mt-0.5 truncate text-xs text-light-textMuted dark:text-dark-textMuted">{description}</p>
+              <p className="mt-0.5 truncate text-xs text-light-textMuted dark:text-dark-textMuted">
+                {description}
+              </p>
             ) : null}
           </div>
           {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}

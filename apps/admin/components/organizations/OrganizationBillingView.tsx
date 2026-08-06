@@ -42,7 +42,8 @@ export function OrganizationBillingView({ organization, plans, subscription, pay
   const [error, setError] = useState<string | null>(null);
 
   const currentPlan = subscription ? plans.find((p) => p.id === subscription.planId) : null;
-  const canCancel = subscription && (subscription.status === 'active' || subscription.status === 'overdue');
+  const canCancel =
+    subscription && (subscription.status === 'active' || subscription.status === 'overdue');
 
   async function startCheckout(planId: string) {
     setError(null);
@@ -69,13 +70,19 @@ export function OrganizationBillingView({ organization, plans, subscription, pay
   }
 
   async function cancelSubscription() {
-    if (!window.confirm('Cancel your PropertyVault subscription? Your access will be locked at the end of the current billing period.')) {
+    if (
+      !window.confirm(
+        'Cancel your PropertyVault subscription? Your access will be locked at the end of the current billing period.',
+      )
+    ) {
       return;
     }
     setError(null);
     setCancelling(true);
     try {
-      const response = await fetch(`/api/v1/organizations/${organization.id}/billing/cancel`, { method: 'POST' });
+      const response = await fetch(`/api/v1/organizations/${organization.id}/billing/cancel`, {
+        method: 'POST',
+      });
       const body = await response.json();
       if (!response.ok) {
         setError(body.error?.message ?? 'Failed to cancel subscription.');
@@ -107,7 +114,8 @@ export function OrganizationBillingView({ organization, plans, subscription, pay
               </Pill>
               {currentPlan ? (
                 <span className="text-sm text-light-textPrimary dark:text-dark-textPrimary">
-                  {currentPlan.name} — {formatMoney(currentPlan.basePrice, currentPlan.currency)}/{subscription!.billingCycle === 'annual' ? 'year' : 'month'}
+                  {currentPlan.name} — {formatMoney(currentPlan.basePrice, currentPlan.currency)}/
+                  {subscription!.billingCycle === 'annual' ? 'year' : 'month'}
                 </span>
               ) : null}
             </div>
@@ -125,7 +133,12 @@ export function OrganizationBillingView({ organization, plans, subscription, pay
             ) : null}
           </div>
           {canCancel ? (
-            <Button variant="destructive" size="sm" disabled={cancelling} onClick={cancelSubscription}>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={cancelling}
+              onClick={cancelSubscription}
+            >
               {cancelling ? 'Cancelling…' : 'Cancel subscription'}
             </Button>
           ) : null}
@@ -148,10 +161,14 @@ export function OrganizationBillingView({ organization, plans, subscription, pay
                     : 'border-light-border dark:border-dark-border'
                 }`}
               >
-                <p className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">{plan.name}</p>
+                <p className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+                  {plan.name}
+                </p>
                 <p className="mt-1 text-lg font-bold text-light-textPrimary dark:text-dark-textPrimary">
                   {formatMoney(plan.basePrice, plan.currency)}
-                  <span className="text-xs font-normal text-light-textMuted dark:text-dark-textMuted">/month</span>
+                  <span className="text-xs font-normal text-light-textMuted dark:text-dark-textMuted">
+                    /month
+                  </span>
                 </p>
                 <Button
                   className="mt-3 w-full"
@@ -160,7 +177,13 @@ export function OrganizationBillingView({ organization, plans, subscription, pay
                   disabled={isCurrent || startingCheckoutFor !== null}
                   onClick={() => startCheckout(plan.id)}
                 >
-                  {isCurrent ? 'Current plan' : startingCheckoutFor === plan.id ? 'Starting…' : currentPlan ? 'Switch to this plan' : 'Subscribe'}
+                  {isCurrent
+                    ? 'Current plan'
+                    : startingCheckoutFor === plan.id
+                      ? 'Starting…'
+                      : currentPlan
+                        ? 'Switch to this plan'
+                        : 'Subscribe'}
                 </Button>
               </div>
             );
@@ -169,26 +192,40 @@ export function OrganizationBillingView({ organization, plans, subscription, pay
       </Panel>
 
       <Panel bodyClassName="p-0">
-        <h3 className="px-4 pt-4 text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">Payment history</h3>
+        <h3 className="px-4 pt-4 text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+          Payment history
+        </h3>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-light-border bg-light-surfaceStrong dark:border-dark-border dark:bg-dark-surfaceStrong">
               <tr>
-                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Date</th>
-                <th className="px-4 py-3 text-right font-medium text-light-textSecondary dark:text-dark-textSecondary">Amount</th>
-                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Status</th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Date
+                </th>
+                <th className="px-4 py-3 text-right font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Amount
+                </th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Status
+                </th>
               </tr>
             </thead>
             <tbody>
               {payments.length === 0 ? (
                 <tr>
-                  <td colSpan={3} className="px-4 py-6 text-center text-light-textMuted dark:text-dark-textMuted">
+                  <td
+                    colSpan={3}
+                    className="px-4 py-6 text-center text-light-textMuted dark:text-dark-textMuted"
+                  >
                     No payments yet.
                   </td>
                 </tr>
               ) : (
                 payments.map((payment) => (
-                  <tr key={payment.id} className="border-b border-light-border last:border-b-0 dark:border-dark-border">
+                  <tr
+                    key={payment.id}
+                    className="border-b border-light-border last:border-b-0 dark:border-dark-border"
+                  >
                     <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">
                       {new Date(payment.paidAt ?? payment.createdAt).toLocaleDateString('en-ZA')}
                     </td>

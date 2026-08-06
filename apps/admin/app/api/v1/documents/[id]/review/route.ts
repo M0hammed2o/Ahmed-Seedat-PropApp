@@ -47,7 +47,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   const canWrite = await requireOrgRole(supabase, document.org_id, 'agent');
   if (!canWrite) {
     return NextResponse.json(
-      { error: { code: 'forbidden', message: 'You do not have permission to review this document.' } },
+      {
+        error: {
+          code: 'forbidden',
+          message: 'You do not have permission to review this document.',
+        },
+      },
       { status: 403 },
     );
   }
@@ -94,7 +99,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
   if (!latestJob) {
     return NextResponse.json(
-      { error: { code: 'no_extraction', message: 'This document has no completed extraction to review.' } },
+      {
+        error: {
+          code: 'no_extraction',
+          message: 'This document has no completed extraction to review.',
+        },
+      },
       { status: 400 },
     );
   }

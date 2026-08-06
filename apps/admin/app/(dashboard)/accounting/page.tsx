@@ -20,7 +20,13 @@ import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 // to real data throughout -- confirmed via AskUserQuestion with Mohammed (2026-08-04) rather than
 // guessed, since this is a new route/nav entry, not a reskin of an existing one.
 
-const CHART_TONES = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)'];
+const CHART_TONES = [
+  'var(--chart-1)',
+  'var(--chart-2)',
+  'var(--chart-3)',
+  'var(--chart-4)',
+  'var(--chart-5)',
+];
 
 interface MoneySeriesPoint {
   month: string;
@@ -85,7 +91,15 @@ const DEMO_DATA: AccountingOverview = {
     { name: 'Insurance', value: 18, tone: CHART_TONES[2]! },
     { name: 'Utilities', value: 12, tone: CHART_TONES[3]! },
   ],
-  invoices: [{ id: 'demo-inv-1', tenantName: 'Naledi Khumalo', period: '2026-08-01', amount: 12500, status: 'paid' }],
+  invoices: [
+    {
+      id: 'demo-inv-1',
+      tenantName: 'Naledi Khumalo',
+      period: '2026-08-01',
+      amount: 12500,
+      status: 'paid',
+    },
+  ],
   payments: [{ id: 'demo-pmt-1', tenantName: 'Naledi Khumalo', amount: 12500, date: '2026-08-01' }],
 };
 
@@ -106,7 +120,11 @@ export default async function AccountingOverviewPage() {
     { label: 'Income (MTD)', value: currency(data.incomeMtd), delta: data.incomeDelta },
     { label: 'Expenses (MTD)', value: currency(data.expensesMtd), delta: data.expensesDelta },
     { label: 'Net cash flow', value: currency(data.netCashFlow), delta: data.netCashFlowDelta },
-    { label: 'Outstanding rent', value: currency(data.outstandingRent), delta: data.outstandingDelta },
+    {
+      label: 'Outstanding rent',
+      value: currency(data.outstandingRent),
+      delta: data.outstandingDelta,
+    },
   ];
 
   return (
@@ -136,10 +154,7 @@ export default async function AccountingOverviewPage() {
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {stats.map((s) => (
-          <div
-            key={s.label}
-            className="panel px-5 py-4"
-          >
+          <div key={s.label} className="panel px-5 py-4">
             <div className="flex items-center justify-between">
               <p className="text-[11px] text-light-textMuted dark:text-dark-textMuted">{s.label}</p>
               {s.delta !== null ? <Delta value={s.delta} /> : null}
@@ -152,7 +167,12 @@ export default async function AccountingOverviewPage() {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-3">
-        <Panel className="xl:col-span-2" title="Cash flow" description="Last 9 months" bodyClassName="p-3 pt-5">
+        <Panel
+          className="xl:col-span-2"
+          title="Cash flow"
+          description="Last 9 months"
+          bodyClassName="p-3 pt-5"
+        >
           <MoneyFlowChart data={data.revenueSeries} />
         </Panel>
 
@@ -186,7 +206,10 @@ export default async function AccountingOverviewPage() {
                       {i.tenantName}
                     </td>
                     <td className="px-5 py-3 text-light-textMuted dark:text-dark-textMuted">
-                      {new Date(i.period).toLocaleDateString('en-ZA', { month: 'short', year: 'numeric' })}
+                      {new Date(i.period).toLocaleDateString('en-ZA', {
+                        month: 'short',
+                        year: 'numeric',
+                      })}
                     </td>
                     <td className="tabular px-5 py-3 text-right font-semibold text-light-textPrimary dark:text-dark-textPrimary">
                       {currency(i.amount)}
@@ -215,7 +238,11 @@ export default async function AccountingOverviewPage() {
                       {p.tenantName}
                     </p>
                     <p className="text-[11px] text-light-textMuted dark:text-dark-textMuted">
-                      {new Date(p.date).toLocaleDateString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      {new Date(p.date).toLocaleDateString('en-ZA', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric',
+                      })}
                     </p>
                   </div>
                   <span className="tabular text-[13px] font-semibold text-light-textPrimary dark:text-dark-textPrimary">
@@ -243,7 +270,11 @@ async function loadData(): Promise<AccountingOverview> {
   const [rentSchedulesResult, expensesResult, invoicesResult, txResult] = await Promise.all([
     supabase.from('rent_schedules').select('due_date, amount, status'),
     supabase.from('expenses').select('*').gte('created_at', yearStart),
-    supabase.from('invoices').select('id, tenant_id, period, amount, status').order('created_at', { ascending: false }).limit(6),
+    supabase
+      .from('invoices')
+      .select('id, tenant_id, period, amount, status')
+      .order('created_at', { ascending: false })
+      .limit(6),
     supabase
       .from('bank_transactions')
       .select('id, amount, transaction_date, matched_rent_schedule_id')
@@ -251,10 +282,14 @@ async function loadData(): Promise<AccountingOverview> {
       .order('transaction_date', { ascending: false })
       .limit(6),
   ]);
-  if (rentSchedulesResult.error) throw new Error(`Failed to load rent schedule: ${rentSchedulesResult.error.message}`);
-  if (expensesResult.error) throw new Error(`Failed to load expenses: ${expensesResult.error.message}`);
-  if (invoicesResult.error) throw new Error(`Failed to load invoices: ${invoicesResult.error.message}`);
-  if (txResult.error) throw new Error(`Failed to load bank transactions: ${txResult.error.message}`);
+  if (rentSchedulesResult.error)
+    throw new Error(`Failed to load rent schedule: ${rentSchedulesResult.error.message}`);
+  if (expensesResult.error)
+    throw new Error(`Failed to load expenses: ${expensesResult.error.message}`);
+  if (invoicesResult.error)
+    throw new Error(`Failed to load invoices: ${invoicesResult.error.message}`);
+  if (txResult.error)
+    throw new Error(`Failed to load bank transactions: ${txResult.error.message}`);
 
   const rentSchedules = rentSchedulesResult.data ?? [];
   const expenses = (expensesResult.data ?? []).map(mapExpenseRow);
@@ -264,18 +299,27 @@ async function loadData(): Promise<AccountingOverview> {
   const lastMonthKey = monthKey(new Date(now.getFullYear(), now.getMonth() - 1, 1));
 
   const billedInMonth = (key: string) =>
-    rentSchedules.filter((r) => r.due_date.slice(0, 7) === key).reduce((sum, r) => sum + Number(r.amount), 0);
+    rentSchedules
+      .filter((r) => r.due_date.slice(0, 7) === key)
+      .reduce((sum, r) => sum + Number(r.amount), 0);
   const collectedInMonth = (key: string) =>
     rentSchedules
       .filter((r) => r.status === 'paid' && r.due_date.slice(0, 7) === key)
       .reduce((sum, r) => sum + Number(r.amount), 0);
   const outstandingAsOf = (key: string) =>
     rentSchedules
-      .filter((r) => (r.status === 'invoiced' || r.status === 'overdue' || r.status === 'partial') && r.due_date.slice(0, 7) <= key)
+      .filter(
+        (r) =>
+          (r.status === 'invoiced' || r.status === 'overdue' || r.status === 'partial') &&
+          r.due_date.slice(0, 7) <= key,
+      )
       .reduce((sum, r) => sum + Number(r.amount), 0);
   const expensesInMonth = (key: string) =>
     expenses
-      .filter((e) => (e.status === 'recorded' || e.status === 'reimbursed') && e.createdAt.slice(0, 7) === key)
+      .filter(
+        (e) =>
+          (e.status === 'recorded' || e.status === 'reimbursed') && e.createdAt.slice(0, 7) === key,
+      )
       .reduce((sum, e) => sum + e.amount, 0);
 
   const pctDelta = (curr: number, prev: number): number | null => {
@@ -320,13 +364,14 @@ async function loadData(): Promise<AccountingOverview> {
   const otherTotal = sortedCategories.slice(5).reduce((sum, [, amount]) => sum + amount, 0);
   const expenseMix =
     totalExpenseYtd > 0
-      ? [...topCategories, ...(otherTotal > 0 ? [['Other', otherTotal] as [string, number]] : [])].map(
-          ([name, amount], i) => ({
-            name,
-            value: Math.round((amount / totalExpenseYtd) * 100),
-            tone: CHART_TONES[i % CHART_TONES.length]!,
-          }),
-        )
+      ? [
+          ...topCategories,
+          ...(otherTotal > 0 ? [['Other', otherTotal] as [string, number]] : []),
+        ].map(([name, amount], i) => ({
+          name,
+          value: Math.round((amount / totalExpenseYtd) * 100),
+          tone: CHART_TONES[i % CHART_TONES.length]!,
+        }))
       : [];
 
   const invoiceRows = invoicesResult.data ?? [];
@@ -366,20 +411,36 @@ async function loadData(): Promise<AccountingOverview> {
 
 async function loadRecentPayments(
   supabase: Awaited<ReturnType<typeof getServerSupabaseClient>>,
-  transactions: { id: string; amount: number; transaction_date: string; matched_rent_schedule_id: string | null }[],
+  transactions: {
+    id: string;
+    amount: number;
+    transaction_date: string;
+    matched_rent_schedule_id: string | null;
+  }[],
 ): Promise<PaymentRow[]> {
-  const scheduleIds = transactions.map((t) => t.matched_rent_schedule_id).filter((id): id is string => Boolean(id));
+  const scheduleIds = transactions
+    .map((t) => t.matched_rent_schedule_id)
+    .filter((id): id is string => Boolean(id));
   if (scheduleIds.length === 0) return [];
 
-  const { data: schedules } = await supabase.from('rent_schedules').select('id, lease_id').in('id', scheduleIds);
+  const { data: schedules } = await supabase
+    .from('rent_schedules')
+    .select('id, lease_id')
+    .in('id', scheduleIds);
   const leaseIdBySchedule = new Map((schedules ?? []).map((s) => [s.id, s.lease_id]));
   const leaseIds = [...new Set((schedules ?? []).map((s) => s.lease_id))];
   if (leaseIds.length === 0) return [];
 
-  const { data: leaseTenants } = await supabase.from('lease_tenants').select('lease_id, tenant_id').in('lease_id', leaseIds);
+  const { data: leaseTenants } = await supabase
+    .from('lease_tenants')
+    .select('lease_id, tenant_id')
+    .in('lease_id', leaseIds);
   const tenantIdByLease = new Map((leaseTenants ?? []).map((lt) => [lt.lease_id, lt.tenant_id]));
   const tenantIds = [...new Set((leaseTenants ?? []).map((lt) => lt.tenant_id))];
-  const { data: tenants } = tenantIds.length > 0 ? await supabase.from('tenants').select('id, full_name').in('id', tenantIds) : { data: [] };
+  const { data: tenants } =
+    tenantIds.length > 0
+      ? await supabase.from('tenants').select('id, full_name').in('id', tenantIds)
+      : { data: [] };
   const tenantNameById = new Map((tenants ?? []).map((t) => [t.id, t.full_name]));
 
   return transactions

@@ -38,7 +38,14 @@ export default async function DocumentDetailPage({ params }: RouteParams) {
 
   if (ADMIN_DEMO_MODE) {
     if (id !== 'demo-document-1') notFound();
-    return <DocumentDetailView document={DEMO_DOCUMENT} signedUrl={null} extractionResult={null} canAct />;
+    return (
+      <DocumentDetailView
+        document={DEMO_DOCUMENT}
+        signedUrl={null}
+        extractionResult={null}
+        canAct
+      />
+    );
   }
 
   const supabase = await getServerSupabaseClient();
@@ -48,7 +55,9 @@ export default async function DocumentDetailPage({ params }: RouteParams) {
   const document = mapDocumentRow(data);
 
   let signedUrl: string | null = null;
-  const { data: signed } = await supabase.storage.from('documents').createSignedUrl(document.storagePath, SIGNED_URL_TTL_SECONDS);
+  const { data: signed } = await supabase.storage
+    .from('documents')
+    .createSignedUrl(document.storagePath, SIGNED_URL_TTL_SECONDS);
   if (signed) signedUrl = signed.signedUrl;
 
   const { data: jobRow } = await supabase
@@ -71,10 +80,18 @@ export default async function DocumentDetailPage({ params }: RouteParams) {
   }
 
   const session = await resolvePortalSession();
-  const membership = session && document.orgId ? findActiveMembership(session, document.orgId) : undefined;
+  const membership =
+    session && document.orgId ? findActiveMembership(session, document.orgId) : undefined;
   const canAct = Boolean(membership && canWriteOrgRecords(membership.role));
 
-  return <DocumentDetailView document={document} signedUrl={signedUrl} extractionResult={extractionResult} canAct={canAct} />;
+  return (
+    <DocumentDetailView
+      document={document}
+      signedUrl={signedUrl}
+      extractionResult={extractionResult}
+      canAct={canAct}
+    />
+  );
 }
 
 function DocumentDetailView({
@@ -91,7 +108,10 @@ function DocumentDetailView({
   return (
     <div className="space-y-6 animate-rise">
       <div>
-        <Link href="/documents" className="text-xs text-light-textSecondary hover:underline dark:text-dark-textSecondary">
+        <Link
+          href="/documents"
+          className="text-xs text-light-textSecondary hover:underline dark:text-dark-textSecondary"
+        >
           ← Back to documents
         </Link>
         <div className="mt-2">

@@ -28,7 +28,9 @@ export async function GET() {
     );
   }
 
-  return NextResponse.json({ notificationPreferences: (data ?? []).map(mapNotificationPreferenceRow) });
+  return NextResponse.json({
+    notificationPreferences: (data ?? []).map(mapNotificationPreferenceRow),
+  });
 }
 
 export async function PATCH(request: NextRequest) {
@@ -70,7 +72,8 @@ export async function PATCH(request: NextRequest) {
   const patch: Record<string, unknown> = { user_id: user.id, category: parsed.data.category };
   if (parsed.data.emailEnabled !== undefined) patch.email_enabled = parsed.data.emailEnabled;
   if (parsed.data.pushEnabled !== undefined) patch.push_enabled = parsed.data.pushEnabled;
-  if (parsed.data.whatsappEnabled !== undefined) patch.whatsapp_enabled = parsed.data.whatsappEnabled;
+  if (parsed.data.whatsappEnabled !== undefined)
+    patch.whatsapp_enabled = parsed.data.whatsappEnabled;
 
   const { data, error } = await supabase
     .from('notification_preferences')

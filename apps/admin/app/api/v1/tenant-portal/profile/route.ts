@@ -94,5 +94,7 @@ export async function PATCH(request: NextRequest) {
     );
   }
 
-  return NextResponse.json({ tenant: { fullName: data.full_name, email: data.email, phone: data.phone } });
+  return NextResponse.json({
+    tenant: { fullName: data.full_name, email: data.email, phone: data.phone },
+  });
 }

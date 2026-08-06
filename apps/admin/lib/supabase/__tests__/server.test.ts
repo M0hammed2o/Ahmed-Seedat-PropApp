@@ -10,7 +10,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 let mockAuthorizationHeader: string | null = null;
 
 vi.mock('next/headers', () => ({
-  headers: async () => ({ get: (name: string) => (name.toLowerCase() === 'authorization' ? mockAuthorizationHeader : null) }),
+  headers: async () => ({
+    get: (name: string) =>
+      name.toLowerCase() === 'authorization' ? mockAuthorizationHeader : null,
+  }),
   cookies: async () => ({ getAll: () => [], set: () => {} }),
 }));
 
@@ -118,7 +121,10 @@ describeIfSupabase('getServerSupabaseClient (real local Supabase integration)', 
     // This user has no organization_members row at all -- RLS should return zero rows, not error
     // and not leak other orgs' rows, proving the client's Authorization header (not an assumed
     // elevated role) is what PostgREST is enforcing against.
-    const { data, error } = await client.from('organization_members').select('org_id').eq('user_id', testUserId);
+    const { data, error } = await client
+      .from('organization_members')
+      .select('org_id')
+      .eq('user_id', testUserId);
     expect(error).toBeNull();
     expect(data).toEqual([]);
   });

@@ -24,9 +24,15 @@ describe('scanUploadOrRespond', () => {
   it('returns a 422 rejection when the scan reports a match', async () => {
     vi.spyOn(malwareScanModule, 'getMalwareScanProvider').mockReturnValue({
       providerName: 'test',
-      scan: vi.fn().mockResolvedValue({ clean: false, threatName: 'Test-Signature', providerName: 'test' }),
+      scan: vi
+        .fn()
+        .mockResolvedValue({ clean: false, threatName: 'Test-Signature', providerName: 'test' }),
     });
-    vi.spyOn(malwareScanModule, 'getClamAVConfig').mockReturnValue({ host: 'x', port: 1, timeoutMs: 1 });
+    vi.spyOn(malwareScanModule, 'getClamAVConfig').mockReturnValue({
+      host: 'x',
+      port: 1,
+      timeoutMs: 1,
+    });
 
     const result = await scanUploadOrRespond(new Uint8Array([1, 2, 3]));
     expect(result).not.toBeNull();
@@ -51,7 +57,11 @@ describe('scanUploadOrRespond', () => {
       providerName: 'clamav',
       scan: vi.fn().mockRejectedValue(new Error('ECONNREFUSED')),
     });
-    vi.spyOn(malwareScanModule, 'getClamAVConfig').mockReturnValue({ host: 'x', port: 1, timeoutMs: 1 });
+    vi.spyOn(malwareScanModule, 'getClamAVConfig').mockReturnValue({
+      host: 'x',
+      port: 1,
+      timeoutMs: 1,
+    });
 
     const result = await scanUploadOrRespond(new Uint8Array([1, 2, 3]));
     expect(result).not.toBeNull();

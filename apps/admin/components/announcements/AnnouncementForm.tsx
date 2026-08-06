@@ -74,21 +74,36 @@ export function AnnouncementForm({ orgId }: { orgId: string }) {
             className={inputClass}
           />
           {fieldErrors.title?.length ? (
-            <p className="mt-1 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">{fieldErrors.title[0]}</p>
+            <p className="mt-1 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">
+              {fieldErrors.title[0]}
+            </p>
           ) : null}
         </label>
 
         <label className="block text-xs">
           <span className="text-light-textMuted dark:text-dark-textMuted">Body</span>
-          <textarea required rows={5} value={body} onChange={(e) => setBody(e.target.value)} className={inputClass} />
+          <textarea
+            required
+            rows={5}
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            className={inputClass}
+          />
           {fieldErrors.body?.length ? (
-            <p className="mt-1 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">{fieldErrors.body[0]}</p>
+            <p className="mt-1 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">
+              {fieldErrors.body[0]}
+            </p>
           ) : null}
         </label>
 
         <label className="block text-xs">
           <span className="text-light-textMuted dark:text-dark-textMuted">Expires (optional)</span>
-          <input type="date" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} className={inputClass} />
+          <input
+            type="date"
+            value={expiresAt}
+            onChange={(e) => setExpiresAt(e.target.value)}
+            className={inputClass}
+          />
         </label>
 
         <label className="flex items-center gap-2 text-xs text-light-textSecondary dark:text-dark-textSecondary">

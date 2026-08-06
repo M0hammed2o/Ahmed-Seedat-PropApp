@@ -4,7 +4,12 @@ import type { RentSchedule, Tenant } from '@propvault/types';
 import { LEASE_STATUS_PRESENTATION, TENANT_STATUS_PRESENTATION } from '@propvault/ui';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapLeaseRow, mapTenantRow, mapRentScheduleRow } from '@/lib/leasing';
-import { resolvePortalSession, findActiveMembership, canPostAccountingRecords, canWriteOrgRecords } from '@/lib/orgSession';
+import {
+  resolvePortalSession,
+  findActiveMembership,
+  canPostAccountingRecords,
+  canWriteOrgRecords,
+} from '@/lib/orgSession';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
@@ -60,9 +65,33 @@ const DEMO_LEASE_TENANTS: LeaseTenant[] = [
 ];
 
 const DEMO_RENT_SCHEDULE: RentSchedule[] = [
-  { id: 'demo-rs-1', orgId: 'demo-org-1', leaseId: 'demo-lease-1', dueDate: '2026-08-01', amount: 12500, status: 'overdue', generatedAt: '2026-08-01T00:00:00Z' },
-  { id: 'demo-rs-2', orgId: 'demo-org-1', leaseId: 'demo-lease-1', dueDate: '2026-07-01', amount: 12500, status: 'paid', generatedAt: '2026-07-01T00:00:00Z' },
-  { id: 'demo-rs-3', orgId: 'demo-org-1', leaseId: 'demo-lease-1', dueDate: '2026-06-01', amount: 12500, status: 'paid', generatedAt: '2026-06-01T00:00:00Z' },
+  {
+    id: 'demo-rs-1',
+    orgId: 'demo-org-1',
+    leaseId: 'demo-lease-1',
+    dueDate: '2026-08-01',
+    amount: 12500,
+    status: 'overdue',
+    generatedAt: '2026-08-01T00:00:00Z',
+  },
+  {
+    id: 'demo-rs-2',
+    orgId: 'demo-org-1',
+    leaseId: 'demo-lease-1',
+    dueDate: '2026-07-01',
+    amount: 12500,
+    status: 'paid',
+    generatedAt: '2026-07-01T00:00:00Z',
+  },
+  {
+    id: 'demo-rs-3',
+    orgId: 'demo-org-1',
+    leaseId: 'demo-lease-1',
+    dueDate: '2026-06-01',
+    amount: 12500,
+    status: 'paid',
+    generatedAt: '2026-06-01T00:00:00Z',
+  },
 ];
 
 export default async function LeaseDetailPage({ params }: RouteParams) {
@@ -91,7 +120,11 @@ export default async function LeaseDetailPage({ params }: RouteParams) {
   if (!data) notFound();
 
   const { units, ...leaseRow } = data as typeof data & {
-    units: { unit_label: string; property_id: string; properties: { nickname: string } | null } | null;
+    units: {
+      unit_label: string;
+      property_id: string;
+      properties: { nickname: string } | null;
+    } | null;
   };
   const lease: LeaseRow = {
     ...mapLeaseRow(leaseRow),
@@ -114,7 +147,10 @@ export default async function LeaseDetailPage({ params }: RouteParams) {
   // lease_tenants.tenant_id -> tenants.id is many-to-one, so PostgREST embeds a single object at
   // runtime -- the `tenants(*)` embed syntax just can't express that cardinality to an untyped
   // client (no generated Database types), so supabase-js's inferred type is wrong, not the data.
-  const ltRows = (ltData ?? []) as unknown as { is_primary: boolean; tenants: Record<string, unknown> | null }[];
+  const ltRows = (ltData ?? []) as unknown as {
+    is_primary: boolean;
+    tenants: Record<string, unknown> | null;
+  }[];
   const leaseTenants: LeaseTenant[] = ltRows
     .filter((r): r is typeof r & { tenants: NonNullable<typeof r.tenants> } => r.tenants !== null)
     .map((r) => ({
@@ -154,17 +190,26 @@ function LeaseDetailView({
   leaseTenants: LeaseTenant[];
   rentSchedule: RentSchedule[];
 }) {
-  const backHref = lease.propertyId ? `/properties/${lease.propertyId}/units/${lease.unitId}` : '/leases';
+  const backHref = lease.propertyId
+    ? `/properties/${lease.propertyId}/units/${lease.unitId}`
+    : '/leases';
 
   return (
     <div className="space-y-6 animate-rise">
       <div>
-        <Link href={backHref} className="text-xs text-light-textSecondary hover:underline dark:text-dark-textSecondary">
+        <Link
+          href={backHref}
+          className="text-xs text-light-textSecondary hover:underline dark:text-dark-textSecondary"
+        >
           ← Back to {lease.propertyId ? 'unit' : 'leases'}
         </Link>
         <div className="mt-2">
           <PageHeader
-            title={lease.propertyNickname ? `${lease.propertyNickname} — ${lease.unitLabel}` : (lease.unitLabel ?? 'Lease')}
+            title={
+              lease.propertyNickname
+                ? `${lease.propertyNickname} — ${lease.unitLabel}`
+                : (lease.unitLabel ?? 'Lease')
+            }
             actions={
               canEdit ? (
                 <Link href={`/leases/${lease.id}/edit`}>
@@ -185,11 +230,15 @@ function LeaseDetailView({
         <dl className="grid grid-cols-2 gap-x-4 gap-y-5 text-sm lg:grid-cols-4">
           <div>
             <dt className="text-light-textMuted dark:text-dark-textMuted">Start date</dt>
-            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">{lease.startDate}</dd>
+            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">
+              {lease.startDate}
+            </dd>
           </div>
           <div>
             <dt className="text-light-textMuted dark:text-dark-textMuted">End date</dt>
-            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">{lease.endDate ?? 'Open-ended'}</dd>
+            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">
+              {lease.endDate ?? 'Open-ended'}
+            </dd>
           </div>
           <div>
             <dt className="text-light-textMuted dark:text-dark-textMuted">Rent</dt>
@@ -208,13 +257,25 @@ function LeaseDetailView({
 
       <Panel title="Tenants">
         {leaseTenants.length === 0 ? (
-          <p className="text-sm text-light-textMuted dark:text-dark-textMuted">No tenant assigned to this lease yet.</p>
+          <p className="text-sm text-light-textMuted dark:text-dark-textMuted">
+            No tenant assigned to this lease yet.
+          </p>
         ) : (
           <ul className="divide-y divide-light-border dark:divide-dark-border">
             {leaseTenants.map(({ tenant, isPrimary }) => (
-              <li key={tenant.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
-                <Link href={`/tenants/${tenant.id}`} className="group flex min-w-0 items-center gap-2.5">
-                  <Avatar initials={initialsFor(tenant.fullName)} tone="muted" className="h-8 w-8 text-[11px]" />
+              <li
+                key={tenant.id}
+                className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
+              >
+                <Link
+                  href={`/tenants/${tenant.id}`}
+                  className="group flex min-w-0 items-center gap-2.5"
+                >
+                  <Avatar
+                    initials={initialsFor(tenant.fullName)}
+                    tone="muted"
+                    className="h-8 w-8 text-[11px]"
+                  />
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-medium text-light-accent group-hover:underline dark:text-dark-accent">
                       {tenant.fullName}

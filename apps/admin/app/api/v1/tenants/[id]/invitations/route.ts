@@ -76,13 +76,18 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     );
   }
   if (!tenant) {
-    return NextResponse.json({ error: { code: 'not_found', message: 'Tenant not found.' } }, { status: 404 });
+    return NextResponse.json(
+      { error: { code: 'not_found', message: 'Tenant not found.' } },
+      { status: 404 },
+    );
   }
 
   const canWrite = await requireOrgRole(supabase, tenant.org_id, 'agent');
   if (!canWrite) {
     return NextResponse.json(
-      { error: { code: 'forbidden', message: 'You do not have permission to invite this tenant.' } },
+      {
+        error: { code: 'forbidden', message: 'You do not have permission to invite this tenant.' },
+      },
       { status: 403 },
     );
   }
@@ -112,7 +117,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
 
   const destination = parsed.data.deliveryChannel === 'whatsapp' ? tenant.phone : tenant.email;
-  if ((parsed.data.deliveryChannel === 'email' || parsed.data.deliveryChannel === 'whatsapp') && !destination) {
+  if (
+    (parsed.data.deliveryChannel === 'email' || parsed.data.deliveryChannel === 'whatsapp') &&
+    !destination
+  ) {
     return NextResponse.json(
       {
         error: {
@@ -145,7 +153,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
 
   const serviceClient = getServiceRoleClient();
-  const { data: org } = await serviceClient.from('organizations').select('legal_name').eq('id', tenant.org_id).maybeSingle();
+  const { data: org } = await serviceClient
+    .from('organizations')
+    .select('legal_name')
+    .eq('id', tenant.org_id)
+    .maybeSingle();
   const acceptUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/activate?token=${created.token}`;
 
   if (parsed.data.deliveryChannel === 'email' && tenant.email) {

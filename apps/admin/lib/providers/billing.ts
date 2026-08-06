@@ -26,7 +26,10 @@ export class MockBillingGatewayProvider implements BillingGatewayProvider {
   readonly providerName = 'mock';
 
   async createCustomer(input: CreateCustomerInput): Promise<CreateCustomerResult> {
-    console.warn('[MockBillingGatewayProvider] would create customer', { orgId: input.orgId, email: input.email });
+    console.warn('[MockBillingGatewayProvider] would create customer', {
+      orgId: input.orgId,
+      email: input.email,
+    });
     return { providerCustomerId: `mock-cust-${input.orgId}` };
   }
 
@@ -49,12 +52,16 @@ export class MockBillingGatewayProvider implements BillingGatewayProvider {
   }
 
   async cancelSubscription(providerSubscriptionId: string): Promise<CancelSubscriptionResult> {
-    console.warn('[MockBillingGatewayProvider] would cancel subscription', { providerSubscriptionId });
+    console.warn('[MockBillingGatewayProvider] would cancel subscription', {
+      providerSubscriptionId,
+    });
     return { providerSubscriptionId, status: 'cancelled' };
   }
 
   async refundPayment(input: RefundPaymentInput): Promise<RefundResult> {
-    console.warn('[MockBillingGatewayProvider] would refund payment', { providerPaymentReference: input.providerPaymentReference });
+    console.warn('[MockBillingGatewayProvider] would refund payment', {
+      providerPaymentReference: input.providerPaymentReference,
+    });
     return { providerRefundId: `mock-refund-${input.idempotencyKey}`, status: 'refunded' };
   }
 

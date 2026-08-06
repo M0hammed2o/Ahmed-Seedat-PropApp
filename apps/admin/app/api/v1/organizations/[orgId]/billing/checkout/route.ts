@@ -22,13 +22,21 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.json({ error: { code: 'unauthenticated', message: 'Sign in required.' } }, { status: 401 });
+    return NextResponse.json(
+      { error: { code: 'unauthenticated', message: 'Sign in required.' } },
+      { status: 401 },
+    );
   }
 
   const isPrincipal = await requireOrgRole(supabase, orgId, 'principal');
   if (!isPrincipal) {
     return NextResponse.json(
-      { error: { code: 'forbidden', message: 'Only the organization principal can manage billing.' } },
+      {
+        error: {
+          code: 'forbidden',
+          message: 'Only the organization principal can manage billing.',
+        },
+      },
       { status: 403 },
     );
   }
@@ -37,13 +45,22 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: { code: 'invalid_json', message: 'Request body must be valid JSON.' } }, { status: 400 });
+    return NextResponse.json(
+      { error: { code: 'invalid_json', message: 'Request body must be valid JSON.' } },
+      { status: 400 },
+    );
   }
 
   const parsed = billingCheckoutSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
-      { error: { code: 'validation_failed', message: 'Check the highlighted fields.', field_errors: parsed.error.flatten().fieldErrors } },
+      {
+        error: {
+          code: 'validation_failed',
+          message: 'Check the highlighted fields.',
+          field_errors: parsed.error.flatten().fieldErrors,
+        },
+      },
       { status: 400 },
     );
   }
@@ -70,7 +87,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json(result, { status: 201 });
   } catch (err) {
     return NextResponse.json(
-      { error: { code: 'billing_checkout_failed', message: err instanceof Error ? err.message : 'Checkout failed.' } },
+      {
+        error: {
+          code: 'billing_checkout_failed',
+          message: err instanceof Error ? err.message : 'Checkout failed.',
+        },
+      },
       { status: 422 },
     );
   }

@@ -8,7 +8,14 @@ import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { Avatar } from '@/components/ui/Avatar';
 import { Pill } from '@/components/ui/Pill';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/Popover';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/DropdownMenu';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/DropdownMenu';
 import { getBrowserSupabaseClient } from '@/lib/supabase/client';
 
 // Rebuilt against reference/lovable-ui-reference's app-shell.tsx literal structure (2026-08-04
@@ -147,7 +154,9 @@ export function AppShell({
               {productLabel}
             </span>
             {sidebarSubtitle ? (
-              <span className="block truncate text-[11px] text-muted-foreground">{sidebarSubtitle}</span>
+              <span className="block truncate text-[11px] text-muted-foreground">
+                {sidebarSubtitle}
+              </span>
             ) : null}
             {demoBadge ? (
               <span className="mt-1 inline-flex w-fit items-center rounded-full border border-primary px-2 py-0.5 text-[10px] font-semibold text-primary">
@@ -198,7 +207,9 @@ export function AppShell({
           ))}
         </nav>
 
-        {sidebarFooterWidget ? <div className="border-t border-sidebar-border p-3">{sidebarFooterWidget}</div> : null}
+        {sidebarFooterWidget ? (
+          <div className="border-t border-sidebar-border p-3">{sidebarFooterWidget}</div>
+        ) : null}
       </div>
     );
   }
@@ -213,7 +224,9 @@ export function AppShell({
         {parts.map((p, i) => (
           <span key={p + i} className="flex min-w-0 items-center gap-1.5">
             <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-50" aria-hidden="true" />
-            <span className={`truncate capitalize ${i === parts.length - 1 ? 'font-medium text-foreground' : ''}`}>
+            <span
+              className={`truncate capitalize ${i === parts.length - 1 ? 'font-medium text-foreground' : ''}`}
+            >
               {p.replace(/-/g, ' ')}
             </span>
           </span>
@@ -296,14 +309,18 @@ export function AppShell({
                     {unreadCount > 0 ? <Pill tone="primary">{unreadCount} new</Pill> : null}
                   </div>
                   {notifications.length === 0 ? (
-                    <p className="px-4 py-6 text-center text-xs text-muted-foreground">No notifications yet.</p>
+                    <p className="px-4 py-6 text-center text-xs text-muted-foreground">
+                      No notifications yet.
+                    </p>
                   ) : (
                     <ul className="max-h-[320px] divide-y divide-border overflow-y-auto">
                       {notifications.map((n) => (
                         <li key={n.id} className="px-4 py-3">
                           <p className="text-[13px] font-medium text-foreground">{n.title}</p>
                           <p className="truncate text-xs text-muted-foreground">{n.body}</p>
-                          <p className="mt-1 text-[11px] text-muted-foreground/70">{relativeTime(n.createdAt)}</p>
+                          <p className="mt-1 text-[11px] text-muted-foreground/70">
+                            {relativeTime(n.createdAt)}
+                          </p>
                         </li>
                       ))}
                     </ul>
@@ -337,7 +354,9 @@ export function AppShell({
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
-                  {identityLine ? <DropdownMenuLabel className="capitalize">{identityLine}</DropdownMenuLabel> : null}
+                  {identityLine ? (
+                    <DropdownMenuLabel className="capitalize">{identityLine}</DropdownMenuLabel>
+                  ) : null}
                   {accountMenuLinks.length > 0 ? (
                     <>
                       <DropdownMenuSeparator />

@@ -58,7 +58,9 @@ export async function GET(request: NextRequest) {
   const documents = rows.map(mapDocumentRow);
   const last = rows[rows.length - 1];
   const nextCursor =
-    rows.length === limit && last ? encodeCursor({ createdAt: last.created_at, id: last.id }) : null;
+    rows.length === limit && last
+      ? encodeCursor({ createdAt: last.created_at, id: last.id })
+      : null;
 
   return NextResponse.json({ documents, next_cursor: nextCursor });
 }
@@ -80,7 +82,9 @@ export async function POST(request: NextRequest) {
     form = await request.formData();
   } catch {
     return NextResponse.json(
-      { error: { code: 'invalid_form_data', message: 'Request body must be multipart/form-data.' } },
+      {
+        error: { code: 'invalid_form_data', message: 'Request body must be multipart/form-data.' },
+      },
       { status: 400 },
     );
   }
@@ -88,7 +92,13 @@ export async function POST(request: NextRequest) {
   const file = form.get('file');
   if (!(file instanceof File)) {
     return NextResponse.json(
-      { error: { code: 'validation_failed', message: 'A file is required.', field_errors: { file: ['File is required'] } } },
+      {
+        error: {
+          code: 'validation_failed',
+          message: 'A file is required.',
+          field_errors: { file: ['File is required'] },
+        },
+      },
       { status: 400 },
     );
   }
@@ -131,7 +141,12 @@ export async function POST(request: NextRequest) {
   const canWrite = await requireOrgRole(supabase, parsed.data.orgId, 'agent');
   if (!canWrite) {
     return NextResponse.json(
-      { error: { code: 'forbidden', message: 'You do not have permission to upload documents for this organization.' } },
+      {
+        error: {
+          code: 'forbidden',
+          message: 'You do not have permission to upload documents for this organization.',
+        },
+      },
       { status: 403 },
     );
   }

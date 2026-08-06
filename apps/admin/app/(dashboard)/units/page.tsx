@@ -76,7 +76,9 @@ async function loadUnits(): Promise<UnitRow[]> {
   if (error) throw new Error(`Failed to load units: ${error.message}`);
 
   return (data ?? []).map((row) => {
-    const { properties, ...unitRow } = row as typeof row & { properties: { nickname: string } | null };
+    const { properties, ...unitRow } = row as typeof row & {
+      properties: { nickname: string } | null;
+    };
     return { ...mapUnitRow(unitRow), propertyNickname: properties?.nickname };
   });
 }

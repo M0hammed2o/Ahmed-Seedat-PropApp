@@ -26,9 +26,16 @@ export async function scanUploadOrRespond(bytes: Uint8Array): Promise<NextRespon
   try {
     const result = await provider.scan(bytes);
     if (!result.clean) {
-      console.error(`[uploadScan] rejected an upload: ${result.providerName} matched "${result.threatName}"`);
+      console.error(
+        `[uploadScan] rejected an upload: ${result.providerName} matched "${result.threatName}"`,
+      );
       return NextResponse.json(
-        { error: { code: 'malware_detected', message: 'This file could not be uploaded — it was flagged by malware scanning.' } },
+        {
+          error: {
+            code: 'malware_detected',
+            message: 'This file could not be uploaded — it was flagged by malware scanning.',
+          },
+        },
         { status: 422 },
       );
     }
@@ -41,9 +48,17 @@ export async function scanUploadOrRespond(bytes: Uint8Array): Promise<NextRespon
       console.error('[uploadScan] mock scan provider threw unexpectedly', err);
       return null;
     }
-    console.error('[uploadScan] real malware scan failed -- refusing the upload (fail closed)', err);
+    console.error(
+      '[uploadScan] real malware scan failed -- refusing the upload (fail closed)',
+      err,
+    );
     return NextResponse.json(
-      { error: { code: 'scan_unavailable', message: 'File scanning is temporarily unavailable. Try again shortly.' } },
+      {
+        error: {
+          code: 'scan_unavailable',
+          message: 'File scanning is temporarily unavailable. Try again shortly.',
+        },
+      },
       { status: 503 },
     );
   }

@@ -26,7 +26,9 @@ export function AdminMetricCard({ label, value, hint, icon, href }: AdminMetricC
             {icon}
           </span>
         ) : (
-          <p className="text-xs uppercase tracking-wide text-light-textMuted dark:text-dark-textMuted">{label}</p>
+          <p className="text-xs uppercase tracking-wide text-light-textMuted dark:text-dark-textMuted">
+            {label}
+          </p>
         )}
         {href ? (
           <span className="text-light-textMuted dark:text-dark-textMuted" aria-hidden="true">
@@ -34,9 +36,13 @@ export function AdminMetricCard({ label, value, hint, icon, href }: AdminMetricC
           </span>
         ) : null}
       </div>
-      <p className="mt-2 text-2xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">{value}</p>
+      <p className="mt-2 text-2xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+        {value}
+      </p>
       {icon ? (
-        <p className="mt-1 text-xs uppercase tracking-wide text-light-textMuted dark:text-dark-textMuted">{label}</p>
+        <p className="mt-1 text-xs uppercase tracking-wide text-light-textMuted dark:text-dark-textMuted">
+          {label}
+        </p>
       ) : null}
       {hint ? (
         <p className="mt-1 text-xs text-light-textSecondary dark:text-dark-textSecondary">{hint}</p>

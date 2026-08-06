@@ -65,7 +65,11 @@ describeIfSupabase('dispatchEmail (real local Supabase integration)', () => {
     });
     expect(result.sent).toBe(true);
 
-    const { data } = await serviceClient.from('email_messages').select('*').eq('id', result.emailMessageId).single();
+    const { data } = await serviceClient
+      .from('email_messages')
+      .select('*')
+      .eq('id', result.emailMessageId)
+      .single();
     expect(data.to_address).toBe('tenant@example.com');
     expect(data.template_name).toBe('invoice_issued');
     expect(data.status).toBe('queued');
@@ -163,14 +167,22 @@ describeIfSupabase('dispatchEmail (real local Supabase integration)', () => {
       toAddress: 'invitee@example.com',
       toUserId: null,
       templateName: 'member_invited',
-      templateVars: { orgName: 'Test Org', role: 'agent', acceptUrl: 'http://localhost:3000/invitations/accept?token=abc' },
+      templateVars: {
+        orgName: 'Test Org',
+        role: 'agent',
+        acceptUrl: 'http://localhost:3000/invitations/accept?token=abc',
+      },
       relatedEntityType: 'organization_invites',
       relatedEntityId: inviteId,
       actorUserId: null,
     });
     expect(result.sent).toBe(true);
 
-    const { data } = await serviceClient.from('email_messages').select('*').eq('id', result.emailMessageId).single();
+    const { data } = await serviceClient
+      .from('email_messages')
+      .select('*')
+      .eq('id', result.emailMessageId)
+      .single();
     expect(data.template_name).toBe('member_invited');
     expect(data.subject).toContain('Test Org');
   });

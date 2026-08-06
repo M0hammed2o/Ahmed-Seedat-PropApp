@@ -15,12 +15,20 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
   try {
     const detail = await getPlatformOrganizationDetail(serviceClient, orgId);
     if (!detail) {
-      return NextResponse.json({ error: { code: 'not_found', message: 'Organization not found.' } }, { status: 404 });
+      return NextResponse.json(
+        { error: { code: 'not_found', message: 'Organization not found.' } },
+        { status: 404 },
+      );
     }
     return NextResponse.json({ organization: detail });
   } catch (err) {
     return NextResponse.json(
-      { error: { code: 'organization_fetch_failed', message: err instanceof Error ? err.message : 'Unknown error' } },
+      {
+        error: {
+          code: 'organization_fetch_failed',
+          message: err instanceof Error ? err.message : 'Unknown error',
+        },
+      },
       { status: 500 },
     );
   }

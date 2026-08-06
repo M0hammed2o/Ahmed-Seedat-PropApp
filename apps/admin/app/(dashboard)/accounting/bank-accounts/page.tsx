@@ -5,7 +5,11 @@ import { Button } from '@/components/ui/Button';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapBankAccountRow } from '@/lib/accounting';
-import { resolvePortalSession, findActiveMembership, canPostAccountingRecords } from '@/lib/orgSession';
+import {
+  resolvePortalSession,
+  findActiveMembership,
+  canPostAccountingRecords,
+} from '@/lib/orgSession';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 const DEMO_BANK_ACCOUNTS: BankAccount[] = [
@@ -23,7 +27,9 @@ const DEMO_BANK_ACCOUNTS: BankAccount[] = [
 
 /** GET /accounting/bank-accounts -- Payments/bank-matching slice (TASKS.md M20). Accountant+ write. */
 export default async function BankAccountsPage() {
-  const bankAccounts: BankAccount[] = ADMIN_DEMO_MODE ? DEMO_BANK_ACCOUNTS : await loadBankAccounts();
+  const bankAccounts: BankAccount[] = ADMIN_DEMO_MODE
+    ? DEMO_BANK_ACCOUNTS
+    : await loadBankAccounts();
   const canPost = ADMIN_DEMO_MODE ? true : await resolveCanPost();
 
   const addAction = (
@@ -36,7 +42,10 @@ export default async function BankAccountsPage() {
 
   return (
     <div className="space-y-5 animate-rise">
-      <PageHeader title="Bank Accounts" actions={canPost && bankAccounts.length > 0 ? addAction : undefined} />
+      <PageHeader
+        title="Bank Accounts"
+        actions={canPost && bankAccounts.length > 0 ? addAction : undefined}
+      />
       <BankAccountsTable data={bankAccounts} emptyAction={canPost ? addAction : undefined} />
     </div>
   );
@@ -44,7 +53,11 @@ export default async function BankAccountsPage() {
 
 async function loadBankAccounts(): Promise<BankAccount[]> {
   const supabase = await getServerSupabaseClient();
-  const { data, error } = await supabase.from('bank_accounts').select('*').eq('is_active', true).order('bank_name');
+  const { data, error } = await supabase
+    .from('bank_accounts')
+    .select('*')
+    .eq('is_active', true)
+    .order('bank_name');
   if (error) throw new Error(`Failed to load bank accounts: ${error.message}`);
   return (data ?? []).map(mapBankAccountRow);
 }

@@ -5,7 +5,10 @@ import { mapOwnerRow, requireOrgRole } from '@/lib/portfolio';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
-async function loadVisibleOwner(supabase: Awaited<ReturnType<typeof getServerSupabaseClient>>, id: string) {
+async function loadVisibleOwner(
+  supabase: Awaited<ReturnType<typeof getServerSupabaseClient>>,
+  id: string,
+) {
   return supabase.from('owners').select('*').eq('id', id).maybeSingle();
 }
 
@@ -104,7 +107,12 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   if (parsed.data.email !== undefined) patch.email = parsed.data.email;
   if (parsed.data.phone !== undefined) patch.phone = parsed.data.phone;
 
-  const { data, error } = await supabase.from('owners').update(patch).eq('id', id).select('*').single();
+  const { data, error } = await supabase
+    .from('owners')
+    .update(patch)
+    .eq('id', id)
+    .select('*')
+    .single();
 
   if (error) {
     return NextResponse.json(

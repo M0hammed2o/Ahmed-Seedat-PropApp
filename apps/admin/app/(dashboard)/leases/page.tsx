@@ -52,7 +52,10 @@ export default async function LeasesPage() {
 
   return (
     <div className="space-y-5 animate-rise">
-      <PageHeader title="Leases" subtitle="Every lease across your portfolio. Leases are added from a unit." />
+      <PageHeader
+        title="Leases"
+        subtitle="Every lease across your portfolio. Leases are added from a unit."
+      />
 
       <div className="grid grid-cols-3 gap-4">
         <AdminMetricCard label="Total leases" value={leases.length} />
@@ -79,7 +82,11 @@ async function loadLeases(): Promise<LeaseRow[]> {
 
   return (data ?? []).map((row) => {
     const { units, ...leaseRow } = row as typeof row & {
-      units: { unit_label: string; property_id: string; properties: { nickname: string } | null } | null;
+      units: {
+        unit_label: string;
+        property_id: string;
+        properties: { nickname: string } | null;
+      } | null;
     };
     return {
       ...mapLeaseRow(leaseRow),

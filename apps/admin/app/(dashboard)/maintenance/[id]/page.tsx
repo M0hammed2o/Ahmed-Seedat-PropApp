@@ -36,7 +36,9 @@ export default async function MaintenanceDetailPage({ params }: RouteParams) {
 
   if (ADMIN_DEMO_MODE) {
     if (id !== 'demo-ticket-1') notFound();
-    return <MaintenanceDetailView ticket={DEMO_TICKET} propertyNickname="Sea Point Apartment" canEdit />;
+    return (
+      <MaintenanceDetailView ticket={DEMO_TICKET} propertyNickname="Sea Point Apartment" canEdit />
+    );
   }
 
   const supabase = await getServerSupabaseClient();
@@ -48,14 +50,22 @@ export default async function MaintenanceDetailPage({ params }: RouteParams) {
   if (error) throw new Error(`Failed to load maintenance ticket: ${error.message}`);
   if (!data) notFound();
 
-  const { properties, ...ticketRow } = data as typeof data & { properties: { nickname: string } | null };
+  const { properties, ...ticketRow } = data as typeof data & {
+    properties: { nickname: string } | null;
+  };
   const ticket = mapMaintenanceTicketRow(ticketRow);
 
   const session = await resolvePortalSession();
   const membership = session ? findActiveMembership(session, ticket.orgId) : undefined;
   const canEdit = Boolean(membership && canWriteOrgRecords(membership.role));
 
-  return <MaintenanceDetailView ticket={ticket} propertyNickname={properties?.nickname} canEdit={canEdit} />;
+  return (
+    <MaintenanceDetailView
+      ticket={ticket}
+      propertyNickname={properties?.nickname}
+      canEdit={canEdit}
+    />
+  );
 }
 
 function MaintenanceDetailView({
@@ -97,8 +107,12 @@ function MaintenanceDetailView({
 
       {ticket.description ? (
         <div className="mt-6">
-          <h2 className="text-sm font-medium text-light-textPrimary dark:text-dark-textPrimary">Description</h2>
-          <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">{ticket.description}</p>
+          <h2 className="text-sm font-medium text-light-textPrimary dark:text-dark-textPrimary">
+            Description
+          </h2>
+          <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
+            {ticket.description}
+          </p>
         </div>
       ) : null}
 
@@ -121,8 +135,8 @@ function MaintenanceDetailView({
         Vendor assignment and photo attachments are evidenced in the reference product
         (PROPVIEW_SCREENSHOT_AUDIT.md) and supported by the underlying schema, but not wired into
         this page yet — no Vendors module UI exists in this codebase yet to assign against, and
-        photo upload depends on the same document-storage work Documents/OCR (M11/M12) already
-        ships at the API layer.
+        photo upload depends on the same document-storage work Documents/OCR (M11/M12) already ships
+        at the API layer.
       </p>
     </div>
   );

@@ -75,7 +75,9 @@ export function OwnerForm({ mode, orgId, owner }: OwnerFormProps) {
       const body = await response.json();
       if (!response.ok) {
         setFieldErrors(body.error?.field_errors ?? {});
-        setError(body.error?.message ?? `Failed to ${mode === 'create' ? 'create' : 'update'} owner.`);
+        setError(
+          body.error?.message ?? `Failed to ${mode === 'create' ? 'create' : 'update'} owner.`,
+        );
         return;
       }
       router.push(`/owners/${body.owner.id}`);
@@ -92,65 +94,72 @@ export function OwnerForm({ mode, orgId, owner }: OwnerFormProps) {
       <PageHeader title={mode === 'create' ? 'Add owner' : `Edit ${owner?.name}`} />
 
       <Panel className="max-w-xl">
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {error ? (
-          <p className="rounded-md border border-light-danger bg-light-danger/10 px-3 py-2 text-xs text-light-danger dark:border-dark-danger dark:bg-dark-danger/10 dark:text-dark-danger">
-            {error}
-          </p>
-        ) : null}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error ? (
+            <p className="rounded-md border border-light-danger bg-light-danger/10 px-3 py-2 text-xs text-light-danger dark:border-dark-danger dark:bg-dark-danger/10 dark:text-dark-danger">
+              {error}
+            </p>
+          ) : null}
 
-        <Field label="Owner type">
-          <select
-            value={form.ownerType}
-            onChange={(e) => set('ownerType', e.target.value as OwnerType)}
-            className={inputClass}
-          >
-            {OWNER_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-        </Field>
+          <Field label="Owner type">
+            <select
+              value={form.ownerType}
+              onChange={(e) => set('ownerType', e.target.value as OwnerType)}
+              className={inputClass}
+            >
+              {OWNER_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </Field>
 
-        <Field label="Name" error={fieldErrors.name}>
-          <input
-            required
-            maxLength={200}
-            value={form.name}
-            onChange={(e) => set('name', e.target.value)}
-            className={inputClass}
-            placeholder={form.ownerType === 'individual' ? 'e.g. Thabo Mokoena' : 'e.g. Mokoena Properties (Pty) Ltd'}
-          />
-        </Field>
+          <Field label="Name" error={fieldErrors.name}>
+            <input
+              required
+              maxLength={200}
+              value={form.name}
+              onChange={(e) => set('name', e.target.value)}
+              className={inputClass}
+              placeholder={
+                form.ownerType === 'individual'
+                  ? 'e.g. Thabo Mokoena'
+                  : 'e.g. Mokoena Properties (Pty) Ltd'
+              }
+            />
+          </Field>
 
-        <Field label="Email" error={fieldErrors.email}>
-          <input
-            type="email"
-            value={form.email}
-            onChange={(e) => set('email', e.target.value)}
-            className={inputClass}
-          />
-        </Field>
+          <Field label="Email" error={fieldErrors.email}>
+            <input
+              type="email"
+              value={form.email}
+              onChange={(e) => set('email', e.target.value)}
+              className={inputClass}
+            />
+          </Field>
 
-        <Field label="Phone" error={fieldErrors.phone}>
-          <input
-            maxLength={30}
-            value={form.phone}
-            onChange={(e) => set('phone', e.target.value)}
-            className={inputClass}
-          />
-        </Field>
+          <Field label="Phone" error={fieldErrors.phone}>
+            <input
+              maxLength={30}
+              value={form.phone}
+              onChange={(e) => set('phone', e.target.value)}
+              className={inputClass}
+            />
+          </Field>
 
-        <div className="flex gap-2 pt-2">
-          <Button type="submit" variant="primary" disabled={submitting}>
-            {submitting ? 'Saving…' : mode === 'create' ? 'Create owner' : 'Save changes'}
-          </Button>
-          <Button type="button" onClick={() => router.push(mode === 'create' ? '/owners' : `/owners/${owner!.id}`)}>
-            Cancel
-          </Button>
-        </div>
-      </form>
+          <div className="flex gap-2 pt-2">
+            <Button type="submit" variant="primary" disabled={submitting}>
+              {submitting ? 'Saving…' : mode === 'create' ? 'Create owner' : 'Save changes'}
+            </Button>
+            <Button
+              type="button"
+              onClick={() => router.push(mode === 'create' ? '/owners' : `/owners/${owner!.id}`)}
+            >
+              Cancel
+            </Button>
+          </div>
+        </form>
       </Panel>
     </div>
   );
@@ -159,13 +168,23 @@ export function OwnerForm({ mode, orgId, owner }: OwnerFormProps) {
 const inputClass =
   'mt-1 block w-full rounded-md border border-light-border bg-transparent px-3 py-2 text-sm text-light-textPrimary dark:border-dark-border dark:text-dark-textPrimary';
 
-function Field({ label, error, children }: { label: string; error?: string[]; children: ReactNode }) {
+function Field({
+  label,
+  error,
+  children,
+}: {
+  label: string;
+  error?: string[];
+  children: ReactNode;
+}) {
   return (
     <label className="block text-xs">
       <span className="text-light-textMuted dark:text-dark-textMuted">{label}</span>
       {children}
       {error?.length ? (
-        <p className="mt-1 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">{error[0]}</p>
+        <p className="mt-1 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">
+          {error[0]}
+        </p>
       ) : null}
     </label>
   );

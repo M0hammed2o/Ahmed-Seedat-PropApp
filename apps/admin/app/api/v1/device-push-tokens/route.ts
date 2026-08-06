@@ -49,7 +49,12 @@ export async function POST(request: NextRequest) {
   const { data, error } = await supabase
     .from('device_push_tokens')
     .upsert(
-      { user_id: user.id, platform: parsed.data.platform, token: parsed.data.token, last_seen_at: new Date().toISOString() },
+      {
+        user_id: user.id,
+        platform: parsed.data.platform,
+        token: parsed.data.token,
+        last_seen_at: new Date().toISOString(),
+      },
       { onConflict: 'user_id,token' },
     )
     .select('*')

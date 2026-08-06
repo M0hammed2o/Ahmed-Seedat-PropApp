@@ -1,5 +1,9 @@
 import { z } from 'zod';
-import { VENDOR_TRADE_CATEGORIES, MAINTENANCE_PRIORITIES, INSPECTION_TYPES } from '@propvault/types';
+import {
+  VENDOR_TRADE_CATEGORIES,
+  MAINTENANCE_PRIORITIES,
+  INSPECTION_TYPES,
+} from '@propvault/types';
 
 // Vendors API (apps/admin/app/api/v1/vendors -- API_SPEC.md §5, TASKS.md M13).
 export const vendorSchema = z.object({
@@ -56,7 +60,9 @@ export const tenantMaintenanceTicketCreateSchema = z.object({
   description: z.string().max(5000).optional().nullable(),
   priority: z.enum(MAINTENANCE_PRIORITIES).default('medium'),
 });
-export type TenantMaintenanceTicketCreateInput = z.infer<typeof tenantMaintenanceTicketCreateSchema>;
+export type TenantMaintenanceTicketCreateInput = z.infer<
+  typeof tenantMaintenanceTicketCreateSchema
+>;
 
 // Inspections API.
 export const inspectionCreateSchema = z.object({

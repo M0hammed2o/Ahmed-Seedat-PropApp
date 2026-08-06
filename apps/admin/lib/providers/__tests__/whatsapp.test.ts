@@ -43,7 +43,10 @@ describe('MetaWhatsAppProvider', () => {
     });
 
     it('POSTs to the Graph API messages endpoint with positional template parameters', async () => {
-      const fetchSpy = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ messages: [{ id: 'wamid.ABC123' }] }) });
+      const fetchSpy = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ messages: [{ id: 'wamid.ABC123' }] }),
+      });
       global.fetch = fetchSpy as unknown as typeof fetch;
       const provider = new MetaWhatsAppProvider(CONFIG);
 
@@ -71,12 +74,20 @@ describe('MetaWhatsAppProvider', () => {
     });
 
     it('throws on a non-2xx response rather than pretending the send succeeded', async () => {
-      global.fetch = vi
-        .fn()
-        .mockResolvedValue({ ok: false, status: 401, statusText: 'Unauthorized', text: async () => 'Invalid OAuth access token' }) as unknown as typeof fetch;
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        statusText: 'Unauthorized',
+        text: async () => 'Invalid OAuth access token',
+      }) as unknown as typeof fetch;
       const provider = new MetaWhatsAppProvider(CONFIG);
       await expect(
-        provider.sendTemplateMessage({ to: '+27821234567', templateName: 'rent_overdue_material', variables: {}, orgId: 'org-1' }),
+        provider.sendTemplateMessage({
+          to: '+27821234567',
+          templateName: 'rent_overdue_material',
+          variables: {},
+          orgId: 'org-1',
+        }),
       ).rejects.toThrow(/401/);
     });
   });
@@ -88,14 +99,18 @@ describe('MetaWhatsAppProvider', () => {
 
     it('accepts a signature independently recomputed with the same secret', () => {
       const provider = new MetaWhatsAppProvider(CONFIG);
-      const rawBody = JSON.stringify({ entry: [{ changes: [{ value: { messages: [{ from: '27821234567' }] } }] }] });
+      const rawBody = JSON.stringify({
+        entry: [{ changes: [{ value: { messages: [{ from: '27821234567' }] } }] }],
+      });
       const signature = independentSignature(rawBody, CONFIG.webhookSecret);
       expect(provider.verifyWebhookSignature(rawBody, signature)).toBe(true);
     });
 
     it('rejects a tampered body whose signature no longer matches', () => {
       const provider = new MetaWhatsAppProvider(CONFIG);
-      const rawBody = JSON.stringify({ entry: [{ changes: [{ value: { messages: [{ from: '27821234567' }] } }] }] });
+      const rawBody = JSON.stringify({
+        entry: [{ changes: [{ value: { messages: [{ from: '27821234567' }] } }] }],
+      });
       const signature = independentSignature(rawBody, CONFIG.webhookSecret);
       const tamperedBody = rawBody.replace('27821234567', '27899999999');
       expect(provider.verifyWebhookSignature(tamperedBody, signature)).toBe(false);
@@ -118,7 +133,13 @@ describe('MetaWhatsAppProvider', () => {
     it('extracts the message body and E.164 sender from a real Meta webhook shape', () => {
       const provider = new MetaWhatsAppProvider(CONFIG);
       const event = provider.parseInboundEvent({
-        entry: [{ changes: [{ value: { messages: [{ from: '27821234567', text: { body: 'hi there' } }] } }] }],
+        entry: [
+          {
+            changes: [
+              { value: { messages: [{ from: '27821234567', text: { body: 'hi there' } }] } },
+            ],
+          },
+        ],
       });
       expect(event.kind).toBe('message');
       expect(event.from).toBe('+27821234567');
@@ -128,7 +149,9 @@ describe('MetaWhatsAppProvider', () => {
     it('throws on a payload with no messages array (e.g. a status-only payload)', () => {
       const provider = new MetaWhatsAppProvider(CONFIG);
       expect(() =>
-        provider.parseInboundEvent({ entry: [{ changes: [{ value: { statuses: [{ id: 'wamid.X', status: 'sent' }] } }] }] }),
+        provider.parseInboundEvent({
+          entry: [{ changes: [{ value: { statuses: [{ id: 'wamid.X', status: 'sent' }] } }] }],
+        }),
       ).toThrow();
     });
   });
@@ -146,7 +169,23 @@ describe('MetaWhatsAppProvider', () => {
     it('surfaces a failure reason when present', () => {
       const provider = new MetaWhatsAppProvider(CONFIG);
       const callback = provider.parseStatusCallback({
-        entry: [{ changes: [{ value: { statuses: [{ id: 'wamid.X', status: 'failed', errors: [{ title: 'Message undeliverable' }] }] } }] }],
+        entry: [
+          {
+            changes: [
+              {
+                value: {
+                  statuses: [
+                    {
+                      id: 'wamid.X',
+                      status: 'failed',
+                      errors: [{ title: 'Message undeliverable' }],
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        ],
       });
       expect(callback.failureReason).toBe('Message undeliverable');
     });

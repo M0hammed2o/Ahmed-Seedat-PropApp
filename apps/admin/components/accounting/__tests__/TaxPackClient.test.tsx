@@ -60,7 +60,9 @@ describe('TaxPackClient', () => {
 
     render(<TaxPackClient orgId="org-1" />);
 
-    await waitFor(() => expect(screen.getByText('No income or expense activity for this tax year.')).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByText('No income or expense activity for this tax year.')).toBeTruthy(),
+    );
   });
 
   it('renders fixture data with no fetch call when demoMode is true (PWA_V1_COMPLETION_PLAN.md #2)', async () => {

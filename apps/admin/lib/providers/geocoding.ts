@@ -54,5 +54,7 @@ class NullGeocodingProvider implements GeocodingProvider {
 }
 
 export function getGeocodingProvider(): GeocodingProvider {
-  return process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN ? new MapboxGeocodingProvider() : new NullGeocodingProvider();
+  return process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN
+    ? new MapboxGeocodingProvider()
+    : new NullGeocodingProvider();
 }

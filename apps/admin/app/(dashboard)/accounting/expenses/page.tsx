@@ -6,7 +6,11 @@ import { Button } from '@/components/ui/Button';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapExpenseRow } from '@/lib/accounting';
-import { resolvePortalSession, findActiveMembership, canPostAccountingRecords } from '@/lib/orgSession';
+import {
+  resolvePortalSession,
+  findActiveMembership,
+  canPostAccountingRecords,
+} from '@/lib/orgSession';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 const DEMO_EXPENSES: Expense[] = [
@@ -65,7 +69,10 @@ export default async function ExpensesPage() {
 
 async function loadExpenses(): Promise<Expense[]> {
   const supabase = await getServerSupabaseClient();
-  const { data, error } = await supabase.from('expenses').select('*').order('created_at', { ascending: false });
+  const { data, error } = await supabase
+    .from('expenses')
+    .select('*')
+    .order('created_at', { ascending: false });
   if (error) throw new Error(`Failed to load expenses: ${error.message}`);
   return (data ?? []).map(mapExpenseRow);
 }

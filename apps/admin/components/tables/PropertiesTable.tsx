@@ -37,7 +37,13 @@ const columns: ColumnDef<Property, unknown>[] = [
   },
 ];
 
-export function PropertiesTable({ data, emptyAction }: { data: Property[]; emptyAction?: ReactNode }) {
+export function PropertiesTable({
+  data,
+  emptyAction,
+}: {
+  data: Property[];
+  emptyAction?: ReactNode;
+}) {
   return (
     <AdminDataTable
       emptyMessage="No properties yet"

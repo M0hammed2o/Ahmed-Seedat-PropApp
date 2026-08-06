@@ -44,7 +44,9 @@ function buildColumns(showUnit: boolean): ColumnDef<LeaseRow, unknown>[] {
             href={`/properties/${row.propertyId}/units/${row.unitId}`}
             className="text-light-textSecondary hover:underline dark:text-dark-textSecondary"
           >
-            {row.propertyNickname ? `${row.propertyNickname} — ${row.unitLabel ?? '—'}` : (row.unitLabel ?? '—')}
+            {row.propertyNickname
+              ? `${row.propertyNickname} — ${row.unitLabel ?? '—'}`
+              : (row.unitLabel ?? '—')}
           </Link>
         ) : (
           (row.unitLabel ?? '—')
@@ -57,7 +59,8 @@ function buildColumns(showUnit: boolean): ColumnDef<LeaseRow, unknown>[] {
     {
       header: 'Rent',
       accessorKey: 'rentAmount',
-      cell: (info) => `R${(info.getValue() as number).toLocaleString('en-ZA')} / ${info.row.original.rentFrequency}`,
+      cell: (info) =>
+        `R${(info.getValue() as number).toLocaleString('en-ZA')} / ${info.row.original.rentFrequency}`,
     },
     {
       header: 'Deposit',
@@ -67,7 +70,9 @@ function buildColumns(showUnit: boolean): ColumnDef<LeaseRow, unknown>[] {
     {
       header: 'Status',
       accessorKey: 'status',
-      cell: (info) => <StatusBadge presentation={LEASE_STATUS_PRESENTATION[info.getValue() as Lease['status']]} />,
+      cell: (info) => (
+        <StatusBadge presentation={LEASE_STATUS_PRESENTATION[info.getValue() as Lease['status']]} />
+      ),
     },
   );
 
@@ -86,6 +91,11 @@ export function LeasesTable({
   emptyAction?: ReactNode;
 }) {
   return (
-    <AdminDataTable emptyMessage={emptyMessage} emptyAction={emptyAction} data={data} columns={buildColumns(showUnit)} />
+    <AdminDataTable
+      emptyMessage={emptyMessage}
+      emptyAction={emptyAction}
+      data={data}
+      columns={buildColumns(showUnit)}
+    />
   );
 }

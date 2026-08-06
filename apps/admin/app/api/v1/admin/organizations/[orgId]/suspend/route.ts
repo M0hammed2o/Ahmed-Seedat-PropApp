@@ -16,7 +16,10 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
   try {
     const updated = await updateOrganizationStatus(serviceClient, orgId, 'suspended');
     if (!updated) {
-      return NextResponse.json({ error: { code: 'not_found', message: 'Organization not found.' } }, { status: 404 });
+      return NextResponse.json(
+        { error: { code: 'not_found', message: 'Organization not found.' } },
+        { status: 404 },
+      );
     }
     await writeAuditEvent(serviceClient, {
       orgId,
@@ -30,7 +33,12 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ organization: updated });
   } catch (err) {
     return NextResponse.json(
-      { error: { code: 'organization_suspend_failed', message: err instanceof Error ? err.message : 'Unknown error' } },
+      {
+        error: {
+          code: 'organization_suspend_failed',
+          message: err instanceof Error ? err.message : 'Unknown error',
+        },
+      },
       { status: 500 },
     );
   }

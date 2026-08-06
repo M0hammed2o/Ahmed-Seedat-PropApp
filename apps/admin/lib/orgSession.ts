@@ -77,10 +77,7 @@ export async function resolvePortalSession(): Promise<PortalSession | null> {
     // RLS-scoped to the caller's own rows (support_access_sessions_select_own, migration
     // 20260101000057) -- zero rows for every non-admin caller, exactly like the platform-admin
     // count query below. Ordinary users never pay for this beyond one extra empty-result query.
-    supabase
-      .from('support_access_sessions')
-      .select('id, org_id, started_at')
-      .is('ended_at', null),
+    supabase.from('support_access_sessions').select('id, org_id, started_at').is('ended_at', null),
   ]);
 
   if (membershipsResult.error) {

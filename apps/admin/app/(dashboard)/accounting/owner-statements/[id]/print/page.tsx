@@ -39,7 +39,13 @@ export default async function OwnerStatementPrintPage({ params }: RouteParams) {
 
   if (ADMIN_DEMO_MODE) {
     if (id !== 'demo-owner-statement-1') notFound();
-    return <PrintableStatement statement={DEMO_STATEMENT} ownerName="Demo Owner" orgName="Demo Organization" />;
+    return (
+      <PrintableStatement
+        statement={DEMO_STATEMENT}
+        ownerName="Demo Owner"
+        orgName="Demo Organization"
+      />
+    );
   }
 
   const supabase = await getServerSupabaseClient();
@@ -54,7 +60,8 @@ export default async function OwnerStatementPrintPage({ params }: RouteParams) {
   const statement = mapOwnerStatementRow(data);
   const ownerName = (data as { owners?: { name?: string } | null }).owners?.name ?? 'Unknown owner';
   const orgName =
-    (data as { organizations?: { legal_name?: string } | null }).organizations?.legal_name ?? branding.productName;
+    (data as { organizations?: { legal_name?: string } | null }).organizations?.legal_name ??
+    branding.productName;
 
   return <PrintableStatement statement={statement} ownerName={ownerName} orgName={orgName} />;
 }
@@ -77,39 +84,55 @@ function PrintableStatement({
       <div className="mt-4 border border-light-border p-8 print:mt-0 print:border-none print:p-0 dark:border-dark-border">
         <div className="flex items-start justify-between border-b border-light-border pb-4 dark:border-dark-border">
           <div>
-            <p className="text-lg font-semibold text-light-textPrimary dark:text-dark-textPrimary">{orgName}</p>
-            <p className="text-sm text-light-textSecondary dark:text-dark-textSecondary">Owner Statement</p>
+            <p className="text-lg font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+              {orgName}
+            </p>
+            <p className="text-sm text-light-textSecondary dark:text-dark-textSecondary">
+              Owner Statement
+            </p>
           </div>
           <div className="text-right text-sm text-light-textSecondary dark:text-dark-textSecondary">
-            <p>{statement.periodStart} – {statement.periodEnd}</p>
+            <p>
+              {statement.periodStart} – {statement.periodEnd}
+            </p>
             <p>Status: {statement.status}</p>
           </div>
         </div>
 
-        <p className="mt-4 text-sm text-light-textPrimary dark:text-dark-textPrimary">Prepared for: {ownerName}</p>
+        <p className="mt-4 text-sm text-light-textPrimary dark:text-dark-textPrimary">
+          Prepared for: {ownerName}
+        </p>
 
         <table className="mt-6 w-full text-sm">
           <tbody>
             <tr className="border-b border-light-border dark:border-dark-border">
-              <td className="py-2 text-light-textSecondary dark:text-dark-textSecondary">Rent collected</td>
+              <td className="py-2 text-light-textSecondary dark:text-dark-textSecondary">
+                Rent collected
+              </td>
               <td className="py-2 text-right font-medium text-light-textPrimary dark:text-dark-textPrimary">
                 R{statement.rentCollected.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
               </td>
             </tr>
             <tr className="border-b border-light-border dark:border-dark-border">
-              <td className="py-2 text-light-textSecondary dark:text-dark-textSecondary">Expenses</td>
+              <td className="py-2 text-light-textSecondary dark:text-dark-textSecondary">
+                Expenses
+              </td>
               <td className="py-2 text-right font-medium text-light-textPrimary dark:text-dark-textPrimary">
                 (R{statement.expensesTotal.toLocaleString('en-ZA', { minimumFractionDigits: 2 })})
               </td>
             </tr>
             <tr className="border-b border-light-border dark:border-dark-border">
-              <td className="py-2 text-light-textSecondary dark:text-dark-textSecondary">Management fee</td>
+              <td className="py-2 text-light-textSecondary dark:text-dark-textSecondary">
+                Management fee
+              </td>
               <td className="py-2 text-right font-medium text-light-textPrimary dark:text-dark-textPrimary">
                 (R{statement.managementFee.toLocaleString('en-ZA', { minimumFractionDigits: 2 })})
               </td>
             </tr>
             <tr>
-              <td className="py-3 font-semibold text-light-textPrimary dark:text-dark-textPrimary">Net payable</td>
+              <td className="py-3 font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+                Net payable
+              </td>
               <td className="py-3 text-right text-lg font-semibold text-light-textPrimary dark:text-dark-textPrimary">
                 R{statement.netPayable.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
               </td>

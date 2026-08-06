@@ -87,5 +87,7 @@ export async function PATCH(request: NextRequest) {
     );
   }
 
-  return NextResponse.json({ profile: { displayName: parsed.data.displayName, email: user.email ?? null } });
+  return NextResponse.json({
+    profile: { displayName: parsed.data.displayName, email: user.email ?? null },
+  });
 }

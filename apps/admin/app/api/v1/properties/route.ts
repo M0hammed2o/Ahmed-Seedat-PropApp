@@ -52,7 +52,9 @@ export async function GET(request: NextRequest) {
   const properties = rows.map(mapPropertyRow);
   const last = rows[rows.length - 1];
   const nextCursor =
-    rows.length === limit && last ? encodeCursor({ createdAt: last.created_at, id: last.id }) : null;
+    rows.length === limit && last
+      ? encodeCursor({ createdAt: last.created_at, id: last.id })
+      : null;
 
   return NextResponse.json({ properties, next_cursor: nextCursor });
 }
@@ -145,7 +147,11 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { data, error } = await supabase.from('properties').select('*').eq('id', propertyId).single();
+  const { data, error } = await supabase
+    .from('properties')
+    .select('*')
+    .eq('id', propertyId)
+    .single();
   if (error) {
     return NextResponse.json(
       { error: { code: 'property_fetch_failed', message: error.message } },

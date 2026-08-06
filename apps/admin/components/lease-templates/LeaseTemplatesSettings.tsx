@@ -11,7 +11,13 @@ import { Pill } from '@/components/ui/Pill';
 // reuses the same upload form with a hidden supersedesId -- the API archives the old row and
 // links the new one back to it (never mutates/overwrites the old row, so a lease already created
 // against it is untouched).
-export function LeaseTemplatesSettings({ orgId, templates }: { orgId: string; templates: LeaseTemplate[] }) {
+export function LeaseTemplatesSettings({
+  orgId,
+  templates,
+}: {
+  orgId: string;
+  templates: LeaseTemplate[];
+}) {
   const router = useRouter();
   const [replacingId, setReplacingId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -74,7 +80,9 @@ export function LeaseTemplatesSettings({ orgId, templates }: { orgId: string; te
       <UploadForm orgId={orgId} supersedesId={replacingId} onDone={() => setReplacingId(null)} />
 
       {templates.length === 0 ? (
-        <p className="text-sm text-light-textSecondary dark:text-dark-textSecondary">No lease templates yet.</p>
+        <p className="text-sm text-light-textSecondary dark:text-dark-textSecondary">
+          No lease templates yet.
+        </p>
       ) : (
         <Panel className="max-w-2xl !p-0">
           <ul className="divide-y divide-light-border dark:divide-dark-border">
@@ -85,7 +93,9 @@ export function LeaseTemplatesSettings({ orgId, templates }: { orgId: string; te
                     <span className="truncate">{t.name}</span>
                     {t.isDefault ? <Pill tone="primary">Default</Pill> : null}
                   </p>
-                  <p className="truncate text-xs text-light-textMuted dark:text-dark-textMuted">{t.originalFileName}</p>
+                  <p className="truncate text-xs text-light-textMuted dark:text-dark-textMuted">
+                    {t.originalFileName}
+                  </p>
                 </div>
                 <div className="flex shrink-0 gap-1.5">
                   <Button size="sm" onClick={() => download(t.id)}>
@@ -170,9 +180,13 @@ function UploadForm({
         </h2>
         {supersedesId ? (
           <p className="text-xs text-light-textMuted dark:text-dark-textMuted">
-            The template being replaced will be archived, not deleted — any lease already created from it is
-            unaffected.{' '}
-            <button type="button" onClick={onDone} className="text-light-accent hover:underline dark:text-dark-accent">
+            The template being replaced will be archived, not deleted — any lease already created
+            from it is unaffected.{' '}
+            <button
+              type="button"
+              onClick={onDone}
+              className="text-light-accent hover:underline dark:text-dark-accent"
+            >
               Cancel replace
             </button>
           </p>
@@ -202,7 +216,11 @@ function UploadForm({
         </label>
 
         <label className="flex items-center gap-2 text-xs text-light-textSecondary dark:text-dark-textSecondary">
-          <input type="checkbox" checked={isDefault} onChange={(e) => setIsDefault(e.target.checked)} />
+          <input
+            type="checkbox"
+            checked={isDefault}
+            onChange={(e) => setIsDefault(e.target.checked)}
+          />
           Make this the default template
         </label>
 
