@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { expenseRecordSchema } from '@propvault/validation';
-import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { mapExpenseRow } from '@/lib/accounting';
+import { writeAuditEvent } from '@/lib/audit';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -46,6 +47,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     );
   }
 
+  const { data: before } = await supabase.from('expenses').select('org_id, status, amount').eq('id', id).maybeSingle();
+
   const { error: recordError } = await supabase.rpc('record_expense', {
     p_expense_id: id,
     p_paid_immediately: parsed.data.paidImmediately,
@@ -65,6 +68,20 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       { status: 500 },
     );
   }
+
+  // Governance requirement: "who recorded this expense as paid, and what changed" — the
+  // pre-RPC fetch above is the only chance to capture the prior status, since record_expense()
+  // mutates it in place.
+  await writeAuditEvent(getServiceRoleClient(), {
+    orgId: data.org_id,
+    actorUserId: user.id,
+    actorType: 'user',
+    action: 'expense.record',
+    entityType: 'expenses',
+    entityId: id,
+    before: before ? { status: before.status, amount: before.amount } : null,
+    after: { status: data.status, amount: data.amount, paidImmediately: parsed.data.paidImmediately },
+  });
 
   return NextResponse.json({ expense: mapExpenseRow(data) });
 }

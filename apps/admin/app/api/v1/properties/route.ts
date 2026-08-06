@@ -113,28 +113,42 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { data, error } = await supabase
-    .from('properties')
-    .insert({
-      org_id: parsed.data.orgId,
-      nickname: parsed.data.nickname,
-      address_line1: parsed.data.addressLine1,
-      address_line2: parsed.data.addressLine2 ?? null,
-      suburb: parsed.data.suburb ?? null,
-      city: parsed.data.city,
-      province: parsed.data.province ?? null,
-      postal_code: parsed.data.postalCode ?? null,
-      country: parsed.data.country,
-      property_type: parsed.data.propertyType,
-      municipal_account_number: parsed.data.municipalAccountNumber ?? null,
-      notes: parsed.data.notes ?? null,
-    })
-    .select('*')
-    .single();
+  // Property creation goes through create_property() (migration 20260101000064), not a raw
+  // client insert -- properties no longer has a client-facing INSERT policy at all. A raw
+  // `.insert().select().single()` here would fail RLS: the newly-inserted row's own RETURNING
+  // requires the property_access grant that grant_org_members_property_access_trigger creates,
+  // and that trigger's effect isn't visible in time for the SAME statement's own RETURNING check
+  // (confirmed against a real local database while cutting `properties` over to
+  // has_property_access() -- see the migration's own comment). The RPC sidesteps this since it
+  // runs as the table owner (security definer), so its internal RETURNING never hits RLS at all;
+  // this second call is an ordinary, separate SELECT, which works because the trigger's grant is
+  // already committed by the time it runs.
+  const { data: propertyId, error: createError } = await supabase.rpc('create_property', {
+    p_org_id: parsed.data.orgId,
+    p_nickname: parsed.data.nickname,
+    p_address_line1: parsed.data.addressLine1,
+    p_address_line2: parsed.data.addressLine2 ?? null,
+    p_suburb: parsed.data.suburb ?? null,
+    p_city: parsed.data.city,
+    p_province: parsed.data.province ?? null,
+    p_postal_code: parsed.data.postalCode ?? null,
+    p_country: parsed.data.country,
+    p_property_type: parsed.data.propertyType,
+    p_municipal_account_number: parsed.data.municipalAccountNumber ?? null,
+    p_notes: parsed.data.notes ?? null,
+  });
 
+  if (createError) {
+    return NextResponse.json(
+      { error: { code: 'property_create_failed', message: createError.message } },
+      { status: 500 },
+    );
+  }
+
+  const { data, error } = await supabase.from('properties').select('*').eq('id', propertyId).single();
   if (error) {
     return NextResponse.json(
-      { error: { code: 'property_create_failed', message: error.message } },
+      { error: { code: 'property_fetch_failed', message: error.message } },
       { status: 500 },
     );
   }

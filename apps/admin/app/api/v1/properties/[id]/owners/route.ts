@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { propertyOwnerAttachSchema } from '@propvault/validation';
-import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { requireOrgRole } from '@/lib/portfolio';
+import { writeAuditEvent } from '@/lib/audit';
 
 // Sibling of properties/[id]/route.ts and properties/[id]/units/route.ts — same `[id]`-not-
 // `[propId]` naming constraint applies (Next.js requires one slug name per path level).
@@ -170,6 +171,18 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     );
   }
 
+  // Captured before the upsert specifically so the audit write below can record what the split
+  // was before this change — property_ownership_history (migration 20260101000062) already
+  // tracks this at the data layer via trigger, but audit_events is the actor-attributed activity
+  // log the owner-facing "who changed my ownership share" view will read from (Phase 6 governance
+  // requirement), a distinct purpose from the raw ledger.
+  const { data: priorOwnership } = await supabase
+    .from('property_owners')
+    .select('ownership_pct')
+    .eq('property_id', propertyId)
+    .eq('owner_id', parsed.data.ownerId)
+    .maybeSingle();
+
   const { data, error } = await supabase
     .from('property_owners')
     .upsert(
@@ -189,6 +202,17 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       { status: 500 },
     );
   }
+
+  await writeAuditEvent(getServiceRoleClient(), {
+    orgId: property.org_id,
+    actorUserId: user.id,
+    actorType: 'user',
+    action: 'property_owner.set_ownership_pct',
+    entityType: 'property_owners',
+    entityId: `${propertyId}:${parsed.data.ownerId}`,
+    before: priorOwnership ? { ownershipPct: priorOwnership.ownership_pct } : null,
+    after: { ownershipPct: data.ownership_pct },
+  });
 
   return NextResponse.json(
     {

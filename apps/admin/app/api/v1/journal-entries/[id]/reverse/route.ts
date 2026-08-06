@@ -1,8 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
-import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { requireOrgRole } from '@/lib/portfolio';
 import { mapJournalEntryRow } from '@/lib/accounting';
+import { writeAuditEvent } from '@/lib/audit';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -108,6 +109,19 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       { status: 500 },
     );
   }
+
+  // Governance requirement: "who reversed this entry and why" — reversal is the one journal-entry
+  // mutation a client can actually trigger (API_SPEC.md §6 forbids a generic create/PATCH/DELETE).
+  await writeAuditEvent(getServiceRoleClient(), {
+    orgId: entry.org_id,
+    actorUserId: user.id,
+    actorType: 'user',
+    action: 'journal_entry.reverse',
+    entityType: 'journal_entries',
+    entityId: entry.id,
+    before: { reversedAt: null },
+    after: { reversalEntryId: reversalEntry.id, reason: parsed.data.reason ?? null },
+  });
 
   return NextResponse.json({ journalEntry: mapJournalEntryRow(reversalEntry) }, { status: 201 });
 }
