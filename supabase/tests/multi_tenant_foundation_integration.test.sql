@@ -115,10 +115,14 @@ select is(
 );
 
 -- === 5. org_id propagation: the newly-joined agent can create a property scoped to this org ===
+-- properties no longer has a client-facing INSERT policy (20260101000064) -- create_property()
+-- is the only sanctioned path as of that migration, same reasoning as organizations/
+-- create_organization().
 select lives_ok(
-  $$ insert into public.properties (org_id, nickname, address_line1, city, country, property_type)
-     select id, 'Foundation Test Property', '1 Integration Street', 'Cape Town', 'ZA', 'house'
-     from public.organizations where legal_name = 'Foundation Test Org A' $$,
+  $$ select public.create_property(
+       (select id from public.organizations where legal_name = 'Foundation Test Org A'),
+       'Foundation Test Property', '1 Integration Street', 'Cape Town', 'ZA', 'house'::public.property_type
+     ) $$,
   'user2 (agent, meets the agent+ write gate) can create a property in the org they just joined'
 );
 

@@ -22,9 +22,12 @@ from public.organizations where legal_name = 'Tax Pack Test Org';
 set local role authenticated;
 set local "request.jwt.claim.sub" = 'e1000000-0000-0000-0000-000000000001';
 
-insert into public.properties (org_id, nickname, address_line1, city, country, property_type)
-select id, 'Tax Pack Property', '1 Test St', 'Cape Town', 'ZA', 'house'
-from public.organizations where legal_name = 'Tax Pack Test Org';
+-- properties no longer has a client-facing INSERT policy (20260101000064) -- create_property()
+-- is the only sanctioned path as of that migration.
+select public.create_property(
+  (select id from public.organizations where legal_name = 'Tax Pack Test Org'),
+  'Tax Pack Property', '1 Test St', 'Cape Town', 'ZA', 'house'::public.property_type
+);
 
 insert into public.units (property_id, org_id, unit_label, status)
 select p.id, p.org_id, 'U1', 'occupied' from public.properties p where p.nickname = 'Tax Pack Property';
