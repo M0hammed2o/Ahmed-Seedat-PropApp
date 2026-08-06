@@ -23,12 +23,16 @@ select id, 'Owner A' from public.organizations where legal_name = 'Owner Stateme
 insert into public.owners (org_id, name)
 select id, 'Owner B' from public.organizations where legal_name = 'Owner Statement Test Org';
 
-insert into public.properties (org_id, nickname, address_line1, city, country, property_type)
-select id, 'Statement Property 1', '1 Test St', 'Cape Town', 'ZA', 'house'
-from public.organizations where legal_name = 'Owner Statement Test Org';
-insert into public.properties (org_id, nickname, address_line1, city, country, property_type)
-select id, 'Statement Property 2', '2 Test St', 'Cape Town', 'ZA', 'house'
-from public.organizations where legal_name = 'Owner Statement Test Org';
+-- properties no longer has a client-facing INSERT policy (20260101000064) -- create_property()
+-- is the only sanctioned path as of that migration.
+select public.create_property(
+  (select id from public.organizations where legal_name = 'Owner Statement Test Org'),
+  'Statement Property 1', '1 Test St', 'Cape Town', 'ZA', 'house'::public.property_type
+);
+select public.create_property(
+  (select id from public.organizations where legal_name = 'Owner Statement Test Org'),
+  'Statement Property 2', '2 Test St', 'Cape Town', 'ZA', 'house'::public.property_type
+);
 
 insert into public.property_owners (property_id, owner_id, ownership_pct)
 select p.id, o.id, 100

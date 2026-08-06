@@ -3,6 +3,7 @@ import type {
   AccountingPeriod,
   BankAccount,
   BankTransaction,
+  CashReceipt,
   ChartOfAccount,
   Expense,
   Invoice,
@@ -249,7 +250,10 @@ interface OwnerStatementRow {
   rent_collected: number;
   expenses_total: number;
   management_fee: number;
+  reserve_amount: number;
   net_payable: number;
+  amount_paid: number;
+  outstanding_balance: number;
   status: string;
   payout_matched_transaction_id: string | null;
   pdf_document_id: string | null;
@@ -267,10 +271,55 @@ export function mapOwnerStatementRow(row: OwnerStatementRow): OwnerStatement {
     rentCollected: row.rent_collected,
     expensesTotal: row.expenses_total,
     managementFee: row.management_fee,
+    reserveAmount: row.reserve_amount,
     netPayable: row.net_payable,
+    amountPaid: row.amount_paid,
+    outstandingBalance: row.outstanding_balance,
     status: row.status as OwnerStatement['status'],
     payoutMatchedTransactionId: row.payout_matched_transaction_id,
     pdfDocumentId: row.pdf_document_id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+interface CashReceiptRow {
+  id: string;
+  org_id: string;
+  property_id: string;
+  lease_id: string | null;
+  rent_schedule_id: string | null;
+  amount: number;
+  receipt_number: string;
+  received_by: string;
+  received_at: string;
+  document_id: string | null;
+  deposited_at: string | null;
+  deposit_bank_transaction_id: string | null;
+  deposited_amount: number | null;
+  variance: number | null;
+  journal_entry_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export function mapCashReceiptRow(row: CashReceiptRow): CashReceipt {
+  return {
+    id: row.id,
+    orgId: row.org_id,
+    propertyId: row.property_id,
+    leaseId: row.lease_id,
+    rentScheduleId: row.rent_schedule_id,
+    amount: row.amount,
+    receiptNumber: row.receipt_number,
+    receivedBy: row.received_by,
+    receivedAt: row.received_at,
+    documentId: row.document_id,
+    depositedAt: row.deposited_at,
+    depositBankTransactionId: row.deposit_bank_transaction_id,
+    depositedAmount: row.deposited_amount === null ? null : Number(row.deposited_amount),
+    variance: row.variance === null ? null : Number(row.variance),
+    journalEntryId: row.journal_entry_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

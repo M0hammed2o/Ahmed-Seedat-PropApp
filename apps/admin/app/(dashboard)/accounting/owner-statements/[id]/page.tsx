@@ -6,6 +6,7 @@ import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapOwnerStatementRow, mapBankTransactionRow } from '@/lib/accounting';
 import { resolvePortalSession, findActiveMembership, canPostAccountingRecords } from '@/lib/orgSession';
 import { StatusBadge } from '@/components/ui/StatusBadge';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { IssueOwnerStatementButton } from '@/components/accounting/IssueOwnerStatementButton';
 import { ConfirmOwnerStatementPayoutControl } from '@/components/accounting/ConfirmOwnerStatementPayoutControl';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
@@ -21,7 +22,10 @@ const DEMO_STATEMENT: OwnerStatement = {
   rentCollected: 18500,
   expensesTotal: 1200,
   managementFee: 1850,
+  reserveAmount: 0,
   netPayable: 15450,
+  amountPaid: 0,
+  outstandingBalance: 15450,
   status: 'issued',
   payoutMatchedTransactionId: null,
   pdfDocumentId: null,
@@ -102,13 +106,13 @@ function OwnerStatementDetailView({
         ← Back to owner statements
       </Link>
 
-      <div className="mt-2 flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-light-textPrimary dark:text-dark-textPrimary">{ownerName}</h1>
-        <StatusBadge presentation={OWNER_STATEMENT_STATUS_PRESENTATION[statement.status]} />
+      <div className="mt-2">
+        <PageHeader
+          title={ownerName}
+          subtitle={`${statement.periodStart} – ${statement.periodEnd}`}
+          actions={<StatusBadge presentation={OWNER_STATEMENT_STATUS_PRESENTATION[statement.status]} />}
+        />
       </div>
-      <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
-        {statement.periodStart} – {statement.periodEnd}
-      </p>
 
       <dl className="mt-6 grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
         <div>

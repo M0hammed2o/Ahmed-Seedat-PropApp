@@ -161,13 +161,54 @@ export interface OwnerStatement {
   rentCollected: number;
   expensesTotal: number;
   managementFee: number;
+  reserveAmount: number;
   netPayable: number;
+  amountPaid: number;
+  outstandingBalance: number;
   status: OwnerStatementStatus;
   payoutMatchedTransactionId: string | null;
   pdfDocumentId: string | null;
   createdAt: string;
   updatedAt: string;
 }
+
+// One row per payout event against an owner_statements row -- a statement may now be paid across
+// multiple partial payments (Stage 2, commercial-launch execution plan), each matched to its own
+// bank transaction. The full distribution history for a statement, not just its latest payout.
+export interface OwnerStatementPayout {
+  id: string;
+  ownerStatementId: string;
+  bankTransactionId: string;
+  amount: number;
+  journalEntryId: string;
+  createdAt: string;
+  createdBy: string | null;
+}
+
+// Cash Management (Stage 3 Phase 7, commercial-launch execution plan): a physically-received cash
+// payment, logged separately from bank_transactions since the money hasn't reached the bank yet.
+// `deposited*`/`variance`/`journalEntryId` stay null until confirm_cash_receipt_deposit() runs.
+export interface CashReceipt {
+  id: string;
+  orgId: string;
+  propertyId: string;
+  leaseId: string | null;
+  rentScheduleId: string | null;
+  amount: number;
+  receiptNumber: string;
+  receivedBy: string;
+  receivedAt: string;
+  documentId: string | null;
+  depositedAt: string | null;
+  depositBankTransactionId: string | null;
+  depositedAmount: number | null;
+  variance: number | null;
+  journalEntryId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type PaymentMethod = 'bank_transfer' | 'cash' | 'eft' | 'card' | 'other';
 
 // ACCOUNTING.md §7 -- one line per property/account for a given SA tax year, computed live from
 // journal_lines (never stored). propertyName is resolved at the API layer (compute_tax_pack()

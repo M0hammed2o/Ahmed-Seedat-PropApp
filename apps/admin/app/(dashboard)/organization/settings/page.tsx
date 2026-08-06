@@ -23,6 +23,7 @@ const DEMO_ORGANIZATION: Organization = {
   ffcIssued: '2026-01-01',
   ffcExpires: '2027-01-01',
   status: 'active',
+  trialEndsAt: null,
   createdAt: '2026-01-01T00:00:00Z',
   updatedAt: '2026-01-01T00:00:00Z',
 };

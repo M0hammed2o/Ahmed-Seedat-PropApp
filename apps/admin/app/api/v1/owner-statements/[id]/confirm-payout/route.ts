@@ -52,6 +52,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   const { error: payoutError } = await supabase.rpc('confirm_owner_statement_payout', {
     p_owner_statement_id: id,
     p_bank_transaction_id: parsed.data.bankTransactionId,
+    p_amount: parsed.data.amount ?? null,
   });
   if (payoutError) {
     return NextResponse.json(

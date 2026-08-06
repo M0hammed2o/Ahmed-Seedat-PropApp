@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import type { OwnerStatement } from '@propvault/types';
+import { branding } from '@propvault/config';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapOwnerStatementRow } from '@/lib/accounting';
 import { PrintButton } from '@/components/accounting/PrintButton';
@@ -16,7 +17,10 @@ const DEMO_STATEMENT: OwnerStatement = {
   rentCollected: 18500,
   expensesTotal: 1200,
   managementFee: 1850,
+  reserveAmount: 0,
   netPayable: 15450,
+  amountPaid: 0,
+  outstandingBalance: 15450,
   status: 'issued',
   payoutMatchedTransactionId: null,
   pdfDocumentId: null,
@@ -50,7 +54,7 @@ export default async function OwnerStatementPrintPage({ params }: RouteParams) {
   const statement = mapOwnerStatementRow(data);
   const ownerName = (data as { owners?: { name?: string } | null }).owners?.name ?? 'Unknown owner';
   const orgName =
-    (data as { organizations?: { legal_name?: string } | null }).organizations?.legal_name ?? 'PropertyVault';
+    (data as { organizations?: { legal_name?: string } | null }).organizations?.legal_name ?? branding.productName;
 
   return <PrintableStatement statement={statement} ownerName={ownerName} orgName={orgName} />;
 }
