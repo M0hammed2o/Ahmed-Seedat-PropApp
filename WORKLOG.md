@@ -1,5 +1,15 @@
 # Worklog
 
+## 2026-08-07 — Diagnostic-only: log the real Supabase error behind email/password signup's generic `signup_failed`
+
+Production email/password registration is failing (`422 signup_failed`) for every new email tested — confirmed NOT the legal-version placeholder (passes validation cleanly; a real ~4s round-trip reaches `supabase.auth.signUp()` before failing, versus ~0.3s for an actual Zod rejection). `app/api/v1/auth/signup/route.ts` has always discarded the real `error.message`/`code`/`status` from Supabase, returning only a generic message — so the actual cause has been invisible.
+
+**Diagnostic-only change, no behavior change**: added a single `console.error('email_password_signup_failed', {...})` in the existing error branch, logging only the error shape (`message`, `code`, `status`, `name`) plus safe request context (route, resolved redirect origin, whether terms/privacy versions were present, whether a user/session came back). Never logs password, confirmPassword, tokens, or the full request body. The public HTTP response is byte-for-byte unchanged — still the same generic 422, still resistant to enumeration.
+
+**Next**: one authorized production signup attempt with a throwaway email, then read the resulting log line to identify the real Supabase error before any actual fix is written.
+
+**Verification**: `tsc --noEmit`/`eslint` clean. Full `vitest run` **304/304** unaffected (no test asserts on server-side log output, only response shape, which didn't change). `prettier --check` clean.
+
 ## 2026-08-06 (continued, 6) — Production auth redirects fixed a real localhost-origin bug behind Render's reverse proxy
 
 Found while verifying Phase B's production deployment (previous entry): `https://proplyst.co.za/auth/callback` was redirecting real users to `https://localhost:10000/login` instead of back to the real domain — confirmed live via direct `curl` against production (real DNS resolution, no proxy on this end; the raw `Location:` header from the live server itself read `localhost:10000`), not assumed from a screenshot or a guess.
