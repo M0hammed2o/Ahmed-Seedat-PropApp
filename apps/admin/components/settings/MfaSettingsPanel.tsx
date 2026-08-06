@@ -19,7 +19,7 @@ interface Factor {
  * session-cookie-writing side effect of a successful `challengeAndVerify()` both need to happen
  * server-side.
  */
-export function MfaSettingsPanel() {
+export function MfaSettingsPanel({ onVerified }: { onVerified?: () => void } = {}) {
   const [factors, setFactors] = useState<Factor[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [enrolling, setEnrolling] = useState(false);
@@ -100,6 +100,7 @@ export function MfaSettingsPanel() {
       setEnrollment(null);
       setCode('');
       await loadFactors();
+      onVerified?.();
     } catch {
       setError('Could not verify your code — check your connection and try again.');
     } finally {

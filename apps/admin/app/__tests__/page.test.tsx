@@ -53,12 +53,12 @@ describe('RootPage (/)', () => {
     expect(screen.queryByText(/overview/i)).toBeNull();
   });
 
-  it('redirects a platform admin to /overview, not the landing page', async () => {
+  it('redirects a platform admin to /platform-admin/overview, not the landing page', async () => {
     mockResolveAuthenticatedDestination.mockResolvedValue({
       kind: 'platform-admin',
-      path: '/overview',
+      path: '/platform-admin/overview',
     });
-    await expect(renderRootPage()).rejects.toThrow('REDIRECT:/overview');
+    await expect(renderRootPage()).rejects.toThrow('REDIRECT:/platform-admin/overview');
   });
 
   it('redirects a normal org member to /dashboard', async () => {
@@ -101,9 +101,9 @@ describe('RootPage (/)', () => {
     await expect(renderRootPage()).rejects.toThrow('REDIRECT:/onboarding/create-organization');
   });
 
-  it('demo mode always redirects to /overview without consulting the resolver', async () => {
+  it('demo mode always redirects to /platform-admin/overview without consulting the resolver', async () => {
     demoMode = true;
-    await expect(renderRootPage()).rejects.toThrow('REDIRECT:/overview');
+    await expect(renderRootPage()).rejects.toThrow('REDIRECT:/platform-admin/overview');
     expect(mockResolveAuthenticatedDestination).not.toHaveBeenCalled();
   });
 });

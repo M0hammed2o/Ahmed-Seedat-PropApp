@@ -64,7 +64,7 @@ export function RegisterForm() {
     setSubmitting(true);
     try {
       if (process.env.NEXT_PUBLIC_DEMO_MODE === 'true') {
-        router.replace('/overview');
+        router.replace('/platform-admin/overview');
         router.refresh();
         return;
       }

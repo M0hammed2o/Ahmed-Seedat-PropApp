@@ -1,7 +1,6 @@
 import { type SubscriptionRow } from '@/components/tables/SubscriptionsTable';
 import { SubscriptionsFilterClient } from '@/components/tables/SubscriptionsFilterClient';
 import { PageHeader } from '@/components/ui/PageHeader';
-import { requireRole } from '@/lib/auth';
 import { getServiceRoleClient } from '@/lib/supabase/server';
 import { listPlatformOrganizations } from '@/lib/superAdmin';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
@@ -14,8 +13,8 @@ import { DEMO_CUSTOMERS } from '@/lib/demo/adminMockData';
  * data, not the real data path this milestone's fix targets.
  */
 export default async function SubscriptionsPage() {
-  await requireRole('read_only_admin');
-
+  // Authorization: enforced by the (super-admin) layout's own gate -- see lib/auth.ts's
+  // resolveAdminGate() comment for why this page must not re-check with its own throwing call.
   const data: SubscriptionRow[] = ADMIN_DEMO_MODE
     ? DEMO_CUSTOMERS.map((c) => ({
         orgId: c.id,

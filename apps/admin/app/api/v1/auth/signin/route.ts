@@ -3,6 +3,7 @@ import { loginSchema } from '@propvault/validation';
 import { RATE_LIMITS } from '@propvault/config';
 import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { rateLimitOrRespond, requestIp } from '@/lib/rateLimit';
+import { auditPlatformAdminLoginIfApplicable } from '@/lib/audit';
 
 /**
  * POST /api/v1/auth/signin (Stage 7, commercial-launch execution plan, TECHNICAL_DEBT_REGISTER.md
@@ -105,6 +106,12 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     );
   }
+
+  // Fires only for accounts with no MFA factor at all (the "step up" case completes at
+  // /api/v1/auth/mfa/verify instead) -- for a platform admin with no factor enrolled, this
+  // session still won't satisfy getAdminSession()'s AAL2 requirement, but the sign-in itself
+  // (password verified, identity established) is the event worth recording either way.
+  await auditPlatformAdminLoginIfApplicable(serviceClient, data.session.user.id);
 
   return NextResponse.json({ mfaRequired: false });
 }

@@ -22,7 +22,7 @@ export function SupportModeBanner({
     setEnding(true);
     try {
       await fetch(`/api/v1/admin/support-sessions/${session.sessionId}/end`, { method: 'POST' });
-      router.push('/customers');
+      router.push('/platform-admin/customers');
       router.refresh();
     } finally {
       setEnding(false);

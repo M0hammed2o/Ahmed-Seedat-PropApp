@@ -1,14 +1,13 @@
 import { ProcessingTable, type ProcessingRow } from '@/components/tables/ProcessingTable';
 import { AdminMetricCard } from '@/components/ui/AdminMetricCard';
 import { PageHeader } from '@/components/ui/PageHeader';
-import { requireRole } from '@/lib/auth';
 import { getServiceRoleClient } from '@/lib/supabase/server';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 import { DEMO_OCR_JOBS } from '@/lib/demo/adminMockData';
 
 export default async function ProcessingPage() {
-  await requireRole('read_only_admin');
-
+  // Authorization: enforced by the (super-admin) layout's own gate -- see lib/auth.ts's
+  // resolveAdminGate() comment for why this page must not re-check with its own throwing call.
   const data: ProcessingRow[] = ADMIN_DEMO_MODE
     ? DEMO_OCR_JOBS.map((job) => ({
         id: job.id,

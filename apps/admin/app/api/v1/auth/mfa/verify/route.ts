@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { RATE_LIMITS } from '@propvault/config';
 import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { rateLimitOrRespond, requestIp } from '@/lib/rateLimit';
+import { auditPlatformAdminLoginIfApplicable } from '@/lib/audit';
 
 const mfaVerifySchema = z.object({
   factorId: z.string().min(1, 'factorId is required'),
@@ -78,6 +79,11 @@ export async function POST(request: NextRequest) {
       { status: 401 },
     );
   }
+
+  // The MFA-required completion point of sign-in (paired with the no-MFA-needed one in
+  // /api/v1/auth/signin) -- this is where a platform admin WITH a factor enrolled actually
+  // reaches AAL2 and completes sign-in.
+  await auditPlatformAdminLoginIfApplicable(serviceClient, user.id);
 
   return NextResponse.json({ verified: true });
 }

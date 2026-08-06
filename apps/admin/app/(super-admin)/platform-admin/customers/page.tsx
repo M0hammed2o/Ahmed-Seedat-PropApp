@@ -1,7 +1,6 @@
 import { type CustomerRow } from '@/components/tables/CustomersTable';
 import { CustomersFilterClient } from '@/components/tables/CustomersFilterClient';
 import { PageHeader } from '@/components/ui/PageHeader';
-import { requireRole } from '@/lib/auth';
 import { getServiceRoleClient } from '@/lib/supabase/server';
 import { listPlatformOrganizations } from '@/lib/superAdmin';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
@@ -32,8 +31,8 @@ async function getCustomers(): Promise<CustomerRow[]> {
 }
 
 export default async function CustomersPage() {
-  await requireRole('read_only_admin');
-
+  // Authorization: enforced by the (super-admin) layout's own gate -- see lib/auth.ts's
+  // resolveAdminGate() comment for why this page must not re-check with its own throwing call.
   const customers: CustomerRow[] = ADMIN_DEMO_MODE
     ? DEMO_CUSTOMERS.map((c) => ({
         id: c.id,
