@@ -4,6 +4,7 @@ import { LEASE_TEMPLATE_MIME_TYPES } from '@propvault/types';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { requireOrgRole } from '@/lib/portfolio';
 import { mapLeaseTemplateRow } from '@/lib/leaseTemplates';
+import { scanUploadOrRespond } from '@/lib/uploadScan';
 
 const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024; // matches the 'documents' bucket's own limit, same bucket is reused
 
@@ -137,6 +138,11 @@ export async function POST(request: NextRequest) {
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
+
+  // R-03/TECHNICAL_DEBT_REGISTER.md TD-43: same real content scan as POST /api/v1/documents.
+  const scanRejection = await scanUploadOrRespond(buffer);
+  if (scanRejection) return scanRejection;
+
   const extension = file.name.includes('.') ? file.name.slice(file.name.lastIndexOf('.')) : '';
   const storagePath = `${parsed.data.orgId}/lease-templates/${crypto.randomUUID()}${extension}`;
 

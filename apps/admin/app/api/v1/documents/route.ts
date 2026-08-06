@@ -6,6 +6,7 @@ import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { requireOrgRole } from '@/lib/portfolio';
 import { mapDocumentRow } from '@/lib/documents';
 import { parseListQuery, encodeCursor, beforeCursorFilter } from '@/lib/cursorPagination';
+import { scanUploadOrRespond } from '@/lib/uploadScan';
 
 const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024; // 25MB, matches the storage bucket's own file_size_limit
 
@@ -136,6 +137,13 @@ export async function POST(request: NextRequest) {
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
+
+  // R-03/TECHNICAL_DEBT_REGISTER.md TD-43: real content scanning, not just the MIME-allowlist
+  // check above -- after authorization (no reason to scan a file from a caller who couldn't
+  // upload it anyway) and before this file's bytes ever reach Storage.
+  const scanRejection = await scanUploadOrRespond(buffer);
+  if (scanRejection) return scanRejection;
+
   const checksum = createHash('sha256').update(buffer).digest('hex');
   const extension = file.name.includes('.') ? file.name.slice(file.name.lastIndexOf('.')) : '';
   // Path convention: {org_id}/{property_id}/{uuid}{ext} -- the leading {org_id} segment is what

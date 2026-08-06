@@ -4,14 +4,15 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Building2 } from 'lucide-react';
 import { branding } from '@propvault/config';
-import { getBrowserSupabaseClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/Button';
 
-// Blocker #4, PWA_V1_COMPLETION_PLAN.md -- no password-reset flow existed anywhere. Real Supabase
-// Auth call (resetPasswordForEmail), not a mock: Supabase always returns success regardless of
-// whether the email is registered (its own anti-enumeration behavior), so this form's "sent" state
-// is not itself a signal of whether an account exists -- matching API_SPEC.md §0's own
-// org/account-enumeration rule applied here to auth.
+// Blocker #4, PWA_V1_COMPLETION_PLAN.md -- no password-reset flow existed anywhere. Real password
+// reset, not a mock -- Stage 7 (commercial-launch execution plan, TD-31) moved the actual
+// Supabase Auth call server-side (POST /api/v1/auth/password-reset, rate-limited); that route
+// always returns the same response regardless of whether the email is registered (Supabase's own
+// anti-enumeration behavior), so this form's "sent" state is still not itself a signal of whether
+// an account exists -- matching API_SPEC.md §0's own org/account-enumeration rule applied here to
+// auth, unchanged by moving the call server-side.
 export function ForgotPasswordForm() {
   const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -30,16 +31,22 @@ export function ForgotPasswordForm() {
       return;
     }
 
-    const supabase = getBrowserSupabaseClient();
-    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    });
-    setSubmitting(false);
-    if (resetError) {
+    try {
+      const response = await fetch('/api/v1/auth/password-reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      setSubmitting(false);
+      if (!response.ok) {
+        setError(response.status === 429 ? 'Too many attempts. Try again shortly.' : 'Something went wrong sending the reset email. Try again.');
+        return;
+      }
+      setSent(true);
+    } catch {
+      setSubmitting(false);
       setError('Something went wrong sending the reset email. Try again.');
-      return;
     }
-    setSent(true);
   }
 
   return (

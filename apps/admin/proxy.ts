@@ -35,6 +35,7 @@ const PROTECTED_ROUTE_PREFIXES = [
   '/my-documents',
   '/notices',
   '/profile',
+  '/owner-portal',
 ];
 
 /**
@@ -109,6 +110,70 @@ function buildCspHeader(nonce: string): string {
   ].join('; ');
 }
 
+// CSRF (Stage 7 commercial-launch execution plan, WORKLOG.md 2026-08-06). SECURITY.md's existing
+// claim -- "session cookies are SameSite-scoped... no implicit-credential request for a forged
+// cross-site request to ride on" -- was verified live this session, not just asserted: the actual
+// installed @supabase/ssr version's DEFAULT_COOKIE_OPTIONS (dist/main/utils/constants.js) is
+// `sameSite: 'lax'`, which this codebase never overrides. SameSite=Lax already blocks a forged
+// cross-site POST/PUT/PATCH/DELETE from carrying the session cookie at all in every modern
+// browser -- the real, substantiated defense, not just an architectural claim. This check is
+// deliberate defense-in-depth on top of that (OWASP's "Verifying Origin with Standard Headers"
+// CSRF technique), for the residual case of a browser/proxy configuration that doesn't honour
+// SameSite, not a replacement for it.
+const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+
+// Endpoints that are legitimately called by something other than this app's own browser session
+// -- a real external caller with no Origin/Referer matching this origin at all, by design, not a
+// gap. PayFast's ITN webhook is authenticated by its own signature (processBillingWebhookEvent),
+// never by a session cookie, so CSRF -- forging a request that rides an ambient cookie -- does not
+// apply to it in the first place. Exact pathnames only (never a prefix) so this list can't
+// accidentally widen to cover something that does need the check.
+const CSRF_EXEMPT_PATHS = new Set(['/api/v1/billing/webhook']);
+
+/**
+ * True if a mutating request's Origin (or, failing that, Referer) header matches this app's own
+ * origin. Skipped entirely for non-mutating methods, exempt paths, and any request already
+ * carrying an `Authorization: Bearer` header -- a bearer token is a credential a forged cross-site
+ * request cannot possibly know or attach (unlike an ambient cookie), so it's a fundamentally
+ * different trust model from the one CSRF attacks exploit; this is exactly the "native apps... use
+ * bearer-token auth rather than ambient cookie auth" case SECURITY.md already describes, and is
+ * also how TD-31's CRON_JOB_SECRET-authenticated system endpoints and native mobile clients (TD-28)
+ * keep working unaffected by this check.
+ *
+ * Compares against the request's own Host header, not `request.nextUrl.origin` -- found live this
+ * session that Next.js's `nextUrl.origin` silently canonicalizes to `localhost` regardless of the
+ * actual Host a request arrived on (confirmed: a real browser request to 127.0.0.1:3100 carried
+ * `Origin: http://127.0.0.1:3100` and a matching `Host: 127.0.0.1:3100` header, but
+ * `request.nextUrl.origin` reported `http://localhost:3100` -- comparing against it would have
+ * rejected every genuinely same-origin request whenever the app isn't accessed via the literal
+ * string "localhost", a real false-positive this test suite caught before it shipped.
+ */
+export function isTrustedOrigin(request: NextRequest): boolean {
+  if (!MUTATING_METHODS.has(request.method)) return true;
+  if (CSRF_EXEMPT_PATHS.has(request.nextUrl.pathname)) return true;
+  if (request.headers.get('authorization')) return true;
+
+  const host = request.headers.get('host');
+  if (!host) return false; // no Host header on a mutating HTTP/1.1+ request is itself invalid/suspicious
+  const expectedOrigin = `${request.nextUrl.protocol}//${host}`;
+
+  const origin = request.headers.get('origin');
+  if (origin) return origin === expectedOrigin;
+
+  // No Origin header at all: fall back to Referer. A real browser sends at least one of these on
+  // every mutating request; the absence of both on a mutating request is itself the suspicious
+  // case CSRF checks exist to catch, so this fails closed rather than assuming same-origin.
+  const referer = request.headers.get('referer');
+  if (referer) {
+    try {
+      return new URL(referer).origin === expectedOrigin;
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
 /**
  * Coarse auth gate (unchanged behavior, just folded into the same pass as the CSP nonce so this
  * file makes one `NextResponse` per request instead of two): redirects unauthenticated sessions
@@ -119,6 +184,10 @@ function buildCspHeader(nonce: string): string {
  * request).
  */
 export async function proxy(request: NextRequest) {
+  if (!isTrustedOrigin(request)) {
+    return NextResponse.json({ error: { code: 'csrf_origin_mismatch', message: 'Request origin could not be verified.' } }, { status: 403 });
+  }
+
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
   const cspHeader = buildCspHeader(nonce);
 

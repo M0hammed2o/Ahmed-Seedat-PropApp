@@ -8,7 +8,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Building2 } from 'lucide-react';
 import { loginSchema, type LoginInput } from '@propvault/validation';
 import { branding } from '@propvault/config';
-import { getBrowserSupabaseClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/Button';
 import { OAuthButtons } from '@/components/auth/OAuthButtons';
 
@@ -21,11 +20,29 @@ export function LoginForm() {
   const providerError = searchParams.get('error');
 
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // Stage 7 (commercial-launch execution plan, TD-31 + TOTP MFA): sign-in now goes through a real
+  // server route (POST /api/v1/auth/signin, rate-limited) instead of calling Supabase Auth
+  // directly from the browser -- the only way rate limiting could ever have a hook point to run
+  // against. A password-only success may not be a complete sign-in: an account with TOTP enrolled
+  // needs a second step, handled inline on this same page rather than a separate route/redirect.
+  const [mfaFactorId, setMfaFactorId] = useState<string | null>(null);
+  const [mfaCode, setMfaCode] = useState('');
+  const [mfaSubmitting, setMfaSubmitting] = useState(false);
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<LoginInput>({ resolver: zodResolver(loginSchema) });
+
+  function completeSignIn() {
+    // Real bug fixed 2026-08-01 (DECISIONS.md): this used to always send every signed-in user to
+    // '/overview' (platform-admin only) -- a client-org member with no platform_admin_users row
+    // would immediately bounce back to '/login' from that route group's own auth check, with no
+    // way to ever reach their portal. '/' now checks both session types and routes accordingly.
+    // `next` (session-expiry redirect or an invitation link) takes priority when present.
+    router.replace(next === '/' ? '/' : next);
+    router.refresh();
+  }
 
   const onSubmit = async (values: LoginInput) => {
     setSubmitError(null);
@@ -38,20 +55,87 @@ export function LoginForm() {
       return;
     }
 
-    const supabase = getBrowserSupabaseClient();
-    const { error } = await supabase.auth.signInWithPassword(values);
-    if (error) {
-      setSubmitError('Invalid email or password.');
-      return;
+    try {
+      const response = await fetch('/api/v1/auth/signin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(values),
+      });
+      const body = await response.json();
+      if (!response.ok) {
+        setSubmitError(response.status === 429 ? 'Too many attempts. Try again shortly.' : 'Invalid email or password.');
+        return;
+      }
+      if (body.mfaRequired) {
+        setMfaFactorId(body.factorId);
+        return;
+      }
+      completeSignIn();
+    } catch {
+      setSubmitError('Could not sign in — check your connection and try again.');
     }
-    // Real bug fixed 2026-08-01 (DECISIONS.md): this used to always send every signed-in user to
-    // '/overview' (platform-admin only) -- a client-org member with no platform_admin_users row
-    // would immediately bounce back to '/login' from that route group's own auth check, with no
-    // way to ever reach their portal. '/' now checks both session types and routes accordingly.
-    // `next` (session-expiry redirect or an invitation link) takes priority when present.
-    router.replace(next === '/' ? '/' : next);
-    router.refresh();
   };
+
+  async function handleMfaSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitError(null);
+    setMfaSubmitting(true);
+    try {
+      const response = await fetch('/api/v1/auth/mfa/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ factorId: mfaFactorId, code: mfaCode }),
+      });
+      if (!response.ok) {
+        const body = await response.json();
+        setSubmitError(response.status === 429 ? 'Too many attempts. Try again shortly.' : (body.error?.message ?? 'Incorrect code.'));
+        return;
+      }
+      completeSignIn();
+    } catch {
+      setSubmitError('Could not verify your code — check your connection and try again.');
+    } finally {
+      setMfaSubmitting(false);
+    }
+  }
+
+  if (mfaFactorId) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-light-surface px-6 dark:bg-dark-surface">
+        <form
+          onSubmit={handleMfaSubmit}
+          className="w-full max-w-sm rounded-card border border-light-border bg-light-surfaceRaised p-8 shadow-lift dark:border-dark-border dark:bg-dark-surfaceRaised"
+        >
+          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-light-accent text-light-accentContrast shadow-glow dark:bg-dark-accent dark:text-dark-accentContrast">
+            <Building2 size={20} aria-hidden="true" />
+          </span>
+          <h1 className="mt-4 font-display text-xl font-bold text-light-textPrimary dark:text-dark-textPrimary">
+            Enter your authentication code
+          </h1>
+          <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
+            Open your authenticator app and enter the 6-digit code.
+          </p>
+
+          <label className="mt-6 block text-xs text-light-textSecondary dark:text-dark-textSecondary">Code</label>
+          <input
+            required
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={6}
+            value={mfaCode}
+            onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, ''))}
+            className="mt-1 w-full rounded-lg border border-light-border bg-transparent px-3 py-2 text-center text-lg tracking-[0.5em] text-light-textPrimary outline-none focus:border-light-accent/40 focus:ring-4 focus:ring-light-accent/10 dark:border-dark-border dark:text-dark-textPrimary dark:focus:border-dark-accent/40 dark:focus:ring-dark-accent/10"
+          />
+
+          {submitError ? <p className="mt-3 text-sm text-light-danger dark:text-dark-danger">{submitError}</p> : null}
+
+          <Button type="submit" variant="primary" disabled={mfaSubmitting || mfaCode.length !== 6} className="mt-6 w-full">
+            {mfaSubmitting ? 'Verifying…' : 'Verify'}
+          </Button>
+        </form>
+      </main>
+    );
+  }
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-light-surface px-6 dark:bg-dark-surface">

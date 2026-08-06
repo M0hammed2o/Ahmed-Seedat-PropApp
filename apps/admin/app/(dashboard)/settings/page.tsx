@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { AccountSettingsForm } from '@/components/settings/AccountSettingsForm';
 import { LinkedAccountsPanel } from '@/components/settings/LinkedAccountsPanel';
+import { MfaSettingsPanel } from '@/components/settings/MfaSettingsPanel';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
@@ -43,6 +44,7 @@ export default async function SettingsPage() {
       <PageHeader title="Account settings" subtitle="Your name, email, and password." />
       <AccountSettingsForm initialDisplayName={profile?.display_name ?? ''} initialEmail={user.email ?? ''} />
       <LinkedAccountsPanel />
+      <MfaSettingsPanel />
       <p className="text-sm text-light-textSecondary dark:text-dark-textSecondary">
         Manage which emails and notifications you receive at{' '}
         <Link href="/notifications/preferences" className="text-light-accent hover:underline dark:text-dark-accent">

@@ -3,17 +3,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { RegisterForm } from '../RegisterForm';
 
-const signUp = vi.fn();
 const replace = vi.fn();
 const refresh = vi.fn();
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace, refresh }),
   useSearchParams: () => new URLSearchParams(),
-}));
-
-vi.mock('@/lib/supabase/client', () => ({
-  getBrowserSupabaseClient: () => ({ auth: { signUp } }),
 }));
 
 vi.mock('@/components/auth/OAuthButtons', () => ({
@@ -32,30 +27,42 @@ function fillAndSubmit(overrides: Partial<{ email: string; password: string; con
   fireEvent.click(screen.getByText('Create account'));
 }
 
+const originalFetch = global.fetch;
+
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  global.fetch = originalFetch;
 });
 
+// Stage 7 (commercial-launch execution plan, TD-31): RegisterForm now calls
+// POST /api/v1/auth/signup (rate-limited server route) instead of the Supabase browser client
+// directly -- these tests mock global.fetch instead of getBrowserSupabaseClient accordingly.
 describe('RegisterForm', () => {
-  it('rejects submission when the password and confirmation do not match, without calling signUp', async () => {
+  it('rejects submission when the password and confirmation do not match, without calling fetch', async () => {
+    global.fetch = vi.fn();
     render(<RegisterForm />);
     fillAndSubmit({ confirmPassword: 'a-different-password' });
 
     await waitFor(() => expect(screen.getByText(/Passwords do not match/)).toBeTruthy());
-    expect(signUp).not.toHaveBeenCalled();
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 
   it('requires accepting both Terms and Privacy before it will submit', async () => {
+    global.fetch = vi.fn();
     render(<RegisterForm />);
     fillAndSubmit({ terms: false });
 
     await waitFor(() => expect(screen.getByText(/You must accept the Terms/)).toBeTruthy());
-    expect(signUp).not.toHaveBeenCalled();
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 
-  it('on a real duplicate-account error from Supabase, shows a clear message and does not treat it as success', async () => {
-    signUp.mockResolvedValueOnce({ data: { session: null }, error: { message: 'User already registered' } });
+  it('on a real duplicate-account error from the server, shows a clear message and does not treat it as success', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 422,
+      json: async () => ({ error: { code: 'account_exists', message: 'An account with this email already exists. Try signing in instead.' } }),
+    }) as unknown as typeof fetch;
     render(<RegisterForm />);
     fillAndSubmit();
 
@@ -63,16 +70,28 @@ describe('RegisterForm', () => {
     expect(replace).not.toHaveBeenCalled();
   });
 
-  it('shows the "check your email" state when signUp succeeds with no immediate session (email confirmations on)', async () => {
-    signUp.mockResolvedValueOnce({ data: { session: null }, error: null });
+  it('shows a rate-limit-specific message on a 429', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 429,
+      json: async () => ({ error: { code: 'rate_limited', message: 'Too many requests. Try again shortly.' } }),
+    }) as unknown as typeof fetch;
+    render(<RegisterForm />);
+    fillAndSubmit();
+
+    await waitFor(() => expect(screen.getByText(/Too many attempts/)).toBeTruthy());
+  });
+
+  it('shows the "check your email" state when signup succeeds with no immediate session (email confirmations on)', async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ hasSession: false }) }) as unknown as typeof fetch;
     render(<RegisterForm />);
     fillAndSubmit();
 
     await waitFor(() => expect(screen.getByText('Check your email')).toBeTruthy());
   });
 
-  it('redirects immediately when signUp returns a live session (email confirmations off)', async () => {
-    signUp.mockResolvedValueOnce({ data: { session: { access_token: 'x' } }, error: null });
+  it('redirects immediately when signup returns hasSession: true (email confirmations off)', async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ hasSession: true }) }) as unknown as typeof fetch;
     render(<RegisterForm />);
     fillAndSubmit();
 

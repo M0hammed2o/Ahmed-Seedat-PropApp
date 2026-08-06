@@ -6,7 +6,6 @@ import Link from 'next/link';
 import { Building2 } from 'lucide-react';
 import { registerSchema } from '@propvault/validation';
 import { branding, TERMS_VERSION, PRIVACY_VERSION } from '@propvault/config';
-import { getBrowserSupabaseClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/Button';
 import { OAuthButtons } from '@/components/auth/OAuthButtons';
 
@@ -64,30 +63,26 @@ export function RegisterForm() {
         return;
       }
 
-      const supabase = getBrowserSupabaseClient();
-      const { data, error } = await supabase.auth.signUp({
-        email: parsed.data.email,
-        password: parsed.data.password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
-        },
+      // Stage 7 (commercial-launch execution plan, TD-31): sign-up now goes through a real
+      // server route (POST /api/v1/auth/signup, rate-limited) instead of calling Supabase Auth
+      // directly from the browser -- the only way rate limiting could ever have a hook point.
+      const response = await fetch('/api/v1/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...parsed.data, next }),
       });
+      const body = await response.json();
 
-      if (error) {
-        // Duplicate-account prevention surfaces here: Supabase returns a real error for an email
-        // that's already registered (never a silent second account).
-        setSubmitError(
-          /already registered|already exists/i.test(error.message)
-            ? 'An account with this email already exists. Try signing in instead.'
-            : 'Could not create your account. Check your details and try again.',
-        );
+      if (!response.ok) {
+        setSubmitError(response.status === 429 ? 'Too many attempts. Try again shortly.' : (body.error?.message ?? 'Could not create your account. Check your details and try again.'));
         return;
       }
 
-      // signUp() returns a live session immediately only when email confirmations are disabled
-      // for this project; otherwise data.session is null until the confirmation link is clicked
-      // (this project has confirmations ON, supabase/config.toml [auth.email]).
-      if (data.session) {
+      // hasSession is true only when email confirmations are disabled for this project;
+      // otherwise the caller must click the confirmation link (this project has confirmations ON,
+      // supabase/config.toml [auth.email]) -- the route establishes the session cookie itself in
+      // the hasSession case, so a client-side redirect is all that's needed here.
+      if (body.hasSession) {
         router.replace(next);
         router.refresh();
         return;

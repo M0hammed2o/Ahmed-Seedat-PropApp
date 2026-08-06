@@ -37,6 +37,16 @@ enable_signup = true
 enable_confirmations = true
 double_confirm_changes = true
 
+# TOTP MFA (Stage 7, commercial-launch execution plan, 2026-08-06) -- off by default in a fresh
+# Supabase project; found live this session that `auth.mfa.enroll()` fails with no explicit error
+# detail until this section is added. `apps/admin/app/api/v1/auth/mfa/*` is the only caller.
+[auth.mfa]
+max_enrolled_factors = 10
+
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
+
 # Google and Apple OAuth (PRODUCT DECISION 1, V1 methods 2 and 3). `enabled = false` locally --
 # no real credentials exist in this environment ("do not invent production client IDs or
 # secrets"). The application code (components/auth/OAuthButtons.tsx, app/auth/callback/route.ts)
