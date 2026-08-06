@@ -4,6 +4,13 @@ export interface ProcessingInput {
   documentId: string;
   storagePath: string;
   mimeType: string;
+  /** A short-lived signed URL the caller (an API route, which already holds a Supabase client)
+   * resolves before calling a real provider -- so a provider implementation never needs storage/DB
+   * access of its own (matches the "no DB access from a provider class" boundary every other
+   * provider in this codebase follows, e.g. payfast.ts/email.ts). Optional because
+   * MockDocumentIntelligenceProvider never reads it -- only a provider that genuinely needs the
+   * file's bytes (AWSTextractDocumentIntelligenceProvider) does. */
+  signedUrl?: string;
 }
 
 export interface ProviderMetadata {

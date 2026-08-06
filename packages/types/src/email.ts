@@ -12,6 +12,11 @@ export interface SendEmailInput {
   toAddress: string;
   templateName: string;
   templateVars: Record<string, unknown>;
+  /** Rendered by the caller (emailDispatch.ts's TEMPLATE_SUBJECTS/TEMPLATE_BODY) before reaching
+   * this boundary -- a provider implementation should never need to know what a given
+   * templateName means, only send the already-rendered subject/body it's given. */
+  subject: string;
+  bodyText: string;
   relatedEntityType?: string;
   relatedEntityId?: string;
   attachments?: { documentId: string }[];

@@ -6,6 +6,8 @@ import { getDocumentIntelligenceProvider } from '@/lib/providers/documentIntelli
 
 type RouteParams = { params: Promise<{ id: string }> };
 
+const SIGNED_URL_TTL_SECONDS = 300; // 5 minutes -- matches GET /api/v1/documents/:id's own TTL
+
 const uploadAndParseSchema = z.object({
   documentId: z.string().uuid('documentId must be a valid UUID'),
 });
@@ -141,7 +143,25 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
 
   const provider = getDocumentIntelligenceProvider();
-  const processingInput = { documentId: document.id, storagePath: document.storage_path, mimeType: document.mime_type };
+  // Signed URL, not a raw storage path -- so a real provider (AWSTextractDocumentIntelligenceProvider)
+  // can fetch the file's bytes itself without this route handing it a Supabase client of its own
+  // (see ProcessingInput's own comment). Short TTL matches every other signed-URL issuance in this
+  // codebase; the provider call below happens well within it.
+  const { data: signedUrlData, error: signedUrlError } = await serviceRole.storage
+    .from('documents')
+    .createSignedUrl(document.storage_path, SIGNED_URL_TTL_SECONDS);
+  if (signedUrlError || !signedUrlData) {
+    return NextResponse.json(
+      { error: { code: 'signed_url_failed', message: signedUrlError?.message ?? 'Could not create a signed URL for this document.' } },
+      { status: 500 },
+    );
+  }
+  const processingInput = {
+    documentId: document.id,
+    storagePath: document.storage_path,
+    mimeType: document.mime_type,
+    signedUrl: signedUrlData.signedUrl,
+  };
 
   try {
     const extraction = await provider.extractFields(processingInput, 'lease');

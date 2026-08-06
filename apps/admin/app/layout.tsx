@@ -1,8 +1,9 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { headers } from 'next/headers';
 import { Inter, Plus_Jakarta_Sans } from 'next/font/google';
 import { branding } from '@propvault/config';
 import { ThemeProvider } from 'next-themes';
+import { ServiceWorkerRegister } from '@/components/pwa/ServiceWorkerRegister';
 import './globals.css';
 
 // Self-hosted via next/font (downloaded at build time, served from this origin) -- never an
@@ -14,7 +15,21 @@ const bodyFont = Inter({ subsets: ['latin'], variable: '--font-sans' });
 
 export const metadata: Metadata = {
   title: `${branding.productName} Admin`,
-  description: 'PropVault SaaS operations dashboard',
+  description: `${branding.productName} SaaS operations dashboard`,
+  // manifest.ts's own file convention auto-injects <link rel="manifest">, no manual `manifest`
+  // field needed here (would just duplicate the tag).
+  // iOS Safari doesn't read the web manifest for install/standalone behaviour or a touch icon --
+  // these are the separate, Apple-specific hints it needs. Static asset (public/icons/*, real
+  // Proplyst logo mark) rather than a dedicated app/apple-icon.tsx file-convention icon.
+  appleWebApp: { capable: true, statusBarStyle: 'default', title: branding.productName },
+  icons: { apple: '/icons/apple-touch-icon.png' },
+};
+
+export const viewport: Viewport = {
+  // themeColor lives on `viewport`, not `metadata`, since Next.js 14 -- matches manifest.ts's own
+  // theme_color (#106ADD, packages/ui/src/tokens.ts light.accent) so the OS chrome around an
+  // installed/standalone window matches the in-app accent exactly.
+  themeColor: '#106ADD',
 };
 
 /**
@@ -50,6 +65,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem nonce={nonce}>
           {children}
         </ThemeProvider>
+        <ServiceWorkerRegister />
       </body>
     </html>
   );

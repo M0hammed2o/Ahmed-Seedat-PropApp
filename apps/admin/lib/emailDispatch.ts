@@ -1,5 +1,6 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { branding } from '@propvault/config';
 import { getEmailProvider } from './providers/email';
 import { writeAuditEvent } from './audit';
 
@@ -13,6 +14,8 @@ export type EmailTemplateName =
   | 'owner_statement_ready'
   | 'maintenance_update'
   | 'subscription_payment_issue'
+  | 'subscription_suspended'
+  | 'trial_expiring_soon'
   | 'member_invited'
   | 'tenant_invitation';
 
@@ -30,8 +33,28 @@ const TEMPLATE_SUBJECTS: Record<EmailTemplateName, (vars: Record<string, unknown
   owner_statement_ready: (v) => `Your owner statement for ${v.period ?? 'this period'} is ready`,
   maintenance_update: (v) => `Maintenance update: ${v.summary ?? 'your ticket'}`,
   subscription_payment_issue: () => `Action needed: subscription payment issue`,
-  member_invited: (v) => `You've been invited to join ${v.orgName ?? 'a PropertyVault organization'}`,
-  tenant_invitation: (v) => `Activate your PropertyVault tenant portal for ${v.orgName ?? 'your rental'}`,
+  subscription_suspended: (v) => `Your ${branding.productName} access has been suspended (${v.reason ?? 'billing issue'})`,
+  trial_expiring_soon: (v) => `Your ${branding.productName} trial ends soon — ${v.legalName ?? 'your organization'}`,
+  member_invited: (v) => `You've been invited to join ${v.orgName ?? `a ${branding.productName} organization`}`,
+  tenant_invitation: (v) => `Activate your ${branding.productName} tenant portal for ${v.orgName ?? 'your rental'}`,
+};
+
+// Plain-text bodies, deliberately minimal (a real HTML/branded template pass is out of scope for
+// this dispatch layer -- EMAIL.md doesn't specify one) -- one line per template, same
+// vars-in/string-out shape as TEMPLATE_SUBJECTS, so a real provider (ResendEmailProvider) has
+// actual content to send instead of a guessed convention. Never referenced by MockEmailProvider,
+// which only logs; a real provider is the only consumer, matching how templateVars itself was
+// unused by anything until a real provider needed real content.
+const TEMPLATE_BODY: Record<EmailTemplateName, (vars: Record<string, unknown>) => string> = {
+  invoice_issued: (v) => `A new invoice is ready for ${v.propertyAddress ?? 'your rental'}. Sign in to ${branding.productName} to view and pay it.`,
+  payment_recorded: (v) => `We've recorded your payment for ${v.propertyAddress ?? 'your rental'}. Thank you.`,
+  owner_statement_ready: (v) => `Your owner statement for ${v.period ?? 'this period'} is ready to view in ${branding.productName}.`,
+  maintenance_update: (v) => `There's an update on your maintenance ticket: ${v.summary ?? `see ${branding.productName} for details`}.`,
+  subscription_payment_issue: (v) => `We couldn't process your subscription payment (reference ${v.providerReference ?? 'unknown'}). Please update your payment details in ${branding.productName} to avoid interruption.`,
+  subscription_suspended: (v) => `Your ${branding.productName} access has been suspended: ${v.reason ?? 'a billing issue'}. Sign in and visit Billing & subscription to restore access.`,
+  trial_expiring_soon: (v) => `Your ${branding.productName} trial for ${v.legalName ?? 'your organization'} ends on ${v.trialEndsAt ?? 'soon'}. Choose a plan to continue without interruption.`,
+  member_invited: (v) => `You've been invited to join ${v.orgName ?? `a ${branding.productName} organization`}. Sign in to ${branding.productName} to accept.`,
+  tenant_invitation: (v) => `Activate your ${branding.productName} tenant portal for ${v.orgName ?? 'your rental'} to view your lease, payments, and submit maintenance requests.`,
 };
 
 export interface DispatchEmailInput {
@@ -104,11 +127,14 @@ export async function dispatchEmail(
 
   const provider = getEmailProvider();
   const subject = TEMPLATE_SUBJECTS[input.templateName](input.templateVars);
+  const bodyText = TEMPLATE_BODY[input.templateName](input.templateVars);
   const result = await provider.send({
     orgId: input.orgId,
     toAddress: input.toAddress,
     templateName: input.templateName,
     templateVars: input.templateVars,
+    subject,
+    bodyText,
     relatedEntityType: input.relatedEntityType,
     relatedEntityId: input.relatedEntityId,
   });

@@ -6,6 +6,8 @@ import { mapExtractionResultRow } from '@/lib/documents';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
+const SIGNED_URL_TTL_SECONDS = 300; // 5 minutes -- matches GET /api/v1/documents/:id's own TTL
+
 // Same two document types apps/admin/lib/providers/documentIntelligence.ts's extractFields()
 // actually returns meaningful fields for (bill/lease) -- other types would just get the generic
 // bill-shaped fallback, which would be misleading to show as "extracted" data.
@@ -89,8 +91,23 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     );
   }
 
+  const { data: signedUrlData, error: signedUrlError } = await serviceRole.storage
+    .from('documents')
+    .createSignedUrl(document.storage_path, SIGNED_URL_TTL_SECONDS);
+  if (signedUrlError || !signedUrlData) {
+    return NextResponse.json(
+      { error: { code: 'signed_url_failed', message: signedUrlError?.message ?? 'Could not create a signed URL for this document.' } },
+      { status: 500 },
+    );
+  }
+
   const provider = getDocumentIntelligenceProvider();
-  const processingInput = { documentId: document.id, storagePath: document.storage_path, mimeType: document.mime_type };
+  const processingInput = {
+    documentId: document.id,
+    storagePath: document.storage_path,
+    mimeType: document.mime_type,
+    signedUrl: signedUrlData.signedUrl,
+  };
 
   try {
     const extraction = await provider.extractFields(processingInput, document.document_type as 'bill' | 'lease');
