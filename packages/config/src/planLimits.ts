@@ -1,4 +1,5 @@
 import type { PlanConfig } from '@propvault/types';
+import { branding } from './branding';
 
 /**
  * V1 has exactly one plan. Values marked TO_BE_CONFIRMED are commercial decisions for
@@ -7,7 +8,7 @@ import type { PlanConfig } from '@propvault/types';
  */
 export const PROPVAULT_BASE_PLAN: PlanConfig = {
   planId: 'propvault_base',
-  displayName: 'PropVault Base',
+  displayName: `${branding.productName} Base`,
   monthlyPrice: 'TO_BE_CONFIRMED',
   annualPrice: null,
   trialDays: 'TO_BE_CONFIRMED',

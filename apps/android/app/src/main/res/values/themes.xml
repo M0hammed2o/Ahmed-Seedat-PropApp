@@ -1,0 +1,8 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base theme for the Activity window before Compose content sets in. Everything else
+         (colour scheme, typography, shapes) is driven by Compose's MaterialTheme
+         (ui/theme/Theme.kt), not XML, per DESIGN_SYSTEM.md/NATIVE_ANDROID_SPEC.md section 5's
+         "static ColorScheme generated from packages/ui tokens, dynamic colour explicitly
+         disabled" rule. -->
+    <style name="Theme.PropertyVault" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

@@ -102,12 +102,12 @@ export default function ReviewExtractionScreen() {
           best.conflictingFields,
         );
         router.replace({
-          pathname: `/(app)/properties/${id}/match`,
-          params: { matchId: match.id },
+          pathname: '/(app)/properties/[id]/match',
+          params: { id, matchId: match.id },
         });
         return;
       }
-      router.replace(`/(app)/properties/${id}`);
+      router.replace({ pathname: '/(app)/properties/[id]', params: { id } });
       return;
     }
 
@@ -151,10 +151,13 @@ export default function ReviewExtractionScreen() {
         best.matchedFields,
         best.conflictingFields,
       );
-      router.replace({ pathname: `/(app)/properties/${id}/match`, params: { matchId: match.id } });
+      router.replace({
+        pathname: '/(app)/properties/[id]/match',
+        params: { id, matchId: match.id },
+      });
       return;
     }
-    router.replace(`/(app)/properties/${id}`);
+    router.replace({ pathname: '/(app)/properties/[id]', params: { id } });
   };
 
   return (

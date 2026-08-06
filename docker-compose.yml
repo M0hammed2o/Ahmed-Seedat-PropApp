@@ -1,0 +1,27 @@
+# Local dev infrastructure that isn't part of the Supabase CLI's own managed stack (`supabase
+# start`/`supabase stop` own everything Postgres/Auth/Storage-related; this file is for
+# everything else). Currently just ClamAV (Stage 7, commercial-launch execution plan,
+# TECHNICAL_DEBT_REGISTER.md TD-43) -- ClamAV's real deployment target (which container host, how
+# it's reached from the production app) is a Stage 8 (production deployment) decision once a
+# hosting platform is chosen; this is the local-dev-only equivalent so the real scan provider
+# (apps/admin/lib/providers/malwareScan.ts) has something to connect to and be verified against
+# in this environment.
+services:
+  clamav:
+    image: clamav/clamav:1.4
+    ports:
+      - '3310:3310'
+    volumes:
+      - clamav-data:/var/lib/clamav
+    # The official image's own entrypoint runs freshclam (downloads virus definitions) before
+    # starting clamd -- first startup takes a few minutes; healthcheck gates anything that
+    # depends on this being genuinely ready, not just "the container process started."
+    healthcheck:
+      test: ['CMD', 'clamdcheck.sh']
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 5m
+
+volumes:
+  clamav-data:

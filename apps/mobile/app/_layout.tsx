@@ -6,18 +6,21 @@ import { StatusBar } from 'expo-status-bar';
 import { queryClient } from '@/lib/queryClient';
 import { AuthProvider } from '@/features/auth/AuthProvider';
 import { BiometricLockProvider } from '@/features/biometrics/BiometricLockProvider';
+import { ErrorBoundary } from '@/design/components';
 
 export default function RootLayout() {
   return (
-    <SafeAreaProvider>
-      <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <BiometricLockProvider>
-            <StatusBar style="auto" />
-            <Stack screenOptions={{ headerShown: false }} />
-          </BiometricLockProvider>
-        </AuthProvider>
-      </QueryClientProvider>
-    </SafeAreaProvider>
+    <ErrorBoundary>
+      <SafeAreaProvider>
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
+            <BiometricLockProvider>
+              <StatusBar style="auto" />
+              <Stack screenOptions={{ headerShown: false }} />
+            </BiometricLockProvider>
+          </AuthProvider>
+        </QueryClientProvider>
+      </SafeAreaProvider>
+    </ErrorBoundary>
   );
 }

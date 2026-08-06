@@ -15,6 +15,7 @@ import {
   DEMO_DOCUMENTS,
   DEMO_EXPECTED_CATEGORIES,
   DEMO_NOTIFICATIONS,
+  DEMO_ORG_ID,
   DEMO_PAYMENTS,
   DEMO_PAYMENT_MATCHES,
   DEMO_PROPERTIES,
@@ -99,7 +100,7 @@ export const useDemoStore = create<DemoState>((set, get) => ({
     const now = new Date().toISOString();
     const property: Property = {
       id: nextId('prop'),
-      ownerUserId: DEMO_USER.id,
+      orgId: DEMO_ORG_ID,
       nickname: input.nickname,
       fullAddress: [
         input.addressLine1,

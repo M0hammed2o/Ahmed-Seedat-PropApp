@@ -42,3 +42,12 @@ export const resetPasswordSchema = z
     path: ['confirmPassword'],
   });
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+
+// PATCH /api/v1/profile (PWA_V1_COMPLETION_PLAN.md #7) -- public.profiles.display_name only.
+// Email/password changes go straight through Supabase Auth client-side (supabase.auth.updateUser),
+// same as ResetPasswordForm.tsx -- there is no separate app-level "email"/"password" column to
+// validate against here.
+export const updateProfileSchema = z.object({
+  displayName: z.string().min(1, 'Enter a display name').max(200),
+});
+export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;

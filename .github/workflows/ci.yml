@@ -1,0 +1,104 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Format check
+        run: pnpm format:check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build admin
+        run: pnpm --filter admin build
+        env:
+          # Demo mode lets the admin app build without a live Supabase project — see
+          # SECURITY.md. CI only needs to confirm the build compiles, not connect to real data.
+          # Both gates are required as of the 2026-07-30 demo-mode-bypass fix (R-01) — this CI
+          # job is the one place ALLOW_DEMO_MODE is legitimately set outside local dev, and it
+          # must never appear in this repo's *deployment* workflow (a separate, not-yet-written
+          # job per DEPLOYMENT.md/TASKS.md M24) once one exists.
+          NEXT_PUBLIC_DEMO_MODE: 'true'
+          ALLOW_DEMO_MODE: 'true'
+
+      - name: Secret scan
+        run: |
+          if grep -rEn "sk_live_|sb_secret_|AIza[0-9A-Za-z_-]{35}|-----BEGIN (RSA |EC |)PRIVATE KEY-----" \
+            --include="*.ts" --include="*.tsx" --include="*.js" --include="*.json" --include="*.env*" \
+            --exclude-dir=node_modules --exclude-dir=.next --exclude-dir=.expo --exclude-dir=.turbo --exclude-dir=dist . \
+            | grep -v "TO_BE_CONFIRMED\|CHANGE_ME"; then
+            echo "Potential secret pattern found — see above."
+            exit 1
+          fi
+
+      - name: Dependency vulnerability scan
+        # Stage 7 (commercial-launch execution plan, WORKLOG.md 2026-08-06) -- TASKS.md M25's
+        # named gap. `--prod` scopes this to production runtime dependencies -- what actually
+        # ships and runs against real user input -- not devDependency build tooling. Gated on
+        # `critical` only: a real `pnpm audit` run this session found 0 critical findings in prod
+        # deps but 9 high/moderate ones (all transitive through eslint/vite/vitest/postcss's own
+        # dependency chains, none fixable by a version bump this repo controls -- they need an
+        # upstream release) plus 1 critical finding that ONLY exists in devDependencies (a vitest
+        # UI-server arbitrary-file-read, exploitable only by running `vitest --ui` and exposing it
+        # externally, which nothing in this repo's scripts or CI ever does). Gating merges on
+        # findings nobody here can fix or that don't apply to this repo's actual usage is the
+        # well-known alert-fatigue anti-pattern; a real production-reachable critical is the tier
+        # that actually warrants blocking a PR. TECHNICAL_DEBT_REGISTER.md TD-42 tracks the known
+        # non-blocking findings (both the prod high/moderate set and the dev-only critical one).
+        run: pnpm audit --audit-level critical --prod
+
+  pgtap:
+    # Runs the RLS/isolation/accounting pgTAP suite under supabase/tests/ against a real local
+    # Postgres, via the same `supabase test db` command used locally (TESTING.md). Previously this
+    # only ran manually/locally — TECHNICAL_DEBT_REGISTER.md TD-05 and RISK_REGISTER.md R-02 (RLS
+    # isolation, including the organization_members recursion bug caught this way) depended on a
+    # developer remembering to run it, not on CI enforcing it. Kept as its own job (not a step in
+    # `verify`) so the two can run in parallel — `supabase start` pulls and boots a full multi-
+    # container stack, which dominates wall-clock time on its own.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.111.0
+
+      - name: Start local Supabase stack
+        run: supabase start
+
+      - name: Apply migrations and seed (fresh, matches local `supabase db reset`)
+        run: supabase db reset
+
+      - name: Run pgTAP suite
+        run: supabase test db
+
+      - name: Stop local Supabase stack
+        if: always()
+        run: supabase stop

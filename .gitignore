@@ -24,6 +24,10 @@ supabase/.temp/
 
 # Testing / coverage
 coverage/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
 
 # OS / editor
 .DS_Store
@@ -32,18 +36,22 @@ Thumbs.db
 npm-debug.log*
 pnpm-debug.log*
 
-# EAS / native
+# EAS / native (apps/mobile's Expo prebuild output -- apps/android has its own .gitignore)
 *.p8
 *.p12
 *.mobileprovision
 *.jks
 *.keystore
 ios/Pods/
-android/.gradle/
-android/app/build/
+apps/mobile/android/.gradle/
+apps/mobile/android/app/build/
 
 # IDE
 .idea/
+
+# Development reference material only -- never a runtime dependency, never committed
+# (UI_INTEGRATION_PLAN.md: audited and adapted from, not imported)
+/reference/
 
 # Local agent tooling state (not project source)
 .claude/

@@ -5,15 +5,15 @@ import { router } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { propertySchema, type PropertyInput } from '@propvault/validation';
-import { useAuth } from '@/features/auth/AuthProvider';
 import { useCreatePropertyMutation } from '@/features/properties/usePropertiesQuery';
+import { useCurrentOrgId } from '@/features/organizations/useCurrentOrgId';
 import { useTheme } from '@/design/theme';
 import { FormTextField, PrimaryButton } from '@/design/components';
 
 export default function AddPropertyScreen() {
   const { color, spacing, typeScale } = useTheme();
-  const { session } = useAuth();
-  const createProperty = useCreatePropertyMutation(session?.user.id ?? '');
+  const { data: orgId } = useCurrentOrgId();
+  const createProperty = useCreatePropertyMutation(orgId ?? '');
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const {

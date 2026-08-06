@@ -1,0 +1,198 @@
+import { NextResponse, type NextRequest } from 'next/server';
+import { tenantInvitationCreateSchema } from '@propvault/validation';
+import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
+import { requireOrgRole } from '@/lib/portfolio';
+import { mapTenantInvitationRow, maskDestination } from '@/lib/tenantInvitations';
+import { dispatchEmail } from '@/lib/emailDispatch';
+import { dispatchWhatsApp } from '@/lib/whatsappDispatch';
+import { rateLimitOrRespond } from '@/lib/rateLimit';
+
+type RouteParams = { params: Promise<{ id: string }> };
+
+/**
+ * GET/POST /api/v1/tenants/:id/invitations (PRODUCT DECISION 2, 2026-08-03). agent+ only
+ * (PERMISSIONS.md's "Properties/Units/Leases/Tenants: Full" floor for agent -- tenant
+ * invitations are a tenant-management action). POST always issues a fresh invitation:
+ * create_tenant_invitation() already revokes any prior un-accepted one for the same tenant
+ * first, so this single endpoint IS "resend" and "regenerate" both -- there is no separate
+ * resend endpoint, deliberately: the raw token/code is never stored (only its hash), so a later
+ * literal "resend the same secret" is cryptographically impossible, not merely unbuilt. The UI
+ * labels the button "Send"/"Resend"/"Regenerate" depending on whether an invitation already
+ * exists; the underlying call is identical either way.
+ */
+export async function GET(_request: NextRequest, { params }: RouteParams) {
+  const { id } = await params;
+  const supabase = await getServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json(
+      { error: { code: 'unauthenticated', message: 'Sign in required.' } },
+      { status: 401 },
+    );
+  }
+
+  const { data, error } = await supabase
+    .from('tenant_invitations')
+    .select('*')
+    .eq('tenant_id', id)
+    .order('created_at', { ascending: false });
+  if (error) {
+    return NextResponse.json(
+      { error: { code: 'tenant_invitations_fetch_failed', message: error.message } },
+      { status: 500 },
+    );
+  }
+
+  return NextResponse.json({ invitations: (data ?? []).map(mapTenantInvitationRow) });
+}
+
+export async function POST(request: NextRequest, { params }: RouteParams) {
+  const { id } = await params;
+  const supabase = await getServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json(
+      { error: { code: 'unauthenticated', message: 'Sign in required.' } },
+      { status: 401 },
+    );
+  }
+
+  const limited = await rateLimitOrRespond(supabase, `tenant-invitation-create:${user.id}`, 20, 60);
+  if (limited) return limited;
+
+  const { data: tenant, error: tenantError } = await supabase
+    .from('tenants')
+    .select('id, org_id, email, phone, full_name')
+    .eq('id', id)
+    .maybeSingle();
+  if (tenantError) {
+    return NextResponse.json(
+      { error: { code: 'tenant_fetch_failed', message: tenantError.message } },
+      { status: 500 },
+    );
+  }
+  if (!tenant) {
+    return NextResponse.json(
+      { error: { code: 'not_found', message: 'Tenant not found.' } },
+      { status: 404 },
+    );
+  }
+
+  const canWrite = await requireOrgRole(supabase, tenant.org_id, 'agent');
+  if (!canWrite) {
+    return NextResponse.json(
+      {
+        error: { code: 'forbidden', message: 'You do not have permission to invite this tenant.' },
+      },
+      { status: 403 },
+    );
+  }
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json(
+      { error: { code: 'invalid_json', message: 'Request body must be valid JSON.' } },
+      { status: 400 },
+    );
+  }
+
+  const parsed = tenantInvitationCreateSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      {
+        error: {
+          code: 'validation_failed',
+          message: 'Check the highlighted fields.',
+          field_errors: parsed.error.flatten().fieldErrors,
+        },
+      },
+      { status: 400 },
+    );
+  }
+
+  const destination = parsed.data.deliveryChannel === 'whatsapp' ? tenant.phone : tenant.email;
+  if (
+    (parsed.data.deliveryChannel === 'email' || parsed.data.deliveryChannel === 'whatsapp') &&
+    !destination
+  ) {
+    return NextResponse.json(
+      {
+        error: {
+          code: 'no_destination',
+          message: `This tenant has no ${parsed.data.deliveryChannel === 'email' ? 'email address' : 'phone number'} on file.`,
+        },
+      },
+      { status: 400 },
+    );
+  }
+
+  const { data: rpcRows, error: rpcError } = await supabase.rpc('create_tenant_invitation', {
+    p_tenant_id: id,
+    p_delivery_channel: parsed.data.deliveryChannel,
+    p_include_short_code: parsed.data.includeShortCode,
+    p_destination_hint: destination ? maskDestination(destination) : null,
+  });
+  if (rpcError) {
+    return NextResponse.json(
+      { error: { code: 'tenant_invitation_create_failed', message: rpcError.message } },
+      { status: 500 },
+    );
+  }
+  const created = rpcRows?.[0];
+  if (!created) {
+    return NextResponse.json(
+      { error: { code: 'tenant_invitation_create_failed', message: 'No invitation was created.' } },
+      { status: 500 },
+    );
+  }
+
+  const serviceClient = getServiceRoleClient();
+  const { data: org } = await serviceClient
+    .from('organizations')
+    .select('legal_name')
+    .eq('id', tenant.org_id)
+    .maybeSingle();
+  const acceptUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/activate?token=${created.token}`;
+
+  if (parsed.data.deliveryChannel === 'email' && tenant.email) {
+    await dispatchEmail(serviceClient, {
+      orgId: tenant.org_id,
+      toAddress: tenant.email,
+      templateName: 'tenant_invitation',
+      templateVars: { orgName: org?.legal_name, tenantName: tenant.full_name, acceptUrl },
+      relatedEntityType: 'tenant_invitations',
+      relatedEntityId: `${created.invitation_id}:0`,
+      actorUserId: user.id,
+    });
+  } else if (parsed.data.deliveryChannel === 'whatsapp' && tenant.phone) {
+    await dispatchWhatsApp(serviceClient, {
+      orgId: tenant.org_id,
+      toPhone: tenant.phone,
+      templateName: 'tenant_invitation',
+      variables: { orgName: org?.legal_name ?? '', acceptUrl, code: created.short_code ?? '' },
+      relatedEntityType: 'tenant_invitations',
+      relatedEntityId: `${created.invitation_id}:0`,
+      actorUserId: user.id,
+    });
+  }
+
+  // The plaintext token/short code is returned exactly once, in this response -- the API layer
+  // never logs it, and the DB never stores it (only its hash). The UI must show it to staff now
+  // or lose it forever (PRODUCT DECISION 2: "never retrieve the plaintext code again later").
+  return NextResponse.json(
+    {
+      invitationId: created.invitation_id,
+      token: created.token,
+      shortCode: created.short_code,
+      expiresAt: created.expires_at,
+      acceptUrl,
+    },
+    { status: 201 },
+  );
+}

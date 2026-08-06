@@ -11,7 +11,9 @@ export interface DocumentCategory {
 
 export interface DocumentRecord {
   id: string;
-  ownerUserId: string;
+  /** Legacy PropVault-era rows may have this null; every org-scoped upload (TASKS.md M11/V1) always sets it. */
+  ownerUserId: string | null;
+  orgId: string | null;
   propertyId: string;
   categoryId: string;
   documentType: DocumentType;
@@ -22,6 +24,10 @@ export interface DocumentRecord {
   checksumSha256: string;
   billingYear: number | null;
   billingMonth: number | null; // 1-12
+  /** Set by staff to explicitly tag a document (e.g. the signed lease PDF) as tenant-visible via
+   *  `documents_select_tenant_self` (migration 20260101000049) -- null for every staff/owner-only
+   *  document, which is the default and stays the vast majority of rows. */
+  leaseId: string | null;
   deletedAt: string | null;
   createdAt: string;
   updatedAt: string;

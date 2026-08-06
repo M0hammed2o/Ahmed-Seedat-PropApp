@@ -7,3 +7,4 @@ export * from './matchingThresholds';
 export * from './limits';
 export * from './env';
 export * from './demoMode';
+export * from './legal';

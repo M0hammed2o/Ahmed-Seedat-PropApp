@@ -12,6 +12,9 @@ export const mobileEnvSchema = z.object({
   EXPO_PUBLIC_SUPABASE_URL: z.string().optional(),
   EXPO_PUBLIC_SUPABASE_ANON_KEY: z.string().optional(),
   EXPO_PUBLIC_DEMO_MODE: z.string().optional(),
+  // Second, independent gate (SECURITY.md "Demo-mode auth bypass") — see packages/config's
+  // resolveDemoMode(). Must never be 'true' in the `production` EAS build profile (eas.json).
+  EXPO_PUBLIC_ALLOW_DEMO_MODE: z.string().optional(),
   EXPO_PUBLIC_SUBSCRIPTION_MODE: z.enum(['mock', 'revenuecat']).default('mock'),
   EXPO_PUBLIC_REVENUECAT_API_KEY_IOS: z.string().optional(),
   EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID: z.string().optional(),
@@ -29,6 +32,11 @@ export const adminServerEnvSchema = z.object({
   ADMIN_SESSION_COOKIE_SECRET: z.string().min(16).optional(),
   REVENUECAT_WEBHOOK_SECRET: z.string().optional(),
   DOCUMENT_INTELLIGENCE_WEBHOOK_SECRET: z.string().optional(),
+  // Shared secret for server-to-server scheduled-job callers (e.g. a hosting-platform cron
+  // trigger) that have no platform-admin user session to authenticate with. Optional -- when
+  // unset, the scheduled-job endpoints accept only an authenticated platform-admin session
+  // (TASKS.md M24 wires the real production scheduler; this is the callable surface it will call).
+  CRON_JOB_SECRET: z.string().optional(),
 });
 export type AdminServerEnv = z.infer<typeof adminServerEnvSchema>;
 

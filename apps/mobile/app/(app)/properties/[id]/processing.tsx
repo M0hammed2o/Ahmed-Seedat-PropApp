@@ -44,8 +44,8 @@ export default function ProcessingScreen() {
         setTimeout(() => {
           if (!cancelled) {
             router.replace({
-              pathname: `/(app)/properties/${id}/review`,
-              params: { documentId, categorySlug, documentType },
+              pathname: '/(app)/properties/[id]/review',
+              params: { id, documentId, categorySlug, documentType },
             });
           }
         }, 650);

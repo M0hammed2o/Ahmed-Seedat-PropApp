@@ -1,0 +1,12 @@
+# Normalize all text files to LF in the repository and on checkout, regardless of the checking-out
+# platform's line-ending convention. Without this, a Windows checkout's CRLF working-tree files
+# (git's own default core.autocrlf behavior) silently drift from Prettier's LF default across the
+# whole repo -- found 2026-08-06 when CI's format:check failed on 339 files, almost none of which
+# this session had touched.
+* text=auto eol=lf
+
+# Binary assets -- never text-normalize these regardless of extension.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary

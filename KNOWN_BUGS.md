@@ -1,32 +1,34 @@
 # Known Bugs / Limitations
 
-## jest-expo cannot currently run in this environment (mobile unit tests written, not executing)
+## ~~jest-expo cannot currently run in this environment~~ — FIXED 2026-07-30, root cause was not what was previously documented
 
-**Symptom:** every `apps/mobile` Jest suite (including pure-logic files with zero Expo imports, e.g. `lockStateMachine.test.ts`) fails identically at collection time:
+**Previous diagnosis (2026-07-21) was wrong on the specifics, right that it was upstream.** It concluded "Windows MAX_PATH issue... ruled out" and left the failure attributed vaguely to "jest-expo's stack-trace-based module lookup misbehaving in this Node/Jest 29/Windows combination." That was never fully traced to an actual line of code — corrected here with the real, empirically-confirmed cause.
 
+**Symptom (as before):** every `apps/mobile` Jest suite failed identically at collection time with `TypeError: The "path" argument must be of type string. Received null` inside `jest-expo`'s `attemptLookup()`.
+
+**Actual root cause (traced by instrumenting the failing code path directly, not inferred):** `attemptLookup()` uses `stacktrace-js` → `error-stack-parser@2.1.4` to parse a V8 stack trace line and recover the source file's path. `error-stack-parser`'s `extractLocation()` does:
+
+```js
+var parts = regExp.exec(urlLike.replace(/[()]/g, ''));
 ```
-TypeError: The "path" argument must be of type string. Received null
-  at attemptLookup (jest-expo/src/preset/setup.js:223:31)
-  ... expo/src/winter/fetch/ExpoFetchModule.ts ...
+
+This strips **every** literal parenthesis from the location string — not just the outer `(file:line:col)` wrapper V8 adds, but any parentheses that happen to be part of the real file path too. This repository's own working directory is named `PropValt (Property App)` — a directory name that itself contains parentheses. Debug instrumentation confirmed the corrupted value directly: the parsed path came back as `...\PropValt Property App\node_modules\...\ExpoFetchModule.ts` (the literal string `"(Property App)"` silently mangled to `"Property App"`), which does not exist on disk, so the upward `package.json` search in `attemptLookup()` never finds anything, `modulePath` stays `null`, and `path.join(null, ...)` throws.
+
+**This is a genuine upstream bug, confirmed still present in the latest published release** (checked `error-stack-parser@3.0.0`, the newest version on npm as of this check — same unfixed line). It is **not** Windows-specific, **not** a Node-version issue, **not** a Jest-config issue, **not** missing env vars, and **not** incorrect mocks — it reproduces on any OS, for any project checked out into a directory whose path contains literal parentheses.
+
+**Fix applied:** a `pnpm patch` (`patches/error-stack-parser.patch`, registered in root `package.json`'s `pnpm.patchedDependencies`, applies automatically on every `pnpm install` — including CI, including any other machine that clones this repo) correcting `extractLocation` to strip only a leading `(` and trailing `)` — the actual V8-added wrapper — rather than every parenthesis in the string:
+
+```js
+var parts = regExp.exec(urlLike.replace(/^\(|\)$/g, ''));
 ```
 
-**Root cause (verified, not guessed):** `jest-expo`'s preset setup installs Expo's global `fetch` polyfill for every test file. Its `attemptLookup()` helper walks a captured stack-trace file path upward looking for the nearest `package.json` to locate an optional-native-module mock; that walk never finds one (leaving `modulePath = null`), so a subsequent `path.join(null, ...)` throws. Reproduced identically:
+**Verified fixed, not just patched-and-assumed-working:** ran `pnpm --filter mobile test` after the patch — all 3 suites pass (12/12 tests). Ran `pnpm test` at the repo root — all 5 test tasks pass across all 7 workspaces (`packages/config`, `packages/utils`, `packages/validation`, `admin`, `mobile`) — the first time this project has been fully green.
 
-- After a full clean reinstall (`rm -rf node_modules pnpm-lock.yaml && pnpm install`) — rules out a stale/duplicate dependency tree.
-- With `expo` pinned to the exact version (`56.0.5`) that `jest-expo@56.0.5` itself depends on — rules out a version-drift theory.
-- Confirmed the actual file (`ExpoFetchModule.ts`) and its package's `package.json` both exist on disk at that exact resolved path (`fs.existsSync` → true when checked directly), so it is not a Windows MAX_PATH issue either (`LongPathsEnabled=1` confirmed on this machine).
+**Remaining limitation:** none functionally — the suites run and pass. The only residual note is that this patch is scoped to `error-stack-parser@2.1.4` specifically (via pnpm's version-keyed patch mechanism); if a future dependency bump changes the resolved version, `pnpm install` will report the patch no longer applies (a loud failure, not a silent gap) and the patch file will need a matching version bump, trivial given the fix is two characters of regex.
 
-This isolates the bug to `jest-expo@56.0.5`'s stack-trace-based module lookup misbehaving in this Node/Jest 29/Windows combination — an upstream tooling defect, not a defect in this project's application code.
+## RLS isolation tests — execution status (2026-07-30)
 
-**Impact:** `pnpm test` fails for `apps/mobile` specifically; `packages/utils`, `packages/validation`, `packages/config`, and `apps/admin` all pass cleanly and are unaffected (see WORKLOG.md for the full run).
-
-**What still has coverage despite this:** the logic under test in the blocked mobile suites (`lockStateMachine`, `MockSubscriptionProvider`, `PropertyCard`) is plain TypeScript/React with no Expo-runtime dependency — it is written the same way the passing package-level tests are, so once this tooling issue is resolved these suites should pass without code changes.
-
-**Unblocking steps for Mohammed:**
-
-1. Try running `pnpm --filter mobile test` on macOS/Linux (or WSL) — this failure mode is stack-trace/path-shape specific and may be Windows-only.
-2. Watch `jest-expo` releases for a fix past `56.0.5` (there was none newer as of this writing — SDK 56's own jest-expo line tops out at `56.0.5`; SDK 57's `jest-expo@57.x` requires bumping the whole Expo SDK, which is a separate decision).
-3. As a workaround, running the affected suites with `expo/scripts/withScriptDefaults` disabled or a custom minimal Jest config that doesn't use the `jest-expo` preset (plain `react-native`'s preset + manual RN mocks) would sidestep this specific code path — not attempted here since it would mean re-deriving jest-expo's other RN mocks by hand, a larger change than fits Phase 1 scope.
+`supabase/tests/multi_tenant_isolation.test.sql` and `rls_isolation.test.sql`: Docker was re-verified as actually available in this environment (`docker ps` succeeds) — the "no local Docker/Supabase instance" assumption carried in `RISK_REGISTER.md`/`TASKS.md` since the PropVault era was itself never re-checked and turned out to be stale. `supabase start`/`supabase test db` execution status is being verified now — see `WORKLOG.md`/`RISK_REGISTER.md` R-02 for the current, up-to-date result rather than duplicating a status here that will go stale.
 
 ## Structural limitations (not bugs — scope boundaries, tracked for transparency)
 

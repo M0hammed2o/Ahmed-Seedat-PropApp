@@ -20,3 +20,4 @@ export * from './Chip';
 export * from './ConfidenceBadge';
 export * from './EditableRow';
 export * from './SettingsSection';
+export * from './ErrorBoundary';

@@ -6,6 +6,8 @@ import { ADMIN_DEMO_MODE } from './demoMode';
 import { DEMO_ADMIN_SESSION } from './demo/adminMockData';
 
 export interface AdminSession {
+  id: string; // platform_admin_users row id -- distinct from authUserId (auth.users id); the FK
+  // support_access_sessions.platform_admin_id references this, not auth_user_id.
   authUserId: string;
   role: AdminRole;
   displayName: string;
@@ -24,6 +26,7 @@ export interface AdminSession {
 export async function getAdminSession(): Promise<AdminSession | null> {
   if (ADMIN_DEMO_MODE) {
     return {
+      id: DEMO_ADMIN_SESSION.id,
       authUserId: DEMO_ADMIN_SESSION.authUserId,
       role: DEMO_ADMIN_SESSION.role,
       displayName: DEMO_ADMIN_SESSION.displayName,
@@ -36,19 +39,25 @@ export async function getAdminSession(): Promise<AdminSession | null> {
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  // Looking up admin_users requires the service-role client because no RLS policy grants a
-  // plain authenticated session access to that table (see supabase/migrations, SECURITY.md) —
-  // this function itself IS the controlled, server-only path that's allowed to check it.
+  // Looking up platform_admin_users requires the service-role client because no RLS policy
+  // grants a plain authenticated session access to that table (see supabase/migrations,
+  // SECURITY.md) — this function itself IS the controlled, server-only path that's allowed to
+  // check it.
   const serviceClient = getServiceRoleClient();
   const { data, error } = await serviceClient
-    .from('admin_users')
-    .select('role, display_name, is_active')
+    .from('platform_admin_users')
+    .select('id, role, display_name, is_active')
     .eq('auth_user_id', user.id)
     .maybeSingle();
 
   if (error || !data || !data.is_active) return null;
 
-  return { authUserId: user.id, role: data.role as AdminRole, displayName: data.display_name };
+  return {
+    id: data.id,
+    authUserId: user.id,
+    role: data.role as AdminRole,
+    displayName: data.display_name,
+  };
 }
 
 export async function requireRole(minRole: AdminRole): Promise<AdminSession> {

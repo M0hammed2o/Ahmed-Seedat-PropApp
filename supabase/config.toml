@@ -8,6 +8,17 @@ schemas = ["public", "storage"]
 [db]
 port = 54322
 
+# Fixed 2026-07-31: no [db.seed] section existed, so `supabase db reset` silently fell back to its
+# default expected path `supabase/seed.sql` (single file at the supabase/ root), which does not
+# exist -- the real file is `supabase/seed/seed.sql`. Every `db reset` up to and including the
+# "verify migrations on a clean database" pass earlier this session logged
+# `WARN: no files matched pattern: supabase/seed.sql` and silently skipped seeding entirely; that
+# warning was never noticed/investigated before. Confirmed via `supabase db reset --help` that
+# `[db.seed].sql_paths` is the documented config key for a non-default seed location.
+[db.seed]
+enabled = true
+sql_paths = ["./seed/seed.sql"]
+
 [studio]
 enabled = true
 port = 54323
@@ -15,7 +26,52 @@ port = 54323
 [auth]
 enabled = true
 site_url = "http://localhost:3000"
-additional_redirect_urls = ["exp://localhost:19000"]
+# "/**" covers every redirect-based auth flow's callback (OAuth, email verification, password
+# reset) landing on /auth/callback under the same origin as site_url -- PRODUCT DECISION 1
+# (2026-08-03). exp://localhost:19000 is the pre-existing native (Expo) callback, unrelated.
+additional_redirect_urls = ["exp://localhost:19000", "http://localhost:3000/**"]
+
+# PRODUCT DECISION 1 (2026-08-03): "Create account" / "Email verification" requirements.
+[auth.email]
+enable_signup = true
+enable_confirmations = true
+double_confirm_changes = true
+
+# TOTP MFA (Stage 7, commercial-launch execution plan, 2026-08-06) -- off by default in a fresh
+# Supabase project; found live this session that `auth.mfa.enroll()` fails with no explicit error
+# detail until this section is added. `apps/admin/app/api/v1/auth/mfa/*` is the only caller.
+[auth.mfa]
+max_enrolled_factors = 10
+
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
+
+# Google and Apple OAuth (PRODUCT DECISION 1, V1 methods 2 and 3). `enabled = false` locally --
+# no real credentials exist in this environment ("do not invent production client IDs or
+# secrets"). The application code (components/auth/OAuthButtons.tsx, app/auth/callback/route.ts)
+# is fully built and ready; flip `enabled = true` and set the two env vars below once real
+# credentials exist (AUTHENTICATION.md's external setup section has the full walkthrough).
+# Microsoft is deliberately not scaffolded here -- the instruction is explicit that a 4th
+# provider is only worth adding once the first three are complete and it's genuinely
+# low-effort, and no MS credentials/decision exist to build against anyway.
+[auth.external.google]
+enabled = false
+client_id = "env(GOOGLE_OAUTH_CLIENT_ID)"
+secret = "env(GOOGLE_OAUTH_CLIENT_SECRET)"
+
+[auth.external.apple]
+enabled = false
+client_id = "env(APPLE_OAUTH_CLIENT_ID)"
+secret = "env(APPLE_OAUTH_CLIENT_SECRET)"
 
 [storage]
 enabled = true
+
+# Disabled for local migration/RLS verification (2026-07-30): analytics/logflare requires
+# additional backend configuration this sandbox doesn't have and was the container failing its
+# health check during `supabase start`, blocking the rest of the (healthy) stack from being
+# reported ready. Not needed to verify migrations, RLS policies, or functions. Re-enable if a
+# real need for local analytics emerges.
+[analytics]
+enabled = false

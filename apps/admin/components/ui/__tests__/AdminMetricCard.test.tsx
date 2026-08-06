@@ -19,4 +19,17 @@ describe('AdminMetricCard', () => {
     render(<AdminMetricCard label="Total properties" value={7} />);
     expect(screen.queryByText('Last 30 days')).toBeNull();
   });
+
+  it('renders as a link to href when provided, still showing label/value', () => {
+    render(<AdminMetricCard label="Properties" value={4} href="/properties" />);
+    const link = screen.getByRole('link');
+    expect(link.getAttribute('href')).toBe('/properties');
+    expect(screen.getByText('Properties')).toBeTruthy();
+    expect(screen.getByText('4')).toBeTruthy();
+  });
+
+  it('renders as a plain div (no link) when no href is provided', () => {
+    render(<AdminMetricCard label="Properties" value={4} />);
+    expect(screen.queryByRole('link')).toBeNull();
+  });
 });

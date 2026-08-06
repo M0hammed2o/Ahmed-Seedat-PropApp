@@ -3,6 +3,7 @@ import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import reactHooks from 'eslint-plugin-react-hooks';
 import importPlugin from 'eslint-plugin-import';
+import globals from 'globals';
 
 export default tseslint.config(
   {
@@ -45,6 +46,28 @@ export default tseslint.config(
     files: ['**/*.test.ts', '**/*.test.tsx', '**/*.spec.ts'],
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
+    },
+  },
+  {
+    // Service workers run in their own global scope (self/caches/fetch/Response/URL), distinct
+    // from both the Node-oriented default the rest of this config assumes and a regular
+    // window-scoped browser script -- no `env`/`globals` block existed anywhere in this config
+    // before Stage 5's public/sw.js (commercial-launch execution plan) needed one.
+    files: ['**/public/sw.js'],
+    languageOptions: {
+      globals: globals.serviceworker,
+    },
+  },
+  {
+    // One-off Node CLI dev scripts (e.g. scripts/make-icons.mjs, Stage 7 rebrand) -- plain
+    // console output is the entire point, not something to flag under the app-wide
+    // no-console/warn+error-only rule.
+    files: ['**/scripts/**/*.mjs'],
+    languageOptions: {
+      globals: globals.node,
+    },
+    rules: {
+      'no-console': 'off',
     },
   },
 );
