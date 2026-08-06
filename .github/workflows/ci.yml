@@ -18,7 +18,14 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # Bumped from 20 (found live via CI, unrelated to this specific push's own changes):
+          # @supabase/realtime-js's SupabaseClient constructor now unconditionally requires a
+          # native WebSocket implementation, throwing "Node.js detected but native WebSocket not
+          # found" on construction under Node < 22 -- this had never actually been exercised in
+          # CI before (the two prior runs failed earlier, on Prettier formatting and a GitHub
+          # Actions infra outage, never reaching the Test step), so this dependency-side
+          # requirement was latent rather than newly introduced here.
+          node-version: 22
           cache: pnpm
 
       - name: Install dependencies
