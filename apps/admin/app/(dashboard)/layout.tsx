@@ -22,6 +22,7 @@ import {
   Bell,
   Megaphone,
 } from 'lucide-react';
+import { branding } from '@propvault/config';
 import { resolvePortalSession } from '@/lib/orgSession';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
@@ -122,6 +123,10 @@ export default async function PortalLayout({ children }: { children: React.React
   const activeSupportSession = session.supportSessions.find((s) => s.orgId === activeOrg.orgId);
   const supportSessionOrgName = activeSupportSession ? await loadOrgLegalName(activeOrg.orgId) : undefined;
   const canManageOrg = !activeSupportSession && (activeOrg.role === 'principal' || activeOrg.role === 'manager');
+  // Billing is principal-only, stricter than canManageOrg -- it moves real money (subscription
+  // checkout/cancellation), not just organization metadata, matching PATCH .../billing/*'s own
+  // super_admin-only floor at the platform-admin layer.
+  const canManageBilling = !activeSupportSession && activeOrg.role === 'principal';
   const accountMenuLinks = [
     { href: '/settings', label: 'Account settings' },
     ...(canManageOrg
@@ -130,11 +135,12 @@ export default async function PortalLayout({ children }: { children: React.React
           { href: '/organization/lease-templates', label: 'Lease templates' },
         ]
       : []),
+    ...(canManageBilling ? [{ href: '/organization/billing', label: 'Billing & subscription' }] : []),
   ];
 
   return (
     <AppShell
-      productLabel="PropertyVault"
+      productLabel={branding.productName}
       navSections={NAV_SECTIONS}
       identityLine={activeSupportSession ? 'support mode (read-only)' : activeOrg.role.replace('_', ' ')}
       displayName={displayName}

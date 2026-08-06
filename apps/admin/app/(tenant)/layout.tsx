@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { LayoutDashboard, FileSignature, Receipt, Wrench, Megaphone, FileText } from 'lucide-react';
+import { branding } from '@propvault/config';
 import { resolveTenantSession, type TenantSession } from '@/lib/tenantSession';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 import { AppShell, type NavSection } from '@/components/shell/AppShell';
@@ -40,7 +41,7 @@ export default async function TenantPortalLayout({ children }: { children: React
 
   return (
     <AppShell
-      productLabel="PropertyVault"
+      productLabel={branding.productName}
       navSections={NAV_SECTIONS}
       demoBadge={ADMIN_DEMO_MODE}
       accountMenuLinks={ACCOUNT_MENU_LINKS}

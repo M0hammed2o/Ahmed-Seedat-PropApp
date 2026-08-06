@@ -1,5 +1,5 @@
 import 'server-only';
-import { resolveDemoMode } from '@propvault/config';
+import { branding, resolveDemoMode } from '@propvault/config';
 
 /**
  * Server-only (enforced by the `server-only` import above — this file fails the build if ever
@@ -22,7 +22,7 @@ export const ADMIN_DEMO_MODE = resolveDemoMode(
 
 if (ADMIN_DEMO_MODE) {
   console.warn(
-    '[PropVault] Demo mode is ON (NEXT_PUBLIC_DEMO_MODE=true AND ALLOW_DEMO_MODE=true) — admin login accepts ANY credentials and all data is mock. ' +
+    `[${branding.productName}] Demo mode is ON (NEXT_PUBLIC_DEMO_MODE=true AND ALLOW_DEMO_MODE=true) — admin login accepts ANY credentials and all data is mock. ` +
       "ALLOW_DEMO_MODE must never be set in a production environment's infra configuration.",
   );
 }

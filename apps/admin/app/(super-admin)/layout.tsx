@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { LayoutDashboard, Users, CreditCard, ScanLine, Activity } from 'lucide-react';
+import { branding } from '@propvault/config';
 import { getAdminSession } from '@/lib/auth';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 import { AppShell, type NavSection } from '@/components/shell/AppShell';
@@ -32,7 +33,7 @@ export default async function SuperAdminLayout({ children }: { children: React.R
 
   return (
     <AppShell
-      productLabel="PropVault Admin"
+      productLabel={`${branding.productName} Admin`}
       navSections={NAV_SECTIONS}
       identityLine={`${session.displayName} · ${session.role.replace('_', ' ')}`}
       demoBadge={ADMIN_DEMO_MODE}
