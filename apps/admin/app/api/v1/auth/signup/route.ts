@@ -62,16 +62,35 @@ export async function POST(request: NextRequest) {
   );
   if (limited) return limited;
 
+  const origin = getRequestOrigin(request.headers);
   const supabase = await getServerSupabaseClient();
   const { data, error } = await supabase.auth.signUp({
     email: parsed.data.email,
     password: parsed.data.password,
     options: {
-      emailRedirectTo: `${getRequestOrigin(request.headers)}/auth/callback?next=${encodeURIComponent(parsed.data.next)}`,
+      emailRedirectTo: `${origin}/auth/callback?next=${encodeURIComponent(parsed.data.next)}`,
     },
   });
 
   if (error) {
+    // Diagnostic-only (WORKLOG.md this date): the public response below has always been, and
+    // remains, a generic message -- this exists purely so the *real* Supabase Auth error is
+    // visible server-side instead of silently discarded, since production signups were failing
+    // with no way to tell why. Deliberately narrow: only error shape + safe request context, never
+    // the password/confirmPassword fields or anything from `data` that could carry a token.
+    console.error('email_password_signup_failed', {
+      route: 'POST /api/v1/auth/signup',
+      message: error.message,
+      code: error.code,
+      status: error.status,
+      name: error.name,
+      origin,
+      hadTermsVersion: parsed.data.acceptedTermsVersion.length > 0,
+      hadPrivacyVersion: parsed.data.acceptedPrivacyVersion.length > 0,
+      userReturned: Boolean(data?.user),
+      sessionReturned: Boolean(data?.session),
+    });
+
     return NextResponse.json(
       {
         error: {
