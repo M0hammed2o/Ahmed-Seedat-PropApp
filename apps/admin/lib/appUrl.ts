@@ -11,6 +11,8 @@ export function getAppUrl(): string {
   return (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000').replace(/\/$/, '');
 }
 
+const PRODUCTION_APP_ORIGIN = 'https://proplyst.co.za';
+
 /**
  * The correct public origin for a request that arrived through Render's reverse proxy (fronted by
  * Cloudflare) -- confirmed live this session that `new URL(request.url).origin` in a Route Handler
@@ -20,18 +22,26 @@ export function getAppUrl(): string {
  * already reflects the public host -- so this helper is only needed at Route Handler call sites
  * that build an absolute URL for a redirect or an outbound email link.
  *
- * Prefers `X-Forwarded-Host`/`X-Forwarded-Proto`, the headers the actual proxy chain sets on every
- * request that reaches this app -- safe to trust here specifically because this app is never
- * directly internet-reachable, only through Render/Cloudflare, so these headers can't be spoofed
- * by an external caller the way they could on a directly-exposed origin. Falls back to
- * `getAppUrl()` (the configured `NEXT_PUBLIC_APP_URL`) when the headers are absent -- the ordinary
- * case in local dev, where there's no reverse proxy setting them at all.
+ * Render/Cloudflare set `X-Forwarded-Host`/`X-Forwarded-Proto`, but those values must still be
+ * allow-listed here. A live production probe proved Cloudflare forwards a caller-supplied
+ * `X-Forwarded-Host` unchanged; trusting it unconditionally turned this helper into an open
+ * redirect and, more seriously, allowed signup/password-reset emails to be poisoned with an
+ * attacker-controlled return host. The configured app origin and the canonical production origin
+ * are the only accepted forwarded origins. Everything else falls back to the configured origin.
  */
 export function getRequestOrigin(headers: Headers): string {
+  const configuredOrigin = new URL(getAppUrl()).origin;
   const forwardedHost = headers.get('x-forwarded-host');
   if (forwardedHost) {
     const forwardedProto = headers.get('x-forwarded-proto') ?? 'https';
-    return `${forwardedProto}://${forwardedHost}`;
+    try {
+      const forwardedOrigin = new URL(`${forwardedProto}://${forwardedHost}`).origin;
+      if (forwardedOrigin === configuredOrigin || forwardedOrigin === PRODUCTION_APP_ORIGIN) {
+        return forwardedOrigin;
+      }
+    } catch {
+      // Malformed forwarded values are untrusted input; use the canonical configured origin.
+    }
   }
-  return getAppUrl();
+  return configuredOrigin;
 }
