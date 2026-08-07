@@ -85,4 +85,25 @@ describe('getRequestOrigin', () => {
     const headers = new Headers({ 'x-forwarded-host': 'bad host/value' });
     expect(getRequestOrigin(headers)).toBe('https://proplyst.co.za');
   });
+
+  it('rejects a garbage/injection-shaped X-Forwarded-Proto rather than trusting it verbatim', () => {
+    process.env.NEXT_PUBLIC_APP_URL = 'https://proplyst.co.za';
+    const headers = new Headers({
+      'x-forwarded-host': 'proplyst.co.za',
+      'x-forwarded-proto': 'javascript',
+    });
+    // Whatever URL this constructs ("javascript://proplyst.co.za") is neither the configured nor
+    // the canonical production origin, so it's rejected the same way any other mismatch is --
+    // the allow-list check, not proto-specific parsing, is what makes this safe.
+    expect(getRequestOrigin(headers)).toBe('https://proplyst.co.za');
+  });
+
+  it('falls back safely when a comma-separated (proxy-chained) X-Forwarded-Host is supplied', () => {
+    process.env.NEXT_PUBLIC_APP_URL = 'https://proplyst.co.za';
+    const headers = new Headers({
+      'x-forwarded-host': 'evil.example, proplyst.co.za',
+      'x-forwarded-proto': 'https',
+    });
+    expect(getRequestOrigin(headers)).toBe('https://proplyst.co.za');
+  });
 });
