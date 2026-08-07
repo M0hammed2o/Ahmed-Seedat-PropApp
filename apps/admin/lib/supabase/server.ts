@@ -60,8 +60,16 @@ export function extractBearerToken(authorizationHeader: string | null | undefine
  * never has, `persistSession: false`) — this is what lets every existing route handler's
  * `await supabase.auth.getUser()` call keep working completely unchanged for both caller types,
  * rather than requiring every route to be edited to pass the token through explicitly.
+ *
+ * `fetch` is an optional escape hatch for diagnostic instrumentation only (see
+ * app/api/v1/auth/signup/route.ts's own comment, WORKLOG.md this date) -- supabase-js's own
+ * error handling never exposes the raw response body for a 5xx (confirmed from
+ * @supabase/auth-js's own source: `handleError()` throws before ever calling `.json()` on a
+ * 500-504/520-530 response), so the only way to see what Supabase Auth actually sent back is to
+ * intercept the fetch itself. Every existing caller is unaffected -- this parameter is optional
+ * and unused by default.
  */
-export async function getServerSupabaseClient() {
+export async function getServerSupabaseClient(options?: { fetch?: typeof fetch }) {
   const env = getAdminServerEnv();
   const headerStore = await headers();
   const bearerToken = extractBearerToken(headerStore.get('authorization'));
@@ -69,7 +77,7 @@ export async function getServerSupabaseClient() {
   if (bearerToken) {
     const client = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
       auth: { autoRefreshToken: false, persistSession: false },
-      global: { headers: { Authorization: `Bearer ${bearerToken}` } },
+      global: { headers: { Authorization: `Bearer ${bearerToken}` }, fetch: options?.fetch },
     });
     const resolveUser = client.auth.getUser.bind(client.auth);
     client.auth.getUser = ((jwt?: string) =>
@@ -90,6 +98,7 @@ export async function getServerSupabaseClient() {
         }
       },
     },
+    global: { fetch: options?.fetch },
   });
 }
 
