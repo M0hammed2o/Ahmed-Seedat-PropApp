@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { ScrollView, Text } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Text } from 'react-native';
 import { router } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -8,7 +7,7 @@ import { propertySchema, type PropertyInput } from '@propvault/validation';
 import { useCreatePropertyMutation } from '@/features/properties/usePropertiesQuery';
 import { useCurrentOrgId } from '@/features/organizations/useCurrentOrgId';
 import { useTheme } from '@/design/theme';
-import { FormTextField, PrimaryButton } from '@/design/components';
+import { FormTextField, KeyboardScreen, PrimaryButton } from '@/design/components';
 
 // NOTE (TASKS.md M5, 2026-07-30): this onboarding step still assumes a user can create a
 // property immediately after signup, which was true in the single-owner model but isn't
@@ -51,11 +50,7 @@ export default function AddFirstPropertyScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: color.surface }}>
-      <ScrollView
-        contentContainerStyle={{ padding: spacing[6] }}
-        keyboardShouldPersistTaps="handled"
-      >
+    <KeyboardScreen>
         <Text style={[typeScale.title, { color: color.textPrimary, marginBottom: spacing[2] }]}>
           Add your first property
         </Text>
@@ -111,7 +106,6 @@ export default function AddFirstPropertyScreen() {
           loading={isSubmitting}
           onPress={handleSubmit(onSubmit)}
         />
-      </ScrollView>
-    </SafeAreaView>
+    </KeyboardScreen>
   );
 }

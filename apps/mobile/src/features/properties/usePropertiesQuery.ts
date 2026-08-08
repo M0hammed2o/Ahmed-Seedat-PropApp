@@ -1,70 +1,26 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PropertyInput } from '@propvault/validation';
-import { propertyRepository } from './propertyRepository';
-import { DEMO_MODE } from '@/lib/supabase';
-import { useDemoStore } from '@/demo/demoStore';
+import { useRepositories } from '@/data/RepositoryProvider';
 
-const PROPERTIES_KEY = ['properties'] as const;
+const PROPERTIES_KEY = ['mobile-properties'] as const;
 
-/**
- * Every hook here branches on the module-level DEMO_MODE constant (never changes mid-render, so
- * this is a stable hook-order branch, not a rules-of-hooks violation). In demo mode, screens
- * read straight from the reactive Zustand demo store; otherwise they go through TanStack Query
- * + the real Supabase-backed repository — same call sites either way.
- */
 export function usePropertiesQuery(status: 'active' | 'archived' = 'active') {
-  const demoProperties = useDemoStore((s) => s.properties);
-  const query = useQuery({
-    queryKey: [...PROPERTIES_KEY, status],
-    queryFn: () => propertyRepository.list(status),
-    enabled: !DEMO_MODE,
-  });
-
-  if (DEMO_MODE) {
-    return {
-      ...query,
-      data: demoProperties.filter((p) => p.status === status),
-      isLoading: false,
-      isError: false,
-    };
-  }
-  return query;
+  const { properties } = useRepositories();
+  return useQuery({ queryKey: [...PROPERTIES_KEY, status], queryFn: () => properties.list(status) });
 }
-
 export function usePropertyQuery(id: string) {
-  const demoProperty = useDemoStore((s) => s.properties.find((p) => p.id === id) ?? null);
-  const query = useQuery({
-    queryKey: [...PROPERTIES_KEY, id],
-    queryFn: () => propertyRepository.getById(id),
-    enabled: !DEMO_MODE && Boolean(id),
-  });
-
-  if (DEMO_MODE) {
-    return { ...query, data: demoProperty, isLoading: false, isError: !demoProperty };
-  }
-  return query;
+  const { properties } = useRepositories();
+  return useQuery({ queryKey: [...PROPERTIES_KEY, id], queryFn: () => properties.getById(id), enabled: Boolean(id) });
 }
 
-export function useCreatePropertyMutation(orgId: string) {
+export function useCreatePropertyMutation(_organizationId?: string) {
+  const { properties } = useRepositories();
   const queryClient = useQueryClient();
-  const addDemoProperty = useDemoStore((s) => s.addProperty);
-  return useMutation({
-    mutationFn: async (input: PropertyInput) => {
-      if (DEMO_MODE) return addDemoProperty(input);
-      return propertyRepository.create(input, orgId);
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: PROPERTIES_KEY }),
-  });
+  return useMutation({ mutationFn: (input: PropertyInput) => properties.create(input), onSuccess: () => queryClient.invalidateQueries({ queryKey: PROPERTIES_KEY }) });
 }
 
 export function useArchivePropertyMutation() {
+  const { properties } = useRepositories();
   const queryClient = useQueryClient();
-  const archiveDemoProperty = useDemoStore((s) => s.archiveProperty);
-  return useMutation({
-    mutationFn: async (id: string) => {
-      if (DEMO_MODE) return archiveDemoProperty(id);
-      return propertyRepository.archive(id);
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: PROPERTIES_KEY }),
-  });
+  return useMutation({ mutationFn: (id: string) => properties.archive(id), onSuccess: () => queryClient.invalidateQueries({ queryKey: PROPERTIES_KEY }) });
 }

@@ -3,15 +3,15 @@ import type { ExpoConfig } from 'expo/config';
 // Centralised branding (packages/config) drives name/identifiers here so a rebrand never means
 // hand-editing this file's literals — see DECISIONS.md and packages/config/src/branding.ts.
 const branding = {
-  productName: 'PropVault',
-  iosBundleIdentifier: 'com.propvault.app',
-  androidPackageName: 'com.propvault.app',
+  productName: 'Proplyst',
+  iosBundleIdentifier: 'za.co.proplyst.app',
+  androidPackageName: 'za.co.proplyst.app',
 };
 
 const config: ExpoConfig = {
   name: branding.productName,
-  slug: 'propvault',
-  scheme: 'propvault',
+  slug: 'proplyst',
+  scheme: 'proplyst',
   version: '0.1.0',
   orientation: 'portrait',
   userInterfaceStyle: 'automatic',
@@ -24,7 +24,7 @@ const config: ExpoConfig = {
     bundleIdentifier: branding.iosBundleIdentifier,
     infoPlist: {
       NSFaceIDUsageDescription:
-        'PropVault uses Face ID to unlock the app quickly — this only protects local access to your already-signed-in session, it does not verify your identity to PropVault.',
+        'Proplyst uses Face ID to unlock the app quickly. This protects local access to your signed-in session and does not verify your identity.',
     },
   },
   android: {
@@ -37,9 +37,20 @@ const config: ExpoConfig = {
       'expo-local-authentication',
       {
         faceIDPermission:
-          'PropVault uses Face ID to unlock the app quickly for local access protection.',
+          'Proplyst uses Face ID to unlock the app quickly for local access protection.',
       },
     ],
+    [
+      'expo-image-picker',
+      {
+        photosPermission:
+          'Allow Proplyst to choose property photos and document images from your photo library.',
+        cameraPermission:
+          'Allow Proplyst to use the camera to capture property photos and documents.',
+        microphonePermission: false,
+      },
+    ],
+    'expo-notifications',
   ],
   experiments: {
     typedRoutes: true,

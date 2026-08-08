@@ -25,8 +25,9 @@ export function PrimaryButton({
       disabled={disabled || loading}
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={{ disabled: disabled || loading }}
-      style={{
+      accessibilityState={{ busy: Boolean(loading), disabled: disabled || loading }}
+      style={({ pressed }) => ({
+        minHeight: 48,
         alignItems: 'center',
         justifyContent: 'center',
         paddingVertical: spacing[3],
@@ -34,8 +35,8 @@ export function PrimaryButton({
         backgroundColor: isPrimary ? color.accent : 'transparent',
         borderWidth: isPrimary ? 0 : StyleSheet.hairlineWidth,
         borderColor: color.border,
-        opacity: disabled || loading ? 0.6 : 1,
-      }}
+        opacity: disabled || loading ? 0.6 : pressed ? 0.78 : 1,
+      })}
     >
       {loading ? (
         <ActivityIndicator color={isPrimary ? color.accentContrast : color.textPrimary} />

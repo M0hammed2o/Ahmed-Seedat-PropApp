@@ -21,3 +21,7 @@ export * from './ConfidenceBadge';
 export * from './EditableRow';
 export * from './SettingsSection';
 export * from './ErrorBoundary';
+export * from './ProplystLogo';
+export * from './AppIcon';
+export * from './MobileScaffold';
+export * from './AuthScaffold';

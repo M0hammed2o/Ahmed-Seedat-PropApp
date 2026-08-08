@@ -1,0 +1,7 @@
+import React from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import { EntityCard, QueryState, RefreshingFlatList, Screen, ScreenHeader } from '@/design/components';
+import { useTheme } from '@/design/theme';
+import { formatZar } from '@/data/format';
+import { useUnits } from '@/features/portfolio/usePortfolioData';
+export default function UnitsScreen() { const { propertyId } = useLocalSearchParams<{ propertyId?: string }>(); const q = useUnits(propertyId); const { spacing } = useTheme(); return <Screen><ScreenHeader title="Units" subtitle={propertyId ? 'Property units' : 'Across your portfolio'} back /><QueryState isLoading={q.isLoading} error={q.error} isEmpty={!q.data?.length} emptyTitle="No units" emptyDescription="Add units to organise tenants, leases and readings." onRetry={q.reload}><RefreshingFlatList data={q.data ?? []} keyExtractor={(x) => x.id} refreshing={q.isRefreshing} onRefresh={q.reload} contentContainerStyle={{ paddingHorizontal: spacing[5], paddingBottom: 80, gap: spacing[3] }} renderItem={({ item }) => <EntityCard title={item.name} subtitle={`${item.bedrooms || 'Studio'} bed · ${item.bathrooms} bath`} detail={`${formatZar(item.monthlyRent)}/month · ${item.tenantName ?? 'No tenant'}`} icon="unit" status={item.occupancy} statusTone={item.occupancy === 'occupied' ? 'success' : item.occupancy === 'vacant' ? 'warning' : 'danger'} onPress={() => router.push(`/(app)/units/${item.id}` as never)} />} /></QueryState></Screen>; }

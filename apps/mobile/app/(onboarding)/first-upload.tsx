@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useTheme } from '@/design/theme';
@@ -15,7 +15,8 @@ export default function FirstUploadScreen() {
   const { color, spacing, typeScale } = useTheme();
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: color.surface }}>
-      <View style={{ flex: 1 }}>
+      <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={{ flexGrow: 1 }}>
+      <View style={{ flexGrow: 1, minHeight: 300 }}>
         <Text
           style={[
             typeScale.title,
@@ -32,6 +33,7 @@ export default function FirstUploadScreen() {
       <View style={{ padding: spacing[6] }}>
         <PrimaryButton label="Go to dashboard" onPress={() => router.replace('/(app)/dashboard')} />
       </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }

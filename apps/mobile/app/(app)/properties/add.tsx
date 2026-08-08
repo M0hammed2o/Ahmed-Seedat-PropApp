@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { ScrollView, Text } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Text } from 'react-native';
 import { router } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -8,7 +7,7 @@ import { propertySchema, type PropertyInput } from '@propvault/validation';
 import { useCreatePropertyMutation } from '@/features/properties/usePropertiesQuery';
 import { useCurrentOrgId } from '@/features/organizations/useCurrentOrgId';
 import { useTheme } from '@/design/theme';
-import { FormTextField, PrimaryButton } from '@/design/components';
+import { FormTextField, KeyboardScreen, PrimaryButton } from '@/design/components';
 
 export default function AddPropertyScreen() {
   const { color, spacing, typeScale } = useTheme();
@@ -42,11 +41,7 @@ export default function AddPropertyScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: color.surface }}>
-      <ScrollView
-        contentContainerStyle={{ padding: spacing[6] }}
-        keyboardShouldPersistTaps="handled"
-      >
+    <KeyboardScreen>
         <Text style={[typeScale.title, { color: color.textPrimary, marginBottom: spacing[5] }]}>
           Add property
         </Text>
@@ -121,7 +116,6 @@ export default function AddPropertyScreen() {
           loading={isSubmitting}
           onPress={handleSubmit(onSubmit)}
         />
-      </ScrollView>
-    </SafeAreaView>
+    </KeyboardScreen>
   );
 }

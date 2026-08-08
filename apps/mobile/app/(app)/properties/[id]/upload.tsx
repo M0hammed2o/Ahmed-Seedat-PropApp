@@ -8,6 +8,7 @@ import type { DocumentType } from '@propvault/types';
 import { DEMO_CATEGORIES } from '@/demo/mockData';
 import { useDemoStore } from '@/demo/demoStore';
 import { useTheme } from '@/design/theme';
+import { ensureDeviceMediaPermission } from '@/features/deviceMediaPermissions';
 import {
   Chip,
   EmptyState,
@@ -84,11 +85,10 @@ export default function UploadDocumentScreen() {
 
   const pickImage = async (source: 'library' | 'camera') => {
     try {
-      const permission =
-        source === 'camera'
-          ? await ImagePicker.requestCameraPermissionsAsync()
-          : await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) throw new Error('permission denied');
+      const permissionGranted = await ensureDeviceMediaPermission(
+        source === 'camera' ? 'camera' : 'photos',
+      );
+      if (!permissionGranted) return;
       const result =
         source === 'camera'
           ? await ImagePicker.launchCameraAsync({ quality: 0.7 })
@@ -140,7 +140,7 @@ export default function UploadDocumentScreen() {
               { color: color.textSecondary, marginTop: spacing[1], marginBottom: spacing[5] },
             ]}
           >
-            Add a bill, statement or proof of payment — PropVault will read and organise it
+            Add a bill, statement or proof of payment — Proplyst will read and organise it
             automatically.
           </Text>
         </FadeSlideIn>

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../theme';
 
 export interface ConfirmationSheetProps {
@@ -26,15 +27,24 @@ export function ConfirmationSheet({
 }: ConfirmationSheetProps) {
   const { color, spacing, radii, typeScale } = useTheme();
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel} statusBarTranslucent>
       <View style={styles.backdrop}>
-        <View
+        <Pressable accessibilityRole="button" accessibilityLabel="Dismiss confirmation" style={styles.dismissArea} onPress={onCancel} />
+        <SafeAreaView
+          edges={['bottom']}
+          accessibilityViewIsModal
+          onAccessibilityEscape={onCancel}
           style={[
             styles.sheet,
-            { backgroundColor: color.surfaceRaised, borderRadius: radii.xl, padding: spacing[5] },
+            {
+              backgroundColor: color.surfaceRaised,
+              borderTopLeftRadius: radii.xl,
+              borderTopRightRadius: radii.xl,
+              padding: spacing[5],
+            },
           ]}
         >
-          <Text style={[typeScale.heading, { color: color.textPrimary }]}>{title}</Text>
+          <Text accessibilityRole="header" style={[typeScale.heading, { color: color.textPrimary }]}>{title}</Text>
           {description ? (
             <Text style={[typeScale.body, { color: color.textSecondary, marginTop: spacing[2] }]}>
               {description}
@@ -44,6 +54,7 @@ export function ConfirmationSheet({
             <Pressable
               onPress={onCancel}
               accessibilityRole="button"
+              accessibilityLabel={cancelLabel}
               style={[
                 styles.button,
                 {
@@ -58,6 +69,7 @@ export function ConfirmationSheet({
             <Pressable
               onPress={onConfirm}
               accessibilityRole="button"
+              accessibilityLabel={confirmLabel}
               style={[
                 styles.button,
                 {
@@ -69,7 +81,7 @@ export function ConfirmationSheet({
               <Text style={[typeScale.body, { color: color.accentContrast }]}>{confirmLabel}</Text>
             </Pressable>
           </View>
-        </View>
+        </SafeAreaView>
       </View>
     </Modal>
   );
@@ -77,6 +89,7 @@ export function ConfirmationSheet({
 
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  sheet: {},
-  button: { flex: 1, alignItems: 'center', paddingVertical: 12 },
+  dismissArea: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
+  sheet: { width: '100%', maxWidth: 640, alignSelf: 'center' },
+  button: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', paddingVertical: 12 },
 });

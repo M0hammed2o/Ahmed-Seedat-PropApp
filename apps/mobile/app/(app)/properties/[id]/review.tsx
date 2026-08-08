@@ -176,7 +176,7 @@ export default function ReviewExtractionScreen() {
               { color: color.textSecondary, marginTop: spacing[1], marginBottom: spacing[4] },
             ]}
           >
-            Confirm or correct what PropVault read from your document before saving.
+            Confirm or correct what Proplyst read from your document before saving.
           </Text>
           <ConfidenceBadge confidence={extraction.fields.confidence} />
         </FadeSlideIn>

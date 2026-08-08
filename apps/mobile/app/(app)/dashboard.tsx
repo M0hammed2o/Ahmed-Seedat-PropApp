@@ -1,206 +1,30 @@
 import React from 'react';
-import { ScrollView, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Pressable, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { useAuth } from '@/features/auth/AuthProvider';
-import { usePropertiesQuery } from '@/features/properties/usePropertiesQuery';
-import { useDashboardStats } from '@/demo/demoSelectors';
-import { DEMO_MODE } from '@/lib/supabase';
+import { useRepositories } from '@/data/RepositoryProvider';
+import { useRepositoryQuery } from '@/data/useRepositoryQuery';
+import { relativeTime } from '@/data/format';
+import { AppIcon, Card, DemoBadge, EntityCard, MetricTile, PermissionGate, QueryState, RefreshingScrollView, Screen, SectionHeader, StatusPill } from '@/design/components';
 import { useTheme } from '@/design/theme';
-import {
-  AnimatedProgressBar,
-  Card,
-  DemoBadge,
-  EmptyState,
-  ErrorState,
-  FadeSlideIn,
-  PropertyCard,
-  SkeletonState,
-  StatCard,
-} from '@/design/components';
-
-function greetingForHour(hour: number): string {
-  if (hour < 12) return 'Good morning';
-  if (hour < 18) return 'Good afternoon';
-  return 'Good evening';
-}
 
 export default function DashboardScreen() {
-  const { color, spacing, typeScale } = useTheme();
+  const { color, radii, spacing, typeScale } = useTheme();
   const { session } = useAuth();
-  const propertiesQuery = usePropertiesQuery('active');
-  const stats = useDashboardStats();
+  const { dashboard } = useRepositories();
+  const query = useRepositoryQuery(() => dashboard.getSnapshot(), [dashboard]);
+  const capabilities = session?.user.capabilities;
+  return <Screen><RefreshingScrollView refreshing={query.isRefreshing} onRefresh={query.reload} contentContainerStyle={{ padding: spacing[5], paddingBottom: spacing[8] }}>
+    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}><View style={{ flex: 1 }}><Text style={[typeScale.caption, { color: color.textSecondary }]}>Good morning</Text><Text style={[typeScale.title, { color: color.textPrimary, marginTop: 2 }]}>{session?.user.firstName || 'Welcome'}</Text><Text style={[typeScale.caption, { color: color.textMuted, marginTop: 2 }]}>{session?.user.organizationName}</Text></View><View style={{ alignItems: 'flex-end', gap: spacing[2] }}><DemoBadge /><Pressable onPress={() => router.push('/(app)/notifications' as never)} accessibilityRole="button" accessibilityLabel="Open notifications" style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: color.surfaceRaised, borderWidth: 1, borderColor: color.border, alignItems: 'center', justifyContent: 'center' }}><AppIcon name="notification" color={color.accent} /></Pressable></View></View>
+    <QueryState isLoading={query.isLoading} error={query.error} isEmpty={!query.data} emptyTitle="No dashboard yet" emptyDescription="Portfolio information will appear here once available." onRetry={query.reload}>{query.data ? <>
+      <Card style={{ marginTop: spacing[5], backgroundColor: '#071426', borderColor: '#183253', padding: spacing[5] }}><StatusPill label="Live portfolio overview" tone="info" /><Text style={[typeScale.caption, { color: '#A9BAD0', marginTop: spacing[4] }]}>{query.data.portfolioLabel}</Text><Text style={[typeScale.display, { color: '#FFFFFF', marginTop: spacing[1] }]}>{query.data.portfolioValue}</Text><View style={{ flexDirection: 'row', gap: spacing[2], marginTop: spacing[4] }}><QuickAction label="Add property" icon="add" onPress={() => router.push('/(app)/properties/add')} /><PermissionGate allowed={Boolean(capabilities?.canUploadDocuments)}><QuickAction label="Upload" icon="upload" onPress={() => router.push('/(app)/documents/upload' as never)} /></PermissionGate></View></Card>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing[3], marginTop: spacing[4] }}>{query.data.metrics.map((metric) => <MetricTile key={metric.id} {...metric} />)}</View>
+      <SectionHeader title="Needs attention" /><View style={{ gap: spacing[3] }}><EntityCard title={`${query.data.maintenanceAttention} maintenance items`} subtitle="Urgent and high-priority requests" icon="maintenance" status="Review" statusTone="danger" onPress={() => router.push('/(app)/maintenance' as never)} /><EntityCard title={`${query.data.leaseExpiries} lease expiries`} subtitle="Due within the next 60 days" icon="lease" status="Upcoming" statusTone="warning" onPress={() => router.push('/(app)/leases' as never)} /></View>
+      <SectionHeader title="Tasks & reminders" /><Card>{query.data.tasks.map((task, index) => <Pressable key={task.id} onPress={() => task.destination && router.push(task.destination as never)} accessibilityRole="button" style={{ flexDirection: 'row', gap: spacing[3], paddingVertical: spacing[3], borderBottomWidth: index === query.data!.tasks.length - 1 ? 0 : 1, borderBottomColor: color.border }}><View style={{ width: 28, height: 28, borderRadius: radii.pill, backgroundColor: color.accentSoft, alignItems: 'center', justifyContent: 'center' }}><AppIcon name="check" size={14} color={color.accent} /></View><View style={{ flex: 1 }}><Text style={[typeScale.body, { color: color.textPrimary, fontWeight: '700' }]}>{task.title}</Text><Text style={[typeScale.caption, { color: color.textSecondary }]}>{task.detail}</Text></View></Pressable>)}</Card>
+      <SectionHeader title="Recent activity" actionLabel="View all" onAction={() => router.push('/(app)/notifications' as never)} /><Card>{query.data.recentActivity.map((activity, index) => <View key={activity.id} style={{ flexDirection: 'row', gap: spacing[3], paddingVertical: spacing[3], borderBottomWidth: index === query.data!.recentActivity.length - 1 ? 0 : 1, borderBottomColor: color.border }}><View style={{ width: 8, height: 8, marginTop: 7, borderRadius: 4, backgroundColor: color.accent }} /><View style={{ flex: 1 }}><Text style={[typeScale.body, { color: color.textPrimary, fontWeight: '600' }]}>{activity.title}</Text><Text style={[typeScale.caption, { color: color.textSecondary }]}>{activity.detail}</Text></View><Text style={[typeScale.micro, { color: color.textMuted }]}>{relativeTime(activity.occurredAt)}</Text></View>)}</Card>
+      <SectionHeader title="Notices" />{query.data.notices.map((notice) => <Card key={notice.id} style={{ backgroundColor: color.accentSoft, marginBottom: spacing[3] }}><Text style={[typeScale.body, { color: color.textPrimary, fontWeight: '700' }]}>{notice.title}</Text><Text style={[typeScale.caption, { color: color.textSecondary, marginTop: spacing[1] }]}>{notice.detail}</Text></Card>)}
+    </> : null}</QueryState>
+  </RefreshingScrollView></Screen>;
 
-  const firstName =
-    session?.user.user_metadata?.display_name?.split(' ')[0] ??
-    session?.user.email?.split('@')[0] ??
-    'there';
-  const greeting = greetingForHour(new Date().getHours());
-
-  return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: color.surface }}>
-      <ScrollView contentContainerStyle={{ padding: spacing[6], paddingBottom: spacing[8] }}>
-        <FadeSlideIn>
-          <View
-            style={{
-              flexDirection: 'row',
-              justifyContent: 'space-between',
-              alignItems: 'flex-start',
-            }}
-          >
-            <View>
-              <Text style={[typeScale.title, { color: color.textPrimary }]}>
-                {greeting}, {firstName}
-              </Text>
-              <Text style={[typeScale.body, { color: color.textSecondary, marginTop: spacing[1] }]}>
-                Here's what's happening across your properties.
-              </Text>
-            </View>
-            {DEMO_MODE ? <DemoBadge /> : null}
-          </View>
-        </FadeSlideIn>
-
-        {propertiesQuery.isLoading ? <SkeletonState rows={3} /> : null}
-        {propertiesQuery.isError ? (
-          <ErrorState onRetry={() => propertiesQuery.refetch?.()} />
-        ) : null}
-
-        {!propertiesQuery.isLoading && !propertiesQuery.isError ? (
-          <>
-            <FadeSlideIn delay={60}>
-              <View
-                style={{
-                  flexDirection: 'row',
-                  flexWrap: 'wrap',
-                  gap: spacing[3],
-                  marginTop: spacing[6],
-                }}
-              >
-                <StatCard label="Properties" value={stats.propertyCount} />
-                <StatCard
-                  label="Due soon"
-                  value={stats.billsDueSoon}
-                  tone={stats.billsDueSoon > 0 ? 'warning' : 'neutral'}
-                />
-                <StatCard
-                  label="Overdue"
-                  value={stats.billsOverdue}
-                  tone={stats.billsOverdue > 0 ? 'danger' : 'neutral'}
-                />
-                <StatCard
-                  label="Needs review"
-                  value={stats.documentsAwaitingReview}
-                  tone={stats.documentsAwaitingReview > 0 ? 'warning' : 'neutral'}
-                />
-              </View>
-            </FadeSlideIn>
-
-            <FadeSlideIn delay={120}>
-              <Card style={{ marginTop: spacing[5] }}>
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    justifyContent: 'space-between',
-                    alignItems: 'baseline',
-                  }}
-                >
-                  <Text style={[typeScale.heading, { color: color.textPrimary }]}>
-                    July completion
-                  </Text>
-                  <Text style={[typeScale.heading, { color: color.accent }]}>
-                    {stats.monthlyCompletionPercent}%
-                  </Text>
-                </View>
-                <View style={{ marginTop: spacing[3] }}>
-                  <AnimatedProgressBar progress={stats.monthlyCompletionPercent / 100} />
-                </View>
-                <Text
-                  style={[typeScale.caption, { color: color.textMuted, marginTop: spacing[2] }]}
-                >
-                  {stats.missingDocuments === 0
-                    ? 'All expected documents are in for this month.'
-                    : `${stats.missingDocuments} expected document${stats.missingDocuments === 1 ? '' : 's'} still missing this month.`}
-                </Text>
-              </Card>
-            </FadeSlideIn>
-
-            <FadeSlideIn delay={160}>
-              <View
-                style={{
-                  flexDirection: 'row',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginTop: spacing[7],
-                }}
-              >
-                <Text style={[typeScale.heading, { color: color.textPrimary }]}>Properties</Text>
-                <Text
-                  onPress={() => router.push('/(app)/properties')}
-                  style={[typeScale.caption, { color: color.accent }]}
-                >
-                  View all
-                </Text>
-              </View>
-            </FadeSlideIn>
-
-            {propertiesQuery.data && propertiesQuery.data.length === 0 ? (
-              <EmptyState
-                title="No properties yet"
-                description="Add your first property to start tracking bills and documents."
-              />
-            ) : null}
-
-            <View style={{ gap: spacing[3], marginTop: spacing[3] }}>
-              {propertiesQuery.data?.slice(0, 4).map((property, i) => (
-                <FadeSlideIn key={property.id} delay={200 + i * 60}>
-                  <PropertyCard
-                    property={property}
-                    onPress={(id) => router.push(`/(app)/properties/${id}`)}
-                  />
-                </FadeSlideIn>
-              ))}
-            </View>
-
-            {stats.recentUploads.length > 0 ? (
-              <FadeSlideIn delay={280}>
-                <Text
-                  style={[
-                    typeScale.heading,
-                    { color: color.textPrimary, marginTop: spacing[7], marginBottom: spacing[3] },
-                  ]}
-                >
-                  Recent uploads
-                </Text>
-                <Card>
-                  {stats.recentUploads.map((doc, i) => (
-                    <View
-                      key={doc.id}
-                      style={{
-                        paddingVertical: spacing[2],
-                        borderBottomWidth: i === stats.recentUploads.length - 1 ? 0 : 1,
-                        borderBottomColor: color.border,
-                      }}
-                    >
-                      <Text
-                        style={[typeScale.body, { color: color.textPrimary }]}
-                        numberOfLines={1}
-                      >
-                        {doc.originalFileName}
-                      </Text>
-                      <Text style={[typeScale.micro, { color: color.textMuted, marginTop: 2 }]}>
-                        {new Date(doc.createdAt).toLocaleDateString('en-ZA', {
-                          day: 'numeric',
-                          month: 'short',
-                        })}
-                      </Text>
-                    </View>
-                  ))}
-                </Card>
-              </FadeSlideIn>
-            ) : null}
-          </>
-        ) : null}
-      </ScrollView>
-    </SafeAreaView>
-  );
+  function QuickAction({ label, icon, onPress }: { label: string; icon: 'add' | 'upload'; onPress: () => void }) { return <Pressable onPress={onPress} accessibilityRole="button" style={({ pressed }) => ({ flex: 1, minHeight: 48, borderRadius: radii.lg, backgroundColor: pressed ? '#1D3C60' : '#132B48', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing[2] })}><AppIcon name={icon} color="#FFFFFF" /><Text style={[typeScale.caption, { color: '#FFFFFF', fontWeight: '700' }]}>{label}</Text></Pressable>; }
 }

@@ -1,225 +1,91 @@
 import React, { useState } from 'react';
-import { ScrollView, Switch, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Alert, ScrollView, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { branding } from '@propvault/config';
+import { ActionCard, ToggleRow } from '@/features/portfolio/PortfolioPrimitives';
+import { Card, Chip, ProplystLogo, Screen, ScreenHeader, SectionHeader, StatusPill } from '@/design/components';
+import { useTheme } from '@/design/theme';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { useBiometricLock } from '@/features/biometrics/BiometricLockProvider';
-import { getSubscriptionProvider } from '@/features/subscriptions';
-import { useDemoStore } from '@/demo/demoStore';
-import { DEMO_MODE } from '@/lib/supabase';
 import { useAppStore, type ColorSchemeOverride } from '@/state/useAppStore';
-import { useTheme } from '@/design/theme';
-import {
-  AnimatedProgressBar,
-  Chip,
-  ConfirmationSheet,
-  DemoBadge,
-  FadeSlideIn,
-  PrimaryButton,
-  SettingsRow,
-  SettingsSection,
-} from '@/design/components';
 
-export default function SettingsScreen() {
+export default function Settings() {
   const { color, spacing, typeScale } = useTheme();
   const { session, signOut } = useAuth();
-  const { biometricEnabled, setBiometricEnabled } = useBiometricLock();
-  const subscription = useDemoStore((s) => s.subscription);
-  const {
-    colorSchemeOverride,
-    setColorSchemeOverride,
-    notificationsEnabled,
-    setNotificationsEnabled,
-  } = useAppStore();
-  const [confirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
-  const [deleteRequested, setDeleteRequested] = useState(false);
+  const { biometricEnabled, biometricLabel, enableBiometricLock, setBiometricEnabled } = useBiometricLock();
+  const colorSchemeOverride = useAppStore((state) => state.colorSchemeOverride);
+  const setColorSchemeOverride = useAppStore((state) => state.setColorSchemeOverride);
+  const [biometricError, setBiometricError] = useState<string | null>(null);
+  const capabilities = session!.user.capabilities;
 
-  const handleSignOut = async () => {
-    await signOut();
-    router.replace('/(auth)/welcome');
+  const row = (
+    title: string,
+    description: string,
+    icon: Parameters<typeof ActionCard>[0]['icon'],
+    route?: string,
+    badge?: string,
+  ) => <View key={title} style={{ marginBottom: spacing[3] }}><ActionCard title={title} description={description} icon={icon} route={route} badge={badge} /></View>;
+
+  const toggleBiometrics = async (enabled: boolean) => {
+    setBiometricError(null);
+    if (!enabled) {
+      setBiometricEnabled(false);
+      return;
+    }
+    const result = await enableBiometricLock();
+    if (!result.success) setBiometricError(result.message ?? `${biometricLabel} could not be enabled.`);
   };
 
-  const storagePercent = Math.round(
-    (subscription.storageUsedMb / subscription.storageAllowanceMb) * 100,
+  const confirmSignOut = () => Alert.alert(
+    'Sign out?',
+    'You will need to sign in again.',
+    [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Sign out', style: 'destructive', onPress: async () => { await signOut(); router.replace('/(auth)/welcome'); } },
+    ],
   );
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: color.surface }}>
-      <ScrollView contentContainerStyle={{ padding: spacing[6] }}>
-        <FadeSlideIn>
-          <View
-            style={{
-              flexDirection: 'row',
-              justifyContent: 'space-between',
-              alignItems: 'flex-start',
-              marginBottom: spacing[6],
-            }}
-          >
-            <Text style={[typeScale.title, { color: color.textPrimary }]}>Settings</Text>
-            {DEMO_MODE ? <DemoBadge /> : null}
-          </View>
-        </FadeSlideIn>
+    <Screen>
+      <ScreenHeader title="Settings" back />
+      <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={{ paddingHorizontal: spacing[5], paddingBottom: spacing[8] }}>
+        <View style={{ alignItems: 'center', marginBottom: spacing[4] }}>
+          <ProplystLogo width={142} />
+          <Text style={[typeScale.body, { color: color.textPrimary, fontWeight: '700', marginTop: spacing[3] }]}>{session?.user.displayName}</Text>
+          <Text style={[typeScale.caption, { color: color.textSecondary }]}>{session?.user.email}</Text>
+          <View style={{ marginTop: spacing[2] }}><StatusPill label={capabilities.identity} tone="info" /></View>
+        </View>
 
-        <FadeSlideIn delay={40}>
-          <SettingsSection title="Profile">
-            <SettingsRow label="Name" value={session?.user.user_metadata?.display_name ?? '—'} />
-            <SettingsRow label="Email" value={session?.user.email} isLast />
-          </SettingsSection>
-        </FadeSlideIn>
+        <SectionHeader title="Account" />
+        {row('Profile', 'Name, country and mobile number', 'tenant', undefined, 'Backend pending')}
+        {row('Security & MFA', 'Password and verification factors', 'security', '/(auth)/mfa-setup')}
+        {row('Notifications', 'Delivery channels and alert types', 'notification', '/(app)/notifications/preferences')}
+        <Card><ToggleRow label={`${biometricLabel} app lock`} description="Protect the local signed-in session" value={biometricEnabled} onChange={(enabled) => void toggleBiometrics(enabled)} /></Card>
+        {biometricError ? <Text accessibilityRole="alert" style={[typeScale.caption, { color: color.danger, marginTop: spacing[2] }]}>{biometricError}</Text> : null}
 
-        <FadeSlideIn delay={80}>
-          <SettingsSection title="Subscription">
-            <SettingsRow label="Plan" value="PropVault Base" />
-            <SettingsRow
-              label="Status"
-              value={subscription.status === 'active' ? 'Active' : subscription.status}
-            />
-            <SettingsRow
-              label="Renews"
-              value={new Date(subscription.renewalDate).toLocaleDateString('en-ZA', {
-                day: 'numeric',
-                month: 'short',
-                year: 'numeric',
-              })}
-              isLast
-            />
-          </SettingsSection>
-          <View style={{ marginTop: -spacing[3], marginBottom: spacing[3] }}>
-            <PrimaryButton
-              label="Manage subscription"
-              variant="secondary"
-              onPress={() => getSubscriptionProvider().openManageSubscription()}
-            />
-          </View>
-        </FadeSlideIn>
+        <SectionHeader title="Organisation" />
+        {row('Organisation', session?.user.organizationName ?? 'No organisation', 'organization', undefined, capabilities.canManageOrganization ? 'Manager' : 'View only')}
+        {capabilities.canInviteStaff ? row('Staff & roles', 'Invites and role assignments', 'staff', undefined, 'Backend pending') : null}
+        {capabilities.canManageBilling ? row('Billing', 'Plan and payment method', 'money', undefined, 'Web managed') : null}
+        {row('Linked accounts', 'Connections and providers', 'owner', undefined, 'Backend pending')}
 
-        <FadeSlideIn delay={120}>
-          <SettingsSection title="Storage">
-            <View style={{ padding: spacing[4] }}>
-              <View
-                style={{
-                  flexDirection: 'row',
-                  justifyContent: 'space-between',
-                  marginBottom: spacing[2],
-                }}
-              >
-                <Text style={[typeScale.body, { color: color.textPrimary }]}>
-                  {(subscription.storageUsedMb / 1024).toFixed(2)}GB of{' '}
-                  {(subscription.storageAllowanceMb / 1024).toFixed(0)}GB used
-                </Text>
-                <Text style={[typeScale.body, { color: color.textMuted }]}>{storagePercent}%</Text>
-              </View>
-              <AnimatedProgressBar
-                progress={storagePercent / 100}
-                colorToken={storagePercent > 85 ? 'statusOverdue' : 'accent'}
-              />
-            </View>
-          </SettingsSection>
-        </FadeSlideIn>
-
-        <FadeSlideIn delay={160}>
-          <SettingsSection title="Security">
-            <SettingsRow
-              label="Biometric unlock"
-              right={<Switch value={biometricEnabled} onValueChange={setBiometricEnabled} />}
-              isLast
-            />
-          </SettingsSection>
-        </FadeSlideIn>
-
-        <FadeSlideIn delay={200}>
-          <SettingsSection title="Notifications">
-            <SettingsRow
-              label="Push notifications"
-              right={
-                <Switch value={notificationsEnabled} onValueChange={setNotificationsEnabled} />
-              }
-              isLast
-            />
-          </SettingsSection>
-        </FadeSlideIn>
-
-        <FadeSlideIn delay={240}>
-          <Text
-            style={[
-              typeScale.micro,
-              {
-                color: color.textMuted,
-                textTransform: 'uppercase',
-                letterSpacing: 0.4,
-                marginBottom: spacing[2],
-              },
-            ]}
-          >
-            Appearance
-          </Text>
-          <View style={{ flexDirection: 'row', gap: spacing[2], marginBottom: spacing[6] }}>
-            {(['system', 'light', 'dark'] as ColorSchemeOverride[]).map((mode) => (
-              <Chip
-                key={mode}
-                label={mode[0]!.toUpperCase() + mode.slice(1)}
-                selected={colorSchemeOverride === mode}
-                onPress={() => setColorSchemeOverride(mode)}
-              />
+        <SectionHeader title="App" />
+        <Card>
+          <Text style={[typeScale.body, { color: color.textPrimary, fontWeight: '600' }]}>Appearance</Text>
+          <Text style={[typeScale.caption, { color: color.textSecondary, marginTop: spacing[1], marginBottom: spacing[3] }]}>Use the iPhone or Android system appearance, or choose a theme for Proplyst.</Text>
+          <View accessibilityRole="radiogroup" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] }}>
+            {(['system', 'light', 'dark'] as ColorSchemeOverride[]).map((scheme) => (
+              <Chip key={scheme} label={scheme.charAt(0).toUpperCase() + scheme.slice(1)} selected={colorSchemeOverride === scheme} onPress={() => setColorSchemeOverride(scheme)} />
             ))}
           </View>
-        </FadeSlideIn>
+        </Card>
+        <View style={{ height: spacing[3] }} />
+        {row('About Proplyst', 'Version 0.1.0 · shared mobile preview', 'settings')}
+        {row('Privacy Policy', 'How Proplyst handles information', 'document', undefined, 'Link pending')}
+        {row('Terms of Service', 'Terms for using Proplyst', 'document', undefined, 'Link pending')}
 
-        <FadeSlideIn delay={280}>
-          <SettingsSection title="About">
-            <SettingsRow label="Version" value="0.1.0 (Phase 2 demo)" />
-            <SettingsRow
-              label="Privacy Policy"
-              onPress={() => {}}
-              right={<Text style={{ color: color.textMuted }}>›</Text>}
-            />
-            <SettingsRow
-              label="Terms of Service"
-              onPress={() => {}}
-              right={<Text style={{ color: color.textMuted }}>›</Text>}
-              isLast
-            />
-          </SettingsSection>
-        </FadeSlideIn>
-
-        <FadeSlideIn delay={320}>
-          <PrimaryButton label="Sign out" variant="secondary" onPress={handleSignOut} />
-        </FadeSlideIn>
-
-        <FadeSlideIn delay={360}>
-          <View style={{ marginTop: spacing[6], alignItems: 'center' }}>
-            {deleteRequested ? (
-              <Text style={[typeScale.caption, { color: color.textSecondary }]}>
-                Your account deletion request has been recorded.
-              </Text>
-            ) : (
-              <Text
-                onPress={() => setConfirmDeleteVisible(true)}
-                style={[typeScale.caption, { color: color.danger }]}
-              >
-                Request account deletion
-              </Text>
-            )}
-            <Text style={[typeScale.micro, { color: color.textMuted, marginTop: spacing[3] }]}>
-              {branding.productName} © 2026
-            </Text>
-          </View>
-        </FadeSlideIn>
+        <SectionHeader title="Session" />
+        <ActionCard title="Sign out" description="Remove this session from this device" icon="security" onPress={confirmSignOut} />
       </ScrollView>
-
-      <ConfirmationSheet
-        visible={confirmDeleteVisible}
-        title="Request account deletion?"
-        description="This submits a deletion request. Your documents are not deleted immediately — see our data retention policy for details."
-        confirmLabel="Request deletion"
-        destructive
-        onConfirm={() => {
-          setDeleteRequested(true);
-          setConfirmDeleteVisible(false);
-        }}
-        onCancel={() => setConfirmDeleteVisible(false)}
-      />
-    </SafeAreaView>
+    </Screen>
   );
 }

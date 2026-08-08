@@ -16,6 +16,8 @@ export function FormTextField({ label, errorMessage, style, ...inputProps }: For
       </Text>
       <TextInput
         accessibilityLabel={label}
+        accessibilityHint={errorMessage}
+        accessibilityState={{ disabled: inputProps.editable === false }}
         placeholderTextColor={color.textMuted}
         style={[
           styles.input,
@@ -30,7 +32,7 @@ export function FormTextField({ label, errorMessage, style, ...inputProps }: For
         {...inputProps}
       />
       {errorMessage ? (
-        <Text style={[typeScale.micro, { color: color.danger, marginTop: spacing[1] }]}>
+        <Text accessibilityRole="alert" style={[typeScale.micro, { color: color.danger, marginTop: spacing[1] }]}>
           {errorMessage}
         </Text>
       ) : null}
@@ -39,5 +41,10 @@ export function FormTextField({ label, errorMessage, style, ...inputProps }: For
 }
 
 const styles = StyleSheet.create({
-  input: { borderWidth: StyleSheet.hairlineWidth, height: 48, fontSize: 15 },
+  input: {
+    borderWidth: StyleSheet.hairlineWidth,
+    minHeight: 48,
+    fontSize: 16,
+    paddingVertical: 11,
+  },
 });

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { PROPVAULT_BASE_PLAN } from '@propvault/config';
@@ -12,16 +12,23 @@ export default function PaywallScreen() {
   const { color, spacing, typeScale } = useTheme();
   const [offerings, setOfferings] = useState<Offering[]>([]);
   const [purchasing, setPurchasing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    getSubscriptionProvider().getOfferings().then(setOfferings);
+    getSubscriptionProvider().getOfferings().then(setOfferings).catch(() => {
+      setError('Plans could not be loaded on this preview client. Try again or use the mock subscription build.');
+    });
   }, []);
 
   const handleSubscribe = async () => {
     setPurchasing(true);
+    setError(null);
     try {
-      await getSubscriptionProvider().purchase(PROPVAULT_BASE_PLAN.planId);
-      router.push('/(onboarding)/enable-biometrics');
+      const result = await getSubscriptionProvider().purchase(PROPVAULT_BASE_PLAN.planId);
+      if (result.success) router.push('/(onboarding)/enable-biometrics');
+      else setError('The preview purchase was not completed.');
+    } catch {
+      setError('Purchases require the matching iOS or Android development build.');
     } finally {
       setPurchasing(false);
     }
@@ -29,9 +36,10 @@ export default function PaywallScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: color.surface }}>
-      <View style={{ flex: 1, padding: spacing[6], justifyContent: 'center' }}>
+      <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={{ flexGrow: 1 }}>
+      <View style={{ flexGrow: 1, minHeight: 320, padding: spacing[6], justifyContent: 'center' }}>
         <Text style={[typeScale.title, { color: color.textPrimary }]}>
-          {PROPVAULT_BASE_PLAN.displayName}
+          Proplyst plan preview
         </Text>
         <Text style={[typeScale.body, { color: color.textSecondary, marginTop: spacing[3] }]}>
           Up to {PROPVAULT_BASE_PLAN.limits.maxProperties} properties,{' '}
@@ -42,6 +50,7 @@ export default function PaywallScreen() {
           Price: {offerings[0]?.priceString ?? PROPVAULT_BASE_PLAN.monthlyPrice} — final pricing to
           be confirmed before launch.
         </Text>
+        {error ? <Text accessibilityRole="alert" style={[typeScale.caption, { color: color.danger, marginTop: spacing[4] }]}>{error}</Text> : null}
       </View>
       <View style={{ padding: spacing[6], gap: spacing[3] }}>
         <PrimaryButton label="Subscribe" loading={purchasing} onPress={handleSubscribe} />
@@ -51,6 +60,7 @@ export default function PaywallScreen() {
           onPress={() => router.push('/(onboarding)/restore')}
         />
       </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }

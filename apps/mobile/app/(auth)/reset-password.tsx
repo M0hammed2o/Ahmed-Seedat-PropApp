@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { ScrollView, Text } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Text } from 'react-native';
 import { router } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -8,7 +7,7 @@ import { resetPasswordSchema, type ResetPasswordInput } from '@propvault/validat
 import { useAuth } from '@/features/auth/AuthProvider';
 import { useBiometricLock } from '@/features/biometrics/BiometricLockProvider';
 import { useTheme } from '@/design/theme';
-import { FormTextField, PrimaryButton } from '@/design/components';
+import { AuthScaffold, FormTextField, PrimaryButton } from '@/design/components';
 
 // Reached via the deep link from the password-reset email (Supabase establishes a recovery
 // session before this screen renders). Completing this always requires full re-auth
@@ -29,9 +28,9 @@ export default function ResetPasswordScreen() {
 
   const onSubmit = async (values: ResetPasswordInput) => {
     setSubmitError(null);
-    const { error } = await updatePassword(values.password);
-    if (error) {
-      setSubmitError(error);
+    const result = await updatePassword(values.password);
+    if (result.status === 'error') {
+      setSubmitError(result.message);
       return;
     }
     invalidateSession();
@@ -39,14 +38,7 @@ export default function ResetPasswordScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: color.surface }}>
-      <ScrollView
-        contentContainerStyle={{ padding: spacing[6] }}
-        keyboardShouldPersistTaps="handled"
-      >
-        <Text style={[typeScale.title, { color: color.textPrimary, marginBottom: spacing[5] }]}>
-          Choose a new password
-        </Text>
+    <AuthScaffold title="Choose a new password" subtitle="Use a strong password you do not use elsewhere.">
 
         <Controller
           control={control}
@@ -55,6 +47,7 @@ export default function ResetPasswordScreen() {
             <FormTextField
               label="New password"
               secureTextEntry
+              autoComplete="new-password"
               value={field.value}
               onChangeText={field.onChange}
               errorMessage={errors.password?.message}
@@ -68,6 +61,7 @@ export default function ResetPasswordScreen() {
             <FormTextField
               label="Confirm new password"
               secureTextEntry
+              autoComplete="new-password"
               value={field.value}
               onChangeText={field.onChange}
               errorMessage={errors.confirmPassword?.message}
@@ -76,7 +70,7 @@ export default function ResetPasswordScreen() {
         />
 
         {submitError ? (
-          <Text style={[typeScale.caption, { color: color.danger, marginBottom: spacing[3] }]}>
+          <Text accessibilityRole="alert" style={[typeScale.caption, { color: color.danger, marginBottom: spacing[3] }]}>
             {submitError}
           </Text>
         ) : null}
@@ -86,7 +80,6 @@ export default function ResetPasswordScreen() {
           loading={isSubmitting}
           onPress={handleSubmit(onSubmit)}
         />
-      </ScrollView>
-    </SafeAreaView>
+    </AuthScaffold>
   );
 }

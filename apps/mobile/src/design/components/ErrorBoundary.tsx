@@ -59,7 +59,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
                 textAlign: 'center',
               }}
             >
-              PropVault ran into an unexpected error. Your data is safe — try again below.
+              Proplyst ran into an unexpected error. Try again below.
             </Text>
             <View style={{ marginTop: 24, width: '100%' }}>
               <PrimaryButton label="Try again" onPress={this.reset} />

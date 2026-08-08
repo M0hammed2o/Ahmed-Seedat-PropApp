@@ -1,80 +1,20 @@
 import React, { useState } from 'react';
-import { ScrollView, Text } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useForm, Controller } from 'react-hook-form';
+import { Text } from 'react-native';
+import { router } from 'expo-router';
+import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { forgotPasswordSchema, type ForgotPasswordInput } from '@propvault/validation';
+import { AuthScaffold, FormTextField, PrimaryButton, StatusPill } from '@/design/components';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { useTheme } from '@/design/theme';
-import { FormTextField, PrimaryButton } from '@/design/components';
 
 export default function ForgotPasswordScreen() {
   const { color, spacing, typeScale } = useTheme();
   const { sendPasswordReset } = useAuth();
   const [sent, setSent] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const {
-    control,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-  } = useForm<ForgotPasswordInput>({
-    resolver: zodResolver(forgotPasswordSchema),
-    defaultValues: { email: '' },
-  });
-
-  const onSubmit = async (values: ForgotPasswordInput) => {
-    setSubmitError(null);
-    const { error } = await sendPasswordReset(values.email);
-    if (error) {
-      setSubmitError(error);
-      return;
-    }
-    setSent(true);
-  };
-
-  return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: color.surface }}>
-      <ScrollView
-        contentContainerStyle={{ padding: spacing[6] }}
-        keyboardShouldPersistTaps="handled"
-      >
-        <Text style={[typeScale.title, { color: color.textPrimary, marginBottom: spacing[5] }]}>
-          Reset your password
-        </Text>
-
-        {sent ? (
-          <Text style={[typeScale.body, { color: color.textSecondary }]}>
-            If an account exists for that email, a reset link has been sent.
-          </Text>
-        ) : (
-          <>
-            <Controller
-              control={control}
-              name="email"
-              render={({ field }) => (
-                <FormTextField
-                  label="Email"
-                  autoCapitalize="none"
-                  keyboardType="email-address"
-                  value={field.value}
-                  onChangeText={field.onChange}
-                  errorMessage={errors.email?.message}
-                />
-              )}
-            />
-            {submitError ? (
-              <Text style={[typeScale.caption, { color: color.danger, marginBottom: spacing[3] }]}>
-                {submitError}
-              </Text>
-            ) : null}
-            <PrimaryButton
-              label="Send reset link"
-              loading={isSubmitting}
-              onPress={handleSubmit(onSubmit)}
-            />
-          </>
-        )}
-      </ScrollView>
-    </SafeAreaView>
-  );
+  const [error, setError] = useState<string | null>(null);
+  const { control, handleSubmit, formState: { errors, isSubmitting } } = useForm<ForgotPasswordInput>({ resolver: zodResolver(forgotPasswordSchema), defaultValues: { email: '' } });
+  return <AuthScaffold title="Reset your password" subtitle="Enter your email and we’ll send secure reset instructions." footer={<Text onPress={() => router.back()} style={[typeScale.caption, { color: color.accent, textAlign: 'center', fontWeight: '700' }]}>Back to sign in</Text>}>
+    {sent ? <><StatusPill label="Email sent" tone="success" /><Text style={[typeScale.body, { color: color.textSecondary, marginTop: spacing[4] }]}>If an account exists for that address, the reset email is on its way. Check spam or junk if it does not arrive.</Text><Text style={[typeScale.caption, { color: color.textMuted, marginTop: spacing[3] }]}>For security, the email does not reveal whether an account exists.</Text></> : <><Controller control={control} name="email" render={({ field }) => <FormTextField label="Email address" autoCapitalize="none" keyboardType="email-address" value={field.value} onChangeText={field.onChange} errorMessage={errors.email?.message} />} />{error ? <Text accessibilityRole="alert" style={[typeScale.caption, { color: color.danger, marginBottom: spacing[3] }]}>{error}</Text> : null}<PrimaryButton label="Send reset email" loading={isSubmitting} onPress={handleSubmit(async ({ email }) => { const result = await sendPasswordReset(email); if (result.status === 'error') setError(result.message); else setSent(true); })} /></>}
+  </AuthScaffold>;
 }
