@@ -1,7 +1,9 @@
 import { redirect } from 'next/navigation';
+import { headers } from 'next/headers';
 import { LayoutDashboard, FileSignature, Receipt, Wrench, Megaphone, FileText } from 'lucide-react';
 import { branding } from '@propvault/config';
 import { resolveTenantSession, type TenantSession } from '@/lib/tenantSession';
+import { requireCustomerMfaIfEnrolled } from '@/lib/mfaGate';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 import { AppShell, type NavSection } from '@/components/shell/AppShell';
 import { navIcon } from '@/components/shell/navIcon';
@@ -38,6 +40,16 @@ export default async function TenantPortalLayout({ children }: { children: React
     : await resolveTenantSession();
 
   if (!session) redirect('/login');
+
+  // Stage 3 customer MFA bypass fix (WORKLOG.md this date) -- see lib/mfaGate.ts's own comment.
+  // Redirects to the dedicated challenge page (not `/login`) so the user isn't forced to
+  // re-enter their password just because they navigated away mid-challenge.
+  if (!ADMIN_DEMO_MODE && (await requireCustomerMfaIfEnrolled())) {
+    const currentPath = (await headers()).get('x-pathname');
+    redirect(
+      currentPath ? `/mfa-challenge?next=${encodeURIComponent(currentPath)}` : '/mfa-challenge',
+    );
+  }
 
   return (
     <AppShell
