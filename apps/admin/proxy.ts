@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { ADMIN_DEMO_MODE } from './lib/demoMode';
+import { requireCustomerMfaIfEnrolled } from './lib/mfaGate';
 
 type CookieToSet = { name: string; value: string; options: CookieOptions };
 
@@ -35,6 +36,10 @@ const PROTECTED_ROUTE_PREFIXES = [
   '/notices',
   '/profile',
   '/owner-portal',
+  // Stage 3 customer MFA bypass fix (WORKLOG.md this date) -- needs a real session to be
+  // meaningful at all, so it participates in the same unauthenticated-visitor gate below as
+  // every other customer route.
+  '/mfa-challenge',
 ];
 
 /**
@@ -252,6 +257,42 @@ export async function proxy(request: NextRequest) {
     const redirectResponse = NextResponse.redirect(loginUrl);
     redirectResponse.headers.set('Content-Security-Policy', cspHeader);
     return redirectResponse;
+  }
+
+  // Stage 3 customer MFA step-up gate (WORKLOG.md this date) -- a real, live-caught
+  // vulnerability: a customer with a verified TOTP factor who stops at the password-only AAL1
+  // session (never completes the challenge) previously had full access to every protected
+  // customer/tenant/owner API, since `/api/v1/*` was never in PROTECTED_ROUTE_PREFIXES above
+  // (each API route only ever checked "is there a user", never "is this session's assurance
+  // level sufficient") -- confirmed by both a code trace and a real Playwright reproduction
+  // (e2e/mfa-enforcement.spec.ts) before this fix.
+  //
+  // Deliberately narrow, per the architecture review this responds to: pages are already fully
+  // covered by the three customer layouts' own independent re-check (mirroring how they already
+  // re-check `!session` rather than trusting proxy.ts alone), so this stays API-only rather than
+  // also duplicating page coverage here. `/api/v1/auth/*` is excluded -- those routes manage
+  // their own AAL state directly (signin establishes AAL1; POST /api/v1/auth/mfa/verify is what
+  // completes the step-up to AAL2, and blocking it here would make step-up permanently
+  // impossible). `/api/v1/admin/*` is excluded -- already covered by
+  // requireAdminRoleOrRespond()'s own, stricter, unconditional AAL2 requirement. A customer who
+  // never enrolled MFA is completely unaffected: `nextLevel` never requires 'aal2' for them, so
+  // `requireCustomerMfaIfEnrolled()` always resolves false.
+  if (user && request.nextUrl.pathname.startsWith('/api/v1/')) {
+    const isExemptApi =
+      request.nextUrl.pathname.startsWith('/api/v1/auth/') ||
+      request.nextUrl.pathname.startsWith('/api/v1/admin/');
+
+    if (!isExemptApi && (await requireCustomerMfaIfEnrolled(supabase))) {
+      return NextResponse.json(
+        {
+          error: {
+            code: 'mfa_required',
+            message: 'Complete two-factor authentication to continue.',
+          },
+        },
+        { status: 403 },
+      );
+    }
   }
 
   return response;

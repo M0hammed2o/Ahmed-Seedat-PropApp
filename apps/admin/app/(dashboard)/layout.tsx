@@ -26,6 +26,7 @@ import {
 import { branding } from '@propvault/config';
 import { resolvePortalSession } from '@/lib/orgSession';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { requireCustomerMfaIfEnrolled } from '@/lib/mfaGate';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 import { AppShell, type HeaderNotification, type NavSection } from '@/components/shell/AppShell';
 import { navIcon } from '@/components/shell/navIcon';
@@ -117,18 +118,32 @@ export default async function PortalLayout({ children }: { children: React.React
 
   if (!session) redirect('/login');
 
+  // `x-pathname` is set by proxy.ts (the same "compute in middleware, forward via header"
+  // pattern already used for the CSP nonce) since a Server Component layout has no access to
+  // Next.js's client-only usePathname(). Read once, shared by the MFA gate below and the
+  // suspended-org gate further down.
+  const currentPath = ADMIN_DEMO_MODE ? '' : (await headers()).get('x-pathname');
+
+  // Stage 3 customer MFA bypass fix (WORKLOG.md this date): a session that's only reached AAL1
+  // despite the account having a verified TOTP factor must not proceed past this point -- see
+  // lib/mfaGate.ts's own comment for the real, live-caught vulnerability this closes. Redirects to
+  // the dedicated challenge page (not `/login`) so the user isn't forced to re-enter their
+  // password just because they navigated away mid-challenge; `next` preserves the page they were
+  // actually trying to reach.
+  if (!ADMIN_DEMO_MODE && (await requireCustomerMfaIfEnrolled())) {
+    redirect(
+      currentPath ? `/mfa-challenge?next=${encodeURIComponent(currentPath)}` : '/mfa-challenge',
+    );
+  }
+
   const activeOrg = session.organizations.find((m) => m.status === 'active');
   if (!activeOrg) redirect('/onboarding/create-organization');
 
   // Root-domain routing fix, WORKLOG.md this date: a suspended/cancelled org's active member
   // must not reach any dashboard page except billing itself, which stays reachable so the org's
   // principal can actually reactivate (re-subscribe) rather than being locked out entirely.
-  // `x-pathname` is set by proxy.ts (the same "compute in middleware, forward via header"
-  // pattern already used for the CSP nonce) since a Server Component layout has no access to
-  // Next.js's client-only usePathname().
   const isRestrictedOrg =
     activeOrg.orgStatus === 'suspended' || activeOrg.orgStatus === 'cancelled';
-  const currentPath = ADMIN_DEMO_MODE ? '' : (await headers()).get('x-pathname');
   if (isRestrictedOrg && currentPath !== '/organization/billing') {
     redirect('/access-restricted');
   }
