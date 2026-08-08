@@ -2,7 +2,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { RATE_LIMITS } from '@propvault/config';
 import { getServiceRoleClient } from '@/lib/supabase/server';
 import { processBillingWebhookEvent } from '@/lib/billing';
-import { rateLimitOrRespond, requestIp } from '@/lib/rateLimit';
+import { rateLimitOrRespond } from '@/lib/rateLimit';
+import { resolveTrustedClientIp } from '@/lib/clientIp';
 
 /**
  * POST /api/v1/billing/webhook -- the real gateway's own inbound webhook endpoint. Deliberately
@@ -22,7 +23,7 @@ export async function POST(request: NextRequest) {
   // and won't trip this; a flood/replay attempt will.
   const limited = await rateLimitOrRespond(
     serviceClient,
-    `billing-webhook:${requestIp(request)}`,
+    `billing-webhook:${resolveTrustedClientIp(request)}`,
     RATE_LIMITS.webhookRequestsPerMinute,
     60,
   );

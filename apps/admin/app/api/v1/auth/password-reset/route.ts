@@ -2,7 +2,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { forgotPasswordSchema } from '@propvault/validation';
 import { RATE_LIMITS } from '@propvault/config';
 import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
-import { rateLimitOrRespond, requestIp } from '@/lib/rateLimit';
+import { rateLimitOrRespond } from '@/lib/rateLimit';
+import { resolveTrustedClientIp } from '@/lib/clientIp';
 import { getRequestOrigin } from '@/lib/appUrl';
 
 /**
@@ -45,7 +46,7 @@ export async function POST(request: NextRequest) {
   const serviceClient = getServiceRoleClient();
   const limited = await rateLimitOrRespond(
     serviceClient,
-    `auth-password-reset-ip:${requestIp(request)}`,
+    `auth-password-reset-ip:${resolveTrustedClientIp(request)}`,
     RATE_LIMITS.passwordResetAttemptsPerMinute,
     60,
   );

@@ -2,7 +2,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { loginSchema } from '@propvault/validation';
 import { RATE_LIMITS } from '@propvault/config';
 import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
-import { rateLimitOrRespond, requestIp } from '@/lib/rateLimit';
+import { rateLimitOrRespond } from '@/lib/rateLimit';
+import { resolveTrustedClientIp } from '@/lib/clientIp';
 import { auditPlatformAdminLoginIfApplicable } from '@/lib/audit';
 
 /**
@@ -52,7 +53,7 @@ export async function POST(request: NextRequest) {
   }
 
   const serviceClient = getServiceRoleClient();
-  const ip = requestIp(request);
+  const ip = resolveTrustedClientIp(request);
   const normalizedEmail = parsed.data.email.trim().toLowerCase();
 
   const ipLimited = await rateLimitOrRespond(
