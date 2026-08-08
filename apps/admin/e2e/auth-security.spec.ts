@@ -17,10 +17,12 @@ test('signin is rate-limited after repeated failed attempts', async ({ request }
   // explicitly to simulate a legitimate same-origin call (this test is about rate limiting, not
   // proxy.ts's separate CSRF check, which has its own dedicated coverage in __tests__/proxy.test.ts).
   // A synthetic, unique X-Forwarded-For isolates this test's intentionally-exhausted rate-limit
-  // bucket to itself -- requestIp() (lib/rateLimit.ts) reads this header first, and every real
-  // browser-driven test in this suite shares the same actual machine IP; without this, exhausting
-  // the IP-keyed bucket here would also lock this test runner out of every OTHER auth test that
-  // runs within the same 60-second window (found live this session: it did exactly that).
+  // bucket to itself -- resolveTrustedClientIp() (lib/clientIp.ts) only honors X-Forwarded-For
+  // outside production (no Cloudflare in front of the local dev server this suite runs against),
+  // and every real browser-driven test in this suite shares the same actual machine IP; without
+  // this, exhausting the IP-keyed bucket here would also lock this test runner out of every OTHER
+  // auth test that runs within the same 60-second window (found live this session: it did
+  // exactly that).
   const syntheticIp = `10.42.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`;
   let sawRateLimit = false;
   for (let i = 0; i < 11; i++) {

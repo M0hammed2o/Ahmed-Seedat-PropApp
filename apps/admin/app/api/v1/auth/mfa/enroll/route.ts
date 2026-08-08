@@ -2,7 +2,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { RATE_LIMITS, branding } from '@propvault/config';
 import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
-import { rateLimitOrRespond, requestIp } from '@/lib/rateLimit';
+import { rateLimitOrRespond } from '@/lib/rateLimit';
+import { resolveTrustedClientIp } from '@/lib/clientIp';
 
 /**
  * POST /api/v1/auth/mfa/enroll (Stage 7, commercial-launch execution plan). Starts TOTP
@@ -16,7 +17,7 @@ export async function POST(request: NextRequest) {
   const serviceClient = getServiceRoleClient();
   const limited = await rateLimitOrRespond(
     serviceClient,
-    `auth-mfa-enroll:${requestIp(request)}`,
+    `auth-mfa-enroll:${resolveTrustedClientIp(request)}`,
     RATE_LIMITS.mfaVerifyAttemptsPerMinute,
     60,
   );
@@ -94,7 +95,7 @@ export async function PATCH(request: NextRequest) {
   const serviceClient = getServiceRoleClient();
   const limited = await rateLimitOrRespond(
     serviceClient,
-    `auth-mfa-enroll-verify:${requestIp(request)}`,
+    `auth-mfa-enroll-verify:${resolveTrustedClientIp(request)}`,
     RATE_LIMITS.mfaVerifyAttemptsPerMinute,
     60,
   );

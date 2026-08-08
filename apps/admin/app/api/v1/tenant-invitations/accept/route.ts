@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { tenantInvitationAcceptSchema } from '@propvault/validation';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
-import { rateLimitOrRespond, requestIp } from '@/lib/rateLimit';
+import { rateLimitOrRespond } from '@/lib/rateLimit';
+import { resolveTrustedClientIp } from '@/lib/clientIp';
 
 /**
  * POST /api/v1/tenant-invitations/accept (PRODUCT DECISION 2, 2026-08-03) -- requires an
@@ -35,7 +36,7 @@ export async function POST(request: NextRequest) {
   if (limitedByUser) return limitedByUser;
   const limitedByIp = await rateLimitOrRespond(
     supabase,
-    `tenant-invitation-accept:ip:${requestIp(request)}`,
+    `tenant-invitation-accept:ip:${resolveTrustedClientIp(request)}`,
     30,
     60,
   );

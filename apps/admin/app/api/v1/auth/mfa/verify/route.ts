@@ -2,7 +2,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { RATE_LIMITS } from '@propvault/config';
 import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
-import { rateLimitOrRespond, requestIp } from '@/lib/rateLimit';
+import { rateLimitOrRespond } from '@/lib/rateLimit';
+import { resolveTrustedClientIp } from '@/lib/clientIp';
 import { auditPlatformAdminLoginIfApplicable } from '@/lib/audit';
 
 const mfaVerifySchema = z.object({
@@ -52,7 +53,7 @@ export async function POST(request: NextRequest) {
   const serviceClient = getServiceRoleClient();
   const limited = await rateLimitOrRespond(
     serviceClient,
-    `auth-mfa-verify:${requestIp(request)}`,
+    `auth-mfa-verify:${resolveTrustedClientIp(request)}`,
     RATE_LIMITS.mfaVerifyAttemptsPerMinute,
     60,
   );

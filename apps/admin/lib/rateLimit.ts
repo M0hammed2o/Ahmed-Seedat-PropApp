@@ -45,11 +45,3 @@ export async function rateLimitOrRespond(
 
   return null;
 }
-
-/** Best-effort caller IP from standard proxy headers -- falls back to a fixed key if absent
- *  (local dev / no proxy in front), which just means local requests share one bucket. */
-export function requestIp(request: Request): string {
-  const forwarded = request.headers.get('x-forwarded-for');
-  if (forwarded) return forwarded.split(',')[0]!.trim();
-  return request.headers.get('x-real-ip') ?? 'unknown';
-}

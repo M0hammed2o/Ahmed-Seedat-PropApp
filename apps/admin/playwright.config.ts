@@ -34,6 +34,11 @@ process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??= LOCAL_SUPABASE_ANON_KEY;
 
 export default defineConfig({
   testDir: './e2e',
+  // client-ip-security.prod.spec.ts requires a real production build (NODE_ENV=production) to
+  // exercise the branch it tests -- it has its own dedicated config/webServer
+  // (playwright.prod-security.config.ts) run on demand, and must never be picked up by this
+  // dev-server suite (it would hit the wrong server and its assertions would be meaningless).
+  testIgnore: '**/*.prod.spec.ts',
   // Default 30s per-test is too tight for this suite: dev-mode Turbopack compiles each route on
   // first visit within a freshly started server, and a single navigation's cold-compile latency
   // was observed live this session to exceed 15s on its own -- dev-environment-specific latency,
