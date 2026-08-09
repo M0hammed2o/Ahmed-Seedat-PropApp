@@ -5,12 +5,11 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Building2 } from 'lucide-react';
 import { loginSchema, type LoginInput } from '@propvault/validation';
-import { branding } from '@propvault/config';
 import { Button } from '@/components/ui/Button';
 import { OAuthButtons } from '@/components/auth/OAuthButtons';
 import { MfaChallengeForm } from '@/components/auth/MfaChallengeForm';
+import { ProplystLogo } from '@/components/branding/ProplystLogo';
 import { safeNextPathOr } from '@/lib/safeRedirect';
 
 export function LoginForm() {
@@ -99,11 +98,9 @@ export function LoginForm() {
         onSubmit={handleSubmit(onSubmit)}
         className="w-full max-w-sm rounded-card border border-light-border bg-light-surfaceRaised p-8 shadow-lift dark:border-dark-border dark:bg-dark-surfaceRaised"
       >
-        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-light-accent text-light-accentContrast shadow-glow dark:bg-dark-accent dark:text-dark-accentContrast">
-          <Building2 size={20} aria-hidden="true" />
-        </span>
+        <ProplystLogo />
         <h1 className="mt-4 font-display text-xl font-bold text-light-textPrimary dark:text-dark-textPrimary">
-          {branding.productName}
+          Sign in
         </h1>
         <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
           Sign in to your account.

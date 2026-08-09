@@ -3,11 +3,12 @@
 import { useState, type FormEvent } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Building2 } from 'lucide-react';
 import { registerSchema } from '@propvault/validation';
-import { branding, TERMS_VERSION, PRIVACY_VERSION } from '@propvault/config';
+import { TERMS_VERSION, PRIVACY_VERSION } from '@propvault/config';
 import { Button } from '@/components/ui/Button';
 import { OAuthButtons } from '@/components/auth/OAuthButtons';
+import { CheckEmailScreen } from '@/components/auth/CheckEmailScreen';
+import { ProplystLogo } from '@/components/branding/ProplystLogo';
 import { safeNextPathOr } from '@/lib/safeRedirect';
 
 /**
@@ -109,19 +110,11 @@ export function RegisterForm() {
 
   if (verificationPending) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-light-surface px-6 dark:bg-dark-surface">
-        <div className="w-full max-w-sm rounded-card border border-light-border bg-light-surfaceRaised p-8 text-center shadow-lift dark:border-dark-border dark:bg-dark-surfaceRaised">
-          <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-light-accent text-light-accentContrast shadow-glow dark:bg-dark-accent dark:text-dark-accentContrast">
-            <Building2 size={20} aria-hidden="true" />
-          </span>
-          <h1 className="mt-4 font-display text-xl font-bold text-light-textPrimary dark:text-dark-textPrimary">
-            Check your email
-          </h1>
-          <p className="mt-2 text-sm text-light-textSecondary dark:text-dark-textSecondary">
-            We sent a verification link to confirm your account. Click it to continue.
-          </p>
-        </div>
-      </main>
+      <CheckEmailScreen
+        email={email}
+        next={next}
+        onBackToSignup={() => setVerificationPending(false)}
+      />
     );
   }
 
@@ -131,11 +124,9 @@ export function RegisterForm() {
         onSubmit={handleSubmit}
         className="w-full max-w-sm rounded-card border border-light-border bg-light-surfaceRaised p-8 shadow-lift dark:border-dark-border dark:bg-dark-surfaceRaised"
       >
-        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-light-accent text-light-accentContrast shadow-glow dark:bg-dark-accent dark:text-dark-accentContrast">
-          <Building2 size={20} aria-hidden="true" />
-        </span>
+        <ProplystLogo />
         <h1 className="mt-4 font-display text-xl font-bold text-light-textPrimary dark:text-dark-textPrimary">
-          Create your {branding.productName} account
+          Create your account
         </h1>
         <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
           Manage properties, or link an invitation from your landlord.

@@ -2,9 +2,8 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Building2 } from 'lucide-react';
-import { branding } from '@propvault/config';
 import { Button } from '@/components/ui/Button';
+import { ProplystLogo } from '@/components/branding/ProplystLogo';
 
 // Blocker #4, PWA_V1_COMPLETION_PLAN.md -- no password-reset flow existed anywhere. Real password
 // reset, not a mock -- Stage 7 (commercial-launch execution plan, TD-31) moved the actual
@@ -56,11 +55,9 @@ export function ForgotPasswordForm() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-light-surface px-6 dark:bg-dark-surface">
       <div className="w-full max-w-sm rounded-card border border-light-border bg-light-surfaceRaised p-8 shadow-lift dark:border-dark-border dark:bg-dark-surfaceRaised">
-        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-light-accent text-light-accentContrast shadow-glow dark:bg-dark-accent dark:text-dark-accentContrast">
-          <Building2 size={20} aria-hidden="true" />
-        </span>
+        <ProplystLogo />
         <h1 className="mt-4 font-display text-xl font-bold text-light-textPrimary dark:text-dark-textPrimary">
-          {branding.productName} Admin
+          Reset your password
         </h1>
 
         {sent ? (

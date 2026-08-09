@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { createConfirmedTestUser } from './fixtures/testUser';
 import { generateTotpCode } from './fixtures/totp';
+import { completeLegalConsentAndProfile } from './fixtures/onboarding';
 import { BASE_URL } from '../playwright.config';
 
 // Real coverage for Stage 7's auth security work (commercial-launch execution plan,
@@ -48,6 +49,11 @@ test('a user can enroll TOTP MFA, then sign in with a real generated code', asyn
   await page.locator('input[type="password"]').fill(user.password);
   await page.getByRole('button', { name: /sign in/i }).click();
   await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 15_000 });
+
+  // createConfirmedTestUser() bypasses RegisterForm (production signup/onboarding, WORKLOG.md
+  // this date), so this account starts with no recorded consent/profile -- complete both before
+  // anything else, or the very next navigation would be gated to /legal-consent instead.
+  await completeLegalConsentAndProfile(page.request);
 
   // /settings lives under the (dashboard) route group, which requires an active org membership
   // (redirects to onboarding otherwise, same check signup-and-onboarding.spec.ts's own account

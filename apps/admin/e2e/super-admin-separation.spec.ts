@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { createConfirmedTestUser } from './fixtures/testUser';
 import { createConfirmedPlatformAdmin } from './fixtures/platformAdmin';
 import { generateTotpCode } from './fixtures/totp';
+import { completeLegalConsentAndProfile } from './fixtures/onboarding';
 import { BASE_URL } from '../playwright.config';
 
 // Super Admin separation (WORKLOG.md this date) -- against the real local Supabase instance,
@@ -109,6 +110,10 @@ test.describe('Super Admin separation', () => {
     await page.getByRole('button', { name: /sign in/i }).click();
     await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 15_000 });
 
+    // createConfirmedTestUser() bypasses RegisterForm (production signup/onboarding, WORKLOG.md
+    // this date), so this account starts with no recorded consent/profile -- complete both first,
+    // or this navigation would land on /legal-consent instead.
+    await completeLegalConsentAndProfile(page.request);
     await page.goto('/onboarding/create-organization');
     await page.waitForLoadState('networkidle');
     await page.locator('input[autocomplete="organization"]').fill(`E2E Nav Check ${Date.now()}`);

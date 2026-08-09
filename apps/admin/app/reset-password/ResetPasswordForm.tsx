@@ -3,10 +3,9 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Building2 } from 'lucide-react';
-import { branding } from '@propvault/config';
 import { getBrowserSupabaseClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/Button';
+import { ProplystLogo } from '@/components/branding/ProplystLogo';
 
 type SessionState = 'checking' | 'valid' | 'invalid';
 
@@ -105,11 +104,9 @@ export function ResetPasswordForm() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-light-surface px-6 dark:bg-dark-surface">
       <div className="w-full max-w-sm rounded-card border border-light-border bg-light-surfaceRaised p-8 shadow-lift dark:border-dark-border dark:bg-dark-surfaceRaised">
-        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-light-accent text-light-accentContrast shadow-glow dark:bg-dark-accent dark:text-dark-accentContrast">
-          <Building2 size={20} aria-hidden="true" />
-        </span>
+        <ProplystLogo />
         <h1 className="mt-4 font-display text-xl font-bold text-light-textPrimary dark:text-dark-textPrimary">
-          {branding.productName} Admin
+          Set a new password
         </h1>
 
         {sessionState === 'checking' ? (

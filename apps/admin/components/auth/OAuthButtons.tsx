@@ -14,6 +14,15 @@ import { getBrowserSupabaseClient } from '@/lib/supabase/client';
 // this is how "invitation continuation after authentication" works for a user who clicked
 // Google/Apple from an org- or tenant-invitation page: they come back to that exact invitation,
 // not a generic dashboard.
+// Production signup/onboarding (WORKLOG.md this date): Apple sign-in is hidden unless explicitly
+// enabled -- `supabase/config.toml`'s `[auth.external.apple]` is `enabled = false` (no real Apple
+// Services ID/key/team ID exist yet, TECHNICAL_DEBT_REGISTER.md TD-29), and showing a button that
+// can never actually complete a real OAuth round trip is worse than not showing it at all. Google
+// stays unconditional (matching PRODUCT DECISION 1's own "V1 auth methods are email/password,
+// Google, and Apple") -- once real Apple credentials are provisioned and `config.toml` flips to
+// `enabled = true`, set this same flag at the infra level to bring the button back.
+const APPLE_OAUTH_ENABLED = process.env.NEXT_PUBLIC_APPLE_OAUTH_ENABLED === 'true';
+
 export function OAuthButtons({ next = '/' }: { next?: string }) {
   const [pending, setPending] = useState<'google' | 'apple' | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -49,15 +58,17 @@ export function OAuthButtons({ next = '/' }: { next?: string }) {
         <GoogleIcon />
         {pending === 'google' ? 'Redirecting…' : 'Continue with Google'}
       </button>
-      <button
-        type="button"
-        onClick={() => startOAuth('apple')}
-        disabled={pending !== null}
-        className="flex w-full items-center justify-center gap-2 rounded-lg border border-light-border bg-transparent px-3 py-2 text-sm font-medium text-light-textPrimary transition-colors hover:bg-light-surface disabled:opacity-60 dark:border-dark-border dark:text-dark-textPrimary dark:hover:bg-dark-surface"
-      >
-        <AppleIcon />
-        {pending === 'apple' ? 'Redirecting…' : 'Continue with Apple'}
-      </button>
+      {APPLE_OAUTH_ENABLED ? (
+        <button
+          type="button"
+          onClick={() => startOAuth('apple')}
+          disabled={pending !== null}
+          className="flex w-full items-center justify-center gap-2 rounded-lg border border-light-border bg-transparent px-3 py-2 text-sm font-medium text-light-textPrimary transition-colors hover:bg-light-surface disabled:opacity-60 dark:border-dark-border dark:text-dark-textPrimary dark:hover:bg-dark-surface"
+        >
+          <AppleIcon />
+          {pending === 'apple' ? 'Redirecting…' : 'Continue with Apple'}
+        </button>
+      ) : null}
     </div>
   );
 }

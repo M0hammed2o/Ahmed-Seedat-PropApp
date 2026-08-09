@@ -3,10 +3,14 @@ import { getAdminGateStatus } from './auth';
 import { resolvePortalSession } from './orgSession';
 import { resolveTenantSession } from './tenantSession';
 import { resolveOwnerSession } from './ownerSession';
+import { hasAcceptedCurrentLegalTerms } from './legalConsent';
+import { isProfileComplete } from './profileCompletion';
 
 export interface AuthenticatedDestination {
   kind:
     | 'platform-admin'
+    | 'legal-consent'
+    | 'profile-incomplete'
     | 'org-dashboard'
     | 'org-restricted'
     | 'tenant-portal'
@@ -53,6 +57,26 @@ export interface AuthenticatedDestination {
  * common path; this function's job is still identity+auth-state ROUTING, not authorization -- the
  * (super-admin) layout remains the actual, sole enforcement point (re-checks both facts itself
  * rather than trusting this function's answer).
+ *
+ * Production signup/onboarding (WORKLOG.md this date) adds two more steps -- legal consent and
+ * profile completion -- ahead of the two customer-track outcomes only (`org-dashboard` and
+ * `onboarding`). Deliberately scoped there and nowhere else:
+ * - Platform admin is checked first and returns immediately, same as before -- Super Admin must
+ *   stay completely separated from customer onboarding, per PERMISSIONS.md.
+ * - Tenant/owner sessions are unaffected -- they're invited into an existing org/lease via a
+ *   dedicated activation flow (`/activate`, `/invitations/accept`), not the signup journey this
+ *   work is about, and gating them here risked breaking their own, separately-tested continuation
+ *   flows for no product reason this task asked for.
+ * - `org-restricted` is unaffected -- it's a dead-end informational page for a suspended org;
+ *   there's nothing to "complete" from there.
+ *
+ * Order (consent before profile, both before org/onboarding routing) is deliberate: consent is a
+ * compliance gate that should hold before anything else about the account is asked for; profile
+ * completion is a product-UX step layered on top of that, not the other way round. Applies to
+ * EVERY customer-track caller who reaches this point, not just brand-new signups -- an existing
+ * account that predates this feature (profile_completed_at is null) is asked to complete it on
+ * its next login too, matching "profile completion only if genuinely incomplete" for returning
+ * users, not "only if created after this shipped".
  */
 export async function resolveAuthenticatedDestination(): Promise<AuthenticatedDestination | null> {
   const { session: adminSession, isAal2 } = await getAdminGateStatus();
@@ -73,9 +97,11 @@ export async function resolveAuthenticatedDestination(): Promise<AuthenticatedDe
     const hasUsableOrg = activeMemberships.some(
       (m) => m.orgStatus !== 'suspended' && m.orgStatus !== 'cancelled',
     );
-    return hasUsableOrg
-      ? { kind: 'org-dashboard', path: '/dashboard' }
-      : { kind: 'org-restricted', path: '/access-restricted' };
+    if (!hasUsableOrg) return { kind: 'org-restricted', path: '/access-restricted' };
+
+    const customerGate = await resolveCustomerOnboardingGate();
+    if (customerGate) return customerGate;
+    return { kind: 'org-dashboard', path: '/dashboard' };
   }
 
   const tenantSession = await resolveTenantSession();
@@ -84,7 +110,21 @@ export async function resolveAuthenticatedDestination(): Promise<AuthenticatedDe
   const ownerSession = await resolveOwnerSession();
   if (ownerSession) return { kind: 'owner-portal', path: '/owner-portal' };
 
-  if (portalSession) return { kind: 'onboarding', path: '/onboarding/create-organization' };
+  if (portalSession) {
+    const customerGate = await resolveCustomerOnboardingGate();
+    if (customerGate) return customerGate;
+    return { kind: 'onboarding', path: '/onboarding/create-organization' };
+  }
 
+  return null;
+}
+
+async function resolveCustomerOnboardingGate(): Promise<AuthenticatedDestination | null> {
+  if (!(await hasAcceptedCurrentLegalTerms())) {
+    return { kind: 'legal-consent', path: '/legal-consent' };
+  }
+  if (!(await isProfileComplete())) {
+    return { kind: 'profile-incomplete', path: '/complete-account' };
+  }
   return null;
 }

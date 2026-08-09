@@ -1,8 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { safeNextPathOr } from '@/lib/safeRedirect';
 import { getRequestOrigin } from '@/lib/appUrl';
+import { sendWelcomeEmailOnce } from '@/lib/lifecycleEmail';
 
 /**
  * GET /auth/callback (PRODUCT DECISION 1, 2026-08-03). The single landing point for every
@@ -43,6 +44,21 @@ function pathnameOnly(next: string): string {
 }
 
 /**
+ * Fire-and-forget, never blocks the redirect below it (a mail-provider outage must never prevent
+ * a real user from reaching the app). Safe to call on every successful callback, including the
+ * duplicate-request "already confirmed" recovery path -- `sendWelcomeEmailOnce`'s own DB-level
+ * uniqueness claim (migration 20260101000077) is what actually guarantees exactly-once, not
+ * anything about which code path called it.
+ */
+function triggerWelcomeEmail(userId: string) {
+  void sendWelcomeEmailOnce(getServiceRoleClient(), userId, null).catch((err) => {
+    console.error('auth_callback_welcome_email_dispatch_failed', {
+      message: err instanceof Error ? err.message : String(err),
+    });
+  });
+}
+
+/**
  * Real, live-caught gap this closes: the previous version redirected straight to `/login?error=…`
  * for ANY provider-supplied error or failed exchange, without ever checking whether the SAME
  * browser already holds a valid, confirmed session -- which happens whenever a second request for
@@ -71,6 +87,7 @@ async function resolveFailureOutcome(
       correlationId,
       next: pathnameOnly(next),
     });
+    triggerWelcomeEmail(existingUser.id);
     return NextResponse.redirect(new URL(next, origin));
   }
 
@@ -174,6 +191,11 @@ export async function GET(request: NextRequest) {
   // job once a session exists is to route onward; profiles is auto-created for any new
   // auth.users row (including OAuth ones) by the on_auth_user_created trigger (migration
   // 20260101000004), so there is nothing else to provision here.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user) triggerWelcomeEmail(user.id);
+
   logCallbackEvent('auth_callback_success_redirect', { correlationId, next: pathnameOnly(next) });
   return NextResponse.redirect(new URL(next, origin));
 }

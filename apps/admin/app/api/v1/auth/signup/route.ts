@@ -7,6 +7,7 @@ import { rateLimitOrRespond } from '@/lib/rateLimit';
 import { resolveTrustedClientIp } from '@/lib/clientIp';
 import { isSafeNextPath } from '@/lib/safeRedirect';
 import { getRequestOrigin } from '@/lib/appUrl';
+import { recordLegalConsent } from '@/lib/legalConsent';
 
 // emailRedirectTo is computed client-side today (RegisterForm.tsx uses window.location.origin,
 // which a server route has no access to) -- accepted as an input here rather than guessed
@@ -64,33 +65,9 @@ export async function POST(request: NextRequest) {
   if (limited) return limited;
 
   const origin = getRequestOrigin(request.headers);
+  const correlationId = crypto.randomUUID();
 
-  // Diagnostic-only (WORKLOG.md this date, round 2): confirmed from @supabase/auth-js's own
-  // source that for any 500-504/520-530 response, `handleError()` throws before ever calling
-  // `.json()` on the response -- the SDK's own thrown error can NEVER carry the real response
-  // body for exactly the failure this route has been hitting (Object.keys/getOwnPropertyNames/
-  // .cause on that error were verified to add nothing beyond {name, message, status, code}, and
-  // .message is just JSON.stringify() of the raw Response object, always literally "{}"). The
-  // only way to see what Supabase Auth actually sent back is to intercept the fetch itself, one
-  // level below the SDK's own error handling. `capturedAuthResponseBody` is populated as a side
-  // effect purely for the diagnostic log below -- the ORIGINAL, unread response is always
-  // returned untouched (via a clone), so supabase-js's own behavior is completely unaffected;
-  // this changes nothing about how a successful or already-handled-error signup behaves.
-  let capturedAuthResponseBody: string | null = null;
-  const diagnosticFetch: typeof fetch = async (input, init) => {
-    const response = await fetch(input, init);
-    const url = typeof input === 'string' ? input : input.toString();
-    if (!response.ok && url.includes('/auth/v1/signup')) {
-      try {
-        capturedAuthResponseBody = await response.clone().text();
-      } catch {
-        capturedAuthResponseBody = '(failed to read cloned response body)';
-      }
-    }
-    return response;
-  };
-
-  const supabase = await getServerSupabaseClient({ fetch: diagnosticFetch });
+  const supabase = await getServerSupabaseClient();
   const { data, error } = await supabase.auth.signUp({
     email: parsed.data.email,
     password: parsed.data.password,
@@ -100,31 +77,17 @@ export async function POST(request: NextRequest) {
   });
 
   if (error) {
-    // Diagnostic-only (WORKLOG.md this date): the public response below has always been, and
-    // remains, a generic message -- this exists purely so the *real* Supabase Auth error is
-    // visible server-side instead of silently discarded, since production signups were failing
-    // with no way to tell why. Deliberately narrow: only error shape + safe request context, never
-    // the password/confirmPassword fields or anything from `data` that could carry a token. The
-    // raw Supabase-supplied error text (if any) is safe to log verbatim -- it describes what went
-    // wrong with the SIGNUP OPERATION itself (e.g. a mail-server or trigger failure), never
-    // contains the submitted password/confirmPassword (those are never echoed back by Supabase
-    // Auth in any response body).
+    // Security cleanup (WORKLOG.md this date): a prior round of this handler logged the raw
+    // captured GoTrue response body and every own-property of the thrown error (added while
+    // investigating a specific past incident, WORKLOG.md 2026-08-07/08 -- resolved). Trimmed to
+    // exactly what's useful for triage without re-exposing more production detail than
+    // necessary: a safe error code/message/status, and a correlation id to find this exact
+    // request in logs -- never the raw provider response body, stack trace, or full error object.
     console.error('email_password_signup_failed', {
-      route: 'POST /api/v1/auth/signup',
-      message: error.message,
+      correlationId,
       code: error.code,
       status: error.status,
-      name: error.name,
-      cause: error.cause,
-      stack: error.stack,
-      errorKeys: Object.keys(error),
-      errorAllOwnProps: JSON.stringify(error, Object.getOwnPropertyNames(error)),
-      rawAuthResponseBody: capturedAuthResponseBody,
-      origin,
-      hadTermsVersion: parsed.data.acceptedTermsVersion.length > 0,
-      hadPrivacyVersion: parsed.data.acceptedPrivacyVersion.length > 0,
-      userReturned: Boolean(data?.user),
-      sessionReturned: Boolean(data?.session),
+      message: error.message,
     });
 
     return NextResponse.json(
@@ -140,6 +103,15 @@ export async function POST(request: NextRequest) {
       },
       { status: 422 },
     );
+  }
+
+  // Records consent at the server's own configured TERMS_VERSION/PRIVACY_VERSION -- never the
+  // client-submitted acceptedTermsVersion/acceptedPrivacyVersion strings, which registerSchema
+  // only validates as "non-empty" (i.e. the checkbox was checked), not as authoritative content.
+  // Written here (not deferred to the /legal-consent fallback gate) so a fresh email/password
+  // signup never sees that extra screen -- they already consented on this exact page.
+  if (data.user) {
+    await recordLegalConsent(data.user.id);
   }
 
   // Mirrors RegisterForm.tsx's own prior logic exactly: signUp() only returns a live session

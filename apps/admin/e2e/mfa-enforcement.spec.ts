@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { createConfirmedTestUser } from './fixtures/testUser';
 import { generateTotpCode } from './fixtures/totp';
+import { completeLegalConsentAndProfile } from './fixtures/onboarding';
 import { BASE_URL } from '../playwright.config';
 
 // Stage 3 (WORKLOG.md this date) -- permanent regression test for a real, proven customer MFA
@@ -24,10 +25,18 @@ test.describe('customer MFA enforcement', () => {
     await page.locator('input[type="email"]').fill(user.email);
     await page.locator('input[type="password"]').fill(user.password);
     await page.getByRole('button', { name: /sign in/i }).click();
-    // No MFA challenge for this account -- straight through to onboarding (no org yet). If this
-    // hung or redirected to /mfa-challenge instead, the gate would be wrongly treating "no factor
+    // No MFA challenge for this account -- straight through past that gate. If this hung or
+    // redirected to /mfa-challenge instead, the gate would be wrongly treating "no factor
     // enrolled" as "MFA required" -- exactly the over-blocking this fix must not introduce.
-    await page.waitForURL(/\/onboarding\/create-organization/, { timeout: 15_000 });
+    await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 15_000 });
+
+    // createConfirmedTestUser() bypasses RegisterForm (production signup/onboarding, WORKLOG.md
+    // this date), so this account starts with no recorded consent/profile -- complete both, then
+    // continue on to onboarding explicitly (the automatic post-login redirect already landed on
+    // /legal-consent, not onboarding, for exactly that reason).
+    await completeLegalConsentAndProfile(page.request);
+    await page.goto('/onboarding/create-organization');
+    await page.waitForLoadState('networkidle');
 
     await page.locator('input[autocomplete="organization"]').fill(`E2E No-MFA Org ${Date.now()}`);
     await page.getByRole('button', { name: /create organization/i }).click();
@@ -50,6 +59,10 @@ test.describe('customer MFA enforcement', () => {
     await page.getByRole('button', { name: /sign in/i }).click();
     await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 15_000 });
 
+    // createConfirmedTestUser() bypasses RegisterForm (production signup/onboarding, WORKLOG.md
+    // this date), so this account starts with no recorded consent/profile -- complete both before
+    // proceeding to org creation, or this navigation would land on /legal-consent instead.
+    await completeLegalConsentAndProfile(page.request);
     await page.goto('/onboarding/create-organization');
     await page.waitForLoadState('networkidle');
     await page
