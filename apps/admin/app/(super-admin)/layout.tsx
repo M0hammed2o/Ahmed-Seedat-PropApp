@@ -113,6 +113,7 @@ export default async function SuperAdminLayout({ children }: { children: React.R
       navSections={NAV_SECTIONS}
       identityLine={`${adminSessionUnverified.displayName} · ${adminSessionUnverified.role.replace('_', ' ')}`}
       demoBadge={ADMIN_DEMO_MODE}
+      homeHref="/platform-admin/overview"
     >
       {children}
     </AppShell>
