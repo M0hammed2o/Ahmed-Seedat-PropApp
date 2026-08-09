@@ -1,9 +1,10 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import type { RentSchedule, Tenant } from '@propvault/types';
+import type { RentSchedule, Tenant, TrustLedger } from '@propvault/types';
 import { LEASE_STATUS_PRESENTATION, TENANT_STATUS_PRESENTATION } from '@propvault/ui';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapLeaseRow, mapTenantRow, mapRentScheduleRow } from '@/lib/leasing';
+import { mapTrustLedgerRow } from '@/lib/accounting';
 import {
   resolvePortalSession,
   findActiveMembership,
@@ -16,6 +17,8 @@ import { Button } from '@/components/ui/Button';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Panel } from '@/components/ui/Panel';
 import { LeaseRentScheduleClient } from '@/components/leases/LeaseRentScheduleClient';
+import { LeaseActions } from '@/components/leases/LeaseActions';
+import { DepositPanel } from '@/components/leases/DepositPanel';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 import type { LeaseRow } from '@/components/tables/LeasesTable';
 
@@ -106,6 +109,7 @@ export default async function LeaseDetailPage({ params }: RouteParams) {
         canPost
         leaseTenants={DEMO_LEASE_TENANTS}
         rentSchedule={DEMO_RENT_SCHEDULE}
+        trustLedger={null}
       />
     );
   }
@@ -166,6 +170,14 @@ export default async function LeaseDetailPage({ params }: RouteParams) {
   if (rsError) throw new Error(`Failed to load rent schedule: ${rsError.message}`);
   const rentSchedule = (rsRows ?? []).map(mapRentScheduleRow);
 
+  const { data: tlRow, error: tlError } = await supabase
+    .from('trust_ledgers')
+    .select('*')
+    .eq('lease_id', id)
+    .maybeSingle();
+  if (tlError) throw new Error(`Failed to load trust ledger: ${tlError.message}`);
+  const trustLedger = tlRow ? mapTrustLedgerRow(tlRow) : null;
+
   return (
     <LeaseDetailView
       lease={lease}
@@ -173,6 +185,7 @@ export default async function LeaseDetailPage({ params }: RouteParams) {
       canPost={canPost}
       leaseTenants={leaseTenants}
       rentSchedule={rentSchedule}
+      trustLedger={trustLedger}
     />
   );
 }
@@ -183,12 +196,14 @@ function LeaseDetailView({
   canPost,
   leaseTenants,
   rentSchedule,
+  trustLedger,
 }: {
   lease: LeaseRow;
   canEdit: boolean;
   canPost: boolean;
   leaseTenants: LeaseTenant[];
   rentSchedule: RentSchedule[];
+  trustLedger: TrustLedger | null;
 }) {
   const backHref = lease.propertyId
     ? `/properties/${lease.propertyId}/units/${lease.unitId}`
@@ -294,6 +309,14 @@ function LeaseDetailView({
         )}
       </Panel>
 
+      <LeaseActions
+        leaseId={lease.id}
+        orgId={lease.orgId}
+        status={lease.status}
+        hasTenant={leaseTenants.length > 0}
+        canEdit={canEdit}
+      />
+
       {/* Not wrapped in a Panel -- AdminDataTable (which RentScheduleTable/LeaseRentScheduleClient
           render through) already supplies its own bordered/rounded/shadowed card, same as the bare
           RentDueClient placement on the Rent Due page; a second Panel around it would double the
@@ -302,13 +325,22 @@ function LeaseDetailView({
         <h2 className="mb-2.5 text-[15px] font-semibold text-light-textPrimary dark:text-dark-textPrimary">
           Rent schedule
         </h2>
-        <LeaseRentScheduleClient data={rentSchedule} canPost={canPost} />
+        {lease.status === 'draft' ? (
+          <p className="rounded-lg border border-light-border p-4 text-sm text-light-textMuted dark:border-dark-border dark:text-dark-textMuted">
+            Rent schedule will be generated once this lease is activated.
+          </p>
+        ) : (
+          <LeaseRentScheduleClient data={rentSchedule} canPost={canPost} />
+        )}
       </div>
 
-      <p className="text-xs text-light-textMuted dark:text-dark-textMuted">
-        Trust deposit status (deposit held/released against this lease) is built at the API layer
-        (TASKS.md M14) but not yet wired into this page.
-      </p>
+      <DepositPanel
+        leaseId={lease.id}
+        leaseStatus={lease.status}
+        depositAmount={lease.depositAmount}
+        trustLedger={trustLedger}
+        canPost={canPost}
+      />
     </div>
   );
 }

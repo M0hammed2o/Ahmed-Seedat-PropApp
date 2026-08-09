@@ -205,15 +205,24 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     );
   }
 
+  // Bug found by property-lease-workflow.spec.ts (this task's E2E pass): entityId must be a real
+  // uuid (audit_events.entity_id is `uuid not null`, migration 20260101000013) -- the previous
+  // `${propertyId}:${ownerId}` composite string silently failed every insert (caught and logged by
+  // writeAuditEvent, never surfaced to the caller or the response, so this went unnoticed). Since
+  // property_owners has no single surrogate id (its real key is the (property_id, owner_id) pair),
+  // entityId is the property being viewed when this history matters; ownerId moves into the
+  // before/after payload instead of being silently dropped.
   await writeAuditEvent(getServiceRoleClient(), {
     orgId: property.org_id,
     actorUserId: user.id,
     actorType: 'user',
     action: 'property_owner.set_ownership_pct',
     entityType: 'property_owners',
-    entityId: `${propertyId}:${parsed.data.ownerId}`,
-    before: priorOwnership ? { ownershipPct: priorOwnership.ownership_pct } : null,
-    after: { ownershipPct: data.ownership_pct },
+    entityId: propertyId,
+    before: priorOwnership
+      ? { ownerId: parsed.data.ownerId, ownershipPct: priorOwnership.ownership_pct }
+      : null,
+    after: { ownerId: parsed.data.ownerId, ownershipPct: data.ownership_pct },
   });
 
   return NextResponse.json(

@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Application } from '@propvault/types';
-import { APPLICATION_STATUS_PRESENTATION } from '@propvault/ui';
+import { applicationDisplayPresentation } from '@propvault/ui';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapApplicationRow } from '@/lib/leasing';
 import { resolvePortalSession, findActiveMembership, canWriteOrgRecords } from '@/lib/orgSession';
@@ -39,7 +39,14 @@ export default async function ApplicationDetailPage({ params }: RouteParams) {
 
   if (ADMIN_DEMO_MODE) {
     if (id !== 'demo-application-1') notFound();
-    return <ApplicationDetailView application={DEMO_APPLICATION} canAct />;
+    return (
+      <ApplicationDetailView
+        application={DEMO_APPLICATION}
+        canAct
+        propertyName="Sea Point Apartment"
+        unitLabel="Unit 1"
+      />
+    );
   }
 
   const supabase = await getServerSupabaseClient();
@@ -56,15 +63,37 @@ export default async function ApplicationDetailPage({ params }: RouteParams) {
   const membership = session ? findActiveMembership(session, application.orgId) : undefined;
   const canAct = Boolean(membership && canWriteOrgRecords(membership.role));
 
-  return <ApplicationDetailView application={application} canAct={canAct} />;
+  let propertyName: string | null = null;
+  let unitLabel: string | null = null;
+  if (!ADMIN_DEMO_MODE) {
+    const [{ data: property }, { data: unit }] = await Promise.all([
+      supabase.from('properties').select('nickname').eq('id', application.propertyId).maybeSingle(),
+      supabase.from('units').select('unit_label').eq('id', application.unitId).maybeSingle(),
+    ]);
+    propertyName = property?.nickname ?? null;
+    unitLabel = unit?.unit_label ?? null;
+  }
+
+  return (
+    <ApplicationDetailView
+      application={application}
+      canAct={canAct}
+      propertyName={propertyName}
+      unitLabel={unitLabel}
+    />
+  );
 }
 
 function ApplicationDetailView({
   application,
   canAct,
+  propertyName,
+  unitLabel,
 }: {
   application: Application;
   canAct: boolean;
+  propertyName: string | null;
+  unitLabel: string | null;
 }) {
   return (
     <div className="space-y-6 animate-rise">
@@ -78,9 +107,7 @@ function ApplicationDetailView({
         <div className="mt-2">
           <PageHeader
             title={application.applicantName}
-            actions={
-              <StatusBadge presentation={APPLICATION_STATUS_PRESENTATION[application.status]} />
-            }
+            actions={<StatusBadge presentation={applicationDisplayPresentation(application)} />}
           />
         </div>
       </div>
@@ -97,6 +124,19 @@ function ApplicationDetailView({
             <dt className="text-light-textMuted dark:text-dark-textMuted">Phone</dt>
             <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">
               {application.applicantPhone ?? '—'}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-light-textMuted dark:text-dark-textMuted">Property / unit</dt>
+            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">
+              {propertyName ?? '—'}
+              {unitLabel ? ` · ${unitLabel}` : ''}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-light-textMuted dark:text-dark-textMuted">Submitted</dt>
+            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">
+              {new Date(application.createdAt).toLocaleDateString('en-ZA')}
             </dd>
           </div>
         </dl>

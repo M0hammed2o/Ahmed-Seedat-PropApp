@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { MaintenanceTicket, Property } from '@propvault/types';
+import { PROPERTY_TYPE_LABELS, PROPERTY_STATUS_PRESENTATION } from '@propvault/ui';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapPropertyRow, mapUnitRow } from '@/lib/portfolio';
 import { mapMaintenanceTicketRow } from '@/lib/operations';
@@ -14,6 +15,8 @@ import { Pill, statusTone } from '@/components/ui/Pill';
 import { SimpleTabs } from '@/components/ui/SimpleTabs';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 import { ValuationForm } from '@/components/properties/ValuationForm';
+import { PropertyPhotosPanel } from '@/components/properties/PropertyPhotosPanel';
+import { PropertyOwnersPanel } from '@/components/properties/PropertyOwnersPanel';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -116,6 +119,15 @@ export default async function PropertyDetailPage({ params }: RouteParams) {
         documents={[]}
         accounting={{ incomeYtd: 62500, expensesYtd: 4200 }}
         canManage
+        coverPhotoUrl={null}
+        setupProgress={{
+          hasOwnership: true,
+          hasValuation: true,
+          hasUnits: true,
+          hasTenantOrApplication: true,
+          hasLease: true,
+          hasDocuments: true,
+        }}
       />
     );
   }
@@ -159,9 +171,11 @@ export default async function PropertyDetailPage({ params }: RouteParams) {
     updatedAt: d.updated_at,
   }));
 
-  const [tenants, accounting] = await Promise.all([
+  const [tenants, accounting, coverPhotoUrl, setupProgress] = await Promise.all([
     loadPropertyTenants(supabase, units),
     loadPropertyAccounting(supabase, units),
+    loadCoverPhotoUrl(supabase, id),
+    loadSetupProgress(supabase, id, units, property.estimatedValue !== null),
   ]);
 
   const session = await resolvePortalSession();
@@ -177,8 +191,83 @@ export default async function PropertyDetailPage({ params }: RouteParams) {
       documents={documents}
       accounting={accounting}
       canManage={canManage}
+      coverPhotoUrl={coverPhotoUrl}
+      setupProgress={setupProgress}
     />
   );
+}
+
+export interface SetupProgress {
+  hasOwnership: boolean;
+  hasValuation: boolean;
+  hasUnits: boolean;
+  hasTenantOrApplication: boolean;
+  hasLease: boolean;
+  hasDocuments: boolean;
+}
+
+// Stage 16: setup guidance computed live from real rows every time (never local browser state, per
+// the explicit instruction), rather than a new completion-tracking table -- every signal here is
+// already loaded/queryable from tables this page reads anyway, so a stored "progress" column would
+// just be a second, driftable copy of the same facts.
+async function loadSetupProgress(
+  supabase: Awaited<ReturnType<typeof getServerSupabaseClient>>,
+  propertyId: string,
+  units: UnitRow[],
+  hasValuation: boolean,
+): Promise<SetupProgress> {
+  const unitIds = units.map((u) => u.id);
+  const [ownersResult, applicationsResult, leasesResult, documentsResult] = await Promise.all([
+    supabase
+      .from('property_owners')
+      .select('owner_id', { count: 'exact', head: true })
+      .eq('property_id', propertyId),
+    unitIds.length > 0
+      ? supabase
+          .from('applications')
+          .select('id', { count: 'exact', head: true })
+          .in('unit_id', unitIds)
+      : Promise.resolve({ count: 0 }),
+    unitIds.length > 0
+      ? supabase.from('leases').select('id', { count: 'exact', head: true }).in('unit_id', unitIds)
+      : Promise.resolve({ count: 0 }),
+    supabase
+      .from('documents')
+      .select('id', { count: 'exact', head: true })
+      .eq('property_id', propertyId)
+      .is('deleted_at', null),
+  ]);
+
+  return {
+    hasOwnership: (ownersResult.count ?? 0) > 0,
+    hasValuation,
+    hasUnits: units.length > 0,
+    hasTenantOrApplication: (applicationsResult.count ?? 0) > 0,
+    hasLease: (leasesResult.count ?? 0) > 0,
+    hasDocuments: (documentsResult.count ?? 0) > 0,
+  };
+}
+
+// Stage 4: the real photo hero source, backed by the private documents bucket (property_photos ->
+// documents, migration 20260101000080) -- properties.image_path (read elsewhere in this file) has
+// no writer anywhere in the app and stays permanently null; this is the actual mechanism.
+async function loadCoverPhotoUrl(
+  supabase: Awaited<ReturnType<typeof getServerSupabaseClient>>,
+  propertyId: string,
+): Promise<string | null> {
+  const { data } = await supabase
+    .from('property_photos')
+    .select('documents(storage_path)')
+    .eq('property_id', propertyId)
+    .eq('is_cover', true)
+    .maybeSingle();
+  const storagePath = (data as unknown as { documents: { storage_path: string } | null } | null)
+    ?.documents?.storage_path;
+  if (!storagePath) return null;
+  const { data: signed } = await supabase.storage
+    .from('documents')
+    .createSignedUrl(storagePath, 300);
+  return signed?.signedUrl ?? null;
 }
 
 async function loadPropertyTenants(
@@ -277,6 +366,8 @@ function PropertyDetailView({
   documents,
   accounting,
   canManage,
+  coverPhotoUrl,
+  setupProgress,
 }: {
   property: Property;
   units: UnitRow[];
@@ -285,6 +376,8 @@ function PropertyDetailView({
   documents: PropertyDocument[];
   accounting: PropertyAccounting;
   canManage: boolean;
+  coverPhotoUrl: string | null;
+  setupProgress: SetupProgress;
 }) {
   const addUnitAction = (
     <Link
@@ -304,7 +397,7 @@ function PropertyDetailView({
   );
 
   const occupiedCount = units.filter((u) => u.status === 'occupied').length;
-  const imageSrc = property.imagePath ?? '/property-placeholder.svg';
+  const imageSrc = coverPhotoUrl ?? property.imagePath ?? '/property-placeholder.svg';
 
   return (
     <>
@@ -330,10 +423,10 @@ function PropertyDetailView({
             <div className="min-w-0">
               <div className="mb-2 flex items-center gap-2">
                 <Pill tone={statusTone(property.status)} className="bg-card/90 backdrop-blur">
-                  {property.status}
+                  {PROPERTY_STATUS_PRESENTATION[property.status].label}
                 </Pill>
-                <span className="rounded-full bg-card/90 px-2.5 py-1 text-[11px] font-medium capitalize text-foreground backdrop-blur">
-                  {property.propertyType.replace('_', ' ')}
+                <span className="rounded-full bg-card/90 px-2.5 py-1 text-[11px] font-medium text-foreground backdrop-blur">
+                  {PROPERTY_TYPE_LABELS[property.propertyType]}
                 </span>
               </div>
               <h1 className="truncate font-display text-[26px] font-bold text-white">
@@ -360,7 +453,10 @@ function PropertyDetailView({
             { label: 'Expenses YTD', value: currency(accounting.expensesYtd) },
             {
               label: 'Occupancy',
-              value: `${units.length > 0 ? Math.round((occupiedCount / units.length) * 100) : 0}%`,
+              value:
+                units.length > 0
+                  ? `${Math.round((occupiedCount / units.length) * 100)}%`
+                  : 'Not available',
             },
           ].map((s) => (
             <div key={s.label} className="border-t border-border px-5 py-4">
@@ -372,6 +468,8 @@ function PropertyDetailView({
           ))}
         </div>
       </div>
+
+      {canManage ? <SetupProgressPanel progress={setupProgress} /> : null}
 
       {canManage ? (
         <Panel
@@ -396,8 +494,8 @@ function PropertyDetailView({
                 <dl className="grid grid-cols-2 gap-x-4 gap-y-5 text-sm lg:grid-cols-4">
                   <div>
                     <dt className="text-muted-foreground">Type</dt>
-                    <dd className="mt-0.5 capitalize text-foreground">
-                      {property.propertyType.replace('_', ' ')}
+                    <dd className="mt-0.5 text-foreground">
+                      {PROPERTY_TYPE_LABELS[property.propertyType]}
                     </dd>
                   </div>
                   <div>
@@ -466,6 +564,20 @@ function PropertyDetailView({
                   No tenants linked to this property yet.
                 </p>
               ),
+          },
+          {
+            label: 'Ownership',
+            content: (
+              <PropertyOwnersPanel
+                propertyId={property.id}
+                orgId={property.orgId}
+                canManage={canManage}
+              />
+            ),
+          },
+          {
+            label: 'Photos',
+            content: <PropertyPhotosPanel propertyId={property.id} canManage={canManage} />,
           },
           {
             label: `Documents (${documents.length})`,
@@ -574,6 +686,51 @@ function PropertyDetailView({
         ]}
       />
     </>
+  );
+}
+
+// Stage 16: lightweight, non-blocking setup guidance -- every existing direct page (units, leases,
+// applications, documents) keeps working unchanged; this is purely a "here's what's left" pointer
+// that disappears once the core steps are done, never a wizard the user is forced through.
+function SetupProgressPanel({ progress }: { progress: SetupProgress }) {
+  const coreSteps = [
+    { label: 'Ownership', done: progress.hasOwnership },
+    { label: 'Units', done: progress.hasUnits },
+    { label: 'Tenant or application', done: progress.hasTenantOrApplication },
+    { label: 'Lease', done: progress.hasLease },
+  ];
+  const optionalSteps = [
+    { label: 'Valuation (optional)', done: progress.hasValuation },
+    { label: 'Documents (optional)', done: progress.hasDocuments },
+  ];
+
+  const coreComplete = coreSteps.every((s) => s.done);
+  if (coreComplete) return null;
+
+  return (
+    <Panel
+      title="Finish setting up this property"
+      description="Each step lives on its own tab below — nothing here is required in order, and you can leave and come back anytime."
+    >
+      <ul className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3">
+        {[...coreSteps, ...optionalSteps].map((step) => (
+          <li key={step.label} className="flex items-center gap-2">
+            <span
+              className={`inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] ${
+                step.done
+                  ? 'bg-light-statusPaid/20 text-light-statusPaid dark:bg-dark-statusPaid/20 dark:text-dark-statusPaid'
+                  : 'bg-light-textMuted/10 text-light-textMuted dark:bg-dark-textMuted/10 dark:text-dark-textMuted'
+              }`}
+            >
+              {step.done ? '✓' : ''}
+            </span>
+            <span className={step.done ? 'text-muted-foreground line-through' : 'text-foreground'}>
+              {step.label}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </Panel>
   );
 }
 

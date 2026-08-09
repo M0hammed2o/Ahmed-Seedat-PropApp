@@ -4,9 +4,14 @@ import { useState, type FormEvent, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import type { PropertyType } from '@propvault/types';
 import { PROPERTY_TYPES } from '@propvault/types';
+import { PROPERTY_TYPE_LABELS } from '@propvault/ui';
 import { Button } from '@/components/ui/Button';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Panel } from '@/components/ui/Panel';
+import {
+  AddressAutocomplete,
+  type AddressSuggestion,
+} from '@/components/properties/AddressAutocomplete';
 
 // DESIGN_SYSTEM.md "Forms" -- standard inputs, label above field, inline field_errors sourced
 // directly from the API response (never a separately-invented client-side validation message).
@@ -48,6 +53,17 @@ export function NewPropertyForm({ orgId }: { orgId: string }) {
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function applySuggestion(s: AddressSuggestion) {
+    setForm((prev) => ({
+      ...prev,
+      addressLine1: s.addressLine1,
+      suburb: s.suburb ?? prev.suburb,
+      city: s.city ?? prev.city,
+      province: s.province ?? prev.province,
+      postalCode: s.postalCode ?? prev.postalCode,
+    }));
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -117,11 +133,13 @@ export function NewPropertyForm({ orgId }: { orgId: string }) {
             >
               {PROPERTY_TYPES.map((t) => (
                 <option key={t} value={t}>
-                  {t.replace('_', ' ')}
+                  {PROPERTY_TYPE_LABELS[t]}
                 </option>
               ))}
             </select>
           </Field>
+
+          <AddressAutocomplete onSelect={applySuggestion} />
 
           <Field label="Address line 1" error={fieldErrors.addressLine1}>
             <input

@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import { MapPin } from 'lucide-react';
+import type { PropertyStatus, PropertyType } from '@propvault/types';
+import { PROPERTY_TYPE_LABELS, PROPERTY_STATUS_PRESENTATION } from '@propvault/ui';
 import { Meter } from '@/components/ui/Meter';
 import { Pill, statusTone } from '@/components/ui/Pill';
 
@@ -8,8 +10,8 @@ export interface PropertyCardData {
   nickname: string;
   fullAddress: string;
   city: string;
-  propertyType: string;
-  status: string;
+  propertyType: PropertyType;
+  status: PropertyStatus;
   imagePath: string | null;
   unitsCount: number;
   occupiedCount: number;
@@ -52,7 +54,7 @@ export function PropertyCard({ property }: { property: PropertyCardData }) {
         <div className="absolute inset-0 bg-gradient-to-t from-foreground/55 via-transparent to-transparent" />
         <div className="absolute top-3 left-3">
           <Pill tone={statusTone(property.status)} className="bg-card/90 backdrop-blur">
-            {property.status}
+            {PROPERTY_STATUS_PRESENTATION[property.status].label}
           </Pill>
         </div>
         <div className="absolute right-3 bottom-3 left-3 flex items-end justify-between gap-2">
@@ -64,8 +66,8 @@ export function PropertyCard({ property }: { property: PropertyCardData }) {
               <MapPin className="h-3 w-3 shrink-0" aria-hidden="true" /> {property.fullAddress}
             </p>
           </div>
-          <span className="shrink-0 rounded-lg bg-card/90 px-2 py-1 text-[11px] font-semibold capitalize text-foreground backdrop-blur">
-            {property.propertyType.replace('_', ' ')}
+          <span className="shrink-0 rounded-lg bg-card/90 px-2 py-1 text-[11px] font-semibold text-foreground backdrop-blur">
+            {PROPERTY_TYPE_LABELS[property.propertyType]}
           </span>
         </div>
       </div>

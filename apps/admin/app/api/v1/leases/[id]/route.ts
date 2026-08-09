@@ -107,7 +107,6 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   if (parsed.data.endDate !== undefined) patch.end_date = parsed.data.endDate;
   if (parsed.data.rentAmount !== undefined) patch.rent_amount = parsed.data.rentAmount;
   if (parsed.data.depositAmount !== undefined) patch.deposit_amount = parsed.data.depositAmount;
-  if (parsed.data.status !== undefined) patch.status = parsed.data.status;
 
   const { data, error } = await supabase
     .from('leases')

@@ -3,15 +3,20 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Unit, UnitStatus } from '@propvault/types';
-import { UNIT_STATUSES } from '@propvault/types';
+import { UNIT_STATUS_PRESENTATION } from '@propvault/ui';
 import { Button } from '@/components/ui/Button';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Panel } from '@/components/ui/Panel';
 
 // Same DESIGN_SYSTEM.md "Forms" conventions as NewPropertyForm.tsx: label above field, inline
-// field_errors sourced from the API response, native <select> for status (3 options, under the
-// design system's ≤5 segmented-control threshold anyway but a select reads clearer paired with a
-// label here than a 3-way segmented control would for an optional field).
+// field_errors sourced from the API response.
+//
+// Status (Stage 7): "occupied" is derived from lease activity (sync_unit_status_from_lease_trigger,
+// migration 20260101000079) and the API now rejects setting it directly -- so it is never a
+// selectable option here. "vacant"/"maintenance" remain a manual choice for a non-occupied unit;
+// once a unit is genuinely occupied (an active lease exists), this form shows that as read-only
+// rather than a dropdown that would just get rejected on submit.
+const SELECTABLE_UNIT_STATUSES: UnitStatus[] = ['vacant', 'maintenance'];
 
 interface FormState {
   unitLabel: string;
@@ -159,17 +164,24 @@ export function UnitForm({ mode, propertyId, unit }: UnitFormProps) {
           </div>
 
           <Field label="Status">
-            <select
-              value={form.status}
-              onChange={(e) => set('status', e.target.value as UnitStatus)}
-              className={inputClass}
-            >
-              {UNIT_STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
+            {form.status === 'occupied' ? (
+              <p className="mt-1 text-sm text-light-textPrimary dark:text-dark-textPrimary">
+                {UNIT_STATUS_PRESENTATION.occupied.label} — derived from this unit's active lease.
+                End the lease to change this.
+              </p>
+            ) : (
+              <select
+                value={form.status}
+                onChange={(e) => set('status', e.target.value as UnitStatus)}
+                className={inputClass}
+              >
+                {SELECTABLE_UNIT_STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {UNIT_STATUS_PRESENTATION[s].label}
+                  </option>
+                ))}
+              </select>
+            )}
           </Field>
 
           <div className="flex gap-2 pt-2">

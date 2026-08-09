@@ -101,6 +101,66 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     );
   }
 
+  // Stage 7: occupied/vacant is derived from lease activity (sync_unit_status_from_lease_trigger,
+  // migration 20260101000079) -- this route must not let a direct PATCH create a contradictory
+  // state (e.g. "occupied" with no active lease). `maintenance` remains the one manual, explicit
+  // override, and only when the unit has no active lease -- exactly what that migration's own
+  // comment says this file is responsible for gating.
+  if (parsed.data.status !== undefined && parsed.data.status !== existing.status) {
+    if (parsed.data.status === 'occupied') {
+      return NextResponse.json(
+        {
+          error: {
+            code: 'unit_status_derived',
+            message:
+              'A unit becomes occupied automatically once a lease is activated for it -- it cannot be set directly.',
+          },
+        },
+        { status: 400 },
+      );
+    }
+
+    if (parsed.data.status === 'maintenance') {
+      const { data: activeLease, error: activeLeaseError } = await supabase
+        .from('leases')
+        .select('id')
+        .eq('unit_id', id)
+        .eq('status', 'active')
+        .maybeSingle();
+      if (activeLeaseError) {
+        return NextResponse.json(
+          { error: { code: 'unit_lease_check_failed', message: activeLeaseError.message } },
+          { status: 500 },
+        );
+      }
+      if (activeLease) {
+        return NextResponse.json(
+          {
+            error: {
+              code: 'unit_has_active_lease',
+              message:
+                'This unit has an active lease and cannot be marked as under maintenance. End the lease first.',
+            },
+          },
+          { status: 400 },
+        );
+      }
+    }
+
+    if (parsed.data.status === 'vacant' && existing.status === 'occupied') {
+      return NextResponse.json(
+        {
+          error: {
+            code: 'unit_status_derived',
+            message:
+              'This unit is occupied by an active lease -- end the lease to make it vacant, rather than setting the status directly.',
+          },
+        },
+        { status: 400 },
+      );
+    }
+  }
+
   const patch: Record<string, unknown> = {};
   if (parsed.data.unitLabel !== undefined) patch.unit_label = parsed.data.unitLabel;
   if (parsed.data.bedrooms !== undefined) patch.bedrooms = parsed.data.bedrooms;

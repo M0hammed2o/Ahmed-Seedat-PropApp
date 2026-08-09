@@ -56,7 +56,7 @@ interface DashboardData {
   totalUnits: number;
   vacantUnits: number;
   occupiedUnits: number;
-  occupancyPct: number;
+  occupancyPct: number | null; // Stage 18: null (never 0%) when there are zero rentable units -- "not available", not a fabricated 0%.
   occupancyDelta: number | null;
   portfolioValue: number | null;
   portfolioValuedCount: number;
@@ -170,6 +170,36 @@ export default async function DashboardPage() {
   const mapAvailable =
     Boolean(process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN) && data.mappableProperties.length > 0;
 
+  // Stage 17: a brand-new organisation has nothing to show in any of the KPI/chart/table panels
+  // below -- every one of them would just render its own "no data yet" state side by side, which
+  // reads as broken rather than empty. A single welcome/CTA panel replaces that noise; nothing
+  // about the populated dashboard below this block changes.
+  if (data.totalProperties === 0) {
+    return (
+      <>
+        <PageHeader
+          title={`${greeting()}${data.displayFirstName ? `, ${data.displayFirstName}` : ''}`}
+          subtitle="Let's get your portfolio set up."
+        />
+        <div className="panel flex flex-col items-center gap-3 px-6 py-16 text-center">
+          <span className="grid h-12 w-12 place-items-center rounded-2xl bg-primary-soft text-primary">
+            <Building2 className="h-6 w-6" aria-hidden="true" />
+          </span>
+          <h2 className="font-display text-xl font-bold text-foreground">Welcome to Proplyst</h2>
+          <p className="max-w-sm text-sm text-muted-foreground">
+            Add your first property to start tracking your portfolio.
+          </p>
+          <Link
+            href="/properties/new"
+            className="mt-2 flex h-10 items-center gap-1.5 rounded-xl bg-primary px-4 text-[13px] font-semibold text-primary-foreground shadow-glow transition-transform hover:-translate-y-px"
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" /> Add your first property
+          </Link>
+        </div>
+      </>
+    );
+  }
+
   const stats = [
     {
       label: 'Portfolio value',
@@ -197,10 +227,13 @@ export default async function DashboardPage() {
     },
     {
       label: 'Occupancy rate',
-      value: `${data.occupancyPct}%`,
-      delta: data.occupancyDelta,
+      value: data.occupancyPct !== null ? `${data.occupancyPct}%` : 'Not available',
+      delta: data.occupancyPct !== null ? data.occupancyDelta : null,
       icon: Home,
-      foot: `${data.occupiedUnits} of ${data.totalUnits} units let`,
+      foot:
+        data.totalUnits > 0
+          ? `${data.occupiedUnits} of ${data.totalUnits} units let`
+          : 'No units yet',
     },
   ];
 
@@ -346,11 +379,13 @@ export default async function DashboardPage() {
             <div className="flex items-center justify-between text-[13px]">
               <span className="text-muted-foreground">Occupied</span>
               <span className="tabular font-semibold text-foreground">
-                {data.occupiedUnits} / {data.totalUnits}
+                {data.totalUnits > 0
+                  ? `${data.occupiedUnits} / ${data.totalUnits}`
+                  : 'Not available'}
               </span>
             </div>
             <div className="mt-2">
-              <Meter value={data.occupancyPct} tone="success" />
+              <Meter value={data.occupancyPct ?? 0} tone="success" />
             </div>
           </Panel>
         </div>
@@ -623,7 +658,7 @@ async function loadData(): Promise<DashboardData> {
   const units = unitsResult.data ?? [];
   const occupiedUnits = units.filter((u) => u.status === 'occupied').length;
   const vacantUnits = units.filter((u) => u.status === 'vacant').length;
-  const occupancyPct = units.length > 0 ? Math.round((occupiedUnits / units.length) * 100) : 0;
+  const occupancyPct = units.length > 0 ? Math.round((occupiedUnits / units.length) * 100) : null;
 
   const monthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   const thisMonthKey = monthKey(now);

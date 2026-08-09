@@ -3,6 +3,14 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
+function formatZar(n: number): string {
+  return new Intl.NumberFormat('en-ZA', {
+    style: 'currency',
+    currency: 'ZAR',
+    maximumFractionDigits: 0,
+  }).format(n);
+}
+
 // New UI for the optional, manually-captured property valuation (PRODUCT DECISION, 2026-08-04:
 // "Keep the Lovable Portfolio Value card... add an optional current estimated value field...
 // authorised landlords or staff can manually capture and update it"). Writes through the existing
@@ -59,6 +67,12 @@ export function ValuationForm({
 
   return (
     <form onSubmit={submit} className="flex flex-wrap items-end gap-3">
+      {currentValue !== null ? (
+        <p className="w-full text-xs text-muted-foreground">
+          Current: <span className="font-semibold text-foreground">{formatZar(currentValue)}</span>
+          {currentAsOf ? ` as of ${new Date(currentAsOf).toLocaleDateString('en-ZA')}` : ''}
+        </p>
+      ) : null}
       <label className="block text-xs">
         <span className="text-muted-foreground">Estimated value (ZAR)</span>
         <input

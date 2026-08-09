@@ -93,9 +93,8 @@ function OwnerDetailView({ owner, canEdit }: { owner: Owner; canEdit: boolean })
       </Panel>
 
       <p className="text-xs text-light-textMuted dark:text-dark-textMuted">
-        Property ownership shares (`POST /api/v1/properties/:id/owners`) and owner statements are
-        built at the API/accounting layer (TASKS.md M7/M14) but not yet wired into this page —
-        Owners is the current vertical slice.
+        This owner&apos;s share of a property is managed from that property&apos;s Ownership tab.
+        Owner statements are available under Accounting → Owner Statements.
       </p>
     </div>
   );

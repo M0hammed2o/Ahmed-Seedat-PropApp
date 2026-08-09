@@ -4,6 +4,7 @@ import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import type { InspectionType } from '@propvault/types';
 import { INSPECTION_TYPES } from '@propvault/types';
+import { INSPECTION_TYPE_LABELS } from '@propvault/ui';
 import { Button } from '@/components/ui/Button';
 import { PageHeader } from '@/components/ui/PageHeader';
 
@@ -77,7 +78,7 @@ export function InspectionForm({ orgId, propertyId, unitId }: InspectionFormProp
           >
             {INSPECTION_TYPES.map((t) => (
               <option key={t} value={t}>
-                {t.replace('_', ' ')}
+                {INSPECTION_TYPE_LABELS[t]}
               </option>
             ))}
           </select>

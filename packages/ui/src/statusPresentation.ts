@@ -7,12 +7,15 @@ import type {
   ExpenseStatus,
   InspectionConditionRating,
   InspectionStatus,
+  InspectionType,
   InvoiceStatus,
   LeaseStatus,
   MaintenancePriority,
   MaintenanceStatus,
   OrganizationStatus,
   OwnerStatementStatus,
+  PropertyStatus,
+  PropertyType,
   RentScheduleStatus,
   TenantStatus,
   UnitStatus,
@@ -182,6 +185,37 @@ export const INSPECTION_CONDITION_RATING_PRESENTATION: Record<
   fair: { label: 'Fair', icon: 'dot', colorToken: 'statusProcessing' },
   poor: { label: 'Poor', icon: 'alert-triangle', colorToken: 'statusNeedsReview' },
   damaged: { label: 'Damaged', icon: 'alert-triangle', colorToken: 'statusOverdue' },
+};
+
+// Workflow-integration pass (WORKLOG.md this date), Stage 2/14: property_type and inspection_type
+// were rendered as raw enum text (`property.propertyType.replace('_', ' ')`, `t.replace('_', ' ')`)
+// -- unlike every status field above, neither is shown via StatusBadge anywhere in the app (both
+// are plain text/pills/<option> labels), so a plain label record is the right shape here rather
+// than forcing an arbitrary icon/colorToken onto a field that was never a "status."
+export const PROPERTY_TYPE_LABELS: Record<PropertyType, string> = {
+  house: 'House',
+  apartment: 'Apartment',
+  apartment_building: 'Apartment Building',
+  townhouse: 'Townhouse',
+  vacant_land: 'Vacant Land',
+  commercial: 'Commercial',
+  retail: 'Retail',
+  office: 'Office',
+  industrial: 'Industrial / Warehouse',
+  mixed_use: 'Mixed Use',
+  student_accommodation: 'Student Accommodation',
+  other: 'Other',
+};
+
+export const PROPERTY_STATUS_PRESENTATION: Record<PropertyStatus, StatusPresentation> = {
+  active: { label: 'Active', icon: 'check', colorToken: 'statusPaid' },
+  archived: { label: 'Archived', icon: 'slash', colorToken: 'statusVoid' },
+};
+
+export const INSPECTION_TYPE_LABELS: Record<InspectionType, string> = {
+  move_in: 'Move-in',
+  move_out: 'Move-out',
+  routine: 'Routine',
 };
 
 // TASKS.md M20 (Accounting vertical slice — Rent Due / Expenses / Trial Balance).

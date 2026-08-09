@@ -117,6 +117,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     p_deposit_amount: parsed.data.depositAmount,
     p_start_date: parsed.data.startDate,
     p_end_date: parsed.data.endDate ?? null,
+    p_tenant_id: parsed.data.tenantId ?? null,
   });
 
   if (approveError) {

@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Inspection, InspectionItem } from '@propvault/types';
-import { INSPECTION_STATUS_PRESENTATION } from '@propvault/ui';
+import { INSPECTION_STATUS_PRESENTATION, INSPECTION_TYPE_LABELS } from '@propvault/ui';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapInspectionRow, mapInspectionItemRow } from '@/lib/operations';
 import { resolvePortalSession, findActiveMembership, canWriteOrgRecords } from '@/lib/orgSession';
@@ -78,7 +78,7 @@ function InspectionDetailView({
 
       <div className="mt-2">
         <PageHeader
-          title={`${inspection.inspectionType.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase())} inspection`}
+          title={`${INSPECTION_TYPE_LABELS[inspection.inspectionType]} inspection`}
           subtitle={`Scheduled ${new Date(inspection.scheduledAt).toLocaleString('en-ZA')}`}
           actions={<StatusBadge presentation={INSPECTION_STATUS_PRESENTATION[inspection.status]} />}
         />

@@ -56,6 +56,10 @@ export const applicationDecisionSchema = z.discriminatedUnion('decision', [
     depositAmount: z.number().min(0).default(0),
     startDate: z.string().min(1, 'startDate is required (YYYY-MM-DD)'),
     endDate: z.string().optional().nullable(),
+    // Staff already knows this applicant is an existing tenant (e.g. re-applying for a different
+    // unit) -- links to that tenant instead of relying on approve_application()'s own email-match
+    // fallback. Optional: most approvals still go through the automatic email match.
+    tenantId: z.string().uuid().optional().nullable(),
   }),
 ]);
 export type ApplicationDecisionInput = z.infer<typeof applicationDecisionSchema>;
@@ -81,14 +85,34 @@ export const leaseCreateSchema = z.object({
 });
 export type LeaseCreateInput = z.infer<typeof leaseCreateSchema>;
 
+// `status` is deliberately not editable through this generic PATCH -- it used to permit any enum
+// member with zero business-rule checking (a raw "PATCH status=active" could occupy a unit with
+// no tenant assigned). Status transitions now only happen through the validated, workflow-shaped
+// POST /api/v1/leases/:id/activate and /end endpoints (activate_lease()/end_lease(),
+// migration 20260101000078), matching how applications/inspections already handle their own
+// status transitions via dedicated action endpoints rather than a generic PATCH.
 export const leaseUpdateSchema = z.object({
   startDate: z.string().min(1).optional(),
   endDate: z.string().optional().nullable(),
   rentAmount: z.number().positive().optional(),
   depositAmount: z.number().min(0).optional(),
-  status: z.enum(['draft', 'active', 'expired', 'terminated']).optional(),
 });
 export type LeaseUpdateInput = z.infer<typeof leaseUpdateSchema>;
+
+// POST /api/v1/leases/:id/tenants -- assign_lease_tenant() (migration 20260101000078).
+export const leaseTenantAssignSchema = z.object({
+  tenantId: z.string().uuid('tenantId must be a valid UUID'),
+  isPrimary: z.boolean().default(true),
+});
+export type LeaseTenantAssignInput = z.infer<typeof leaseTenantAssignSchema>;
+
+// POST /api/v1/leases/:id/end -- end_lease() (migration 20260101000078). Draft is not a valid
+// target here (end_lease() itself rejects it) -- ending only ever means expiring or terminating an
+// active lease.
+export const leaseEndSchema = z.object({
+  status: z.enum(['expired', 'terminated']),
+});
+export type LeaseEndInput = z.infer<typeof leaseEndSchema>;
 
 // Lease templates API (apps/admin/app/api/v1/lease-templates/** -- PWA_V1_COMPLETION_PLAN.md #9).
 // Upload is multipart (file + metadata), same shape as documentUploadMetadataSchema.

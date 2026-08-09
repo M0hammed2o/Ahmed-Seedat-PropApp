@@ -2,8 +2,7 @@
 
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import type { Lease, LeaseStatus, LeaseTemplate } from '@propvault/types';
-import { LEASE_STATUSES } from '@propvault/types';
+import type { Lease, LeaseTemplate } from '@propvault/types';
 import { Button } from '@/components/ui/Button';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Panel } from '@/components/ui/Panel';
@@ -19,7 +18,6 @@ interface FormState {
   endDate: string;
   rentAmount: string;
   depositAmount: string;
-  status: LeaseStatus;
 }
 
 function toFormState(lease?: Lease): FormState {
@@ -28,7 +26,6 @@ function toFormState(lease?: Lease): FormState {
     endDate: lease?.endDate ?? '',
     rentAmount: lease?.rentAmount != null ? String(lease.rentAmount) : '',
     depositAmount: lease?.depositAmount != null ? String(lease.depositAmount) : '0',
-    status: lease?.status ?? 'draft',
   };
 }
 
@@ -98,7 +95,6 @@ export function LeaseForm({ mode, orgId, unitId, propertyId, lease }: LeaseFormP
               endDate: form.endDate || null,
               rentAmount: Number(form.rentAmount),
               depositAmount: Number(form.depositAmount || '0'),
-              status: form.status,
             };
       const response = await fetch(url, {
         method: mode === 'create' ? 'POST' : 'PATCH',
@@ -204,19 +200,10 @@ export function LeaseForm({ mode, orgId, unitId, propertyId, lease }: LeaseFormP
           ) : null}
 
           {mode === 'edit' ? (
-            <Field label="Status">
-              <select
-                value={form.status}
-                onChange={(e) => set('status', e.target.value as LeaseStatus)}
-                className={inputClass}
-              >
-                {LEASE_STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </Field>
+            <p className="text-xs text-light-textMuted dark:text-dark-textMuted">
+              Lease status is changed from the lease page (assign a tenant, then activate or end the
+              lease) — not editable here.
+            </p>
           ) : null}
 
           <div className="flex gap-2 pt-2">

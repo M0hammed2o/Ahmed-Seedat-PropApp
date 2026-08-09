@@ -26,7 +26,7 @@ const INSPECTION: Inspection = {
 describe('InspectionsTable', () => {
   it('renders inspection rows with type and status', () => {
     render(<InspectionsTable data={[INSPECTION]} />);
-    expect(screen.getByText('move in')).toBeTruthy();
+    expect(screen.getByText('Move-in')).toBeTruthy();
     // "Scheduled" appears twice: the column header (date) and the status badge value -- both
     // legitimate, not a bug, so assert on count rather than a single ambiguous getByText.
     expect(screen.getAllByText('Scheduled').length).toBe(2);

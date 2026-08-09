@@ -132,11 +132,7 @@ function MaintenanceDetailView({
       </dl>
 
       <p className="mt-8 text-xs text-light-textMuted dark:text-dark-textMuted">
-        Vendor assignment and photo attachments are evidenced in the reference product
-        (PROPVIEW_SCREENSHOT_AUDIT.md) and supported by the underlying schema, but not wired into
-        this page yet — no Vendors module UI exists in this codebase yet to assign against, and
-        photo upload depends on the same document-storage work Documents/OCR (M11/M12) already ships
-        at the API layer.
+        Vendor assignment and photo attachments for maintenance tickets aren&apos;t available yet.
       </p>
     </div>
   );

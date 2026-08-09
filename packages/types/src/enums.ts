@@ -7,9 +7,15 @@ export type PropertyStatus = (typeof PROPERTY_STATUSES)[number];
 export const PROPERTY_TYPES = [
   'house',
   'apartment',
+  'apartment_building',
   'townhouse',
   'vacant_land',
   'commercial',
+  'retail',
+  'office',
+  'industrial',
+  'mixed_use',
+  'student_accommodation',
   'other',
 ] as const;
 export type PropertyType = (typeof PROPERTY_TYPES)[number];

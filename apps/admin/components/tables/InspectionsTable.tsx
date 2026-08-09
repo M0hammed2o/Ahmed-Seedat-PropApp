@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import Link from 'next/link';
 import type { Inspection } from '@propvault/types';
-import { INSPECTION_STATUS_PRESENTATION } from '@propvault/ui';
+import { INSPECTION_STATUS_PRESENTATION, INSPECTION_TYPE_LABELS } from '@propvault/ui';
 import { AdminDataTable } from '@/components/ui/AdminDataTable';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 
@@ -15,9 +15,9 @@ const columns: ColumnDef<Inspection, unknown>[] = [
     cell: (info) => (
       <Link
         href={`/inspections/${info.row.original.id}`}
-        className="font-medium capitalize text-light-accent hover:underline dark:text-dark-accent"
+        className="font-medium text-light-accent hover:underline dark:text-dark-accent"
       >
-        {(info.getValue() as string).replace('_', ' ')}
+        {INSPECTION_TYPE_LABELS[info.getValue() as Inspection['inspectionType']]}
       </Link>
     ),
   },
