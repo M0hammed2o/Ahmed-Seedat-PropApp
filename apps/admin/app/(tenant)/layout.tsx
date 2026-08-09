@@ -57,6 +57,7 @@ export default async function TenantPortalLayout({ children }: { children: React
       navSections={NAV_SECTIONS}
       demoBadge={ADMIN_DEMO_MODE}
       accountMenuLinks={ACCOUNT_MENU_LINKS}
+      homeHref="/portal"
     >
       {children}
     </AppShell>

@@ -62,6 +62,12 @@ export interface AppShellProps {
   displayName?: string;
   demoBadge?: boolean;
   notifications?: HeaderNotification[];
+  /** Real bug found and fixed (WORKLOG.md this date): this used to default to '/notifications' --
+   *  an org-staff-only route -- so the tenant/owner/super-admin portals (which never pass this)
+   *  showed a "View all" link that bounced the user straight into the org-staff onboarding
+   *  funnel. No default now: the link only renders when a portal actually has a real
+   *  notifications destination to send the user to, matching the no-fabricated-widget rule
+   *  `sidebarFooterWidget` already documents below. */
   notificationsHref?: string;
   accountMenuLinks?: AccountMenuLink[];
   /** Persistent, non-dismissible strip rendered above everything else, e.g. SupportModeBanner
@@ -106,7 +112,7 @@ export function AppShell({
   displayName,
   demoBadge,
   notifications = [],
-  notificationsHref = '/notifications',
+  notificationsHref,
   accountMenuLinks = [],
   banner,
   homeLabel = 'Home',
@@ -325,12 +331,14 @@ export function AppShell({
                       ))}
                     </ul>
                   )}
-                  <Link
-                    href={notificationsHref}
-                    className="block border-t border-border px-4 py-2.5 text-center text-xs font-medium text-primary hover:underline"
-                  >
-                    View all
-                  </Link>
+                  {notificationsHref ? (
+                    <Link
+                      href={notificationsHref}
+                      className="block border-t border-border px-4 py-2.5 text-center text-xs font-medium text-primary hover:underline"
+                    >
+                      View all
+                    </Link>
+                  ) : null}
                 </PopoverContent>
               </Popover>
 

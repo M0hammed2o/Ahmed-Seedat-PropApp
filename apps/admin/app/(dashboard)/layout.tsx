@@ -218,6 +218,7 @@ export default async function PortalLayout({ children }: { children: React.React
       displayName={displayName}
       demoBadge={ADMIN_DEMO_MODE}
       notifications={notifications}
+      notificationsHref="/notifications"
       accountMenuLinks={accountMenuLinks}
       homeLabel="Portfolio"
       sidebarSubtitle={sidebarSubtitle}

@@ -57,6 +57,7 @@ export default async function OwnerPortalLayout({ children }: { children: React.
       productLabel={branding.productName}
       navSections={NAV_SECTIONS}
       demoBadge={ADMIN_DEMO_MODE}
+      homeHref="/owner-portal"
     >
       {children}
     </AppShell>
