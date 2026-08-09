@@ -40,6 +40,11 @@ const PROTECTED_ROUTE_PREFIXES = [
   // meaningful at all, so it participates in the same unauthenticated-visitor gate below as
   // every other customer route.
   '/mfa-challenge',
+  // Production signup/onboarding (WORKLOG.md this date) -- same reasoning as /mfa-challenge
+  // above: both need a real session to be meaningful (each also has its own `!user` check as
+  // page-level defense-in-depth, matching every other route group's layout pattern).
+  '/legal-consent',
+  '/complete-account',
 ];
 
 /**

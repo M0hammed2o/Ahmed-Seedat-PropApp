@@ -37,6 +37,33 @@ enable_signup = true
 enable_confirmations = true
 double_confirm_changes = true
 
+# Production signup/onboarding branding pass (WORKLOG.md this date). Proplyst-branded templates,
+# version-controlled here rather than only existing as whatever was last pasted into the hosted
+# project's dashboard. This file (`supabase config push`) is what actually SYNCS these to the
+# hosted project -- committing these templates does not, by itself, change what production sends;
+# see TECHNICAL_DEBT_REGISTER.md for the exact manual step still required. No secrets/tokens are
+# embedded in any of these -- only Supabase's own template variables ({{ .ConfirmationURL }},
+# {{ .Token }}, {{ .Email }}, {{ .SiteURL }}), populated by GoTrue itself at send time.
+[auth.email.template.confirmation]
+subject = "Confirm your Proplyst account"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.recovery]
+subject = "Reset your Proplyst password"
+content_path = "./supabase/templates/recovery.html"
+
+[auth.email.template.invite]
+subject = "You've been invited to Proplyst"
+content_path = "./supabase/templates/invite.html"
+
+[auth.email.template.email_change]
+subject = "Confirm your new Proplyst email address"
+content_path = "./supabase/templates/email_change.html"
+
+[auth.email.template.reauthentication]
+subject = "Confirm it's you"
+content_path = "./supabase/templates/reauthentication.html"
+
 # TOTP MFA (Stage 7, commercial-launch execution plan, 2026-08-06) -- off by default in a fresh
 # Supabase project; found live this session that `auth.mfa.enroll()` fails with no explicit error
 # detail until this section is added. `apps/admin/app/api/v1/auth/mfa/*` is the only caller.

@@ -1,16 +1,44 @@
+import { redirect } from 'next/navigation';
+import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { hasAcceptedCurrentLegalTerms } from '@/lib/legalConsent';
+import { isProfileComplete } from '@/lib/profileCompletion';
 import { CreateOrganizationForm } from './CreateOrganizationForm';
 
 /**
  * TASKS.md M4 — org signup UI. First screen a signed-in user with zero organization memberships
- * lands on (PORTAL_SESSION-aware routing that sends them here is dashboard-layout work, not yet
- * wired — this page is reachable directly for now). Calls POST /api/v1/organizations, which
- * wraps create_organization() (supabase/migrations/20260101000021) — atomic org + principal
- * membership creation.
+ * lands on. Not wrapped by `(dashboard)/layout.tsx` (that layout redirects HERE for a no-org
+ * user, so wrapping this page in it would loop) -- this page owns its own auth/consent/profile
+ * checks instead, matching /mfa-challenge, /legal-consent, and /complete-account's own pattern of
+ * standalone pages that aren't customer-layout children.
+ *
+ * Production signup/onboarding (WORKLOG.md this date): this page previously had NO auth check of
+ * its own at all -- reachable by direct navigation even signed out, relying entirely on
+ * `(dashboard)/layout.tsx`'s redirect *to* here and proxy.ts's route-prefix protection. That gap
+ * also meant a not-yet-consented/not-yet-profile-complete user could reach org creation directly,
+ * bypassing both new gates (unlike MFA, which proxy.ts's API-layer check still caught on submit --
+ * legal-consent/profile-completion have no equivalent API-layer check, so this page-level check
+ * is the only enforcement point for direct navigation here). Closed by checking all three here.
+ *
+ * Calls POST /api/v1/organizations, which wraps create_organization() (migration
+ * 20260101000021) -- atomic org + principal membership creation.
  *
  * Forced dynamic (2026-08-02, proxy.ts's CSP-nonce fix) — same reason and split as /login.
  */
 export const dynamic = 'force-dynamic';
 
-export default function CreateOrganizationPage() {
+export default async function CreateOrganizationPage() {
+  const supabase = await getServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect('/login');
+
+  if (!(await hasAcceptedCurrentLegalTerms(supabase))) {
+    redirect('/legal-consent?next=%2Fonboarding%2Fcreate-organization');
+  }
+  if (!(await isProfileComplete(supabase))) {
+    redirect('/complete-account?next=%2Fonboarding%2Fcreate-organization');
+  }
+
   return <CreateOrganizationForm />;
 }

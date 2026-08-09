@@ -51,3 +51,14 @@ export const updateProfileSchema = z.object({
   displayName: z.string().min(1, 'Enter a display name').max(200),
 });
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
+
+// POST /api/v1/profile/complete -- the "Complete Your Account" step. `phone` is validated as
+// non-empty here only (a plausible-looking string) -- the server independently normalizes and
+// re-validates it against a canonical E.164 format (`lib/phone.ts`), since a client-side format
+// check is never authoritative on its own.
+export const completeProfileSchema = z.object({
+  firstName: z.string().trim().min(1, 'Enter your first name').max(100),
+  lastName: z.string().trim().min(1, 'Enter your last name').max(100),
+  phone: z.string().trim().min(1, 'Enter your phone number').max(32),
+});
+export type CompleteProfileInput = z.infer<typeof completeProfileSchema>;

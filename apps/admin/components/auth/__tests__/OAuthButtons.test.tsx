@@ -12,14 +12,32 @@ vi.mock('@/lib/supabase/client', () => ({
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  vi.unstubAllEnvs();
+  vi.resetModules();
 });
 
 describe('OAuthButtons', () => {
-  it('renders exactly the two V1 providers, Google and Apple -- never a Microsoft/other button', () => {
+  it('renders Google, and never a Microsoft/other button', () => {
     render(<OAuthButtons />);
     expect(screen.getByText('Continue with Google')).toBeTruthy();
-    expect(screen.getByText('Continue with Apple')).toBeTruthy();
     expect(screen.queryByText(/Microsoft/i)).toBeNull();
+  });
+
+  // Production signup/onboarding (WORKLOG.md this date): Apple is hidden unless
+  // NEXT_PUBLIC_APPLE_OAUTH_ENABLED='true' -- no real Apple OAuth credentials exist yet
+  // (TECHNICAL_DEBT_REGISTER.md TD-29), so showing a button that can never complete a real round
+  // trip is worse than not showing it. Default (unset) must hide it.
+  it('does not render Apple by default (no real credentials configured)', () => {
+    render(<OAuthButtons />);
+    expect(screen.queryByText('Continue with Apple')).toBeNull();
+  });
+
+  it('renders Apple once explicitly enabled via NEXT_PUBLIC_APPLE_OAUTH_ENABLED', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APPLE_OAUTH_ENABLED', 'true');
+    vi.resetModules();
+    const { OAuthButtons: OAuthButtonsWithAppleEnabled } = await import('../OAuthButtons');
+    render(<OAuthButtonsWithAppleEnabled />);
+    expect(screen.getByText('Continue with Apple')).toBeTruthy();
   });
 
   it('calls signInWithOAuth with the google provider and a redirectTo carrying ?next=', async () => {
@@ -33,13 +51,13 @@ describe('OAuthButtons', () => {
     expect(call.options.redirectTo).toContain(encodeURIComponent('/invitations/accept?token=abc'));
   });
 
-  it('shows a friendly error and re-enables the button if the provider call itself fails', async () => {
+  it('shows a friendly error and re-enables the button if the provider call itself fails (Google)', async () => {
     signInWithOAuth.mockResolvedValueOnce({ error: { message: 'provider not configured' } });
     render(<OAuthButtons />);
-    fireEvent.click(screen.getByText('Continue with Apple'));
+    fireEvent.click(screen.getByText('Continue with Google'));
 
     await waitFor(() =>
-      expect(screen.getByText(/Apple sign-in is not available right now/)).toBeTruthy(),
+      expect(screen.getByText(/Google sign-in is not available right now/)).toBeTruthy(),
     );
   });
 });

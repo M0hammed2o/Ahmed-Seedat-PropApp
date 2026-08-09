@@ -1,8 +1,8 @@
 import Link from 'next/link';
-import { Building2 } from 'lucide-react';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { AcceptInviteClient } from '@/components/invitations/AcceptInviteClient';
 import { Button } from '@/components/ui/Button';
+import { ProplystLogo } from '@/components/branding/ProplystLogo';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 export const dynamic = 'force-dynamic';
@@ -74,9 +74,9 @@ function CenteredCard({ title, children }: { title: string; children: React.Reac
   return (
     <main className="flex min-h-screen items-center justify-center bg-light-surface px-6 dark:bg-dark-surface">
       <div className="w-full max-w-sm rounded-card border border-light-border bg-light-surfaceRaised p-8 text-center shadow-lift dark:border-dark-border dark:bg-dark-surfaceRaised">
-        <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-light-accent text-light-accentContrast shadow-glow dark:bg-dark-accent dark:text-dark-accentContrast">
-          <Building2 size={20} aria-hidden="true" />
-        </span>
+        <div className="mx-auto flex justify-center">
+          <ProplystLogo />
+        </div>
         <h1 className="mt-4 font-display text-xl font-bold text-light-textPrimary dark:text-dark-textPrimary">
           {title}
         </h1>

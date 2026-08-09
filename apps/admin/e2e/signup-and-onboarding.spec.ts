@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { createConfirmedTestUser } from './fixtures/testUser';
+import { completeLegalConsentAndProfile } from './fixtures/onboarding';
 
 // Real critical-path coverage (TESTING.md §7's "org signup -> property creation" opening leg) --
 // against the real local Supabase instance, never demo mode. Seeds a pre-confirmed account via
@@ -35,6 +36,11 @@ test('a new user can log in, create an organization, and create a property', asy
   // (this exact test user, at this exact point) -- it fell through to '/login', bouncing a
   // legitimately signed-in user back to the sign-in form. Now redirects to onboarding instead.
   await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 15_000 });
+
+  // createConfirmedTestUser() bypasses RegisterForm (production signup/onboarding, WORKLOG.md
+  // this date), so this account starts with no recorded consent/profile -- complete both first,
+  // or this navigation would land on /legal-consent instead.
+  await completeLegalConsentAndProfile(page.request);
   await page.goto('/onboarding/create-organization');
   await page.waitForLoadState('networkidle');
 

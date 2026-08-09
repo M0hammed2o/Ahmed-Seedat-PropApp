@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { ProplystLogo } from '@/components/branding/ProplystLogo';
 
 /**
  * Shared TOTP challenge UI -- the second-factor entry step, used both inline (LoginForm.tsx,
@@ -55,9 +55,7 @@ export function MfaChallengeForm({
       onSubmit={handleSubmit}
       className="w-full max-w-sm rounded-card border border-light-border bg-light-surfaceRaised p-8 shadow-lift dark:border-dark-border dark:bg-dark-surfaceRaised"
     >
-      <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-light-accent text-light-accentContrast shadow-glow dark:bg-dark-accent dark:text-dark-accentContrast">
-        <Building2 size={20} aria-hidden="true" />
-      </span>
+      <ProplystLogo />
       <h1 className="mt-4 font-display text-xl font-bold text-light-textPrimary dark:text-dark-textPrimary">
         Enter your authentication code
       </h1>

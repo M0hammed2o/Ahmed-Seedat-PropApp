@@ -17,6 +17,11 @@ export const RATE_LIMITS = {
   loginAttemptsPerMinute: 10,
   signupAttemptsPerMinute: 5,
   passwordResetAttemptsPerMinute: 5,
+  // Production signup/onboarding (WORKLOG.md this date): the "Check your email" screen's own
+  // resend button. Lower than signup itself -- a legitimate user rarely needs more than one or
+  // two resends in a minute; this is the anti-abuse floor, the UI's own client-side cooldown
+  // (see CheckEmailScreen.tsx) is the primary friction a real user actually experiences.
+  resendVerificationAttemptsPerMinute: 3,
   mfaVerifyAttemptsPerMinute: 10,
   uploadRequestsPerMinute: 20,
   webhookRequestsPerMinute: 120,

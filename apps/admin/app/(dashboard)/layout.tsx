@@ -27,6 +27,8 @@ import { branding } from '@propvault/config';
 import { resolvePortalSession } from '@/lib/orgSession';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { requireCustomerMfaIfEnrolled } from '@/lib/mfaGate';
+import { hasAcceptedCurrentLegalTerms } from '@/lib/legalConsent';
+import { isProfileComplete } from '@/lib/profileCompletion';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 import { AppShell, type HeaderNotification, type NavSection } from '@/components/shell/AppShell';
 import { navIcon } from '@/components/shell/navIcon';
@@ -133,6 +135,25 @@ export default async function PortalLayout({ children }: { children: React.React
   if (!ADMIN_DEMO_MODE && (await requireCustomerMfaIfEnrolled())) {
     redirect(
       currentPath ? `/mfa-challenge?next=${encodeURIComponent(currentPath)}` : '/mfa-challenge',
+    );
+  }
+
+  // Production signup/onboarding (WORKLOG.md this date), same defense-in-depth posture as the
+  // MFA gate above: destinationResolver.ts decides where `/` sends an authenticated caller, but
+  // this layout is the actual enforcement point for anyone who reaches /dashboard (or any nested
+  // route) directly -- a bookmark, a stale tab, or `next` after auth. Order matches the
+  // resolver's own reasoning: consent (compliance) before profile completion (product UX),
+  // both before the org/onboarding check below.
+  if (!ADMIN_DEMO_MODE && !(await hasAcceptedCurrentLegalTerms())) {
+    redirect(
+      currentPath ? `/legal-consent?next=${encodeURIComponent(currentPath)}` : '/legal-consent',
+    );
+  }
+  if (!ADMIN_DEMO_MODE && !(await isProfileComplete())) {
+    redirect(
+      currentPath
+        ? `/complete-account?next=${encodeURIComponent(currentPath)}`
+        : '/complete-account',
     );
   }
 

@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { createConfirmedTestUser } from './fixtures/testUser';
+import { completeLegalConsentAndProfile } from './fixtures/onboarding';
 
 // Production routing-defect fix (WORKLOG.md this date): `/` used to have no public branch at
 // all -- any authenticated caller (a platform admin, most notably) landed on the internal admin
@@ -48,7 +49,12 @@ test.describe('root domain (/) routing', () => {
     await page.locator('input[type="email"]').fill(user.email);
     await page.locator('input[type="password"]').fill(user.password);
     await page.getByRole('button', { name: /sign in/i }).click();
-    await page.waitForURL(/\/onboarding\/create-organization/, { timeout: 15_000 });
+    await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 15_000 });
+
+    // createConfirmedTestUser() bypasses RegisterForm (production signup/onboarding, WORKLOG.md
+    // this date), so this account starts with no recorded consent/profile -- complete both first,
+    // or '/' would resolve to /legal-consent, not onboarding.
+    await completeLegalConsentAndProfile(page.request);
 
     // Re-visiting '/' directly while authenticated must redirect through the resolver again, not
     // show the public landing page to a signed-in user.
