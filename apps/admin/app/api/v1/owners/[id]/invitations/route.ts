@@ -180,16 +180,34 @@ async function handlePOST(request: NextRequest, { params }: RouteParams) {
   // tenant_invitation's own approved template). 'whatsapp'/'manual' both still create a real,
   // valid invitation and return the accept link below; staff share it themselves in that case,
   // same "no dispatch, link only" behaviour tenant invitations already have for 'manual'.
+  //
+  // Overnight platform pass (WORKLOG.md this date): TWO root causes found for "invitation shows
+  // pending but no email ever arrives":
+  // 1) dispatchEmail() silently no-ops through MockEmailProvider whenever RESEND_API_KEY/
+  //    RESEND_FROM_ADDRESS aren't set, and this route never surfaced that -- now reported to the
+  //    caller as `emailDeliveryConfigured` rather than a fabricated "sent" outcome.
+  // 2) A more serious, more fundamental bug: relatedEntityId below was previously
+  //    `${created.invitation_id}:0` -- a string -- but email_messages.related_entity_id is a real
+  //    `uuid` column (20260101000040), so dispatchEmail()'s own insert would throw "invalid input
+  //    syntax for type uuid" and this whole request would fail with a 500 whenever an owner
+  //    actually had an email on file (deliveryChannel: 'email' is exactly the UI's default for
+  //    that case) -- confirmed against a real local database, not assumed. The ":0" suffix served
+  //    no purpose: create_owner_invitation() already mints a fresh invitation_id (hence a fresh
+  //    uuid) on every call (it revokes-then-recreates, there is no "resend the same invitation
+  //    row" path for owners the way organization_invites has), so the bare uuid is already unique
+  //    per dispatch with nothing to suffix.
+  let emailDeliveryConfigured: boolean | null = null;
   if (parsed.data.deliveryChannel === 'email' && owner.email) {
-    await dispatchEmail(serviceClient, {
+    const dispatchResult = await dispatchEmail(serviceClient, {
       orgId: owner.org_id,
       toAddress: owner.email,
       templateName: 'owner_invitation',
       templateVars: { orgName: org?.legal_name, ownerName: owner.name, acceptUrl },
       relatedEntityType: 'owner_invitations',
-      relatedEntityId: `${created.invitation_id}:0`,
+      relatedEntityId: created.invitation_id,
       actorUserId: user.id,
     });
+    emailDeliveryConfigured = dispatchResult.deliveryConfigured;
   }
 
   // The plaintext token is returned exactly once -- the API never logs it, the DB never stores
@@ -197,6 +215,7 @@ async function handlePOST(request: NextRequest, { params }: RouteParams) {
   return NextResponse.json(
     {
       invitationId: created.invitation_id,
+      emailDeliveryConfigured,
       token: created.token,
       expiresAt: created.expires_at,
       acceptUrl,

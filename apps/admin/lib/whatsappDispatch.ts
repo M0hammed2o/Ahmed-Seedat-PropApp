@@ -1,7 +1,7 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { WhatsAppNotificationType } from '@propvault/types';
-import { getWhatsAppProvider } from './providers/whatsapp';
+import { getWhatsAppProvider, isWhatsAppProviderConfigured } from './providers/whatsapp';
 import { writeAuditEvent } from './audit';
 
 // Wires a subset of WHATSAPP.md §2's fixed, pre-approved trigger list to the already-built
@@ -61,6 +61,10 @@ export interface DispatchWhatsAppResult {
   sent: boolean;
   reason?: 'no_phone' | 'invalid_phone' | 'preference_disabled' | 'already_sent';
   whatsappMessageId?: string;
+  /** False whenever this dispatch went through MockWhatsAppProvider (no WHATSAPP_ACCESS_TOKEN/
+   * WHATSAPP_PHONE_NUMBER_ID/WHATSAPP_WEBHOOK_SECRET configured) -- mirrors
+   * DispatchEmailResult.deliveryConfigured for the same reason. */
+  deliveryConfigured: boolean;
 }
 
 /** Idempotent, preference-aware WhatsApp dispatch -- the one call site every trigger uses. */
@@ -68,9 +72,10 @@ export async function dispatchWhatsApp(
   serviceClient: SupabaseClient,
   input: DispatchWhatsAppInput,
 ): Promise<DispatchWhatsAppResult> {
+  const deliveryConfigured = isWhatsAppProviderConfigured();
   const toNumber = toE164(input.toPhone);
-  if (!input.toPhone) return { sent: false, reason: 'no_phone' };
-  if (!toNumber) return { sent: false, reason: 'invalid_phone' };
+  if (!input.toPhone) return { sent: false, reason: 'no_phone', deliveryConfigured };
+  if (!toNumber) return { sent: false, reason: 'invalid_phone', deliveryConfigured };
 
   const { data: existing } = await serviceClient
     .from('whatsapp_messages')
@@ -80,7 +85,12 @@ export async function dispatchWhatsApp(
     .eq('template_name', input.templateName)
     .maybeSingle();
   if (existing) {
-    return { sent: false, reason: 'already_sent', whatsappMessageId: existing.id };
+    return {
+      sent: false,
+      reason: 'already_sent',
+      whatsappMessageId: existing.id,
+      deliveryConfigured,
+    };
   }
 
   const category = TEMPLATE_CATEGORY[input.templateName];
@@ -96,7 +106,7 @@ export async function dispatchWhatsApp(
     // categorized types; tenant_invitation has no category above, so it skips this block
     // entirely, same as the exempt account_security_event).
     if (pref && pref.whatsapp_enabled === false) {
-      return { sent: false, reason: 'preference_disabled' };
+      return { sent: false, reason: 'preference_disabled', deliveryConfigured };
     }
   }
 
@@ -135,5 +145,5 @@ export async function dispatchWhatsApp(
     after: { templateName: input.templateName, toNumber, status: 'queued' },
   });
 
-  return { sent: true, whatsappMessageId: message.id };
+  return { sent: true, whatsappMessageId: message.id, deliveryConfigured };
 }

@@ -1,7 +1,7 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { branding } from '@propvault/config';
-import { getEmailProvider } from './providers/email';
+import { getEmailProvider, isEmailProviderConfigured } from './providers/email';
 import { writeAuditEvent } from './audit';
 
 // Wires the approved V1 notification catalogue (EMAIL.md §1) to the already-built EmailProvider
@@ -92,6 +92,12 @@ export interface DispatchEmailResult {
   sent: boolean;
   reason?: 'no_address' | 'suppressed' | 'preference_disabled' | 'already_sent';
   emailMessageId?: string;
+  /** False whenever this dispatch went through MockEmailProvider (no RESEND_API_KEY/
+   * RESEND_FROM_ADDRESS configured) -- `sent: true` alone was previously indistinguishable from
+   * a real send, which is exactly how invitations could show "pending" with no email ever
+   * actually leaving the server. Callers that give the user a "we emailed this" message must
+   * check this, not just `sent`. */
+  deliveryConfigured: boolean;
 }
 
 /**
@@ -103,8 +109,10 @@ export async function dispatchEmail(
   serviceClient: SupabaseClient,
   input: DispatchEmailInput,
 ): Promise<DispatchEmailResult> {
+  const deliveryConfigured = isEmailProviderConfigured();
+
   if (!input.toAddress) {
-    return { sent: false, reason: 'no_address' };
+    return { sent: false, reason: 'no_address', deliveryConfigured };
   }
 
   // Idempotency: one email per (related_entity_type, related_entity_id, template_name) --
@@ -117,7 +125,7 @@ export async function dispatchEmail(
     .eq('template_name', input.templateName)
     .maybeSingle();
   if (existing) {
-    return { sent: false, reason: 'already_sent', emailMessageId: existing.id };
+    return { sent: false, reason: 'already_sent', emailMessageId: existing.id, deliveryConfigured };
   }
 
   const { data: suppression } = await serviceClient
@@ -127,7 +135,7 @@ export async function dispatchEmail(
     .eq('email_address', input.toAddress)
     .maybeSingle();
   if (suppression) {
-    return { sent: false, reason: 'suppressed' };
+    return { sent: false, reason: 'suppressed', deliveryConfigured };
   }
 
   const category = TEMPLATE_CATEGORY[input.templateName];
@@ -141,7 +149,7 @@ export async function dispatchEmail(
     // Missing row = default enabled (notification_preferences.email_enabled defaults to true) --
     // a recipient with no explicit preference row has never opted out.
     if (pref && pref.email_enabled === false) {
-      return { sent: false, reason: 'preference_disabled' };
+      return { sent: false, reason: 'preference_disabled', deliveryConfigured };
     }
   }
 
@@ -185,5 +193,5 @@ export async function dispatchEmail(
     after: { templateName: input.templateName, toAddress: input.toAddress, status: result.status },
   });
 
-  return { sent: true, emailMessageId: message.id };
+  return { sent: true, emailMessageId: message.id, deliveryConfigured };
 }

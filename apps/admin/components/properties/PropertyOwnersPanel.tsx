@@ -336,6 +336,7 @@ function OwnerAccountStatus({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [justCreatedUrl, setJustCreatedUrl] = useState<string | null>(null);
+  const [emailDeliveryConfigured, setEmailDeliveryConfigured] = useState<boolean | null>(null);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/v1/owners/${ownerId}/invitations`);
@@ -401,6 +402,7 @@ function OwnerAccountStatus({
     setBusy(true);
     setError(null);
     setJustCreatedUrl(null);
+    setEmailDeliveryConfigured(null);
     try {
       const response = await fetch(`/api/v1/owners/${ownerId}/invitations`, {
         method: 'POST',
@@ -413,6 +415,7 @@ function OwnerAccountStatus({
         return;
       }
       setJustCreatedUrl(body.acceptUrl ?? null);
+      setEmailDeliveryConfigured(body.emailDeliveryConfigured ?? null);
       await load();
     } finally {
       setBusy(false);
@@ -453,12 +456,22 @@ function OwnerAccountStatus({
         </Button>
       </div>
       {justCreatedUrl ? (
-        <p className="max-w-[220px] text-right text-[11px] text-muted-foreground">
-          {hasEmail ? 'Sent. ' : ''}Share this link:{' '}
-          <a href={justCreatedUrl} className="break-all text-light-accent dark:text-dark-accent">
-            {justCreatedUrl}
-          </a>
-        </p>
+        <div className="max-w-[220px] text-right">
+          {hasEmail && emailDeliveryConfigured === false ? (
+            <p className="text-[11px] font-medium text-light-statusOverdue dark:text-dark-statusOverdue">
+              Email delivery is not configured in this environment — the invitation was created but
+              no email was sent. Share the link below directly.
+            </p>
+          ) : hasEmail && emailDeliveryConfigured ? (
+            <p className="text-[11px] text-muted-foreground">Email sent.</p>
+          ) : null}
+          <p className="text-[11px] text-muted-foreground">
+            Share this link:{' '}
+            <a href={justCreatedUrl} className="break-all text-light-accent dark:text-dark-accent">
+              {justCreatedUrl}
+            </a>
+          </p>
+        </div>
       ) : null}
       {error ? (
         <p className="text-[11px] text-light-danger dark:text-dark-danger">{error}</p>

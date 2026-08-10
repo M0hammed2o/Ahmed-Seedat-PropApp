@@ -239,8 +239,15 @@ async function handlePOST(request: NextRequest, { params }: RouteParams) {
     supabase.from('profiles').select('display_name').eq('id', user.id).maybeSingle(),
   ]);
   const serviceClient = getServiceRoleClient();
+  // Overnight platform pass (WORKLOG.md this date): root cause of "staff invitation shows pending
+  // but no email ever arrives" -- this swallowed every outcome, success or failure, identically,
+  // so a MockEmailProvider no-op (RESEND_API_KEY/RESEND_FROM_ADDRESS unset) was indistinguishable
+  // from a real send. Now captures and returns `emailDeliveryConfigured`; a genuine dispatch
+  // error is still non-fatal to invite creation (the row/token remain the source of truth,
+  // shareable manually) but is now at least logged instead of silently disappearing.
+  let emailDeliveryConfigured: boolean | null = null;
   try {
-    await dispatchEmail(serviceClient, {
+    const dispatchResult = await dispatchEmail(serviceClient, {
       orgId,
       toAddress: data.email,
       toUserId: null,
@@ -257,8 +264,9 @@ async function handlePOST(request: NextRequest, { params }: RouteParams) {
       relatedEntityId: data.id,
       actorUserId: user.id,
     });
-  } catch {
-    // Swallow -- the invite itself succeeded and is returned below regardless.
+    emailDeliveryConfigured = dispatchResult.deliveryConfigured;
+  } catch (err) {
+    console.error('[organizations/invites] email dispatch failed', err);
   }
 
   return NextResponse.json(
@@ -272,6 +280,7 @@ async function handlePOST(request: NextRequest, { params }: RouteParams) {
         expiresAt: data.expires_at,
         createdAt: data.created_at,
       },
+      emailDeliveryConfigured,
     },
     { status: 201 },
   );

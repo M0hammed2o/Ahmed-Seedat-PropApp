@@ -64,6 +64,12 @@ describeIfSupabase('dispatchEmail (real local Supabase integration)', () => {
       actorUserId: null,
     });
     expect(result.sent).toBe(true);
+    // Overnight platform pass (WORKLOG.md this date): root-cause regression test for "invitation
+    // shows pending but no email arrives" -- no RESEND_API_KEY/RESEND_FROM_ADDRESS is set in this
+    // test environment, so dispatchEmail() must honestly report deliveryConfigured: false even
+    // though `sent` is true (MockEmailProvider "sends" successfully, it just never leaves the
+    // server) -- the two are deliberately different signals now, not one conflated boolean.
+    expect(result.deliveryConfigured).toBe(false);
 
     const { data } = await serviceClient
       .from('email_messages')
@@ -105,6 +111,48 @@ describeIfSupabase('dispatchEmail (real local Supabase integration)', () => {
       .select('id', { count: 'exact', head: true })
       .eq('related_entity_id', invoiceId);
     expect(count).toBe(1);
+  });
+
+  it("a resend-style suffixed relatedEntityId is a genuinely new dispatch, not swallowed by the original send's idempotency guard", async () => {
+    // Overnight platform pass (WORKLOG.md this date): real bug found and fixed in
+    // POST /api/v1/organization-invites/:id/resend -- it previously reused the SAME
+    // relatedEntityType+relatedEntityId the original invite-creation dispatch already consumed,
+    // so every "Resend" click was silently absorbed by the test above's exact idempotency guard
+    // and never actually re-dispatched. email_messages.related_entity_id is a real `uuid` column
+    // (confirmed by reading the migration -- an earlier version of this fix tried suffixing the
+    // id itself and failed with "invalid input syntax for type uuid" against a real database, not
+    // assumed safe), so the fix varies related_entity_type instead (plain text,
+    // `organization_invites:resend:${resendCount}`, migration 20260101000091's resend_count) --
+    // this proves that pattern actually produces a second, real send.
+    const inviteId = crypto.randomUUID();
+    const original = await dispatchEmail(serviceClient, {
+      orgId,
+      toAddress: 'staff@example.com',
+      templateName: 'member_invited',
+      templateVars: {},
+      relatedEntityType: 'organization_invites',
+      relatedEntityId: inviteId,
+      actorUserId: null,
+    });
+    const resend = await dispatchEmail(serviceClient, {
+      orgId,
+      toAddress: 'staff@example.com',
+      templateName: 'member_invited',
+      templateVars: {},
+      relatedEntityType: 'organization_invites:resend:1',
+      relatedEntityId: inviteId,
+      actorUserId: null,
+    });
+
+    expect(original.sent).toBe(true);
+    expect(resend.sent).toBe(true);
+    expect(resend.reason).toBeUndefined();
+
+    const { count } = await serviceClient
+      .from('email_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('related_entity_id', inviteId);
+    expect(count).toBe(2);
   });
 
   it('skips a suppressed address without sending', async () => {

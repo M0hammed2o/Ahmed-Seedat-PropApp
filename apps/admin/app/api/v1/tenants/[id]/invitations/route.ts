@@ -160,6 +160,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     .maybeSingle();
   const acceptUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/activate?token=${created.token}`;
 
+  // Overnight platform pass (WORKLOG.md this date): relatedEntityId was previously
+  // `${created.invitation_id}:0` -- a string -- but both email_messages.related_entity_id and
+  // whatsapp_messages.related_entity_id are real `uuid` columns (20260101000040), so either
+  // dispatch call below would throw "invalid input syntax for type uuid" and this whole request
+  // would fail with a 500 whenever a tenant actually had an email/phone on file (the normal
+  // case) -- the same bug, independently found in owners/[id]/invitations/route.ts this same
+  // pass, confirmed against a real local database rather than assumed. The ":0" suffix served no
+  // purpose here either: create_tenant_invitation() mints a fresh invitation_id per call.
   if (parsed.data.deliveryChannel === 'email' && tenant.email) {
     await dispatchEmail(serviceClient, {
       orgId: tenant.org_id,
@@ -167,7 +175,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       templateName: 'tenant_invitation',
       templateVars: { orgName: org?.legal_name, tenantName: tenant.full_name, acceptUrl },
       relatedEntityType: 'tenant_invitations',
-      relatedEntityId: `${created.invitation_id}:0`,
+      relatedEntityId: created.invitation_id,
       actorUserId: user.id,
     });
   } else if (parsed.data.deliveryChannel === 'whatsapp' && tenant.phone) {
@@ -177,7 +185,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       templateName: 'tenant_invitation',
       variables: { orgName: org?.legal_name ?? '', acceptUrl, code: created.short_code ?? '' },
       relatedEntityType: 'tenant_invitations',
-      relatedEntityId: `${created.invitation_id}:0`,
+      relatedEntityId: created.invitation_id,
       actorUserId: user.id,
     });
   }

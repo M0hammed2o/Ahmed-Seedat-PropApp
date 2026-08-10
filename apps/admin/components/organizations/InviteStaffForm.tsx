@@ -51,7 +51,7 @@ export function InviteStaffForm({
   /** MAX_INVITABLE_ROLE_FOR mirrored client-side purely for a tighter dropdown -- the API route's
    * own check is the real authorization boundary regardless of what this form ever offers. */
   invitableRoles: OrganizationMemberRole[];
-  onInvited: () => Promise<void>;
+  onInvited: (emailDeliveryConfigured: boolean | null) => Promise<void>;
   onCancel: () => void;
 }) {
   const [name, setName] = useState('');
@@ -108,7 +108,7 @@ export function InviteStaffForm({
         setError(body.error?.message ?? 'Failed to send invitation.');
         return;
       }
-      await onInvited();
+      await onInvited(body.emailDeliveryConfigured ?? null);
     } finally {
       setSubmitting(false);
     }

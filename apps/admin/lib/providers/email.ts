@@ -89,3 +89,13 @@ export function getEmailProvider(): EmailProvider {
   }
   return new MockEmailProvider();
 }
+
+// Overnight platform pass (WORKLOG.md this date): closes a real gap found while diagnosing "owner
+// and staff invitations show pending but no email ever arrives" -- dispatchEmail()'s result never
+// distinguished "really handed to Resend" from "silently mocked because RESEND_API_KEY/
+// RESEND_FROM_ADDRESS aren't set," so every caller (and the UI built on top of it) treated a mock
+// no-op exactly like a real send. This is the one place that distinction is now made, so it can't
+// drift out of sync with getEmailProvider()'s own fallback logic.
+export function isEmailProviderConfigured(): boolean {
+  return getResendConfig() !== null;
+}
