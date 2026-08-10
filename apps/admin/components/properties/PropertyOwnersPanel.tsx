@@ -5,6 +5,7 @@ import type { OwnerType, OwnerInvitation } from '@propvault/types';
 import { OWNER_TYPES } from '@propvault/types';
 import { Button } from '@/components/ui/Button';
 import { Panel } from '@/components/ui/Panel';
+import { safeJson } from '@/lib/safeJson';
 
 // Stage 5: property ownership is part of property setup, not just schema/API (property_owners,
 // GET/POST /api/v1/properties/:id/owners already existed and worked -- migration 20260101000022 /
@@ -62,8 +63,8 @@ export function PropertyOwnersPanel({
 
   const load = useCallback(async () => {
     const [ownersRes, allOwnersRes] = await Promise.all([
-      fetch(`/api/v1/properties/${propertyId}/owners`).then((r) => r.json()),
-      fetch(`/api/v1/owners?filter[org_id]=${orgId}`).then((r) => r.json()),
+      fetch(`/api/v1/properties/${propertyId}/owners`).then((r) => safeJson(r)),
+      fetch(`/api/v1/owners?filter[org_id]=${orgId}`).then((r) => safeJson(r)),
     ]);
     setRows(ownersRes.propertyOwners ?? []);
     setAllOwners(
@@ -88,7 +89,7 @@ export function PropertyOwnersPanel({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ownerId, ownershipPct: Number(pct) }),
     });
-    const body = await response.json();
+    const body = await safeJson(response);
     if (!response.ok) {
       setError(body.error?.message ?? 'Failed to attach owner.');
       return false;
@@ -129,7 +130,7 @@ export function PropertyOwnersPanel({
             phone: newPhone || null,
           }),
         });
-        const createBody = await createResponse.json();
+        const createBody = await safeJson(createResponse);
         if (!createResponse.ok) {
           setError(createBody.error?.message ?? 'Failed to create owner.');
           return;
@@ -338,7 +339,7 @@ function OwnerAccountStatus({
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/v1/owners/${ownerId}/invitations`);
-    const body = await res.json();
+    const body = await safeJson(res);
     setInvitations(body.invitations ?? []);
   }, [ownerId]);
 
@@ -359,7 +360,7 @@ function OwnerAccountStatus({
     setError(null);
     try {
       const response = await fetch(`/api/v1/owners/${ownerId}/link-self`, { method: 'POST' });
-      const body = await response.json();
+      const body = await safeJson(response);
       if (!response.ok) {
         setError(body.error?.message ?? 'Failed to link this owner record.');
         return;
@@ -406,7 +407,7 @@ function OwnerAccountStatus({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ deliveryChannel: hasEmail ? 'email' : 'manual' }),
       });
-      const body = await response.json();
+      const body = await safeJson(response);
       if (!response.ok) {
         setError(body.error?.message ?? 'Failed to send invitation.');
         return;
@@ -426,7 +427,7 @@ function OwnerAccountStatus({
         method: 'POST',
       });
       if (!response.ok) {
-        const body = await response.json();
+        const body = await safeJson(response);
         setError(body.error?.message ?? 'Failed to revoke invitation.');
         return;
       }

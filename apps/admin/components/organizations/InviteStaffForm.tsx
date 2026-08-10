@@ -9,6 +9,7 @@ import type {
 import { STAFF_PROPERTY_ROLES } from '@propvault/types';
 import { Button } from '@/components/ui/Button';
 import { Panel } from '@/components/ui/Panel';
+import { safeJson } from '@/lib/safeJson';
 
 // Owner + staff access completion pass (WORKLOG.md this date): /organization/staff had no
 // invitation workflow at all (Team list + mode toggles existed, no "+ Invite" anywhere) --
@@ -101,7 +102,7 @@ export function InviteStaffForm({
               : [],
         }),
       });
-      const body = await response.json();
+      const body = await safeJson(response);
       if (!response.ok) {
         setFieldErrors(body.error?.field_errors ?? {});
         setError(body.error?.message ?? 'Failed to send invitation.');

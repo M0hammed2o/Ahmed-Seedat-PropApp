@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { OrganizationMemberRole } from '@propvault/types';
 import { Button } from '@/components/ui/Button';
 import { Panel } from '@/components/ui/Panel';
+import { safeJson } from '@/lib/safeJson';
 import { InviteStaffForm } from './InviteStaffForm';
 
 interface Member {
@@ -77,8 +78,8 @@ export function StaffAccessPanel({
 
   const load = useCallback(async () => {
     const [membersRes, invitesRes] = await Promise.all([
-      fetch(`/api/v1/organizations/${orgId}/members`).then((r) => r.json()),
-      fetch(`/api/v1/organizations/${orgId}/invites`).then((r) => r.json()),
+      fetch(`/api/v1/organizations/${orgId}/members`).then((r) => safeJson(r)),
+      fetch(`/api/v1/organizations/${orgId}/invites`).then((r) => safeJson(r)),
     ]);
     setMembers(membersRes.members ?? []);
     setInvites((invitesRes.invites ?? []).filter((i: Invite) => !i.acceptedAt && !i.revokedAt));
@@ -96,7 +97,7 @@ export function StaffAccessPanel({
       body: JSON.stringify({ mode }),
     });
     if (!res.ok) {
-      const body = await res.json();
+      const body = await safeJson(res);
       setError(body.error?.message ?? 'Failed to change access mode.');
       return;
     }
@@ -111,7 +112,7 @@ export function StaffAccessPanel({
       body: JSON.stringify({ role }),
     });
     if (!res.ok) {
-      const body = await res.json();
+      const body = await safeJson(res);
       setError(body.error?.message ?? 'Failed to change role.');
       return;
     }
@@ -125,7 +126,7 @@ export function StaffAccessPanel({
       method: 'POST',
     });
     if (!res.ok) {
-      const body = await res.json();
+      const body = await safeJson(res);
       setError(body.error?.message ?? 'Failed to remove staff access.');
       return;
     }
@@ -136,7 +137,7 @@ export function StaffAccessPanel({
     setError(null);
     const res = await fetch(`/api/v1/organization-invites/${id}/resend`, { method: 'POST' });
     if (!res.ok) {
-      const body = await res.json();
+      const body = await safeJson(res);
       setError(body.error?.message ?? 'Failed to resend invitation.');
       return;
     }
@@ -148,7 +149,7 @@ export function StaffAccessPanel({
     setError(null);
     const res = await fetch(`/api/v1/organization-invites/${id}/revoke`, { method: 'POST' });
     if (!res.ok) {
-      const body = await res.json();
+      const body = await safeJson(res);
       setError(body.error?.message ?? 'Failed to cancel invitation.');
       return;
     }
@@ -339,7 +340,7 @@ function MemberPropertyGrants({
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/v1/organizations/${orgId}/members/${userId}/property-access`);
-    const body = await res.json();
+    const body = await safeJson(res);
     setGrants(body.grants ?? []);
   }, [orgId, userId]);
 
@@ -361,7 +362,7 @@ function MemberPropertyGrants({
         body: JSON.stringify({ propertyId, propertyRole: role }),
       });
       if (!res.ok) {
-        const body = await res.json();
+        const body = await safeJson(res);
         setError(body.error?.message ?? 'Failed to grant access.');
         return;
       }
@@ -381,7 +382,7 @@ function MemberPropertyGrants({
         { method: 'DELETE' },
       );
       if (!res.ok) {
-        const body = await res.json();
+        const body = await safeJson(res);
         setError(body.error?.message ?? 'Failed to revoke access.');
         return;
       }

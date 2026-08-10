@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Organization, OrganizationSubscription, Plan } from '@propvault/types';
 import { Button } from '@/components/ui/Button';
@@ -40,6 +40,16 @@ export function OrganizationBillingView({ organization, plans, subscription, pay
   const [startingCheckoutFor, setStartingCheckoutFor] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  /** React #418 fix (WORKLOG.md this date): daysUntil() reads Date.now(), and organization is a
+   *  server-fetched prop present on the very first render -- SSR and the client's hydration pass
+   *  can genuinely compute a different day count right at a day boundary, the same hydration-
+   *  mismatch shape already found and fixed in AppShell.tsx's relativeTime(). Same fix: stay false
+   *  through hydration, flip true only in a post-mount effect. */
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const currentPlan = subscription ? plans.find((p) => p.id === subscription.planId) : null;
   const canCancel =
@@ -119,7 +129,7 @@ export function OrganizationBillingView({ organization, plans, subscription, pay
                 </span>
               ) : null}
             </div>
-            {organization.status === 'trial' && organization.trialEndsAt ? (
+            {organization.status === 'trial' && organization.trialEndsAt && mounted ? (
               <p className="mt-2 text-xs text-light-textSecondary dark:text-dark-textSecondary">
                 {daysUntil(organization.trialEndsAt) >= 0
                   ? `Trial ends in ${daysUntil(organization.trialEndsAt)} day${daysUntil(organization.trialEndsAt) === 1 ? '' : 's'}. Choose a plan below to continue without interruption.`

@@ -43,7 +43,22 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
   return NextResponse.json({ invitations: (data ?? []).map(mapOwnerInvitationRow) });
 }
 
-export async function POST(request: NextRequest, { params }: RouteParams) {
+export async function POST(request: NextRequest, params: RouteParams) {
+  // Production incident fix (WORKLOG.md this date): guarantees a JSON response even if something
+  // below throws instead of returning a Supabase {data,error} pair -- see the matching comment in
+  // owners/[id]/link-self/route.ts for the full reasoning.
+  try {
+    return await handlePOST(request, params);
+  } catch (err) {
+    console.error('[owners/invitations] unhandled error', err);
+    return NextResponse.json(
+      { error: { code: 'internal_error', message: 'Something went wrong. Please try again.' } },
+      { status: 500 },
+    );
+  }
+}
+
+async function handlePOST(request: NextRequest, { params }: RouteParams) {
   const { id } = await params;
   const supabase = await getServerSupabaseClient();
   const {

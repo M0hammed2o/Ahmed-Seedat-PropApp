@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { TenantInvitation, TenantInvitationDeliveryChannel } from '@propvault/types';
 import { Button } from '@/components/ui/Button';
@@ -13,12 +13,19 @@ interface CreatedInvitation {
   expiresAt: string;
 }
 
-function statusFor(invite: TenantInvitation): { label: string; tone: string } {
+// React #418 fix (WORKLOG.md this date): `invitations` is a server-fetched prop present on this
+// component's very first render, so comparing invite.expiresAt against "now" unconditionally
+// here meant SSR and the client's hydration pass could genuinely disagree right at the exact
+// expiry moment -- the same hydration-mismatch shape already found and fixed in AppShell.tsx's
+// relativeTime(). `mounted` stays false through hydration (so both passes treat every invite as
+// not-yet-expired, deterministically), and only checks the real expiry once mounted, in a
+// post-hydration render.
+function statusFor(invite: TenantInvitation, mounted: boolean): { label: string; tone: string } {
   if (invite.acceptedAt)
     return { label: 'Accepted', tone: 'text-light-statusPaid dark:text-dark-statusPaid' };
   if (invite.revokedAt)
     return { label: 'Revoked', tone: 'text-light-textMuted dark:text-dark-textMuted' };
-  if (new Date(invite.expiresAt) <= new Date())
+  if (mounted && new Date(invite.expiresAt) <= new Date())
     return { label: 'Expired', tone: 'text-light-statusOverdue dark:text-dark-statusOverdue' };
   return { label: 'Pending', tone: 'text-light-accent dark:text-dark-accent' };
 }
@@ -70,10 +77,14 @@ export function TenantInvitationPanel({
   // discipline) -- this local list stands in for router.refresh() re-fetching from Supabase, so
   // "Send"/"Revoke" still visibly update the panel exactly as they would live.
   const [demoInvitations, setDemoInvitations] = useState<TenantInvitation[]>(invitations);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const effectiveInvitations = demoMode ? demoInvitations : invitations;
   const active = effectiveInvitations.find(
-    (i) => !i.acceptedAt && !i.revokedAt && new Date(i.expiresAt) > new Date(),
+    (i) => !i.acceptedAt && !i.revokedAt && (!mounted || new Date(i.expiresAt) > new Date()),
   );
 
   async function send() {
@@ -269,7 +280,7 @@ export function TenantInvitationPanel({
           </p>
           <ul className="mt-1 space-y-1">
             {effectiveInvitations.map((invite) => {
-              const status = statusFor(invite);
+              const status = statusFor(invite, mounted);
               return (
                 <li
                   key={invite.id}
