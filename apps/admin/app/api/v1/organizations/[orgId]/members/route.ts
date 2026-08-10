@@ -51,12 +51,29 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
       : { data: [] as { id: string; display_name: string | null }[] };
   const nameById = new Map((profiles ?? []).map((p) => [p.id, p.display_name]));
 
+  // Property count for the "5 properties" style summary (staff management UX, WORKLOG.md this
+  // date) -- only meaningful for 'selected' mode; 'all' mode members show "All properties" in the
+  // UI regardless of this number.
+  const { data: accessRows } =
+    userIds.length > 0
+      ? await supabase
+          .from('property_access')
+          .select('user_id, properties!inner(org_id)')
+          .in('user_id', userIds)
+          .eq('properties.org_id', orgId)
+      : { data: [] as { user_id: string }[] };
+  const propertyCountByUser = new Map<string, number>();
+  for (const row of accessRows ?? []) {
+    propertyCountByUser.set(row.user_id, (propertyCountByUser.get(row.user_id) ?? 0) + 1);
+  }
+
   const members = (data ?? []).map((m) => ({
     userId: m.user_id,
     role: m.role,
     propertyAccessMode: m.property_access_mode,
     joinedAt: m.joined_at,
     displayName: nameById.get(m.user_id) ?? null,
+    propertyCount: propertyCountByUser.get(m.user_id) ?? 0,
   }));
 
   return NextResponse.json({ members });

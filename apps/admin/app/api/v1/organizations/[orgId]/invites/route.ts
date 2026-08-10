@@ -18,6 +18,62 @@ const MAX_INVITABLE_ROLE_FOR: Record<'principal' | 'manager', ReadonlySet<string
 };
 
 /**
+ * GET /api/v1/organizations/:orgId/invites (owner + staff access completion pass, WORKLOG.md this
+ * date) -- pending invites for the Staff & property access screen. Manager+ only, same floor as
+ * everything else about who may see/manage staff.
+ */
+export async function GET(_request: NextRequest, { params }: RouteParams) {
+  const { orgId } = await params;
+  const supabase = await getServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json(
+      { error: { code: 'unauthenticated', message: 'Sign in required.' } },
+      { status: 401 },
+    );
+  }
+
+  const canManage = await requireOrgRole(supabase, orgId, 'manager');
+  if (!canManage) {
+    return NextResponse.json(
+      { error: { code: 'forbidden', message: 'You do not have permission to view invitations.' } },
+      { status: 403 },
+    );
+  }
+
+  const { data, error } = await supabase
+    .from('organization_invites')
+    .select(
+      'id, org_id, email, invitee_name, role, property_access_mode, expires_at, accepted_at, revoked_at, created_at',
+    )
+    .eq('org_id', orgId)
+    .order('created_at', { ascending: false });
+  if (error) {
+    return NextResponse.json(
+      { error: { code: 'invites_list_failed', message: error.message } },
+      { status: 500 },
+    );
+  }
+
+  const invites = (data ?? []).map((row) => ({
+    id: row.id,
+    orgId: row.org_id,
+    email: row.email,
+    name: row.invitee_name,
+    role: row.role,
+    propertyAccessMode: row.property_access_mode,
+    expiresAt: row.expires_at,
+    acceptedAt: row.accepted_at,
+    revokedAt: row.revoked_at,
+    createdAt: row.created_at,
+  }));
+
+  return NextResponse.json({ invites });
+}
+
+/**
  * POST /api/v1/organizations/:orgId/invites (API_SPEC.md §2, TASKS.md M4). Closes a real gap
  * found during 2026-07-31 verification: `organization_invites` had a SELECT policy but no INSERT
  * policy (migration 20260101000026), and no route ever called it — the invitations flow was
@@ -102,6 +158,22 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     );
   }
 
+  if (
+    parsed.data.propertyAccessMode === 'selected' &&
+    parsed.data.selectedProperties.length === 0
+  ) {
+    return NextResponse.json(
+      {
+        error: {
+          code: 'validation_failed',
+          message: 'Select at least one property, or choose All properties.',
+          field_errors: { selectedProperties: ['Select at least one property.'] },
+        },
+      },
+      { status: 400 },
+    );
+  }
+
   const { data, error } = await supabase
     .from('organization_invites')
     .insert({
@@ -109,6 +181,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       email: parsed.data.email,
       role: parsed.data.role,
       invited_by: user.id,
+      invitee_name: parsed.data.name || null,
+      property_access_mode: parsed.data.propertyAccessMode,
     })
     .select('id, org_id, email, role, token, expires_at, created_at')
     .single();
@@ -120,16 +194,35 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     );
   }
 
+  if (parsed.data.propertyAccessMode === 'selected') {
+    const { error: propsError } = await supabase.from('organization_invite_properties').insert(
+      parsed.data.selectedProperties.map((sp) => ({
+        invite_id: data.id,
+        property_id: sp.propertyId,
+        property_role: sp.propertyRole,
+      })),
+    );
+    if (propsError) {
+      // Roll back the invite itself rather than leave a half-configured "selected" invite with
+      // zero properties attached -- the same failure mode the pre-flight check above exists to
+      // prevent, just reached via a race/RLS edge instead of an empty array.
+      await supabase.from('organization_invites').delete().eq('id', data.id);
+      return NextResponse.json(
+        { error: { code: 'invite_properties_failed', message: propsError.message } },
+        { status: 500 },
+      );
+    }
+  }
+
   // EMAIL.md §1's "Team — Invite a team member" catalogue entry (evidenced,
   // PROPVIEW_SCREENSHOT_AUDIT.md line 637). Best-effort: an email failure must not fail invite
   // creation itself — the invite row (and its token) is the source of truth; the admin can always
   // re-share the link manually if the email never arrives. toUserId is null since the invitee has
   // no account yet.
-  const { data: org } = await supabase
-    .from('organizations')
-    .select('legal_name')
-    .eq('id', orgId)
-    .maybeSingle();
+  const [{ data: org }, { data: inviterProfile }] = await Promise.all([
+    supabase.from('organizations').select('legal_name').eq('id', orgId).maybeSingle(),
+    supabase.from('profiles').select('display_name').eq('id', user.id).maybeSingle(),
+  ]);
   const serviceClient = getServiceRoleClient();
   try {
     await dispatchEmail(serviceClient, {
@@ -141,6 +234,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         orgName: org?.legal_name ?? 'a PropertyVault organization',
         role: data.role,
         acceptUrl: `${getAppUrl()}/invitations/accept?token=${data.token}`,
+        inviterName: inviterProfile?.display_name ?? null,
+        inviteeName: parsed.data.name || null,
+        expiresAt: new Date(data.expires_at).toLocaleDateString('en-ZA'),
       },
       relatedEntityType: 'organization_invites',
       relatedEntityId: data.id,

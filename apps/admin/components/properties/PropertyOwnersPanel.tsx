@@ -26,6 +26,11 @@ interface PropertyOwnerRow {
     email: string | null;
     user_id: string | null;
   } | null;
+  /** Server-computed (owners/route.ts GET) -- true only when the caller holds manager+ org role
+   * and the owner record is unlinked with no email, or an email that matches the caller's own.
+   * link_owner_to_self() independently re-checks the same conditions; this only decides whether
+   * to render "This is me" instead of "Invite". */
+  canSelfLink: boolean;
 }
 
 interface OwnerOption {
@@ -176,7 +181,9 @@ export function PropertyOwnersPanel({
                     ownerId={r.ownerId}
                     hasAccount={Boolean(r.owner?.user_id)}
                     hasEmail={Boolean(r.owner?.email)}
+                    canSelfLink={r.canSelfLink}
                     canManage={canManage}
+                    onLinked={load}
                   />
                 </div>
               </li>
@@ -313,12 +320,16 @@ function OwnerAccountStatus({
   ownerId,
   hasAccount,
   hasEmail,
+  canSelfLink,
   canManage,
+  onLinked,
 }: {
   ownerId: string;
   hasAccount: boolean;
   hasEmail: boolean;
+  canSelfLink: boolean;
   canManage: boolean;
+  onLinked: () => Promise<void>;
 }) {
   const [invitations, setInvitations] = useState<OwnerInvitation[] | null>(null);
   const [busy, setBusy] = useState(false);
@@ -332,14 +343,48 @@ function OwnerAccountStatus({
   }, [ownerId]);
 
   useEffect(() => {
-    if (!hasAccount) load();
-  }, [hasAccount, load]);
+    if (!hasAccount && !canSelfLink) load();
+  }, [hasAccount, canSelfLink, load]);
 
   if (hasAccount) {
     return (
       <span className="text-xs font-medium text-light-statusPaid dark:text-dark-statusPaid">
         Account linked
       </span>
+    );
+  }
+
+  async function linkSelf() {
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/v1/owners/${ownerId}/link-self`, { method: 'POST' });
+      const body = await response.json();
+      if (!response.ok) {
+        setError(body.error?.message ?? 'Failed to link this owner record.');
+        return;
+      }
+      await onLinked();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Root-cause fix (WORKLOG.md this date): an owner record representing the caller themselves
+  // (typically the Principal who set up the org) has no one to email an invitation to -- offer
+  // the deliberate self-link action instead of "Invite", never both. link_owner_to_self()
+  // re-checks manager+ role and any on-file email match server-side; this button being visible is
+  // not itself the security boundary.
+  if (canSelfLink) {
+    return (
+      <div className="flex flex-col items-end gap-1">
+        <Button size="sm" variant="primary" disabled={busy} onClick={linkSelf}>
+          {busy ? 'Linking…' : 'This is me'}
+        </Button>
+        {error ? (
+          <p className="text-[11px] text-light-danger dark:text-dark-danger">{error}</p>
+        ) : null}
+      </div>
     );
   }
 

@@ -39,7 +39,9 @@ const TEMPLATE_SUBJECTS: Record<EmailTemplateName, (vars: Record<string, unknown
   trial_expiring_soon: (v) =>
     `Your ${branding.productName} trial ends soon — ${v.legalName ?? 'your organization'}`,
   member_invited: (v) =>
-    `You've been invited to join ${v.orgName ?? `a ${branding.productName} organization`}`,
+    v.inviterName
+      ? `${v.inviterName} invited you to join ${v.orgName ?? `a ${branding.productName} organization`} on ${branding.productName}`
+      : `You've been invited to join ${v.orgName ?? `a ${branding.productName} organization`} on ${branding.productName}`,
   tenant_invitation: (v) =>
     `Activate your ${branding.productName} tenant portal for ${v.orgName ?? 'your rental'}`,
   owner_invitation: (v) =>
@@ -68,7 +70,7 @@ const TEMPLATE_BODY: Record<EmailTemplateName, (vars: Record<string, unknown>) =
   trial_expiring_soon: (v) =>
     `Your ${branding.productName} trial for ${v.legalName ?? 'your organization'} ends on ${v.trialEndsAt ?? 'soon'}. Choose a plan to continue without interruption.`,
   member_invited: (v) =>
-    `You've been invited to join ${v.orgName ?? `a ${branding.productName} organization`}. Sign in to ${branding.productName} to accept.`,
+    `${v.inviteeName ? `Hi ${v.inviteeName}, ` : ''}${v.inviterName ?? 'A team administrator'} invited you to join ${v.orgName ?? `a ${branding.productName} organization`} on ${branding.productName} as ${v.role ?? 'a team member'}. ${v.acceptUrl ? `Accept your invitation: ${v.acceptUrl}. ` : ''}${v.expiresAt ? `This invitation expires on ${v.expiresAt}. ` : ''}If you weren't expecting this, you can safely ignore this email.`,
   tenant_invitation: (v) =>
     `Activate your ${branding.productName} tenant portal for ${v.orgName ?? 'your rental'} to view your lease, payments, and submit maintenance requests.`,
   owner_invitation: (v) =>

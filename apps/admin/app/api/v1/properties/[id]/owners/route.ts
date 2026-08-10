@@ -63,13 +63,36 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     );
   }
 
-  const propertyOwners = (data ?? []).map((row) => ({
-    propertyId: row.property_id as string,
-    ownerId: row.owner_id as string,
-    ownershipPct: row.ownership_pct as number,
-    createdAt: row.created_at as string,
-    owner: row.owners,
-  }));
+  // Owner + staff access completion pass (WORKLOG.md this date): canSelfLink tells the UI when
+  // to offer "This is me" instead of "Invite" -- computed here, server-side, so the client never
+  // has to guess; link_owner_to_self() (migration 20260101000088) independently re-checks the
+  // same conditions, this is UI affordance only, not the security boundary.
+  const canManage = await requireOrgRole(supabase, property.org_id, 'manager');
+  const callerEmail = user.email?.toLowerCase() ?? null;
+
+  const propertyOwners = (data ?? []).map((row) => {
+    const owner = row.owners as unknown as {
+      id: string;
+      name: string;
+      owner_type: string;
+      email: string | null;
+      phone: string | null;
+      user_id: string | null;
+    } | null;
+    const canSelfLink =
+      canManage &&
+      !!owner &&
+      !owner.user_id &&
+      (!owner.email || owner.email.toLowerCase() === callerEmail);
+    return {
+      propertyId: row.property_id as string,
+      ownerId: row.owner_id as string,
+      ownershipPct: row.ownership_pct as number,
+      createdAt: row.created_at as string,
+      owner,
+      canSelfLink,
+    };
+  });
 
   return NextResponse.json({ propertyOwners });
 }

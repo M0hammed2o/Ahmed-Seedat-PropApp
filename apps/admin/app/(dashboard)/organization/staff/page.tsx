@@ -55,7 +55,11 @@ export default async function OrganizationStaffPage() {
         title="Staff & property access"
         subtitle="Control which properties each team member can see and manage."
       />
-      <StaffAccessPanel orgId={activeOrg.orgId} properties={properties ?? []} />
+      <StaffAccessPanel
+        orgId={activeOrg.orgId}
+        properties={properties ?? []}
+        callerRole={activeOrg.role as 'principal' | 'manager'}
+      />
     </div>
   );
 }

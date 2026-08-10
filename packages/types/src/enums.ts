@@ -131,6 +131,23 @@ export type OrganizationMemberRole = (typeof ORGANIZATION_MEMBER_ROLES)[number];
 export const ORGANIZATION_MEMBER_STATUSES = ['invited', 'active', 'revoked'] as const;
 export type OrganizationMemberStatus = (typeof ORGANIZATION_MEMBER_STATUSES)[number];
 
+// Owner + staff access completion pass (WORKLOG.md this date): previously only ever defined
+// locally inside StaffAccessPanel.tsx (as a bare Record<string,string>) -- shared here so the
+// staff invitation form can use the exact same list, matching the migration
+// 20260101000063 property_role enum ('owner' excluded -- staff invitation never grants owner
+// property_role, that comes only from real property_owners ownership + owner-linking).
+export const STAFF_PROPERTY_ROLES = [
+  'administrator',
+  'property_manager',
+  'accountant',
+  'maintenance_manager',
+  'read_only',
+] as const;
+export type StaffPropertyRole = (typeof STAFF_PROPERTY_ROLES)[number];
+
+export const PROPERTY_ACCESS_MODES = ['all', 'selected'] as const;
+export type PropertyAccessMode = (typeof PROPERTY_ACCESS_MODES)[number];
+
 export const BILLING_CYCLES = ['monthly', 'annual'] as const;
 export type BillingCycle = (typeof BILLING_CYCLES)[number];
 
