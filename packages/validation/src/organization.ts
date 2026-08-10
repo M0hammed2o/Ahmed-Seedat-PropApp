@@ -50,5 +50,12 @@ export const organizationUpdateSchema = z.object({
   ffcNumber: z.string().max(60).optional().nullable(),
   ffcIssued: z.string().optional().nullable(),
   ffcExpires: z.string().optional().nullable(),
+  // Phase 6 (WhatsApp/email communication branding, WORKLOG.md this date) -- tradingName above
+  // already doubles as the business/landlord display name; these are the fields with no existing
+  // equivalent.
+  supportContactName: z.string().max(200).optional().nullable(),
+  supportPhone: z.string().max(30).optional().nullable(),
+  supportEmail: z.string().email('Enter a valid email address').optional().nullable(),
+  communicationFooter: z.string().max(500).optional().nullable(),
 });
 export type OrganizationUpdateInput = z.infer<typeof organizationUpdateSchema>;

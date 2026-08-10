@@ -94,19 +94,33 @@ export async function dispatchWhatsApp(
   }
 
   const category = TEMPLATE_CATEGORY[input.templateName];
-  if (category && input.toUserId) {
-    const { data: pref } = await serviceClient
-      .from('notification_preferences')
+  if (category) {
+    // Org-level default (Phase 5, 20260101000093) checked first -- same "org narrows, user can
+    // only narrow further" reasoning as dispatchEmail()'s mirrored check.
+    const { data: orgSetting } = await serviceClient
+      .from('organization_notification_settings')
       .select('whatsapp_enabled')
-      .eq('user_id', input.toUserId)
+      .eq('org_id', input.orgId)
       .eq('category', category)
       .maybeSingle();
-    // Missing row = default enabled (whatsapp_enabled defaults to true, WHATSAPP.md §2's "even a
-    // listed trigger is suppressed if the recipient opted out" rule -- this only runs for
-    // categorized types; tenant_invitation has no category above, so it skips this block
-    // entirely, same as the exempt account_security_event).
-    if (pref && pref.whatsapp_enabled === false) {
+    if (orgSetting && orgSetting.whatsapp_enabled === false) {
       return { sent: false, reason: 'preference_disabled', deliveryConfigured };
+    }
+
+    if (input.toUserId) {
+      const { data: pref } = await serviceClient
+        .from('notification_preferences')
+        .select('whatsapp_enabled')
+        .eq('user_id', input.toUserId)
+        .eq('category', category)
+        .maybeSingle();
+      // Missing row = default enabled (whatsapp_enabled defaults to true, WHATSAPP.md §2's "even
+      // a listed trigger is suppressed if the recipient opted out" rule -- this only runs for
+      // categorized types; tenant_invitation has no category above, so it skips this block
+      // entirely, same as the exempt account_security_event).
+      if (pref && pref.whatsapp_enabled === false) {
+        return { sent: false, reason: 'preference_disabled', deliveryConfigured };
+      }
     }
   }
 

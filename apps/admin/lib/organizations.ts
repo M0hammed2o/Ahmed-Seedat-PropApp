@@ -20,6 +20,10 @@ interface OrganizationRow {
   ffc_number: string | null;
   ffc_issued: string | null;
   ffc_expires: string | null;
+  support_contact_name: string | null;
+  support_phone: string | null;
+  support_email: string | null;
+  communication_footer: string | null;
   status: string;
   trial_ends_at: string | null;
   created_at: string;
@@ -41,6 +45,10 @@ export function mapOrganizationRow(row: OrganizationRow): Organization {
     ffcNumber: row.ffc_number,
     ffcIssued: row.ffc_issued,
     ffcExpires: row.ffc_expires,
+    supportContactName: row.support_contact_name,
+    supportPhone: row.support_phone,
+    supportEmail: row.support_email,
+    communicationFooter: row.communication_footer,
     status: row.status as Organization['status'],
     trialEndsAt: row.trial_ends_at,
     createdAt: row.created_at,

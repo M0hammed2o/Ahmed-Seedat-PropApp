@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { Organization } from '@propvault/types';
 import { OrganizationSettingsForm } from '@/components/organizations/OrganizationSettingsForm';
+import { CommunicationPreferencesPanel } from '@/components/organizations/CommunicationPreferencesPanel';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { PermissionDenied } from '@/components/ui/PermissionDenied';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
@@ -22,6 +23,10 @@ const DEMO_ORGANIZATION: Organization = {
   ffcNumber: 'FFC12345',
   ffcIssued: '2026-01-01',
   ffcExpires: '2027-01-01',
+  supportContactName: 'Demo Support',
+  supportPhone: '+27000000000',
+  supportEmail: 'support@example.com',
+  communicationFooter: null,
   status: 'active',
   trialEndsAt: null,
   createdAt: '2026-01-01T00:00:00Z',
@@ -40,6 +45,9 @@ export default async function OrganizationSettingsPage() {
       <div className="space-y-5 animate-rise">
         <PageHeader title="Organization settings" />
         <OrganizationSettingsForm organization={DEMO_ORGANIZATION} />
+        <p className="text-sm text-light-textSecondary dark:text-dark-textSecondary">
+          Communication branding and channel preferences aren&apos;t available in demo mode.
+        </p>
       </div>
     );
   }
@@ -84,6 +92,10 @@ export default async function OrganizationSettingsPage() {
         subtitle="Registration, tax, and trust-account details."
       />
       <OrganizationSettingsForm organization={mapOrganizationRow(data)} />
+      <CommunicationPreferencesPanel
+        orgId={activeOrg.orgId}
+        organization={mapOrganizationRow(data)}
+      />
       <p className="text-sm text-light-textSecondary dark:text-dark-textSecondary">
         Manage the templates used when creating a new lease at{' '}
         <Link

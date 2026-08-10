@@ -49,6 +49,7 @@ describeIfSupabase('dispatchEmail (real local Supabase integration)', () => {
     await serviceClient.from('email_messages').delete().eq('org_id', orgId);
     await serviceClient.from('email_suppressions').delete().eq('org_id', orgId);
     await serviceClient.from('notification_preferences').delete().eq('user_id', userId);
+    await serviceClient.from('organization_notification_settings').delete().eq('org_id', orgId);
     await serviceClient.from('organizations').delete().eq('id', orgId);
     await serviceClient.auth.admin.deleteUser(userId);
   });
@@ -183,6 +184,30 @@ describeIfSupabase('dispatchEmail (real local Supabase integration)', () => {
       orgId,
       toAddress: 'tenant@example.com',
       toUserId: userId,
+      templateName: 'maintenance_update',
+      templateVars: { summary: 'Leaking tap', status: 'in_progress' },
+      relatedEntityType: 'maintenance_ticket:in_progress',
+      relatedEntityId: crypto.randomUUID(),
+      actorUserId: null,
+    });
+
+    expect(result.sent).toBe(false);
+    expect(result.reason).toBe('preference_disabled');
+  });
+
+  it('respects organization_notification_settings.email_enabled=false even with no per-user preference row (Phase 5, WORKLOG.md this date)', async () => {
+    await serviceClient.from('organization_notification_settings').insert({
+      org_id: orgId,
+      category: 'maintenance',
+      email_enabled: false,
+      whatsapp_enabled: false,
+    });
+
+    const result = await dispatchEmail(serviceClient, {
+      orgId,
+      toAddress: 'tenant@example.com',
+      // Deliberately no toUserId -- proves the org-level gate applies even when there is no
+      // per-user notification_preferences row to have checked at all.
       templateName: 'maintenance_update',
       templateVars: { summary: 'Leaking tap', status: 'in_progress' },
       relatedEntityType: 'maintenance_ticket:in_progress',

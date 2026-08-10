@@ -139,17 +139,33 @@ export async function dispatchEmail(
   }
 
   const category = TEMPLATE_CATEGORY[input.templateName];
-  if (category && input.toUserId) {
-    const { data: pref } = await serviceClient
-      .from('notification_preferences')
+  if (category) {
+    // Org-level default (Phase 5, 20260101000093) checked first -- an org can turn a channel off
+    // for every recipient in one place; the per-user check below can only narrow further, never
+    // widen past what the org allows. Missing row = default enabled, same "no explicit row means
+    // never opted out" convention the per-user table already uses.
+    const { data: orgSetting } = await serviceClient
+      .from('organization_notification_settings')
       .select('email_enabled')
-      .eq('user_id', input.toUserId)
+      .eq('org_id', input.orgId)
       .eq('category', category)
       .maybeSingle();
-    // Missing row = default enabled (notification_preferences.email_enabled defaults to true) --
-    // a recipient with no explicit preference row has never opted out.
-    if (pref && pref.email_enabled === false) {
+    if (orgSetting && orgSetting.email_enabled === false) {
       return { sent: false, reason: 'preference_disabled', deliveryConfigured };
+    }
+
+    if (input.toUserId) {
+      const { data: pref } = await serviceClient
+        .from('notification_preferences')
+        .select('email_enabled')
+        .eq('user_id', input.toUserId)
+        .eq('category', category)
+        .maybeSingle();
+      // Missing row = default enabled (notification_preferences.email_enabled defaults to true)
+      // -- a recipient with no explicit preference row has never opted out.
+      if (pref && pref.email_enabled === false) {
+        return { sent: false, reason: 'preference_disabled', deliveryConfigured };
+      }
     }
   }
 

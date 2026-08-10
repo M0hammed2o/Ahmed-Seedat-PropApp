@@ -20,6 +20,12 @@ export interface Organization {
   ffcNumber: string | null;
   ffcIssued: string | null;
   ffcExpires: string | null;
+  /** Communication branding (Phase 6, WORKLOG.md this date) -- shown in tenant-facing
+   * email/WhatsApp templates alongside tradingName (the business display name). */
+  supportContactName: string | null;
+  supportPhone: string | null;
+  supportEmail: string | null;
+  communicationFooter: string | null;
   status: OrganizationStatus;
   /** Set once at org creation (20260101000075) and never cleared -- a historical record of when
    * the 30-day free trial ends/ended, meaningful for UI purposes only while status is 'trial'. */
