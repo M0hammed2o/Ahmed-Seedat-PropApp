@@ -4,7 +4,7 @@ import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/se
 import { requireOrgRole } from '@/lib/portfolio';
 import { mapTenantInvitationRow, maskDestination } from '@/lib/tenantInvitations';
 import { dispatchEmail } from '@/lib/emailDispatch';
-import { dispatchWhatsApp } from '@/lib/whatsappDispatch';
+import { dispatchWhatsApp, resolveOrgWhatsAppBranding } from '@/lib/whatsappDispatch';
 import { rateLimitOrRespond } from '@/lib/rateLimit';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -153,11 +153,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
 
   const serviceClient = getServiceRoleClient();
-  const { data: org } = await serviceClient
-    .from('organizations')
-    .select('legal_name')
-    .eq('id', tenant.org_id)
-    .maybeSingle();
+  const branding = await resolveOrgWhatsAppBranding(serviceClient, tenant.org_id);
   const acceptUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/activate?token=${created.token}`;
 
   // Overnight platform pass (WORKLOG.md this date): relatedEntityId was previously
@@ -173,7 +169,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       orgId: tenant.org_id,
       toAddress: tenant.email,
       templateName: 'tenant_invitation',
-      templateVars: { orgName: org?.legal_name, tenantName: tenant.full_name, acceptUrl },
+      templateVars: {
+        orgName: branding.organizationName,
+        tenantName: tenant.full_name,
+        acceptUrl,
+      },
       relatedEntityType: 'tenant_invitations',
       relatedEntityId: created.invitation_id,
       actorUserId: user.id,
@@ -183,7 +183,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       orgId: tenant.org_id,
       toPhone: tenant.phone,
       templateName: 'tenant_invitation',
-      variables: { orgName: org?.legal_name ?? '', acceptUrl, code: created.short_code ?? '' },
+      variables: {
+        organizationName: branding.organizationName,
+        acceptUrl,
+        code: created.short_code ?? '',
+        supportName: branding.supportName,
+      },
       relatedEntityType: 'tenant_invitations',
       relatedEntityId: created.invitation_id,
       actorUserId: user.id,

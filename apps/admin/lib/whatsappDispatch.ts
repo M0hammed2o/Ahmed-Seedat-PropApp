@@ -17,6 +17,35 @@ import { writeAuditEvent } from './audit';
 // NOT wired -- inventing an ad-hoc "check overdue on every request" trigger would be exactly the
 // kind of guessed automation TASKS.md's own TD-20 note warns against.
 
+// Overnight platform pass (WORKLOG.md this date), Phase 6: WHATSAPP.md §3 already requires every
+// template to open with the org's own display name (a message from the one shared platform
+// number reads as spam otherwise) -- this resolves the two branding fields
+// (20260101000093: organizations.trading_name, already existed; support_contact_name, new)
+// call sites pass into their template `variables`. Kept here (not duplicated per call site) so
+// the "trading_name falls back to legal_name" rule lives in exactly one place.
+//
+// CRITICAL, disclosed limitation: Meta WhatsApp template parameters are POSITIONAL
+// (MetaWhatsAppProvider.sendTemplateMessage), and no real Meta Business/WhatsApp account or
+// approved template exists in this environment (external-service blocker, same as every other
+// real-provider gap this session) -- the variable ORDER used at each call site below is
+// provisional until the actual approved template text is designed in Meta Business Manager and
+// its real placeholder order is known. Do not treat this wiring as verified against a live
+// template.
+export async function resolveOrgWhatsAppBranding(
+  serviceClient: SupabaseClient,
+  orgId: string,
+): Promise<{ organizationName: string; supportName: string }> {
+  const { data } = await serviceClient
+    .from('organizations')
+    .select('legal_name, trading_name, support_contact_name')
+    .eq('id', orgId)
+    .maybeSingle();
+  return {
+    organizationName: data?.trading_name ?? data?.legal_name ?? 'your property manager',
+    supportName: data?.support_contact_name ?? '',
+  };
+}
+
 // Platform-owned single WhatsApp Business number (WHATSAPP.md §0) -- no real Meta/BSP account
 // exists yet (external-service blocker), so this is a clearly-labeled placeholder, same
 // TO_BE_CONFIRMED convention SUBSCRIPTIONS.md already uses for other real commercial values.
