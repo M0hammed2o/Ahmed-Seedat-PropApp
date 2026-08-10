@@ -180,7 +180,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   // The plaintext token is returned exactly once -- the API never logs it, the DB never stores
   // it (only its hash). The UI must show it to staff now or lose it forever.
   return NextResponse.json(
-    { invitationId: created.invitation_id, token: created.token, expiresAt: created.expires_at, acceptUrl },
+    {
+      invitationId: created.invitation_id,
+      token: created.token,
+      expiresAt: created.expires_at,
+      acceptUrl,
+    },
     { status: 201 },
   );
 }

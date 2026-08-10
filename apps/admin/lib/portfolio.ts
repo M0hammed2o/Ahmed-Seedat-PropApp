@@ -156,7 +156,13 @@ export async function requireOrgRole(
 export async function requirePropertyAccess(
   supabase: SupabaseClient,
   propertyId: string,
-  minRole: 'read_only' | 'owner' | 'property_manager' | 'accountant' | 'maintenance_manager' | 'administrator',
+  minRole:
+    | 'read_only'
+    | 'owner'
+    | 'property_manager'
+    | 'accountant'
+    | 'maintenance_manager'
+    | 'administrator',
 ): Promise<boolean> {
   const { data, error } = await supabase.rpc('has_property_access', {
     target_property_id: propertyId,

@@ -54,7 +54,9 @@ export function MaintenanceBoard({
                       {ticket.summary}
                     </p>
                     <p className="mt-0.5 text-[11px] text-light-textMuted dark:text-dark-textMuted">
-                      {ticket.unitId ? (unitLabelById?.get(ticket.unitId) ?? 'Unit') : 'Common area'}
+                      {ticket.unitId
+                        ? (unitLabelById?.get(ticket.unitId) ?? 'Unit')
+                        : 'Common area'}
                     </p>
                     <div className="mt-1.5">
                       <StatusBadge

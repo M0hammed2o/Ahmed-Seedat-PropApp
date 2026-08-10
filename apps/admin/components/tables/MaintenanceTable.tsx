@@ -8,55 +8,57 @@ import { MAINTENANCE_PRIORITY_PRESENTATION, MAINTENANCE_STATUS_PRESENTATION } fr
 import { AdminDataTable } from '@/components/ui/AdminDataTable';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 
-function buildColumns(unitLabelById?: Map<string, string>): ColumnDef<MaintenanceTicket, unknown>[] {
+function buildColumns(
+  unitLabelById?: Map<string, string>,
+): ColumnDef<MaintenanceTicket, unknown>[] {
   return [
-  {
-    header: 'Ticket',
-    accessorKey: 'summary',
-    cell: (info) => (
-      <Link
-        href={`/maintenance/${info.row.original.id}`}
-        className="font-medium text-light-accent hover:underline dark:text-dark-accent"
-      >
-        {info.row.original.summary}
-      </Link>
-    ),
-  },
-  {
-    header: 'Unit',
-    id: 'unit',
-    cell: (info) => {
-      const unitId = info.row.original.unitId;
-      const label = unitId ? unitLabelById?.get(unitId) : undefined;
-      return (
-        <span className="text-light-textSecondary dark:text-dark-textSecondary">
-          {unitId ? (label ?? 'Unit') : 'Common area'}
-        </span>
-      );
+    {
+      header: 'Ticket',
+      accessorKey: 'summary',
+      cell: (info) => (
+        <Link
+          href={`/maintenance/${info.row.original.id}`}
+          className="font-medium text-light-accent hover:underline dark:text-dark-accent"
+        >
+          {info.row.original.summary}
+        </Link>
+      ),
     },
-  },
-  {
-    header: 'Priority',
-    accessorKey: 'priority',
-    cell: (info) => (
-      <StatusBadge
-        presentation={
-          MAINTENANCE_PRIORITY_PRESENTATION[info.getValue() as MaintenanceTicket['priority']]
-        }
-      />
-    ),
-  },
-  {
-    header: 'Status',
-    accessorKey: 'status',
-    cell: (info) => (
-      <StatusBadge
-        presentation={
-          MAINTENANCE_STATUS_PRESENTATION[info.getValue() as MaintenanceTicket['status']]
-        }
-      />
-    ),
-  },
+    {
+      header: 'Unit',
+      id: 'unit',
+      cell: (info) => {
+        const unitId = info.row.original.unitId;
+        const label = unitId ? unitLabelById?.get(unitId) : undefined;
+        return (
+          <span className="text-light-textSecondary dark:text-dark-textSecondary">
+            {unitId ? (label ?? 'Unit') : 'Common area'}
+          </span>
+        );
+      },
+    },
+    {
+      header: 'Priority',
+      accessorKey: 'priority',
+      cell: (info) => (
+        <StatusBadge
+          presentation={
+            MAINTENANCE_PRIORITY_PRESENTATION[info.getValue() as MaintenanceTicket['priority']]
+          }
+        />
+      ),
+    },
+    {
+      header: 'Status',
+      accessorKey: 'status',
+      cell: (info) => (
+        <StatusBadge
+          presentation={
+            MAINTENANCE_STATUS_PRESENTATION[info.getValue() as MaintenanceTicket['status']]
+          }
+        />
+      ),
+    },
   ];
 }
 

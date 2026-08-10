@@ -19,7 +19,13 @@ import { Panel } from '@/components/ui/Panel';
 interface PropertyOwnerRow {
   ownerId: string;
   ownershipPct: number;
-  owner: { id: string; name: string; owner_type: string; email: string | null; user_id: string | null } | null;
+  owner: {
+    id: string;
+    name: string;
+    owner_type: string;
+    email: string | null;
+    user_id: string | null;
+  } | null;
 }
 
 interface OwnerOption {
@@ -155,9 +161,16 @@ export function PropertyOwnersPanel({
         <Panel title="Current ownership">
           <ul className="divide-y divide-light-border dark:divide-dark-border">
             {rows.map((r) => (
-              <li key={r.ownerId} className="flex items-center justify-between gap-3 py-2.5 text-sm">
-                <span className="min-w-0 truncate text-foreground">{r.owner?.name ?? 'Unknown owner'}</span>
-                <span className="tabular shrink-0 font-semibold text-foreground">{r.ownershipPct}%</span>
+              <li
+                key={r.ownerId}
+                className="flex items-center justify-between gap-3 py-2.5 text-sm"
+              >
+                <span className="min-w-0 truncate text-foreground">
+                  {r.owner?.name ?? 'Unknown owner'}
+                </span>
+                <span className="tabular shrink-0 font-semibold text-foreground">
+                  {r.ownershipPct}%
+                </span>
                 <div className="shrink-0">
                   <OwnerAccountStatus
                     ownerId={r.ownerId}
@@ -401,7 +414,9 @@ function OwnerAccountStatus({
           </a>
         </p>
       ) : null}
-      {error ? <p className="text-[11px] text-light-danger dark:text-dark-danger">{error}</p> : null}
+      {error ? (
+        <p className="text-[11px] text-light-danger dark:text-dark-danger">{error}</p>
+      ) : null}
     </div>
   );
 }

@@ -156,7 +156,9 @@ export default async function PropertyDetailPage({ params }: RouteParams) {
       .order('created_at', { ascending: false }),
     supabase
       .from('documents')
-      .select('id, original_file_name, document_type, category_id, billing_year, billing_month, updated_at')
+      .select(
+        'id, original_file_name, document_type, category_id, billing_year, billing_month, updated_at',
+      )
       .eq('property_id', id)
       .is('deleted_at', null)
       .order('updated_at', { ascending: false })
@@ -601,7 +603,10 @@ function PropertyDetailView({
             label: `Documents (${documents.length})`,
             content:
               documents.length > 0 ? (
-                <PropertyDocumentFolders documents={documents} categoryLabelById={categoryLabelById} />
+                <PropertyDocumentFolders
+                  documents={documents}
+                  categoryLabelById={categoryLabelById}
+                />
               ) : (
                 <div className="panel py-8 text-center">
                   <p className="text-sm text-muted-foreground">

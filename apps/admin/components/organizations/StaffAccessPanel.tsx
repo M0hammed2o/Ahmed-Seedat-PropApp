@@ -220,7 +220,12 @@ function MemberPropertyGrants({
               <span className="text-foreground">
                 {g.propertyNickname} — {PROPERTY_ROLE_LABELS[g.propertyRole] ?? g.propertyRole}
               </span>
-              <Button size="sm" variant="destructive" disabled={busy} onClick={() => removeGrant(g.propertyId)}>
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={busy}
+                onClick={() => removeGrant(g.propertyId)}
+              >
                 Remove
               </Button>
             </li>

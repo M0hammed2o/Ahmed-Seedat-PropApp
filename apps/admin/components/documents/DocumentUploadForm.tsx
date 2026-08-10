@@ -39,7 +39,9 @@ export function DocumentUploadForm({
   lockedContext,
 }: DocumentUploadFormProps) {
   const router = useRouter();
-  const [propertyId, setPropertyId] = useState(lockedContext?.propertyId ?? properties[0]?.id ?? '');
+  const [propertyId, setPropertyId] = useState(
+    lockedContext?.propertyId ?? properties[0]?.id ?? '',
+  );
   const [categoryId, setCategoryId] = useState(categories[0]?.id ?? '');
   const [documentType, setDocumentType] = useState<DocumentType>('supporting_document');
   const [leaseId, setLeaseId] = useState('');
@@ -111,7 +113,8 @@ export function DocumentUploadForm({
 
           {lockedContext ? (
             <p className="rounded-md border border-light-border bg-light-surface px-3 py-2 text-xs text-light-textSecondary dark:border-dark-border dark:bg-dark-surface dark:text-dark-textSecondary">
-              Maintenance: {lockedContext.maintenanceTicketSummary} — {lockedContext.propertyNickname}
+              Maintenance: {lockedContext.maintenanceTicketSummary} —{' '}
+              {lockedContext.propertyNickname}
             </p>
           ) : null}
 

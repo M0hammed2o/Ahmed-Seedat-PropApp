@@ -97,5 +97,6 @@ const ACCEPT_ERROR_MESSAGES: Record<string, string> = {
   org_inactive: 'This organization is no longer active.',
   already_linked:
     'This owner record is already linked to a different account. Contact the property manager.',
-  email_mismatch: 'This invitation does not match your account email. Contact the property manager.',
+  email_mismatch:
+    'This invitation does not match your account email. Contact the property manager.',
 };
