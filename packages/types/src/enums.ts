@@ -364,6 +364,9 @@ export type UsageType = (typeof USAGE_TYPES)[number];
 export const TENANT_INVITATION_DELIVERY_CHANNELS = ['email', 'whatsapp', 'manual'] as const;
 export type TenantInvitationDeliveryChannel = (typeof TENANT_INVITATION_DELIVERY_CHANNELS)[number];
 
+export const OWNER_INVITATION_DELIVERY_CHANNELS = ['email', 'manual'] as const;
+export type OwnerInvitationDeliveryChannel = (typeof OWNER_INVITATION_DELIVERY_CHANNELS)[number];
+
 // Mirrors accept_tenant_invitation()'s error_code return values exactly (migration
 // 20260101000059's own comment lists them) -- the UI switches on these to show the right
 // expired/invalid/already-linked state, never a raw Postgres error string.

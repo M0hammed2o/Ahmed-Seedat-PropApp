@@ -129,6 +129,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   if (parsed.data.summary !== undefined) patch.summary = parsed.data.summary;
   if (parsed.data.description !== undefined) patch.description = parsed.data.description;
   if (parsed.data.priority !== undefined) patch.priority = parsed.data.priority;
+  if (parsed.data.unitId !== undefined) patch.unit_id = parsed.data.unitId;
   if (parsed.data.assignedVendorId !== undefined)
     patch.assigned_vendor_id = parsed.data.assignedVendorId;
   if (parsed.data.status !== undefined) {
@@ -144,6 +145,18 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     .single();
 
   if (error) {
+    if (error.message.includes('unit_id must belong to the maintenance ticket')) {
+      return NextResponse.json(
+        {
+          error: {
+            code: 'validation_failed',
+            message: 'That unit does not belong to this property.',
+            field_errors: { unitId: ['That unit does not belong to this property.'] },
+          },
+        },
+        { status: 400 },
+      );
+    }
     return NextResponse.json(
       { error: { code: 'maintenance_ticket_update_failed', message: error.message } },
       { status: 500 },

@@ -37,21 +37,27 @@ export default async function MaintenanceDetailPage({ params }: RouteParams) {
   if (ADMIN_DEMO_MODE) {
     if (id !== 'demo-ticket-1') notFound();
     return (
-      <MaintenanceDetailView ticket={DEMO_TICKET} propertyNickname="Sea Point Apartment" canEdit />
+      <MaintenanceDetailView
+        ticket={DEMO_TICKET}
+        propertyNickname="Sea Point Apartment"
+        unitLabel="Unit 1"
+        canEdit
+      />
     );
   }
 
   const supabase = await getServerSupabaseClient();
   const { data, error } = await supabase
     .from('maintenance_tickets')
-    .select('*, properties(nickname)')
+    .select('*, properties(nickname), units(unit_label)')
     .eq('id', id)
     .maybeSingle();
   if (error) throw new Error(`Failed to load maintenance ticket: ${error.message}`);
   if (!data) notFound();
 
-  const { properties, ...ticketRow } = data as typeof data & {
+  const { properties, units, ...ticketRow } = data as typeof data & {
     properties: { nickname: string } | null;
+    units: { unit_label: string } | null;
   };
   const ticket = mapMaintenanceTicketRow(ticketRow);
 
@@ -63,6 +69,7 @@ export default async function MaintenanceDetailPage({ params }: RouteParams) {
     <MaintenanceDetailView
       ticket={ticket}
       propertyNickname={properties?.nickname}
+      unitLabel={units?.unit_label}
       canEdit={canEdit}
     />
   );
@@ -71,10 +78,12 @@ export default async function MaintenanceDetailPage({ params }: RouteParams) {
 function MaintenanceDetailView({
   ticket,
   propertyNickname,
+  unitLabel,
   canEdit,
 }: {
   ticket: MaintenanceTicket;
   propertyNickname?: string;
+  unitLabel?: string;
   canEdit: boolean;
 }) {
   return (
@@ -118,6 +127,18 @@ function MaintenanceDetailView({
 
       <dl className="mt-6 grid grid-cols-2 gap-4 text-sm lg:grid-cols-4">
         <div>
+          <dt className="text-light-textMuted dark:text-dark-textMuted">Property</dt>
+          <dd className="text-light-textPrimary dark:text-dark-textPrimary">
+            {propertyNickname ?? '—'}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-light-textMuted dark:text-dark-textMuted">Unit</dt>
+          <dd className="text-light-textPrimary dark:text-dark-textPrimary">
+            {unitLabel ?? 'Common area / Property-wide'}
+          </dd>
+        </div>
+        <div>
           <dt className="text-light-textMuted dark:text-dark-textMuted">Reported</dt>
           <dd className="text-light-textPrimary dark:text-dark-textPrimary">
             {new Date(ticket.createdAt).toLocaleDateString('en-ZA')}
@@ -131,9 +152,16 @@ function MaintenanceDetailView({
         </div>
       </dl>
 
-      <p className="mt-8 text-xs text-light-textMuted dark:text-dark-textMuted">
-        Vendor assignment and photo attachments for maintenance tickets aren&apos;t available yet.
-      </p>
+      <div className="mt-8">
+        <Link href={`/documents/new?maintenanceTicketId=${ticket.id}`}>
+          <Button variant="secondary" size="sm">
+            Upload document
+          </Button>
+        </Link>
+        <p className="mt-2 text-xs text-light-textMuted dark:text-dark-textMuted">
+          Vendor assignment for maintenance tickets isn&apos;t available yet.
+        </p>
+      </div>
     </div>
   );
 }

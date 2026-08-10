@@ -17,6 +17,10 @@ export default async function EditMaintenancePage({ params }: RouteParams) {
         mode="edit"
         orgId="demo-org-1"
         propertyId="demo-property-1"
+        units={[
+          { id: 'demo-unit-1', unitLabel: 'Unit 1' },
+          { id: 'demo-unit-2', unitLabel: 'Unit 2' },
+        ]}
         ticket={{
           id: 'demo-ticket-1',
           orgId: 'demo-org-1',
@@ -56,11 +60,19 @@ export default async function EditMaintenancePage({ params }: RouteParams) {
   const canEdit = membership && canWriteOrgRecords(membership.role);
   if (!canEdit) redirect(`/maintenance/${id}`);
 
+  const { data: units, error: unitsError } = await supabase
+    .from('units')
+    .select('id, unit_label')
+    .eq('property_id', ticket.propertyId)
+    .order('unit_label', { ascending: true });
+  if (unitsError) throw new Error(`Failed to load units: ${unitsError.message}`);
+
   return (
     <MaintenanceForm
       mode="edit"
       orgId={ticket.orgId}
       propertyId={ticket.propertyId}
+      units={(units ?? []).map((u) => ({ id: u.id, unitLabel: u.unit_label }))}
       ticket={ticket}
     />
   );

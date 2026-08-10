@@ -52,7 +52,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
   const { data, error } = await supabase
     .from('property_owners')
     .select(
-      'property_id, owner_id, ownership_pct, created_at, owners(id, name, owner_type, email, phone)',
+      'property_id, owner_id, ownership_pct, created_at, owners(id, name, owner_type, email, phone, user_id)',
     )
     .eq('property_id', propertyId);
 

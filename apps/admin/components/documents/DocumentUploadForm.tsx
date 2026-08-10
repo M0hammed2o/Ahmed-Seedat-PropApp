@@ -8,11 +8,27 @@ import { Button } from '@/components/ui/Button';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Panel } from '@/components/ui/Panel';
 
+interface LockedContext {
+  propertyId: string;
+  propertyNickname: string;
+  maintenanceTicketId: string;
+  maintenanceTicketSummary: string;
+  unitId: string | null;
+}
+
 interface DocumentUploadFormProps {
   orgId: string;
   properties: { id: string; nickname: string }[];
   categories: { id: string; label: string }[];
   leases: { id: string; label: string }[];
+  /** Security + maintenance workflow pass (WORKLOG.md this date): set when arriving from a
+   * maintenance ticket's "Upload document" link -- property/unit/maintenance-ticket association
+   * is already known there, so those fields become fixed context instead of pickers the staff
+   * member has to fill in by hand (task brief: "do not require the staff member to manually
+   * select information the system already knows"). Category still defaults, not locks, to
+   * Maintenance -- a ticket's documents aren't always exactly that category (e.g. a compliance
+   * certificate triggered by the same repair). */
+  lockedContext?: LockedContext;
 }
 
 export function DocumentUploadForm({
@@ -20,9 +36,10 @@ export function DocumentUploadForm({
   properties,
   categories,
   leases,
+  lockedContext,
 }: DocumentUploadFormProps) {
   const router = useRouter();
-  const [propertyId, setPropertyId] = useState(properties[0]?.id ?? '');
+  const [propertyId, setPropertyId] = useState(lockedContext?.propertyId ?? properties[0]?.id ?? '');
   const [categoryId, setCategoryId] = useState(categories[0]?.id ?? '');
   const [documentType, setDocumentType] = useState<DocumentType>('supporting_document');
   const [leaseId, setLeaseId] = useState('');
@@ -48,6 +65,10 @@ export function DocumentUploadForm({
       form.set('categoryId', categoryId);
       form.set('documentType', documentType);
       if (leaseId) form.set('leaseId', leaseId);
+      if (lockedContext) {
+        form.set('maintenanceTicketId', lockedContext.maintenanceTicketId);
+        if (lockedContext.unitId) form.set('unitId', lockedContext.unitId);
+      }
 
       const response = await fetch('/api/v1/documents', { method: 'POST', body: form });
       const body = await response.json();
@@ -65,7 +86,7 @@ export function DocumentUploadForm({
     }
   }
 
-  if (properties.length === 0) {
+  if (properties.length === 0 && !lockedContext) {
     return (
       <div className="space-y-6 animate-rise">
         <PageHeader title="Upload document" />
@@ -88,6 +109,12 @@ export function DocumentUploadForm({
             </p>
           ) : null}
 
+          {lockedContext ? (
+            <p className="rounded-md border border-light-border bg-light-surface px-3 py-2 text-xs text-light-textSecondary dark:border-dark-border dark:bg-dark-surface dark:text-dark-textSecondary">
+              Maintenance: {lockedContext.maintenanceTicketSummary} — {lockedContext.propertyNickname}
+            </p>
+          ) : null}
+
           <label className="block text-xs">
             <span className="text-light-textMuted dark:text-dark-textMuted">
               File (PDF, JPEG, PNG, or HEIC, up to 25MB)
@@ -106,20 +133,29 @@ export function DocumentUploadForm({
             ) : null}
           </label>
 
-          <label className="block text-xs">
-            <span className="text-light-textMuted dark:text-dark-textMuted">Property</span>
-            <select
-              value={propertyId}
-              onChange={(e) => setPropertyId(e.target.value)}
-              className={inputClass}
-            >
-              {properties.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.nickname}
-                </option>
-              ))}
-            </select>
-          </label>
+          {lockedContext ? (
+            <p className="block text-xs">
+              <span className="text-light-textMuted dark:text-dark-textMuted">Property</span>
+              <span className="mt-1 block text-sm text-light-textPrimary dark:text-dark-textPrimary">
+                {lockedContext.propertyNickname}
+              </span>
+            </p>
+          ) : (
+            <label className="block text-xs">
+              <span className="text-light-textMuted dark:text-dark-textMuted">Property</span>
+              <select
+                value={propertyId}
+                onChange={(e) => setPropertyId(e.target.value)}
+                className={inputClass}
+              >
+                {properties.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.nickname}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
 
           <label className="block text-xs">
             <span className="text-light-textMuted dark:text-dark-textMuted">Document type</span>

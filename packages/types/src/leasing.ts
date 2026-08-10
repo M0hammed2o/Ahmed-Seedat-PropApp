@@ -9,6 +9,7 @@ import type {
   RentScheduleStatus,
   LeaseTemplateStatus,
   TenantInvitationDeliveryChannel,
+  OwnerInvitationDeliveryChannel,
 } from './enums';
 
 // Leasing-domain types (DATABASE.md §4). `Tenant` is the first of this family (TASKS.md M8);
@@ -111,6 +112,24 @@ export interface TenantInvitation {
   revokedAt: string | null;
   createdByUserId: string;
   failedAttemptCount: number;
+  resendCount: number;
+  createdAt: string;
+}
+
+// Shared-access architecture pass (WORKLOG.md this date) -- mirrors TenantInvitation exactly,
+// minus the short-code fields tenant invitations alone need (an owner invitation is always a
+// single token, delivered to the owner directly by staff, never a walkthrough-typed code).
+export interface OwnerInvitation {
+  id: string;
+  orgId: string;
+  ownerId: string;
+  deliveryChannel: OwnerInvitationDeliveryChannel;
+  destinationHint: string | null;
+  expiresAt: string;
+  acceptedAt: string | null;
+  acceptedByUserId: string | null;
+  revokedAt: string | null;
+  createdByUserId: string;
   resendCount: number;
   createdAt: string;
 }

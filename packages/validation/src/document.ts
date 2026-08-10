@@ -13,6 +13,13 @@ export const documentUploadMetadataSchema = z.object({
   // (PERMISSIONS.md §4: a property's documents include owner-only paperwork a tenant must never
   // see).
   leaseId: z.string().uuid().optional().nullable(),
+  // Shared-access architecture pass (WORKLOG.md this date), Phase 4: trusted-context filing.
+  // Populated from the page the upload happens on (unit page pre-fills unitId, tenant page
+  // pre-fills tenantId, a maintenance ticket pre-fills maintenanceTicketId) -- never inferred from
+  // OCR, and never required (a document can still be filed at property level alone).
+  unitId: z.string().uuid().optional().nullable(),
+  tenantId: z.string().uuid().optional().nullable(),
+  maintenanceTicketId: z.string().uuid().optional().nullable(),
   originalFileName: z.string().min(1).max(255),
   mimeType: z.enum(ALLOWED_MIME_TYPES),
   fileSizeBytes: z.number().int().positive(),

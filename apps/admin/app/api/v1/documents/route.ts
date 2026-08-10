@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { documentUploadMetadataSchema } from '@propvault/validation';
 import { ALLOWED_MIME_TYPES } from '@propvault/types';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
-import { requireOrgRole } from '@/lib/portfolio';
+import { requireOrgRole, requirePropertyAccess } from '@/lib/portfolio';
 import { mapDocumentRow } from '@/lib/documents';
 import { parseListQuery, encodeCursor, beforeCursorFilter } from '@/lib/cursorPagination';
 import { scanUploadOrRespond } from '@/lib/uploadScan';
@@ -121,6 +121,9 @@ export async function POST(request: NextRequest) {
     categoryId: form.get('categoryId'),
     documentType: form.get('documentType'),
     leaseId: form.get('leaseId') || null,
+    unitId: form.get('unitId') || null,
+    tenantId: form.get('tenantId') || null,
+    maintenanceTicketId: form.get('maintenanceTicketId') || null,
     originalFileName: file.name,
     mimeType: file.type,
     fileSizeBytes: file.size,
@@ -145,6 +148,26 @@ export async function POST(request: NextRequest) {
         error: {
           code: 'forbidden',
           message: 'You do not have permission to upload documents for this organization.',
+        },
+      },
+      { status: 403 },
+    );
+  }
+
+  // Storage/RLS closure pass (WORKLOG.md this date): org role alone isn't enough once
+  // property_access_mode = 'selected' staff exist -- without this, a selected-mode staffer with
+  // no grant on this property would still pass the org check above and reach the storage upload
+  // (now blocked at the RLS layer too, 20260101000086, but that surfaces as an opaque 500; this
+  // gives the real 403 before the file ever leaves the request).
+  const canWriteProperty =
+    (await requirePropertyAccess(supabase, parsed.data.propertyId, 'property_manager')) ||
+    (await requirePropertyAccess(supabase, parsed.data.propertyId, 'owner'));
+  if (!canWriteProperty) {
+    return NextResponse.json(
+      {
+        error: {
+          code: 'forbidden',
+          message: 'You do not have permission to upload documents for this property.',
         },
       },
       { status: 403 },
@@ -184,6 +207,10 @@ export async function POST(request: NextRequest) {
       category_id: parsed.data.categoryId,
       document_type: parsed.data.documentType,
       lease_id: parsed.data.leaseId ?? null,
+      unit_id: parsed.data.unitId ?? null,
+      tenant_id: parsed.data.tenantId ?? null,
+      maintenance_ticket_id: parsed.data.maintenanceTicketId ?? null,
+      uploaded_by: user.id,
       storage_path: storagePath,
       original_file_name: parsed.data.originalFileName,
       mime_type: parsed.data.mimeType,

@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { extractionReviewSchema } from '@propvault/validation';
 import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
-import { requireOrgRole } from '@/lib/portfolio';
+import { requireOrgRole, requirePropertyAccess } from '@/lib/portfolio';
 import { mapExtractionResultRow } from '@/lib/documents';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
   const { data: document, error: documentError } = await supabase
     .from('documents')
-    .select('id, org_id')
+    .select('id, org_id, property_id')
     .eq('id', id)
     .maybeSingle();
   if (documentError) {
@@ -45,7 +45,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
 
   const canWrite = await requireOrgRole(supabase, document.org_id, 'agent');
-  if (!canWrite) {
+  // Same property-isolation reasoning as /extract -- extraction_results has no client write
+  // policy, so this is the only enforcement point for property-level scoping on this action.
+  const canAccessProperty =
+    canWrite &&
+    ((await requirePropertyAccess(supabase, document.property_id, 'property_manager')) ||
+      (await requirePropertyAccess(supabase, document.property_id, 'owner')));
+  if (!canAccessProperty) {
     return NextResponse.json(
       {
         error: {

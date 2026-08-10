@@ -10,7 +10,13 @@ import { EmptyState } from '@/components/ui/EmptyState';
 // drag-and-drop kanban -- status changes go through the ticket detail/edit page's server-validated
 // transition, not a drag gesture (a confirmed, honest V1 scope reduction, same category as
 // Portfolio Map's "no GIS/heatmap layers").
-export function MaintenanceBoard({ tickets }: { tickets: MaintenanceTicket[] }) {
+export function MaintenanceBoard({
+  tickets,
+  unitLabelById,
+}: {
+  tickets: MaintenanceTicket[];
+  unitLabelById?: Map<string, string>;
+}) {
   if (tickets.length === 0) {
     return (
       <div className="rounded-card border border-light-border bg-light-surfaceRaised shadow-card dark:border-dark-border dark:bg-dark-surfaceRaised">
@@ -46,6 +52,9 @@ export function MaintenanceBoard({ tickets }: { tickets: MaintenanceTicket[] }) 
                   >
                     <p className="font-medium text-light-textPrimary dark:text-dark-textPrimary">
                       {ticket.summary}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-light-textMuted dark:text-dark-textMuted">
+                      {ticket.unitId ? (unitLabelById?.get(ticket.unitId) ?? 'Unit') : 'Common area'}
                     </p>
                     <div className="mt-1.5">
                       <StatusBadge

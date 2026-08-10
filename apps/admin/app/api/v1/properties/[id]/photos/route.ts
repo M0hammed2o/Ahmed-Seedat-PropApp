@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { NextResponse, type NextRequest } from 'next/server';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
-import { requireOrgRole } from '@/lib/portfolio';
+import { requireOrgRole, requirePropertyAccess } from '@/lib/portfolio';
 import { scanUploadOrRespond } from '@/lib/uploadScan';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -104,6 +104,21 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
   const canWrite = await requireOrgRole(supabase, property.org_id, 'agent');
   if (!canWrite) {
+    return NextResponse.json(
+      {
+        error: {
+          code: 'forbidden',
+          message: 'You do not have permission to upload photos for this property.',
+        },
+      },
+      { status: 403 },
+    );
+  }
+
+  const canWriteProperty =
+    (await requirePropertyAccess(supabase, propertyId, 'property_manager')) ||
+    (await requirePropertyAccess(supabase, propertyId, 'owner'));
+  if (!canWriteProperty) {
     return NextResponse.json(
       {
         error: {

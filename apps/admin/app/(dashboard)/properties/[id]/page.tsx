@@ -16,6 +16,7 @@ import { SimpleTabs } from '@/components/ui/SimpleTabs';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 import { ValuationForm } from '@/components/properties/ValuationForm';
 import { PropertyPhotosPanel } from '@/components/properties/PropertyPhotosPanel';
+import { PropertyDocumentFolders } from '@/components/properties/PropertyDocumentFolders';
 import { PropertyOwnersPanel } from '@/components/properties/PropertyOwnersPanel';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -31,6 +32,9 @@ interface PropertyDocument {
   id: string;
   originalFileName: string;
   documentType: string;
+  categoryId: string;
+  billingYear: number | null;
+  billingMonth: number | null;
   updatedAt: string;
 }
 
@@ -117,6 +121,7 @@ export default async function PropertyDetailPage({ params }: RouteParams) {
         maintenanceTickets={DEMO_TICKETS}
         tenants={DEMO_TENANTS}
         documents={[]}
+        categoryLabelById={new Map()}
         accounting={{ incomeYtd: 62500, expensesYtd: 4200 }}
         canManage
         coverPhotoUrl={null}
@@ -151,10 +156,11 @@ export default async function PropertyDetailPage({ params }: RouteParams) {
       .order('created_at', { ascending: false }),
     supabase
       .from('documents')
-      .select('id, original_file_name, document_type, updated_at')
+      .select('id, original_file_name, document_type, category_id, billing_year, billing_month, updated_at')
       .eq('property_id', id)
+      .is('deleted_at', null)
       .order('updated_at', { ascending: false })
-      .limit(8),
+      .limit(200),
   ]);
   if (unitsResult.error) throw new Error(`Failed to load units: ${unitsResult.error.message}`);
   if (ticketsResult.error)
@@ -168,8 +174,16 @@ export default async function PropertyDetailPage({ params }: RouteParams) {
     id: d.id,
     originalFileName: d.original_file_name,
     documentType: d.document_type,
+    categoryId: d.category_id,
+    billingYear: d.billing_year,
+    billingMonth: d.billing_month,
     updatedAt: d.updated_at,
   }));
+
+  const { data: categoryRows } = await supabase
+    .from('document_categories')
+    .select('id, slug, label');
+  const categoryLabelById = new Map((categoryRows ?? []).map((c) => [c.id, c.label]));
 
   const [tenants, accounting, coverPhotoUrl, setupProgress] = await Promise.all([
     loadPropertyTenants(supabase, units),
@@ -189,6 +203,7 @@ export default async function PropertyDetailPage({ params }: RouteParams) {
       maintenanceTickets={maintenanceTickets}
       tenants={tenants}
       documents={documents}
+      categoryLabelById={categoryLabelById}
       accounting={accounting}
       canManage={canManage}
       coverPhotoUrl={coverPhotoUrl}
@@ -364,6 +379,7 @@ function PropertyDetailView({
   maintenanceTickets,
   tenants,
   documents,
+  categoryLabelById,
   accounting,
   canManage,
   coverPhotoUrl,
@@ -374,6 +390,7 @@ function PropertyDetailView({
   maintenanceTickets: MaintenanceTicket[];
   tenants: PropertyTenant[];
   documents: PropertyDocument[];
+  categoryLabelById: Map<string, string>;
   accounting: PropertyAccounting;
   canManage: boolean;
   coverPhotoUrl: string | null;
@@ -398,6 +415,7 @@ function PropertyDetailView({
 
   const occupiedCount = units.filter((u) => u.status === 'occupied').length;
   const imageSrc = coverPhotoUrl ?? property.imagePath ?? '/property-placeholder.svg';
+  const unitLabelById = new Map(units.map((u) => [u.id, u.unitLabel]));
 
   return (
     <>
@@ -583,35 +601,7 @@ function PropertyDetailView({
             label: `Documents (${documents.length})`,
             content:
               documents.length > 0 ? (
-                <Panel bodyClassName="p-5">
-                  <ul className="grid gap-3 md:grid-cols-2">
-                    {documents.map((d) => (
-                      <li
-                        key={d.id}
-                        className="flex items-center gap-3 rounded-xl border border-border p-3.5"
-                      >
-                        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-primary-soft text-[10px] font-bold text-primary">
-                          {d.originalFileName.split('.').pop()?.toUpperCase() ?? 'DOC'}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-[13px] font-medium text-foreground">
-                            {d.originalFileName}
-                          </p>
-                          <p className="text-[11px] text-muted-foreground capitalize">
-                            {d.documentType.replace('_', ' ')} ·{' '}
-                            {new Date(d.updatedAt).toLocaleDateString('en-ZA')}
-                          </p>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                  <Link
-                    href="/documents"
-                    className="mt-4 inline-block text-[12px] font-medium text-primary hover:underline"
-                  >
-                    View all documents →
-                  </Link>
-                </Panel>
+                <PropertyDocumentFolders documents={documents} categoryLabelById={categoryLabelById} />
               ) : (
                 <div className="panel py-8 text-center">
                   <p className="text-sm text-muted-foreground">
@@ -636,6 +626,7 @@ function PropertyDetailView({
                 <MaintenanceTable
                   data={maintenanceTickets}
                   emptyAction={canManage ? reportIssueAction : undefined}
+                  unitLabelById={unitLabelById}
                 />
               </div>
             ),

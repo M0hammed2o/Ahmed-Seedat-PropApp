@@ -18,6 +18,10 @@ interface DocumentRow {
   billing_year: number | null;
   billing_month: number | null;
   lease_id: string | null;
+  unit_id: string | null;
+  tenant_id: string | null;
+  maintenance_ticket_id: string | null;
+  uploaded_by: string | null;
   deleted_at: string | null;
   created_at: string;
   updated_at: string;
@@ -39,6 +43,10 @@ export function mapDocumentRow(row: DocumentRow): DocumentRecord {
     billingYear: row.billing_year,
     billingMonth: row.billing_month,
     leaseId: row.lease_id,
+    unitId: row.unit_id,
+    tenantId: row.tenant_id,
+    maintenanceTicketId: row.maintenance_ticket_id,
+    uploadedBy: row.uploaded_by,
     deletedAt: row.deleted_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,

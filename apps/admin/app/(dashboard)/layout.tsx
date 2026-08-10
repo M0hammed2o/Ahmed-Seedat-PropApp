@@ -200,6 +200,7 @@ export default async function PortalLayout({ children }: { children: React.React
     ...(canManageOrg
       ? [
           { href: '/organization/settings', label: 'Organization settings' },
+          { href: '/organization/staff', label: 'Staff & property access' },
           { href: '/organization/lease-templates', label: 'Lease templates' },
         ]
       : []),

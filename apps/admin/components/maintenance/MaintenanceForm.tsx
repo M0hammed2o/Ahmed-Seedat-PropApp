@@ -7,20 +7,23 @@ import { MAINTENANCE_PRIORITIES, MAINTENANCE_STATUSES } from '@propvault/types';
 import { Button } from '@/components/ui/Button';
 import { PageHeader } from '@/components/ui/PageHeader';
 
-// Same DESIGN_SYSTEM.md "Forms" conventions as the other create/edit forms this milestone. No
-// unit/lease/tenant/vendor linkage fields -- maintenanceTicketCreateSchema supports them, but
-// there's no picker UI for any of them yet (same "don't build a picker for a feature with no real
-// caller" judgment as UnitForm/LeaseForm), and vendor assignment specifically has no Vendors
-// module UI at all yet (TASKS.md M20 hasn't reached it). Status transitions are NOT
-// client-validated against MAINTENANCE_TRANSITIONS (apps/admin/lib/operations.ts is server-only,
-// can't be imported here) -- the server rejects an illegal transition with a 409, surfaced through
-// the same generic error banner every form in this milestone already has.
+// Same DESIGN_SYSTEM.md "Forms" conventions as the other create/edit forms this milestone.
+// Security + maintenance workflow pass (WORKLOG.md this date): added the unit/common-area
+// picker -- maintenance_tickets.unit_id already existed (20260101000034) with no UI ever built
+// for it, a real workflow defect for multi-unit properties. Still no lease/tenant/vendor linkage
+// fields -- unrelated to this pass, same "don't build a picker for a feature with no real caller"
+// judgment as before, and vendor assignment specifically has no Vendors module UI at all yet
+// (TASKS.md M20 hasn't reached it). Status transitions are NOT client-validated against
+// MAINTENANCE_TRANSITIONS (apps/admin/lib/operations.ts is server-only, can't be imported here) --
+// the server rejects an illegal transition with a 409, surfaced through the same generic error
+// banner every form in this milestone already has.
 
 interface FormState {
   summary: string;
   description: string;
   priority: MaintenancePriority;
   status: MaintenanceStatus;
+  unitId: string;
 }
 
 function toFormState(ticket?: MaintenanceTicket): FormState {
@@ -29,6 +32,7 @@ function toFormState(ticket?: MaintenanceTicket): FormState {
     description: ticket?.description ?? '',
     priority: ticket?.priority ?? 'medium',
     status: ticket?.status ?? 'to_do',
+    unitId: ticket?.unitId ?? '',
   };
 }
 
@@ -36,10 +40,13 @@ interface MaintenanceFormProps {
   mode: 'create' | 'edit';
   orgId: string;
   propertyId: string;
+  /** Units belonging to this ticket's own property only -- the route loading this form always
+   * scopes the query to :propertyId, so there's no cross-property picker to guard against here. */
+  units: { id: string; unitLabel: string }[];
   ticket?: MaintenanceTicket;
 }
 
-export function MaintenanceForm({ mode, orgId, propertyId, ticket }: MaintenanceFormProps) {
+export function MaintenanceForm({ mode, orgId, propertyId, units, ticket }: MaintenanceFormProps) {
   const router = useRouter();
   const [form, setForm] = useState<FormState>(() => toFormState(ticket));
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
@@ -65,6 +72,7 @@ export function MaintenanceForm({ mode, orgId, propertyId, ticket }: Maintenance
           ? {
               orgId,
               propertyId,
+              unitId: form.unitId || null,
               summary: form.summary,
               description: form.description || null,
               priority: form.priority,
@@ -74,6 +82,7 @@ export function MaintenanceForm({ mode, orgId, propertyId, ticket }: Maintenance
               description: form.description || null,
               priority: form.priority,
               status: form.status,
+              unitId: form.unitId || null,
             };
       const response = await fetch(url, {
         method: mode === 'create' ? 'POST' : 'PATCH',
@@ -130,6 +139,21 @@ export function MaintenanceForm({ mode, orgId, propertyId, ticket }: Maintenance
           <p className="mt-1 text-right text-[11px] text-light-textMuted dark:text-dark-textMuted">
             {form.description.length}/5000
           </p>
+        </Field>
+
+        <Field label="Where is the issue?" error={fieldErrors.unitId}>
+          <select
+            value={form.unitId}
+            onChange={(e) => set('unitId', e.target.value)}
+            className={inputClass}
+          >
+            <option value="">Common area / Property-wide</option>
+            {units.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.unitLabel}
+              </option>
+            ))}
+          </select>
         </Field>
 
         <Field label="Priority">

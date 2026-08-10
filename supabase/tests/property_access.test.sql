@@ -260,16 +260,17 @@ select current_setting('pgtap.property_access_test.property_id')::uuid, o.id, 10
 from public.owners o
 where o.name = 'Owner With Login';
 
--- property_owners' own insert trigger (20260101000062) does not touch property_access -- that
--- table is only pre-populated by this migration's one-time backfill, not kept live in sync by a
--- trigger (a deliberate scope boundary: Phase 4's assignment UI is the intended live-management
--- surface, not an implicit side effect of recording an ownership share).
+-- Superseded by 20260101000083's sync_owner_property_access_trigger (shared-access architecture
+-- pass, WORKLOG.md that date): recording a NEW ownership share for an owner who already has a
+-- linked account now DOES grant 'owner' property_access live, not just at invitation-acceptance
+-- time -- otherwise only the properties owned AT THE MOMENT an owner accepted their invitation
+-- would ever get a grant, and every later-added property would silently need manual curation.
 select is(
-  (select count(*)::int from public.property_access
+  (select property_role::text from public.property_access
      where property_id = current_setting('pgtap.property_access_test.property_id')::uuid
        and user_id = 'f1000000-0000-0000-0000-000000000004'::uuid),
-  0,
-  'an ownership share recorded AFTER the backfill migration ran does not retroactively grant property_access (documents the boundary, not a bug)'
+  'owner',
+  'an ownership share recorded for an owner who already has a linked account grants owner-role property_access live'
 );
 
 select * from finish();

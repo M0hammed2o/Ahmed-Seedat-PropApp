@@ -129,6 +129,21 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (error) {
+    // validate_maintenance_ticket_unit_trigger (20260101000087) rejects a unit that belongs to a
+    // different property with this exact message -- surfaced as a clean 400/field error instead
+    // of the generic 500 every other insert failure gets.
+    if (error.message.includes('unit_id must belong to the maintenance ticket')) {
+      return NextResponse.json(
+        {
+          error: {
+            code: 'validation_failed',
+            message: 'That unit does not belong to this property.',
+            field_errors: { unitId: ['That unit does not belong to this property.'] },
+          },
+        },
+        { status: 400 },
+      );
+    }
     return NextResponse.json(
       { error: { code: 'maintenance_ticket_create_failed', message: error.message } },
       { status: 500 },

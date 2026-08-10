@@ -28,6 +28,12 @@ export interface DocumentRecord {
    *  `documents_select_tenant_self` (migration 20260101000049) -- null for every staff/owner-only
    *  document, which is the default and stays the vast majority of rows. */
   leaseId: string | null;
+  /** Shared-access architecture pass (WORKLOG.md this date) -- optional structured-filing context.
+   *  None of these are required; a document filed at property level alone leaves them all null. */
+  unitId: string | null;
+  tenantId: string | null;
+  maintenanceTicketId: string | null;
+  uploadedBy: string | null;
   deletedAt: string | null;
   createdAt: string;
   updatedAt: string;

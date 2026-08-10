@@ -13,7 +13,13 @@ import { MaintenanceBoard } from './MaintenanceBoard';
 // MaintenanceBoard (already a genuine grouped-by-status kanban, PROPVIEW_SCREENSHOT_AUDIT.md
 // IMG_7967-7968) rather than replacing it. Table view reuses the existing MaintenanceTable
 // (AdminDataTable-based, same component the Property Detail maintenance tab already uses).
-export function MaintenanceFilterClient({ tickets }: { tickets: MaintenanceTicket[] }) {
+export function MaintenanceFilterClient({
+  tickets,
+  unitLabelById,
+}: {
+  tickets: MaintenanceTicket[];
+  unitLabelById?: Map<string, string>;
+}) {
   const [view, setView] = useState<'board' | 'table'>('board');
   const { query, setQuery, filtered } = useListSearch(
     tickets,
@@ -53,9 +59,9 @@ export function MaintenanceFilterClient({ tickets }: { tickets: MaintenanceTicke
       </div>
 
       {view === 'board' ? (
-        <MaintenanceBoard tickets={filtered} />
+        <MaintenanceBoard tickets={filtered} unitLabelById={unitLabelById} />
       ) : (
-        <MaintenanceTable data={filtered} />
+        <MaintenanceTable data={filtered} unitLabelById={unitLabelById} />
       )}
     </div>
   );

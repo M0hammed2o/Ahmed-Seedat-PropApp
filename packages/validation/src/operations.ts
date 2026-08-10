@@ -45,6 +45,11 @@ export const maintenanceTicketUpdateSchema = z.object({
   summary: z.string().min(1).max(200).optional(),
   description: z.string().max(5000).optional().nullable(),
   priority: z.enum(MAINTENANCE_PRIORITIES).optional(),
+  // null means common area / property-wide; property_id itself never changes on edit (task brief:
+  // "do not ask the user to re-select the property"), so there's no propertyId field here to
+  // validate unitId against -- the server derives it from the existing row, and the
+  // validate_maintenance_ticket_unit_trigger (20260101000087) enforces the match either way.
+  unitId: z.string().uuid().optional().nullable(),
   assignedVendorId: z.string().uuid().optional().nullable(),
   status: z.enum(['to_do', 'in_progress', 'pending_approval', 'completed']).optional(),
 });

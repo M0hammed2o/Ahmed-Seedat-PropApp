@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { Bell, Building2, ChevronRight, LogOut, Menu, X } from 'lucide-react';
@@ -125,6 +125,17 @@ export function AppShell({
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const unreadCount = notifications.filter((n) => !n.readAt).length;
+
+  /** React #418 fix (WORKLOG.md this date): relativeTime() reads Date.now(), so calling it
+   *  directly in render produced a different string on the server-rendered HTML than on the
+   *  client's hydration pass whenever a minute boundary fell between the two -- a genuine
+   *  hydration-mismatch source, not a false positive. mounted stays false through the client's
+   *  first (hydrating) render, so that render matches the server's exactly; the real relative
+   *  time only appears once mounted flips true post-hydration, in its own effect-driven render. */
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Longest-matching-prefix wins (real bug found 2026-08-04 adding the Accounting overview page:
   // its href /accounting is itself a path prefix of every existing Finance sub-page's href, e.g.
@@ -325,7 +336,7 @@ export function AppShell({
                           <p className="text-[13px] font-medium text-foreground">{n.title}</p>
                           <p className="truncate text-xs text-muted-foreground">{n.body}</p>
                           <p className="mt-1 text-[11px] text-muted-foreground/70">
-                            {relativeTime(n.createdAt)}
+                            {mounted ? relativeTime(n.createdAt) : ''}
                           </p>
                         </li>
                       ))}

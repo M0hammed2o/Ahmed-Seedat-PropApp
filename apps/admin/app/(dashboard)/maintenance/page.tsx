@@ -37,6 +37,9 @@ const DEMO_TICKETS: MaintenanceTicket[] = [
  */
 export default async function MaintenancePage() {
   const tickets: MaintenanceTicket[] = ADMIN_DEMO_MODE ? DEMO_TICKETS : await loadTickets();
+  const unitLabelById: Map<string, string> = ADMIN_DEMO_MODE
+    ? new Map([['demo-unit-1', 'Unit 1']])
+    : await loadUnitLabels();
 
   const toDo = tickets.filter((t) => t.status === 'to_do').length;
   const inProgress = tickets.filter((t) => t.status === 'in_progress').length;
@@ -68,7 +71,7 @@ export default async function MaintenancePage() {
         <AdminMetricCard label="Completed" value={completed} />
       </div>
 
-      <MaintenanceFilterClient tickets={tickets} />
+      <MaintenanceFilterClient tickets={tickets} unitLabelById={unitLabelById} />
     </div>
   );
 }
@@ -81,4 +84,14 @@ async function loadTickets(): Promise<MaintenanceTicket[]> {
     .order('created_at', { ascending: false });
   if (error) throw new Error(`Failed to load maintenance tickets: ${error.message}`);
   return (data ?? []).map(mapMaintenanceTicketRow);
+}
+
+// Same RLS-scoped, no-explicit-org-filter read as loadTickets() above (this page is portfolio-wide
+// -- possibly several orgs/properties) -- a single indexed query, not a per-property fetch, so
+// showing real unit labels here costs one extra round trip, not N.
+async function loadUnitLabels(): Promise<Map<string, string>> {
+  const supabase = await getServerSupabaseClient();
+  const { data, error } = await supabase.from('units').select('id, unit_label');
+  if (error) throw new Error(`Failed to load units: ${error.message}`);
+  return new Map((data ?? []).map((u) => [u.id, u.unit_label]));
 }

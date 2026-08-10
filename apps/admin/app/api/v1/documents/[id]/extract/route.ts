@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
-import { requireOrgRole } from '@/lib/portfolio';
+import { requireOrgRole, requirePropertyAccess } from '@/lib/portfolio';
 import { getDocumentIntelligenceProvider } from '@/lib/providers/documentIntelligence';
 import { mapExtractionResultRow } from '@/lib/documents';
 
@@ -35,7 +35,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
 
   const { data: document, error: documentError } = await supabase
     .from('documents')
-    .select('id, org_id, document_type, storage_path, mime_type')
+    .select('id, org_id, property_id, document_type, storage_path, mime_type')
     .eq('id', id)
     .maybeSingle();
   if (documentError) {
@@ -63,7 +63,17 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
   }
 
   const canWrite = await requireOrgRole(supabase, document.org_id, 'agent');
-  if (!canWrite) {
+  // extraction_jobs/extraction_results have no client write policy at all (this route uses the
+  // service-role client for them below) -- unlike an ordinary write to `documents` itself, that
+  // write is never independently property-scoped by RLS, so this explicit check is the only
+  // enforcement of property isolation for this action (Stage 3: "must be enforced at the
+  // backend/database authorization layer", not merely inherited from a table policy that doesn't
+  // apply to the tables this route actually writes to).
+  const canAccessProperty =
+    canWrite &&
+    ((await requirePropertyAccess(supabase, document.property_id, 'property_manager')) ||
+      (await requirePropertyAccess(supabase, document.property_id, 'owner')));
+  if (!canAccessProperty) {
     return NextResponse.json(
       {
         error: {

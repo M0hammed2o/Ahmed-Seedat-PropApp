@@ -146,3 +146,22 @@ export async function requireOrgRole(
   if (error) throw new Error(`has_org_role RPC failed: ${error.message}`);
   return data === true;
 }
+
+// Shared-access architecture pass (WORKLOG.md this date): the app-layer companion to
+// requireOrgRole() for property-scoped actions that write through the service-role client or a
+// security-definer RPC (bypassing the property_access-aware table RLS the 7 cut-over tables
+// otherwise enforce automatically) -- extraction_jobs/extraction_results in particular. Ordinary
+// routes that write via the session-bound client to one of those 7 tables don't need this: RLS
+// already enforces it independently.
+export async function requirePropertyAccess(
+  supabase: SupabaseClient,
+  propertyId: string,
+  minRole: 'read_only' | 'owner' | 'property_manager' | 'accountant' | 'maintenance_manager' | 'administrator',
+): Promise<boolean> {
+  const { data, error } = await supabase.rpc('has_property_access', {
+    target_property_id: propertyId,
+    min_role: minRole,
+  });
+  if (error) throw new Error(`has_property_access RPC failed: ${error.message}`);
+  return data === true;
+}

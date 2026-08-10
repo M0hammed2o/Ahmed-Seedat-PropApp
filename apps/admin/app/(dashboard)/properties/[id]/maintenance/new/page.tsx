@@ -14,7 +14,17 @@ export default async function NewMaintenancePage({ params }: RouteParams) {
 
   if (ADMIN_DEMO_MODE) {
     if (propertyId !== 'demo-property-1') notFound();
-    return <MaintenanceForm mode="create" orgId="demo-org-1" propertyId={propertyId} />;
+    return (
+      <MaintenanceForm
+        mode="create"
+        orgId="demo-org-1"
+        propertyId={propertyId}
+        units={[
+          { id: 'demo-unit-1', unitLabel: 'Unit 1' },
+          { id: 'demo-unit-2', unitLabel: 'Unit 2' },
+        ]}
+      />
+    );
   }
 
   const session = await resolvePortalSession();
@@ -33,5 +43,19 @@ export default async function NewMaintenancePage({ params }: RouteParams) {
   const canCreate = membership && canWriteOrgRecords(membership.role);
   if (!canCreate) redirect(`/properties/${propertyId}`);
 
-  return <MaintenanceForm mode="create" orgId={property.org_id} propertyId={propertyId} />;
+  const { data: units, error: unitsError } = await supabase
+    .from('units')
+    .select('id, unit_label')
+    .eq('property_id', propertyId)
+    .order('unit_label', { ascending: true });
+  if (unitsError) throw new Error(`Failed to load units: ${unitsError.message}`);
+
+  return (
+    <MaintenanceForm
+      mode="create"
+      orgId={property.org_id}
+      propertyId={propertyId}
+      units={(units ?? []).map((u) => ({ id: u.id, unitLabel: u.unit_label }))}
+    />
+  );
 }

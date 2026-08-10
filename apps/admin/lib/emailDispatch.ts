@@ -17,7 +17,8 @@ export type EmailTemplateName =
   | 'subscription_suspended'
   | 'trial_expiring_soon'
   | 'member_invited'
-  | 'tenant_invitation';
+  | 'tenant_invitation'
+  | 'owner_invitation';
 
 // Only categories with an existing notification_preferences row can be preference-gated
 // (DATABASE.md §7's closed enum has no 'billing'/'accounting' category) -- invoice/payment/
@@ -41,6 +42,8 @@ const TEMPLATE_SUBJECTS: Record<EmailTemplateName, (vars: Record<string, unknown
     `You've been invited to join ${v.orgName ?? `a ${branding.productName} organization`}`,
   tenant_invitation: (v) =>
     `Activate your ${branding.productName} tenant portal for ${v.orgName ?? 'your rental'}`,
+  owner_invitation: (v) =>
+    `You've been invited to access your properties on ${v.orgName ?? branding.productName}`,
 };
 
 // Plain-text bodies, deliberately minimal (a real HTML/branded template pass is out of scope for
@@ -68,6 +71,8 @@ const TEMPLATE_BODY: Record<EmailTemplateName, (vars: Record<string, unknown>) =
     `You've been invited to join ${v.orgName ?? `a ${branding.productName} organization`}. Sign in to ${branding.productName} to accept.`,
   tenant_invitation: (v) =>
     `Activate your ${branding.productName} tenant portal for ${v.orgName ?? 'your rental'} to view your lease, payments, and submit maintenance requests.`,
+  owner_invitation: (v) =>
+    `${v.ownerName ?? 'You'} have been invited to view your properties on ${branding.productName}, on behalf of ${v.orgName ?? 'the managing organization'}. Sign in to accept.`,
 };
 
 export interface DispatchEmailInput {

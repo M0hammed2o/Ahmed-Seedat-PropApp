@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import type { OwnerType } from '@propvault/types';
+import type { OwnerType, OwnerInvitation } from '@propvault/types';
 import { OWNER_TYPES } from '@propvault/types';
 import { Button } from '@/components/ui/Button';
 import { Panel } from '@/components/ui/Panel';
@@ -11,11 +11,15 @@ import { Panel } from '@/components/ui/Panel';
 // apps/admin/app/api/v1/properties/[id]/owners/route.ts -- there was simply no UI calling it
 // anywhere, confirmed by grep before writing this). The logged-in user is never assumed to be the
 // owner -- this panel always requires an explicit pick-or-create action.
+//
+// Shared-access architecture pass (WORKLOG.md this date): adds account-linking status per owner
+// (Invite / Resend / Revoke), backed by owner_invitations (migration 20260101000083). Never links
+// an account by email match alone -- every action here goes through the invitation/token RPCs.
 
 interface PropertyOwnerRow {
   ownerId: string;
   ownershipPct: number;
-  owner: { id: string; name: string; owner_type: string; email: string | null } | null;
+  owner: { id: string; name: string; owner_type: string; email: string | null; user_id: string | null } | null;
 }
 
 interface OwnerOption {
@@ -151,9 +155,17 @@ export function PropertyOwnersPanel({
         <Panel title="Current ownership">
           <ul className="divide-y divide-light-border dark:divide-dark-border">
             {rows.map((r) => (
-              <li key={r.ownerId} className="flex items-center justify-between py-2.5 text-sm">
-                <span className="text-foreground">{r.owner?.name ?? 'Unknown owner'}</span>
-                <span className="tabular font-semibold text-foreground">{r.ownershipPct}%</span>
+              <li key={r.ownerId} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                <span className="min-w-0 truncate text-foreground">{r.owner?.name ?? 'Unknown owner'}</span>
+                <span className="tabular shrink-0 font-semibold text-foreground">{r.ownershipPct}%</span>
+                <div className="shrink-0">
+                  <OwnerAccountStatus
+                    ownerId={r.ownerId}
+                    hasAccount={Boolean(r.owner?.user_id)}
+                    hasEmail={Boolean(r.owner?.email)}
+                    canManage={canManage}
+                  />
+                </div>
               </li>
             ))}
           </ul>
@@ -277,6 +289,119 @@ export function PropertyOwnersPanel({
           </form>
         </Panel>
       ) : null}
+    </div>
+  );
+}
+
+/** Per-owner account-link status + Invite/Resend/Revoke -- a self-contained fetch per row (owner
+ * counts per property are typically small, so this stays simple rather than restructuring the
+ * parent's list fetch to embed invitation history). */
+function OwnerAccountStatus({
+  ownerId,
+  hasAccount,
+  hasEmail,
+  canManage,
+}: {
+  ownerId: string;
+  hasAccount: boolean;
+  hasEmail: boolean;
+  canManage: boolean;
+}) {
+  const [invitations, setInvitations] = useState<OwnerInvitation[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [justCreatedUrl, setJustCreatedUrl] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    const res = await fetch(`/api/v1/owners/${ownerId}/invitations`);
+    const body = await res.json();
+    setInvitations(body.invitations ?? []);
+  }, [ownerId]);
+
+  useEffect(() => {
+    if (!hasAccount) load();
+  }, [hasAccount, load]);
+
+  if (hasAccount) {
+    return (
+      <span className="text-xs font-medium text-light-statusPaid dark:text-dark-statusPaid">
+        Account linked
+      </span>
+    );
+  }
+
+  if (!canManage) {
+    return <span className="text-xs text-muted-foreground">Not invited</span>;
+  }
+
+  const active = (invitations ?? []).find(
+    (i) => !i.acceptedAt && !i.revokedAt && new Date(i.expiresAt) > new Date(),
+  );
+
+  async function invite() {
+    setBusy(true);
+    setError(null);
+    setJustCreatedUrl(null);
+    try {
+      const response = await fetch(`/api/v1/owners/${ownerId}/invitations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deliveryChannel: hasEmail ? 'email' : 'manual' }),
+      });
+      const body = await response.json();
+      if (!response.ok) {
+        setError(body.error?.message ?? 'Failed to send invitation.');
+        return;
+      }
+      setJustCreatedUrl(body.acceptUrl ?? null);
+      await load();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function revoke(invitationId: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/v1/owner-invitations/${invitationId}/revoke`, {
+        method: 'POST',
+      });
+      if (!response.ok) {
+        const body = await response.json();
+        setError(body.error?.message ?? 'Failed to revoke invitation.');
+        return;
+      }
+      await load();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-muted-foreground">
+          {active ? 'Invited (pending)' : 'Not invited'}
+        </span>
+        {active ? (
+          <Button size="sm" disabled={busy} onClick={() => revoke(active.id)}>
+            Revoke
+          </Button>
+        ) : null}
+        <Button size="sm" disabled={busy} onClick={invite}>
+          {active ? 'Resend' : 'Invite'}
+        </Button>
+      </div>
+      {justCreatedUrl ? (
+        <p className="max-w-[220px] text-right text-[11px] text-muted-foreground">
+          {hasEmail ? 'Sent. ' : ''}Share this link:{' '}
+          <a href={justCreatedUrl} className="break-all text-light-accent dark:text-dark-accent">
+            {justCreatedUrl}
+          </a>
+        </p>
+      ) : null}
+      {error ? <p className="text-[11px] text-light-danger dark:text-dark-danger">{error}</p> : null}
     </div>
   );
 }

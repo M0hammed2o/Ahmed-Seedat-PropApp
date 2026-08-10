@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { UNIT_STATUSES, OWNER_TYPES } from '@propvault/types';
+import { UNIT_STATUSES, OWNER_TYPES, OWNER_INVITATION_DELIVERY_CHANNELS } from '@propvault/types';
 
 // Units API (apps/admin/app/api/v1/properties/:propId/units, /api/v1/units/:id — API_SPEC.md §3,
 // TASKS.md M6). propertyId/orgId are always taken from the URL/session, never from this body —
@@ -45,3 +45,16 @@ export const propertyOwnerAttachSchema = z.object({
   ownershipPct: z.number().gt(0).lte(100),
 });
 export type PropertyOwnerAttachInput = z.infer<typeof propertyOwnerAttachSchema>;
+
+// Shared-access architecture pass (WORKLOG.md this date) -- owner invitation, mirrors
+// tenantInvitationCreateSchema's shape minus the short-code option (see OwnerInvitation's own
+// comment for why owners never need one).
+export const ownerInvitationCreateSchema = z.object({
+  deliveryChannel: z.enum(OWNER_INVITATION_DELIVERY_CHANNELS),
+});
+export type OwnerInvitationCreateInput = z.infer<typeof ownerInvitationCreateSchema>;
+
+export const ownerInvitationAcceptSchema = z.object({
+  token: z.string().min(1, 'token is required'),
+});
+export type OwnerInvitationAcceptInput = z.infer<typeof ownerInvitationAcceptSchema>;
