@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { dispatchWhatsApp } from '../whatsappDispatch';
+import { dispatchWhatsApp, resolveOrgWhatsAppBranding } from '../whatsappDispatch';
 
 // Real integration test against local Supabase, same pattern as emailDispatch.test.ts.
 
@@ -159,5 +159,30 @@ describeIfSupabase('dispatchWhatsApp (real local Supabase integration)', () => {
       actorUserId: null,
     });
     expect(result.sent).toBe(true);
+  });
+
+  describe('resolveOrgWhatsAppBranding', () => {
+    it('prefers trading_name over legal_name, and passes through support_contact_name', async () => {
+      await serviceClient
+        .from('organizations')
+        .update({ trading_name: 'Acme Rentals', support_contact_name: 'Jane from Acme' })
+        .eq('id', orgId);
+
+      const branding = await resolveOrgWhatsAppBranding(serviceClient, orgId);
+      expect(branding.organizationName).toBe('Acme Rentals');
+      expect(branding.supportName).toBe('Jane from Acme');
+    });
+
+    it('falls back to legal_name when trading_name is not set, and empty support name when unset', async () => {
+      const branding = await resolveOrgWhatsAppBranding(serviceClient, orgId);
+      expect(branding.organizationName).toContain('WhatsApp Dispatch Vitest Org');
+      expect(branding.supportName).toBe('');
+    });
+
+    it('falls back to a generic name for an unknown org id', async () => {
+      const branding = await resolveOrgWhatsAppBranding(serviceClient, crypto.randomUUID());
+      expect(branding.organizationName).toBe('your property manager');
+      expect(branding.supportName).toBe('');
+    });
   });
 });

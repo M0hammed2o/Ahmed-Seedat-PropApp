@@ -1,7 +1,7 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { WhatsAppNotificationType } from '@propvault/types';
-import { getWhatsAppProvider } from './providers/whatsapp';
+import { getWhatsAppProvider, isWhatsAppProviderConfigured } from './providers/whatsapp';
 import { writeAuditEvent } from './audit';
 
 // Wires a subset of WHATSAPP.md §2's fixed, pre-approved trigger list to the already-built
@@ -16,6 +16,35 @@ import { writeAuditEvent } from './audit';
 // (rent_overdue_material, lease_expiring_soon, rent_overdue_significant, ...) are deliberately
 // NOT wired -- inventing an ad-hoc "check overdue on every request" trigger would be exactly the
 // kind of guessed automation TASKS.md's own TD-20 note warns against.
+
+// Overnight platform pass (WORKLOG.md this date), Phase 6: WHATSAPP.md §3 already requires every
+// template to open with the org's own display name (a message from the one shared platform
+// number reads as spam otherwise) -- this resolves the two branding fields
+// (20260101000093: organizations.trading_name, already existed; support_contact_name, new)
+// call sites pass into their template `variables`. Kept here (not duplicated per call site) so
+// the "trading_name falls back to legal_name" rule lives in exactly one place.
+//
+// CRITICAL, disclosed limitation: Meta WhatsApp template parameters are POSITIONAL
+// (MetaWhatsAppProvider.sendTemplateMessage), and no real Meta Business/WhatsApp account or
+// approved template exists in this environment (external-service blocker, same as every other
+// real-provider gap this session) -- the variable ORDER used at each call site below is
+// provisional until the actual approved template text is designed in Meta Business Manager and
+// its real placeholder order is known. Do not treat this wiring as verified against a live
+// template.
+export async function resolveOrgWhatsAppBranding(
+  serviceClient: SupabaseClient,
+  orgId: string,
+): Promise<{ organizationName: string; supportName: string }> {
+  const { data } = await serviceClient
+    .from('organizations')
+    .select('legal_name, trading_name, support_contact_name')
+    .eq('id', orgId)
+    .maybeSingle();
+  return {
+    organizationName: data?.trading_name ?? data?.legal_name ?? 'your property manager',
+    supportName: data?.support_contact_name ?? '',
+  };
+}
 
 // Platform-owned single WhatsApp Business number (WHATSAPP.md §0) -- no real Meta/BSP account
 // exists yet (external-service blocker), so this is a clearly-labeled placeholder, same
@@ -61,6 +90,10 @@ export interface DispatchWhatsAppResult {
   sent: boolean;
   reason?: 'no_phone' | 'invalid_phone' | 'preference_disabled' | 'already_sent';
   whatsappMessageId?: string;
+  /** False whenever this dispatch went through MockWhatsAppProvider (no WHATSAPP_ACCESS_TOKEN/
+   * WHATSAPP_PHONE_NUMBER_ID/WHATSAPP_WEBHOOK_SECRET configured) -- mirrors
+   * DispatchEmailResult.deliveryConfigured for the same reason. */
+  deliveryConfigured: boolean;
 }
 
 /** Idempotent, preference-aware WhatsApp dispatch -- the one call site every trigger uses. */
@@ -68,9 +101,10 @@ export async function dispatchWhatsApp(
   serviceClient: SupabaseClient,
   input: DispatchWhatsAppInput,
 ): Promise<DispatchWhatsAppResult> {
+  const deliveryConfigured = isWhatsAppProviderConfigured();
   const toNumber = toE164(input.toPhone);
-  if (!input.toPhone) return { sent: false, reason: 'no_phone' };
-  if (!toNumber) return { sent: false, reason: 'invalid_phone' };
+  if (!input.toPhone) return { sent: false, reason: 'no_phone', deliveryConfigured };
+  if (!toNumber) return { sent: false, reason: 'invalid_phone', deliveryConfigured };
 
   const { data: existing } = await serviceClient
     .from('whatsapp_messages')
@@ -80,23 +114,42 @@ export async function dispatchWhatsApp(
     .eq('template_name', input.templateName)
     .maybeSingle();
   if (existing) {
-    return { sent: false, reason: 'already_sent', whatsappMessageId: existing.id };
+    return {
+      sent: false,
+      reason: 'already_sent',
+      whatsappMessageId: existing.id,
+      deliveryConfigured,
+    };
   }
 
   const category = TEMPLATE_CATEGORY[input.templateName];
-  if (category && input.toUserId) {
-    const { data: pref } = await serviceClient
-      .from('notification_preferences')
+  if (category) {
+    // Org-level default (Phase 5, 20260101000093) checked first -- same "org narrows, user can
+    // only narrow further" reasoning as dispatchEmail()'s mirrored check.
+    const { data: orgSetting } = await serviceClient
+      .from('organization_notification_settings')
       .select('whatsapp_enabled')
-      .eq('user_id', input.toUserId)
+      .eq('org_id', input.orgId)
       .eq('category', category)
       .maybeSingle();
-    // Missing row = default enabled (whatsapp_enabled defaults to true, WHATSAPP.md §2's "even a
-    // listed trigger is suppressed if the recipient opted out" rule -- this only runs for
-    // categorized types; tenant_invitation has no category above, so it skips this block
-    // entirely, same as the exempt account_security_event).
-    if (pref && pref.whatsapp_enabled === false) {
-      return { sent: false, reason: 'preference_disabled' };
+    if (orgSetting && orgSetting.whatsapp_enabled === false) {
+      return { sent: false, reason: 'preference_disabled', deliveryConfigured };
+    }
+
+    if (input.toUserId) {
+      const { data: pref } = await serviceClient
+        .from('notification_preferences')
+        .select('whatsapp_enabled')
+        .eq('user_id', input.toUserId)
+        .eq('category', category)
+        .maybeSingle();
+      // Missing row = default enabled (whatsapp_enabled defaults to true, WHATSAPP.md §2's "even
+      // a listed trigger is suppressed if the recipient opted out" rule -- this only runs for
+      // categorized types; tenant_invitation has no category above, so it skips this block
+      // entirely, same as the exempt account_security_event).
+      if (pref && pref.whatsapp_enabled === false) {
+        return { sent: false, reason: 'preference_disabled', deliveryConfigured };
+      }
     }
   }
 
@@ -135,5 +188,5 @@ export async function dispatchWhatsApp(
     after: { templateName: input.templateName, toNumber, status: 'queued' },
   });
 
-  return { sent: true, whatsappMessageId: message.id };
+  return { sent: true, whatsappMessageId: message.id, deliveryConfigured };
 }

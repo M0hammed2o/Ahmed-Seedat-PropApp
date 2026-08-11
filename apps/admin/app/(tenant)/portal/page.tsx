@@ -6,6 +6,7 @@ import { Panel } from '@/components/ui/Panel';
 import { Meter } from '@/components/ui/Meter';
 import { Button } from '@/components/ui/Button';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { resolveTenantSession, getTenancyLeaseIds } from '@/lib/tenantSession';
 import { mapAnnouncementRow } from '@/lib/notifications';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
@@ -288,20 +289,56 @@ function computeLeaseProgress(
 
 async function loadData(): Promise<PortalOverview> {
   const supabase = await getServerSupabaseClient();
+  const session = await resolveTenantSession();
+  if (!session) {
+    return {
+      lease: null,
+      paidCount: 0,
+      overdueCount: 0,
+      openMaintenanceCount: 0,
+      latestMaintenanceSummary: null,
+      documentsCount: 0,
+      notices: [],
+    };
+  }
+
+  // Multi-tenancy scoping (WORKLOG.md this date): every query below is scoped to the active
+  // tenancy (session.tenantId/leaseId/orgId/propertyId) rather than every row RLS alone would
+  // return across every tenancy the caller holds -- the dashboard for Tenancy A must never show
+  // Tenancy B's rent/maintenance/documents/notices, even for the same Auth user.
+  const tenancyLeaseIds = await getTenancyLeaseIds(supabase, session.tenantId);
+
+  let noticesQuery = supabase
+    .from('announcements')
+    .select('*')
+    .eq('org_id', session.orgId)
+    .order('published_at', { ascending: false })
+    .limit(3);
+  noticesQuery = session.propertyId
+    ? noticesQuery.or(`property_id.is.null,property_id.eq.${session.propertyId}`)
+    : noticesQuery.is('property_id', null);
 
   const [leaseResult, maintenanceResult, documentsResult, noticesResult] = await Promise.all([
-    supabase
-      .from('leases')
-      .select('*, units(unit_label, properties(nickname))')
-      .order('start_date', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+    session.leaseId
+      ? supabase
+          .from('leases')
+          .select('*, units(unit_label, properties(nickname))')
+          .eq('id', session.leaseId)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
     supabase
       .from('maintenance_tickets')
       .select('summary, status, created_at')
+      .or(`tenant_id.eq.${session.tenantId},submitted_by_tenant_id.eq.${session.tenantId}`)
       .order('created_at', { ascending: false }),
-    supabase.from('documents').select('id').is('deleted_at', null),
-    supabase.from('announcements').select('*').order('published_at', { ascending: false }).limit(3),
+    tenancyLeaseIds.length > 0
+      ? supabase
+          .from('documents')
+          .select('id')
+          .is('deleted_at', null)
+          .in('lease_id', tenancyLeaseIds)
+      : Promise.resolve({ data: [], error: null }),
+    noticesQuery,
   ]);
   if (leaseResult.error) throw new Error(`Failed to load lease: ${leaseResult.error.message}`);
   if (maintenanceResult.error)

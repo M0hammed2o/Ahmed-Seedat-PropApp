@@ -209,3 +209,11 @@ export function getWhatsAppProvider(): WhatsAppProvider {
   }
   return new MockWhatsAppProvider();
 }
+
+// Overnight platform pass (WORKLOG.md this date): mirrors isEmailProviderConfigured() (email.ts)
+// for the same reason -- dispatchWhatsApp() needs a way to tell a caller/UI "this was mocked, no
+// real message left the server" that can't drift out of sync with getWhatsAppProvider()'s own
+// fallback logic.
+export function isWhatsAppProviderConfigured(): boolean {
+  return getMetaWhatsAppConfig() !== null;
+}

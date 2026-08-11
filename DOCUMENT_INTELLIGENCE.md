@@ -16,7 +16,33 @@ interface DocumentIntelligenceProvider {
 
 `MockDocumentIntelligenceProvider` (Phase 1, implemented) returns deterministic fake structured data with plausible confidence scores after a simulated delay, so the full extraction-confirmation UI can be built and tested before any real provider account exists.
 
-Production provider (Phase 2, not yet selected/integrated): interface is provider-agnostic on purpose — candidates are AWS Textract, Google Document AI, or Azure Document Intelligence. Selection is deferred to Phase 2 and documented as a decision to make then (see TODO.md), not guessed now, since it affects cost and accuracy tradeoffs Mohammed should weigh in on.
+Two real providers are implemented in `apps/admin/lib/providers/documentIntelligence.ts`
+(overnight platform pass, WORKLOG.md this date, adding the second):
+
+- **`AWSTextractDocumentIntelligenceProvider`** (Mohammed's original vendor decision) — bills use
+  `AnalyzeExpenseCommand`, leases use `AnalyzeDocumentCommand`'s QUERIES feature. Configured via
+  `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_TEXTRACT_REGION` (falls back to
+  `AWS_REGION`).
+- **`GoogleDocumentAIProvider`** — a second, independently-configured option, added alongside
+  Textract rather than replacing it. Implements the OAuth2 service-account JWT-bearer flow with
+  `node:crypto` (no `@google-cloud/documentai` SDK dependency) and calls the Document AI REST
+  API directly. Configured via:
+  - `GOOGLE_CLOUD_PROJECT_ID`
+  - `GOOGLE_CLOUD_LOCATION` (e.g. `us` or `eu` — must match where the processor(s) were created)
+  - `GOOGLE_DOCUMENT_AI_PROCESSOR_ID` (used for `classify()`/`extractText()`, and as the
+    `extractFields()` fallback for leases via a Custom Extractor processor Mohammed trains with
+    entity labels matching this codebase's field names exactly: `tenantName`, `rentAmount`,
+    `depositAmount`, `leaseStartDate`, `leaseEndDate`, `propertyAddress`)
+  - `GOOGLE_DOCUMENT_AI_INVOICE_PROCESSOR_ID` (optional — a dedicated Invoice/Expense parser used
+    for `extractFields()` on `'bill'` documents; falls back to `GOOGLE_DOCUMENT_AI_PROCESSOR_ID`
+    if unset)
+  - `GOOGLE_DOCUMENT_AI_CREDENTIALS_JSON` (the full service-account key JSON, as one env var)
+
+`getDocumentIntelligenceProvider()` checks Textract first (preserving existing behaviour for any
+environment that already has AWS credentials configured), then Google, then falls back to Mock.
+No real AWS or Google account exists in this development environment — never fabricate a
+successful extraction result when neither is configured; the Mock provider's output is always
+clearly labelled as such.
 
 ## Processing pipeline
 

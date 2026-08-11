@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { notificationPreferenceUpdateSchema } from '@propvault/validation';
-import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { mapNotificationPreferenceRow } from '@/lib/notifications';
+import { writeAuditEvent } from '@/lib/audit';
 
 /**
  * GET/PATCH /api/v1/notification-preferences (API_SPEC.md §8). PATCH upserts one category's
@@ -87,6 +88,30 @@ export async function PATCH(request: NextRequest) {
       { status: 500 },
     );
   }
+
+  // Audit logging (WORKLOG.md this date, tenant invitation + entitlement architecture) -- this
+  // route is shared by every identity type (staff/owner/tenant), so this naturally covers "tenant
+  // communication preference changed" without a tenant-specific duplicate of this route. org_id
+  // is null (this table has no org scoping -- a personal, per-user preference). entityId is the
+  // user's own id, not a suffixed composite string -- audit_events.entity_id is a real `uuid`
+  // column (confirmed by reading the migration, the exact bug class fixed elsewhere this session
+  // when a suffixed string was passed to a uuid column) and notification_preferences has no
+  // single-uuid primary key of its own to point at instead (its PK is the composite
+  // (user_id, category)); `category` is carried in `after` instead.
+  await writeAuditEvent(getServiceRoleClient(), {
+    orgId: null,
+    actorUserId: user.id,
+    actorType: 'user',
+    action: 'notification_preferences.changed',
+    entityType: 'notification_preferences',
+    entityId: user.id,
+    after: {
+      category: parsed.data.category,
+      emailEnabled: data.email_enabled,
+      pushEnabled: data.push_enabled,
+      whatsappEnabled: data.whatsapp_enabled,
+    },
+  });
 
   return NextResponse.json({ notificationPreference: mapNotificationPreferenceRow(data) });
 }

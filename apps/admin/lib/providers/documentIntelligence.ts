@@ -379,10 +379,368 @@ export class AWSTextractDocumentIntelligenceProvider implements DocumentIntellig
   }
 }
 
+// Google Document AI integration (overnight platform pass, WORKLOG.md this date, Phase 8-11) --
+// a second real DocumentIntelligenceProvider alongside AWS Textract, not a replacement.
+// getDocumentIntelligenceProvider() below still checks Textract FIRST specifically to preserve
+// existing behaviour for any environment that already has AWS credentials configured (CORE
+// OPERATING RULES: "Preserve all existing working... behaviour" -- silently swapping the default
+// vendor for an already-working integration is exactly the kind of shortcut that rule forbids).
+// Google is only selected when Textract is not configured.
+//
+// No @google-cloud/documentai SDK dependency was added -- this implements the OAuth2 service-
+// account JWT-bearer flow directly with Node's built-in `node:crypto` and calls the Document AI
+// REST API with `fetch`, matching this codebase's existing preference for small, dependency-free
+// provider implementations and avoiding a new package install in an environment where that could
+// not be verified against a reachable registry this session.
+//
+// No real Google Cloud project/service account exists in this environment (same class of
+// external-service blocker as AWS/Meta/Resend/PayFast) -- never fabricate a successful call
+// against it; getGoogleDocumentAIConfig() returns null (falling through to Mock) whenever any
+// required env var is absent or the credentials JSON fails to parse.
+import { createSign } from 'node:crypto';
+
+export interface GoogleDocumentAIConfig {
+  projectId: string;
+  location: string;
+  /** Processor used for extractText()/classify() and, absent a dedicated invoice processor, as
+   * the fallback for extractFields() -- e.g. a "Document OCR" or "Custom Extractor" processor. */
+  processorId: string;
+  /** Optional dedicated "Invoice Parser"/"Expense Parser" processor for 'bill'-type documents --
+   * Google has no single processor that handles both bills and leases well, unlike Textract's
+   * AnalyzeExpense/AnalyzeDocument split, so this is a second, independently-configured processor
+   * ID rather than a mode flag on one processor. Falls back to `processorId` if unset. */
+  invoiceProcessorId: string | null;
+  clientEmail: string;
+  privateKey: string;
+}
+
+/** Required env vars (documented for Mohammed): GOOGLE_CLOUD_PROJECT_ID, GOOGLE_CLOUD_LOCATION
+ * (e.g. "us" or "eu" -- must match where the processor(s) were created in the Cloud Console),
+ * GOOGLE_DOCUMENT_AI_PROCESSOR_ID, and GOOGLE_DOCUMENT_AI_CREDENTIALS_JSON (the full service-
+ * account key JSON downloaded from Cloud Console, as one env var -- matches how most PaaS hosts
+ * including Render store multi-line secrets; never a file path, since a mounted-file convention
+ * doesn't reliably survive Render deploys). GOOGLE_DOCUMENT_AI_INVOICE_PROCESSOR_ID is optional. */
+export function getGoogleDocumentAIConfig(): GoogleDocumentAIConfig | null {
+  const projectId = process.env.GOOGLE_CLOUD_PROJECT_ID;
+  const location = process.env.GOOGLE_CLOUD_LOCATION;
+  const processorId = process.env.GOOGLE_DOCUMENT_AI_PROCESSOR_ID;
+  const credentialsJson = process.env.GOOGLE_DOCUMENT_AI_CREDENTIALS_JSON;
+  if (!projectId || !location || !processorId || !credentialsJson) return null;
+
+  let parsed: { client_email?: string; private_key?: string };
+  try {
+    parsed = JSON.parse(credentialsJson);
+  } catch {
+    return null;
+  }
+  if (!parsed.client_email || !parsed.private_key) return null;
+
+  return {
+    projectId,
+    location,
+    processorId,
+    invoiceProcessorId: process.env.GOOGLE_DOCUMENT_AI_INVOICE_PROCESSOR_ID ?? null,
+    clientEmail: parsed.client_email,
+    // Service-account JSON keys always contain literal "\n" sequences in the PEM -- env vars
+    // collapse real newlines, so this is the standard round-trip fix every Google server-side
+    // integration guide documents, not a workaround specific to this codebase.
+    privateKey: parsed.private_key.replace(/\\n/g, '\n'),
+  };
+}
+
+function base64Url(input: Buffer | string): string {
+  const buf = typeof input === 'string' ? Buffer.from(input) : input;
+  return buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+interface GoogleDocumentAIEntity {
+  type?: string;
+  mentionText?: string;
+  confidence?: number;
+}
+
+interface GoogleDocumentAIToken {
+  layout?: {
+    textAnchor?: { textSegments?: { startIndex?: string; endIndex?: string }[] };
+    confidence?: number;
+  };
+}
+
+interface GoogleDocumentAIResponse {
+  document?: {
+    text?: string;
+    pages?: { tokens?: GoogleDocumentAIToken[] }[];
+    entities?: GoogleDocumentAIEntity[];
+  };
+}
+
+export class GoogleDocumentAIProvider implements DocumentIntelligenceProvider {
+  readonly providerName = 'google-document-ai';
+  private readonly config: GoogleDocumentAIConfig;
+  private cachedToken: { value: string; expiresAtMs: number } | null = null;
+
+  constructor(config: GoogleDocumentAIConfig) {
+    this.config = config;
+  }
+
+  async classify(input: ProcessingInput): Promise<ClassificationResult> {
+    const start = Date.now();
+    const { rawText } = await this.process(input, this.config.processorId);
+    const { documentType, confidence } = classifyFromText(rawText.text);
+    return { documentType, confidence, metadata: this.metadata(Date.now() - start) };
+  }
+
+  async extractText(input: ProcessingInput): Promise<OcrResult> {
+    const start = Date.now();
+    const { rawText } = await this.process(input, this.config.processorId);
+    return {
+      rawText: rawText.text,
+      confidence: rawText.confidence,
+      metadata: this.metadata(Date.now() - start),
+    };
+  }
+
+  async extractFields(
+    input: ProcessingInput,
+    documentType: DocumentType,
+  ): Promise<FieldExtractionResult> {
+    const start = Date.now();
+    if (documentType === 'lease') {
+      return this.extractLeaseFields(input, start);
+    }
+    return this.extractBillFields(input, start);
+  }
+
+  // Invoice/Expense-parser entity type names as published in Google's Document AI schema
+  // reference -- reconstructed from documentation, not verified against a live response (same
+  // disclosed uncertainty as Textract's AnalyzeExpense field aliases above; multiple candidate
+  // names are checked per field for the same reason). There is no standard "account_number"
+  // entity on Google's stock Invoice/Expense parsers -- left unmapped (undefined) rather than
+  // guessing a field name that likely doesn't exist, unlike Textract where ACCOUNT_NUMBER is a
+  // real, documented SummaryField type.
+  private async extractBillFields(
+    input: ProcessingInput,
+    start: number,
+  ): Promise<FieldExtractionResult> {
+    const processorId = this.config.invoiceProcessorId ?? this.config.processorId;
+    const { entities } = await this.process(input, processorId);
+
+    const find = (...types: string[]) =>
+      types.map((t) => entities.get(t)).find((v) => v !== undefined);
+
+    const supplierName = find('supplier_name');
+    const amountDue = find('total_amount', 'due_amount', 'amount_due');
+    const dueDate = find('due_date');
+    const statementDate = find('invoice_date', 'receipt_date');
+    const invoiceNumber = find('invoice_id', 'receipt_id');
+
+    const confidences = [supplierName, amountDue, dueDate, statementDate, invoiceNumber]
+      .filter((v): v is { text: string; confidence: number } => v !== undefined)
+      .map((v) => v.confidence);
+    const overallConfidence =
+      confidences.length > 0 ? confidences.reduce((a, b) => a + b, 0) / confidences.length : 0;
+
+    return {
+      supplierName: toExtractedField(supplierName?.text, supplierName?.confidence ?? 0),
+      amountDue: toExtractedField(
+        parseCurrencyToNumber(amountDue?.text),
+        amountDue?.confidence ?? 0,
+      ),
+      dueDate: toExtractedField(dueDate?.text, dueDate?.confidence ?? 0),
+      statementDate: toExtractedField(statementDate?.text, statementDate?.confidence ?? 0),
+      invoiceNumber: toExtractedField(invoiceNumber?.text, invoiceNumber?.confidence ?? 0),
+      overallConfidence,
+      metadata: this.metadata(Date.now() - start),
+    };
+  }
+
+  // Google has no purpose-built lease-agreement processor (unlike Textract's QUERIES feature,
+  // which works against any document with no per-vendor training). The only viable path is a
+  // Document AI "Custom Extractor" processor Mohammed trains himself in Cloud Console -- this
+  // implementation only works correctly once he labels its training entities with these EXACT
+  // type names (tenantName, rentAmount, depositAmount, leaseStartDate, leaseEndDate,
+  // propertyAddress), documented here rather than guessed at, since there is no default schema to
+  // fall back to.
+  private async extractLeaseFields(
+    input: ProcessingInput,
+    start: number,
+  ): Promise<FieldExtractionResult> {
+    const { entities } = await this.process(input, this.config.processorId);
+
+    const tenantName = entities.get('tenantName');
+    const rentAmount = entities.get('rentAmount');
+    const depositAmount = entities.get('depositAmount');
+    const leaseStartDate = entities.get('leaseStartDate');
+    const leaseEndDate = entities.get('leaseEndDate');
+    const propertyAddress = entities.get('propertyAddress');
+
+    const confidences = [
+      tenantName,
+      rentAmount,
+      depositAmount,
+      leaseStartDate,
+      leaseEndDate,
+      propertyAddress,
+    ]
+      .filter((v): v is { text: string; confidence: number } => v !== undefined)
+      .map((v) => v.confidence);
+    const overallConfidence =
+      confidences.length > 0 ? confidences.reduce((a, b) => a + b, 0) / confidences.length : 0;
+
+    return {
+      tenantName: toExtractedField(tenantName?.text, tenantName?.confidence ?? 0),
+      rentAmount: toExtractedField(
+        parseCurrencyToNumber(rentAmount?.text),
+        rentAmount?.confidence ?? 0,
+      ),
+      depositAmount: toExtractedField(
+        parseCurrencyToNumber(depositAmount?.text),
+        depositAmount?.confidence ?? 0,
+      ),
+      leaseStartDate: toExtractedField(leaseStartDate?.text, leaseStartDate?.confidence ?? 0),
+      leaseEndDate: toExtractedField(leaseEndDate?.text, leaseEndDate?.confidence ?? 0),
+      propertyAddress: toExtractedField(propertyAddress?.text, propertyAddress?.confidence ?? 0),
+      overallConfidence,
+      metadata: this.metadata(Date.now() - start),
+    };
+  }
+
+  private async process(
+    input: ProcessingInput,
+    processorId: string,
+  ): Promise<{
+    rawText: { text: string; confidence: number };
+    entities: Map<string, { text: string; confidence: number }>;
+  }> {
+    const bytes = await fetchDocumentBytes(input, this.providerName);
+    const accessToken = await this.getAccessToken();
+    const endpoint = `https://${this.config.location}-documentai.googleapis.com/v1/projects/${this.config.projectId}/locations/${this.config.location}/processors/${processorId}:process`;
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        rawDocument: {
+          content: Buffer.from(bytes).toString('base64'),
+          mimeType: input.mimeType,
+        },
+      }),
+    });
+    if (!response.ok) {
+      const retryable = response.status === 429 || response.status >= 500;
+      throw new ProviderError(
+        `Google Document AI returned ${response.status}`,
+        retryable ? 'retryable' : 'non_retryable',
+        this.providerName,
+      );
+    }
+    const payload = (await response.json()) as GoogleDocumentAIResponse;
+    const text = payload.document?.text ?? '';
+
+    const tokenConfidences = (payload.document?.pages ?? [])
+      .flatMap((page) => page.tokens ?? [])
+      .map((token) => token.layout?.confidence)
+      .filter((c): c is number => typeof c === 'number');
+    const rawTextConfidence =
+      tokenConfidences.length > 0
+        ? tokenConfidences.reduce((a, b) => a + b, 0) / tokenConfidences.length
+        : 0;
+
+    const entities = new Map<string, { text: string; confidence: number }>();
+    for (const entity of payload.document?.entities ?? []) {
+      if (entity.type && entity.mentionText) {
+        entities.set(entity.type, { text: entity.mentionText, confidence: entity.confidence ?? 0 });
+      }
+    }
+
+    return { rawText: { text, confidence: rawTextConfidence }, entities };
+  }
+
+  // OAuth2 service-account JWT-bearer flow (Google's documented server-to-server auth for
+  // credentials with no interactive user) -- cached in-instance since a Next.js server process
+  // handles multiple requests and each real Document AI call would otherwise mint a fresh token.
+  // The cache is intentionally NOT shared across provider instances/requests via any external
+  // store; a fresh instance (e.g. a new serverless invocation) just re-authenticates, same
+  // tradeoff every stateless-function OAuth client in this codebase's own dependencies makes.
+  private async getAccessToken(): Promise<string> {
+    const now = Date.now();
+    if (this.cachedToken && this.cachedToken.expiresAtMs > now + 60_000) {
+      return this.cachedToken.value;
+    }
+
+    const issuedAt = Math.floor(now / 1000);
+    const expiresAt = issuedAt + 3600;
+    const header = base64Url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+    const claims = base64Url(
+      JSON.stringify({
+        iss: this.config.clientEmail,
+        scope: 'https://www.googleapis.com/auth/cloud-platform',
+        aud: 'https://oauth2.googleapis.com/token',
+        iat: issuedAt,
+        exp: expiresAt,
+      }),
+    );
+    const signingInput = `${header}.${claims}`;
+    const signature = base64Url(
+      createSign('RSA-SHA256').update(signingInput).sign(this.config.privateKey),
+    );
+    const assertion = `${signingInput}.${signature}`;
+
+    const response = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+        assertion,
+      }),
+    });
+    if (!response.ok) {
+      throw new ProviderError(
+        `Google OAuth2 token exchange failed (${response.status}) -- check GOOGLE_DOCUMENT_AI_CREDENTIALS_JSON`,
+        'non_retryable',
+        this.providerName,
+      );
+    }
+    const payload = (await response.json()) as { access_token?: string; expires_in?: number };
+    if (!payload.access_token) {
+      throw new ProviderError(
+        'Google OAuth2 response had no access_token',
+        'retryable',
+        this.providerName,
+      );
+    }
+    this.cachedToken = {
+      value: payload.access_token,
+      expiresAtMs: now + (payload.expires_in ?? 3600) * 1000,
+    };
+    return payload.access_token;
+  }
+
+  private metadata(processingDurationMs: number): ProviderMetadata {
+    // Document AI pricing is per-page and varies by processor type -- left null (unknown), same
+    // convention as AWSTextractDocumentIntelligenceProvider.metadata() above, rather than guessing
+    // a number that would misrepresent real spend on any usage/cost dashboard reading this field.
+    return {
+      providerName: this.providerName,
+      providerVersion: null,
+      processingDurationMs,
+      estimatedCostUsd: null,
+    };
+  }
+}
+
 export function getDocumentIntelligenceProvider(): DocumentIntelligenceProvider {
   const textractConfig = getTextractConfig();
   if (textractConfig) {
     return new AWSTextractDocumentIntelligenceProvider(textractConfig);
   }
+  const googleConfig = getGoogleDocumentAIConfig();
+  if (googleConfig) {
+    return new GoogleDocumentAIProvider(googleConfig);
+  }
   return new MockDocumentIntelligenceProvider();
+}
+
+export function isRealDocumentIntelligenceProviderConfigured(): boolean {
+  return getTextractConfig() !== null || getGoogleDocumentAIConfig() !== null;
 }

@@ -1,5 +1,6 @@
 export * from './branding';
 export * from './planLimits';
+export * from './staffSeatPricing';
 export * from './subscriptionPolicy';
 export * from './entitlements';
 export * from './featureFlags';

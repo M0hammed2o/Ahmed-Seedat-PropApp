@@ -4,8 +4,9 @@ import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/se
 import { requireOrgRole } from '@/lib/portfolio';
 import { mapTenantInvitationRow, maskDestination } from '@/lib/tenantInvitations';
 import { dispatchEmail } from '@/lib/emailDispatch';
-import { dispatchWhatsApp } from '@/lib/whatsappDispatch';
+import { dispatchWhatsApp, resolveOrgWhatsAppBranding } from '@/lib/whatsappDispatch';
 import { rateLimitOrRespond } from '@/lib/rateLimit';
+import { writeAuditEvent } from '@/lib/audit';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -153,21 +154,44 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
 
   const serviceClient = getServiceRoleClient();
-  const { data: org } = await serviceClient
-    .from('organizations')
-    .select('legal_name')
-    .eq('id', tenant.org_id)
-    .maybeSingle();
+
+  // Tenant access audit logging (WORKLOG.md this date) -- covers both a genuinely first
+  // invitation and a "resend" through this same endpoint (create_tenant_invitation() always
+  // revokes-then-recreates, so there is no separate resend code path to log differently here);
+  // never logs the token/short code itself, only the fact and channel of dispatch.
+  await writeAuditEvent(serviceClient, {
+    orgId: tenant.org_id,
+    actorUserId: user.id,
+    actorType: 'user',
+    action: 'tenant_invitation.created',
+    entityType: 'tenant_invitations',
+    entityId: created.invitation_id,
+    after: { tenantId: id, deliveryChannel: parsed.data.deliveryChannel },
+  });
+
+  const branding = await resolveOrgWhatsAppBranding(serviceClient, tenant.org_id);
   const acceptUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/activate?token=${created.token}`;
 
+  // Overnight platform pass (WORKLOG.md this date): relatedEntityId was previously
+  // `${created.invitation_id}:0` -- a string -- but both email_messages.related_entity_id and
+  // whatsapp_messages.related_entity_id are real `uuid` columns (20260101000040), so either
+  // dispatch call below would throw "invalid input syntax for type uuid" and this whole request
+  // would fail with a 500 whenever a tenant actually had an email/phone on file (the normal
+  // case) -- the same bug, independently found in owners/[id]/invitations/route.ts this same
+  // pass, confirmed against a real local database rather than assumed. The ":0" suffix served no
+  // purpose here either: create_tenant_invitation() mints a fresh invitation_id per call.
   if (parsed.data.deliveryChannel === 'email' && tenant.email) {
     await dispatchEmail(serviceClient, {
       orgId: tenant.org_id,
       toAddress: tenant.email,
       templateName: 'tenant_invitation',
-      templateVars: { orgName: org?.legal_name, tenantName: tenant.full_name, acceptUrl },
+      templateVars: {
+        orgName: branding.organizationName,
+        tenantName: tenant.full_name,
+        acceptUrl,
+      },
       relatedEntityType: 'tenant_invitations',
-      relatedEntityId: `${created.invitation_id}:0`,
+      relatedEntityId: created.invitation_id,
       actorUserId: user.id,
     });
   } else if (parsed.data.deliveryChannel === 'whatsapp' && tenant.phone) {
@@ -175,9 +199,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       orgId: tenant.org_id,
       toPhone: tenant.phone,
       templateName: 'tenant_invitation',
-      variables: { orgName: org?.legal_name ?? '', acceptUrl, code: created.short_code ?? '' },
+      variables: {
+        organizationName: branding.organizationName,
+        acceptUrl,
+        code: created.short_code ?? '',
+        supportName: branding.supportName,
+      },
       relatedEntityType: 'tenant_invitations',
-      relatedEntityId: `${created.invitation_id}:0`,
+      relatedEntityId: created.invitation_id,
       actorUserId: user.id,
     });
   }

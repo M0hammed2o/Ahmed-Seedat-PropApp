@@ -4,6 +4,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { resolveTenantSession, getTenancyLeaseIds } from '@/lib/tenantSession';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 interface LeaseWithContext extends Lease {
@@ -99,9 +100,20 @@ export default async function MyLeasePage() {
 
 async function loadLeases(): Promise<LeaseWithContext[]> {
   const supabase = await getServerSupabaseClient();
+  const session = await resolveTenantSession();
+  if (!session) return [];
+
+  // Multi-tenancy scoping (WORKLOG.md this date): scoped to the ACTIVE tenancy's own lease
+  // history (a tenancy can span more than one lease row over time -- a renewal, or a fixed-term
+  // lease that ended and was replaced), never every lease RLS alone would return across every
+  // tenancy the caller happens to hold.
+  const leaseIds = await getTenancyLeaseIds(supabase, session.tenantId);
+  if (leaseIds.length === 0) return [];
+
   const { data, error } = await supabase
     .from('leases')
     .select('*, units(unit_label, properties(nickname))')
+    .in('id', leaseIds)
     .order('start_date', { ascending: false });
   if (error) throw new Error(`Failed to load lease: ${error.message}`);
 

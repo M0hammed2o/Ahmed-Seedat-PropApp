@@ -3,6 +3,7 @@ import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/se
 import { requireOrgRole, requirePropertyAccess } from '@/lib/portfolio';
 import { getDocumentIntelligenceProvider } from '@/lib/providers/documentIntelligence';
 import { mapExtractionResultRow } from '@/lib/documents';
+import { writeAuditEvent } from '@/lib/audit';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -153,6 +154,21 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     if (resultError) throw new Error(resultError.message);
 
     await serviceRole.from('extraction_jobs').update({ status: 'succeeded' }).eq('id', job.id);
+
+    // Phase 15 audit gap (overnight platform pass, WORKLOG.md this date) -- never logs
+    // extracted field values (before/after intentionally omit raw_provider_output, same
+    // reasoning as POST .../review's audit event) or which vendor ran, since neither is a secret
+    // but neither belongs in an audit trail meant for "who did what," not provider diagnostics
+    // (that's extraction_jobs.provider_name, already queryable separately).
+    await writeAuditEvent(serviceRole, {
+      orgId: document.org_id,
+      actorUserId: user.id,
+      actorType: 'user',
+      action: 'document_extraction.processed',
+      entityType: 'extraction_jobs',
+      entityId: job.id,
+      after: { status: 'succeeded', overallConfidence: extraction.overallConfidence },
+    });
 
     return NextResponse.json({
       extractionResult: mapExtractionResultRow(resultRow),

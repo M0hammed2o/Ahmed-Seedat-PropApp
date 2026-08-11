@@ -60,6 +60,26 @@ export async function POST(request: NextRequest) {
   });
 
   if (error) {
+    // Owner subscription + staff seat entitlement architecture (WORKLOG.md this date):
+    // create_organization() itself raises this specific, parseable message (migration
+    // 20260101000094) when the caller is a "linked owner only" account -- has an owners.user_id
+    // row somewhere, zero organization_members rows of their own -- and has not been granted an
+    // owner_portfolio_grants row. Surfaced as 402 with a distinct error code so the client can
+    // show a real upgrade/paywall flow (CreateOrganizationForm) instead of a bare, unexplained
+    // 403/500 -- this is the ACTUAL enforcement point (inside the RPC, callable directly over
+    // PostgREST); this branch only exists to translate that into a friendlier response shape.
+    if (error.message.startsWith('owner_subscription_required')) {
+      return NextResponse.json(
+        {
+          error: {
+            code: 'owner_subscription_required',
+            message:
+              'An active Proplyst owner subscription is required to create your own portfolio. You can still view any properties shared with you.',
+          },
+        },
+        { status: 402 },
+      );
+    }
     return NextResponse.json(
       { error: { code: 'organization_create_failed', message: error.message } },
       { status: 500 },

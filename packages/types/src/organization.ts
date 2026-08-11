@@ -20,6 +20,12 @@ export interface Organization {
   ffcNumber: string | null;
   ffcIssued: string | null;
   ffcExpires: string | null;
+  /** Communication branding (Phase 6, WORKLOG.md this date) -- shown in tenant-facing
+   * email/WhatsApp templates alongside tradingName (the business display name). */
+  supportContactName: string | null;
+  supportPhone: string | null;
+  supportEmail: string | null;
+  communicationFooter: string | null;
   status: OrganizationStatus;
   /** Set once at org creation (20260101000075) and never cleared -- a historical record of when
    * the 30-day free trial ends/ended, meaningful for UI purposes only while status is 'trial'. */
@@ -80,6 +86,35 @@ export interface OrganizationSubscription {
   nextPaymentDate: string | null;
   status: OrganizationStatus;
   createdAt: string;
+}
+
+/**
+ * Owner subscription + staff seat entitlement architecture (WORKLOG.md this date). Shared
+ * cross-platform contract for entitlement state — apps/admin's own `getOrgSeatSummary()` returns
+ * exactly this shape (from `org_staff_seat_limit`/`org_active_billable_staff_count`, migration
+ * 20260101000094). Not yet consumed by apps/mobile (it has no organization/owner-portal UI
+ * today), but defined here — not duplicated ad hoc later — so a future mobile owner/staff screen
+ * has one real contract to build against instead of re-deriving this shape from scratch.
+ */
+export interface OrgSeatSummary {
+  /** The org's current plan's feature_limits.maxStaff. null = unlimited. */
+  seatLimit: number | null;
+  /** Active organization_members rows with role other than 'principal' — the principal is the
+   * paying owner, never a billable seat themselves. */
+  activeBillableStaffCount: number;
+  /** null = unlimited. May be zero or negative once the limit is reached or reduced after staff
+   * were already invited. */
+  availableSeats: number | null;
+}
+
+/**
+ * Whether the calling user may create their own organization/portfolio (apps/admin's
+ * `mayCreatePortfolio()`, backed by `may_create_portfolio()`, migration 20260101000094). False
+ * only for a "linked owner only" account — see that function's own comment for the full
+ * reasoning. Exported here for the same forward-compatibility reason as `OrgSeatSummary` above.
+ */
+export interface OwnerPortfolioEntitlement {
+  mayCreatePortfolio: boolean;
 }
 
 // Rank order for "at least X" comparisons — mirrors has_org_role()'s per-branch semantics in

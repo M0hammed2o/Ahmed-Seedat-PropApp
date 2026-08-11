@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import type { OrganizationMemberRole } from '@propvault/types';
+import type { OrganizationMemberRole, OrgSeatSummary } from '@propvault/types';
 import { Button } from '@/components/ui/Button';
 import { Panel } from '@/components/ui/Panel';
 import { safeJson } from '@/lib/safeJson';
@@ -65,16 +65,19 @@ export function StaffAccessPanel({
   orgId,
   properties,
   callerRole,
+  seatSummary,
 }: {
   orgId: string;
   properties: PropertyOption[];
   callerRole: 'principal' | 'manager';
+  seatSummary: OrgSeatSummary;
 }) {
   const [members, setMembers] = useState<Member[] | null>(null);
   const [invites, setInvites] = useState<Invite[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [showInvite, setShowInvite] = useState(false);
+  const [deliveryNotice, setDeliveryNotice] = useState<boolean | null>(null);
 
   const load = useCallback(async () => {
     const [membersRes, invitesRes] = await Promise.all([
@@ -135,12 +138,14 @@ export function StaffAccessPanel({
 
   async function resendInvite(id: string) {
     setError(null);
+    setDeliveryNotice(null);
     const res = await fetch(`/api/v1/organization-invites/${id}/resend`, { method: 'POST' });
+    const body = await safeJson(res);
     if (!res.ok) {
-      const body = await safeJson(res);
       setError(body.error?.message ?? 'Failed to resend invitation.');
       return;
     }
+    setDeliveryNotice(body.emailDeliveryConfigured ?? null);
     await load();
   }
 
@@ -167,9 +172,30 @@ export function StaffAccessPanel({
 
   return (
     <div className="space-y-4">
+      {/* Owner subscription + staff seat entitlement architecture (WORKLOG.md this date): a seat
+          belongs to the ORGANIZATION, never the staff member -- only manager+/principal see this
+          page at all, so this is never exposed to a staff user themselves. */}
+      <p className="rounded-md border border-light-border bg-light-surface px-3 py-2 text-xs text-light-textSecondary dark:border-dark-border dark:bg-dark-surface dark:text-dark-textSecondary">
+        {seatSummary.seatLimit === null
+          ? `Staff seats: ${seatSummary.activeBillableStaffCount} in use (unlimited on your current plan).`
+          : `Staff seats: ${seatSummary.activeBillableStaffCount} of ${seatSummary.seatLimit} used.`}
+      </p>
+
       {error ? (
         <p className="rounded-md border border-light-danger bg-light-danger/10 px-3 py-2 text-xs text-light-danger dark:border-dark-danger dark:bg-dark-danger/10 dark:text-dark-danger">
           {error}
+        </p>
+      ) : null}
+
+      {deliveryNotice === false ? (
+        <p className="rounded-md border border-light-danger bg-light-danger/10 px-3 py-2 text-xs text-light-danger dark:border-dark-danger dark:bg-dark-danger/10 dark:text-dark-danger">
+          The invitation was created, but email delivery is not configured in this environment — no
+          email was sent. Share the accept link with {'"'}Resend{'"'} once delivery is configured,
+          or copy it from Supabase for now.
+        </p>
+      ) : deliveryNotice === true ? (
+        <p className="rounded-md border border-light-border bg-light-surface px-3 py-2 text-xs text-light-textSecondary dark:border-dark-border dark:bg-dark-surface dark:text-dark-textSecondary">
+          Invitation email sent.
         </p>
       ) : null}
 
@@ -283,8 +309,9 @@ export function StaffAccessPanel({
           properties={properties}
           invitableRoles={invitableRoles}
           onCancel={() => setShowInvite(false)}
-          onInvited={async () => {
+          onInvited={async (emailDeliveryConfigured) => {
             setShowInvite(false);
+            setDeliveryNotice(emailDeliveryConfigured);
             await load();
           }}
         />

@@ -3,6 +3,7 @@ import { extractionReviewSchema } from '@propvault/validation';
 import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { requireOrgRole, requirePropertyAccess } from '@/lib/portfolio';
 import { mapExtractionResultRow } from '@/lib/documents';
+import { writeAuditEvent } from '@/lib/audit';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -127,6 +128,21 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       { status: 500 },
     );
   }
+
+  // Phase 15 audit gap (overnight platform pass, WORKLOG.md this date): a human confirming OCR
+  // output is exactly the kind of "confirmed as accurate" action PERMISSIONS.md's audit-log rule
+  // covers -- never logs the extracted field values themselves (before/after intentionally omit
+  // rawProviderOutput; only the fact and timing of confirmation), since those may contain a
+  // tenant's personal/financial data lifted straight from the source document.
+  await writeAuditEvent(serviceRole, {
+    orgId: document.org_id,
+    actorUserId: user.id,
+    actorType: 'user',
+    action: 'document_extraction.reviewed',
+    entityType: 'extraction_results',
+    entityId: data.id,
+    after: { reviewedAt: data.reviewed_at },
+  });
 
   return NextResponse.json({ extractionResult: mapExtractionResultRow(data) });
 }

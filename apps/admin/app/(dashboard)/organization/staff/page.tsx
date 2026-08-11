@@ -4,6 +4,7 @@ import { StaffAccessPanel } from '@/components/organizations/StaffAccessPanel';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { resolvePortalSession } from '@/lib/orgSession';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
+import { getOrgSeatSummary } from '@/lib/subscriptionEntitlements';
 
 // Shared-access architecture pass (WORKLOG.md this date), Phase 3/6: the first UI for
 // property-scoped staff access -- grant_property_access()/revoke_property_access()/
@@ -49,6 +50,12 @@ export default async function OrganizationStaffPage() {
     .order('nickname', { ascending: true });
   if (error) throw new Error(`Failed to load properties: ${error.message}`);
 
+  // Owner subscription + staff seat entitlement architecture (WORKLOG.md this date): a staff
+  // seat belongs to the SUBSCRIBING ORGANIZATION, never the staff member -- only a manager/
+  // principal (who can already see this whole page) ever sees seat/billing information, per
+  // "do not expose internal billing complexity to staff users."
+  const seatSummary = await getOrgSeatSummary(supabase, activeOrg.orgId);
+
   return (
     <div className="space-y-5 animate-rise">
       <PageHeader
@@ -59,6 +66,7 @@ export default async function OrganizationStaffPage() {
         orgId={activeOrg.orgId}
         properties={properties ?? []}
         callerRole={activeOrg.role as 'principal' | 'manager'}
+        seatSummary={seatSummary}
       />
     </div>
   );

@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { mapOwnerStatementRow } from '@/lib/accounting';
 import { dispatchEmail } from '@/lib/emailDispatch';
-import { dispatchWhatsApp } from '@/lib/whatsappDispatch';
+import { dispatchWhatsApp, resolveOrgWhatsAppBranding } from '@/lib/whatsappDispatch';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -63,13 +63,16 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       actorUserId: user.id,
     });
 
+    const branding = await resolveOrgWhatsAppBranding(serviceClient, data.org_id);
     await dispatchWhatsApp(serviceClient, {
       orgId: data.org_id,
       toPhone: owner?.phone ?? null,
       templateName: 'owner_statement_available',
       variables: {
+        organizationName: branding.organizationName,
         period: `${data.period_start} – ${data.period_end}`,
         netPayable: String(data.net_payable),
+        supportName: branding.supportName,
       },
       relatedEntityType: 'owner_statement',
       relatedEntityId: data.id,

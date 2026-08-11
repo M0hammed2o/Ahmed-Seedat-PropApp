@@ -128,6 +128,12 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   if (parsed.data.ffcNumber !== undefined) patch.ffc_number = parsed.data.ffcNumber;
   if (parsed.data.ffcIssued !== undefined) patch.ffc_issued = parsed.data.ffcIssued;
   if (parsed.data.ffcExpires !== undefined) patch.ffc_expires = parsed.data.ffcExpires;
+  if (parsed.data.supportContactName !== undefined)
+    patch.support_contact_name = parsed.data.supportContactName;
+  if (parsed.data.supportPhone !== undefined) patch.support_phone = parsed.data.supportPhone;
+  if (parsed.data.supportEmail !== undefined) patch.support_email = parsed.data.supportEmail;
+  if (parsed.data.communicationFooter !== undefined)
+    patch.communication_footer = parsed.data.communicationFooter;
 
   const { data, error } = await supabase
     .from('organizations')
