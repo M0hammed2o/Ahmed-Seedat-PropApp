@@ -5,6 +5,7 @@ import { AdminMetricCard } from '@/components/ui/AdminMetricCard';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { resolveTenantSession, getTenancyLeaseIds } from '@/lib/tenantSession';
 import { mapRentScheduleRow } from '@/lib/leasing';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
@@ -95,9 +96,18 @@ export default async function MyPaymentsPage() {
 
 async function loadRentSchedules(): Promise<RentSchedule[]> {
   const supabase = await getServerSupabaseClient();
+  const session = await resolveTenantSession();
+  if (!session) return [];
+
+  // Multi-tenancy scoping (WORKLOG.md this date): the active tenancy's own lease history, never
+  // payment history aggregated in from another tenancy the same Auth user also happens to hold.
+  const leaseIds = await getTenancyLeaseIds(supabase, session.tenantId);
+  if (leaseIds.length === 0) return [];
+
   const { data, error } = await supabase
     .from('rent_schedules')
     .select('*')
+    .in('lease_id', leaseIds)
     .order('due_date', { ascending: false });
   if (error) throw new Error(`Failed to load payments: ${error.message}`);
   return (data ?? []).map(mapRentScheduleRow);

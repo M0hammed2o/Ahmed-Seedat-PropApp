@@ -2,6 +2,7 @@ import { FileText } from 'lucide-react';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { resolveTenantSession, getTenancyLeaseIds } from '@/lib/tenantSession';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 const SIGNED_URL_TTL_SECONDS = 60 * 10;
@@ -30,8 +31,10 @@ const DEMO_DOCUMENTS: TenantDocumentRow[] = [
  * GET /my-documents -- PWA_V1_COMPLETION_PLAN.md #10. `documents_select_tenant_self`
  * (migration 20260101000049) already scopes this to documents a staff member explicitly tagged
  * with the caller's own lease -- never a blanket property grant (PERMISSIONS.md §4). RLS is the
- * real isolation boundary; this page just renders whatever it returns, the same
- * plain-RLS-protected-read pattern every other list page in this codebase uses.
+ * real isolation boundary; this page additionally scopes by the active tenancy's own lease(s)
+ * (multi-tenancy pass, WORKLOG.md this date) so a caller with more than one tenancy never sees a
+ * document merely because it belongs to a DIFFERENT one of their own tenant relationships --
+ * "constrained by tenant-visible rules + active tenancy + RLS," never RLS alone.
  */
 export default async function MyDocumentsPage() {
   const documents = ADMIN_DEMO_MODE ? DEMO_DOCUMENTS : await loadTenantDocuments();
@@ -117,10 +120,17 @@ export default async function MyDocumentsPage() {
 
 async function loadTenantDocuments(): Promise<TenantDocumentRow[]> {
   const supabase = await getServerSupabaseClient();
+  const session = await resolveTenantSession();
+  if (!session) return [];
+
+  const leaseIds = await getTenancyLeaseIds(supabase, session.tenantId);
+  if (leaseIds.length === 0) return [];
+
   const { data, error } = await supabase
     .from('documents')
     .select('id, original_file_name, document_type, file_size_bytes, storage_path, created_at')
     .is('deleted_at', null)
+    .in('lease_id', leaseIds)
     .order('created_at', { ascending: false });
   if (error) throw new Error(`Failed to load documents: ${error.message}`);
 

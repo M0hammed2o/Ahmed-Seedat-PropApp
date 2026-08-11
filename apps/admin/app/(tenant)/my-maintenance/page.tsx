@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { resolveTenantSession } from '@/lib/tenantSession';
 import { mapMaintenanceTicketRow } from '@/lib/operations';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
@@ -109,9 +110,19 @@ export default async function MyMaintenancePage() {
 
 async function loadTickets(): Promise<MaintenanceTicket[]> {
   const supabase = await getServerSupabaseClient();
+  const session = await resolveTenantSession();
+  if (!session) return [];
+
+  // Multi-tenancy scoping (WORKLOG.md this date): a ticket "about" this tenancy always has
+  // tenant_id set to this exact tenant record (the tenant-submission route always sets both
+  // tenant_id and submitted_by_tenant_id to the same value) -- filtering on either column alone
+  // would miss a hypothetical staff-created ticket that only set one; matching both mirrors
+  // maintenance_tickets_select_tenant_self's own OR exactly, just narrowed to ONE tenancy instead
+  // of every tenancy RLS alone would return.
   const { data, error } = await supabase
     .from('maintenance_tickets')
     .select('*')
+    .or(`tenant_id.eq.${session.tenantId},submitted_by_tenant_id.eq.${session.tenantId}`)
     .order('created_at', { ascending: false });
   if (error) throw new Error(`Failed to load maintenance requests: ${error.message}`);
   return (data ?? []).map(mapMaintenanceTicketRow);

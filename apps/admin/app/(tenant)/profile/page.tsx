@@ -82,9 +82,18 @@ export default async function TenantProfilePage() {
       {/* Tenant communication preferences (WORKLOG.md this date) -- reuses the existing,
           purely user_id-keyed notification_preferences table/form as-is (notification_preferences_
           all_own's RLS already scopes this correctly for a tenant identity, same as it already
-          does for staff/owner) rather than a second, tenant-specific preferences system. Channel
-          availability (email/WhatsApp) still ultimately depends on what the landlord org's own
-          dispatch logic and WhatsApp automation actually send -- not implemented in this task. */}
+          does for staff/owner) rather than a second, tenant-specific preferences system.
+          Deliberately USER-level, not per-tenancy: a tenant's channel preference is a property of
+          the person, not of which of their tenancies happens to be active in the switcher.
+
+          Multi-tenancy scoping pass (WORKLOG.md this date), architecture note for the future
+          WhatsApp automation task (not implemented here): dispatchEmail()/dispatchWhatsApp()
+          already check the ORG's own organization_notification_settings (the landlord's
+          channel-availability toggle per category) BEFORE this per-user preference narrows it
+          further (never the other way -- an org disabling a channel always wins over a tenant
+          wanting it). When a tenant holds tenancies across two different landlord orgs, that
+          org-level gate is evaluated per dispatch using the MESSAGE's own org_id, not the
+          tenant's currently-active tenancy in this UI -- the two are independent by design. */}
       <div>
         <h2 className="mb-2 text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
           Communication preferences
