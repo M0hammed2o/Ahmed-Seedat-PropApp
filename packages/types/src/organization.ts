@@ -88,6 +88,35 @@ export interface OrganizationSubscription {
   createdAt: string;
 }
 
+/**
+ * Owner subscription + staff seat entitlement architecture (WORKLOG.md this date). Shared
+ * cross-platform contract for entitlement state — apps/admin's own `getOrgSeatSummary()` returns
+ * exactly this shape (from `org_staff_seat_limit`/`org_active_billable_staff_count`, migration
+ * 20260101000094). Not yet consumed by apps/mobile (it has no organization/owner-portal UI
+ * today), but defined here — not duplicated ad hoc later — so a future mobile owner/staff screen
+ * has one real contract to build against instead of re-deriving this shape from scratch.
+ */
+export interface OrgSeatSummary {
+  /** The org's current plan's feature_limits.maxStaff. null = unlimited. */
+  seatLimit: number | null;
+  /** Active organization_members rows with role other than 'principal' — the principal is the
+   * paying owner, never a billable seat themselves. */
+  activeBillableStaffCount: number;
+  /** null = unlimited. May be zero or negative once the limit is reached or reduced after staff
+   * were already invited. */
+  availableSeats: number | null;
+}
+
+/**
+ * Whether the calling user may create their own organization/portfolio (apps/admin's
+ * `mayCreatePortfolio()`, backed by `may_create_portfolio()`, migration 20260101000094). False
+ * only for a "linked owner only" account — see that function's own comment for the full
+ * reasoning. Exported here for the same forward-compatibility reason as `OrgSeatSummary` above.
+ */
+export interface OwnerPortfolioEntitlement {
+  mayCreatePortfolio: boolean;
+}
+
 // Rank order for "at least X" comparisons — mirrors has_org_role()'s per-branch semantics in
 // 20260101000021_org_role_helpers.sql. NOT a total order for 'accountant' vs 'agent' (they're
 // siblings, per PERMISSIONS.md §2) — only use this for principal/manager/viewer comparisons.

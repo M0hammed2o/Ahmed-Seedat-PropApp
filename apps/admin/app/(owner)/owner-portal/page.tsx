@@ -1,8 +1,10 @@
 import Link from 'next/link';
-import { Banknote, Building2, FileText, Wrench } from 'lucide-react';
+import { Banknote, Building2, FileText, Sparkles, Wrench } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Button } from '@/components/ui/Button';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
+import { mayCreatePortfolio } from '@/lib/subscriptionEntitlements';
 
 function currency(n: number): string {
   return `R${Math.round(n).toLocaleString('en-ZA')}`;
@@ -31,6 +33,16 @@ const DEMO_DATA: OwnerOverview = {
  */
 export default async function OwnerPortalHomePage() {
   const data = ADMIN_DEMO_MODE ? DEMO_DATA : await loadData();
+  // Owner subscription + staff seat entitlement architecture (WORKLOG.md this date): the natural
+  // landing flow only ever sends a caller with ZERO active org memberships here
+  // (destinationResolver.ts -- org-dashboard takes priority when any exist), so for the common
+  // visitor to this page mayCreatePortfolio() is false unless they've been explicitly granted --
+  // the CTA below renders for exactly that "accepted an owner invitation, never subscribed" state
+  // this page exists to serve gracefully rather than looking broken for. Stays hidden for the
+  // (rarer) case of someone who already runs their own org visiting this page directly.
+  const showUpgradeCta = ADMIN_DEMO_MODE
+    ? true
+    : !(await mayCreatePortfolio(await getServerSupabaseClient()));
 
   const cards = [
     {
@@ -96,6 +108,28 @@ export default async function OwnerPortalHomePage() {
           </Link>
         ))}
       </div>
+
+      {showUpgradeCta ? (
+        <div className="mx-auto flex w-full max-w-3xl flex-col items-start gap-3 rounded-card border border-light-border bg-light-surfaceRaised p-5 sm:flex-row sm:items-center sm:justify-between dark:border-dark-border dark:bg-dark-surfaceRaised">
+          <div className="flex items-start gap-3">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-light-accentSoft text-light-accent dark:bg-dark-accentSoft dark:text-dark-accent">
+              <Sparkles className="h-[18px] w-[18px]" aria-hidden="true" />
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+                Manage your own properties with Proplyst
+              </p>
+              <p className="mt-0.5 text-xs text-light-textMuted dark:text-dark-textMuted">
+                You're viewing shared properties as an owner. Subscribe to create and manage your
+                own portfolio, invite owners, and add staff.
+              </p>
+            </div>
+          </div>
+          <Link href="/onboarding/create-organization" className="shrink-0">
+            <Button variant="primary">Choose a plan</Button>
+          </Link>
+        </div>
+      ) : null}
     </div>
   );
 }

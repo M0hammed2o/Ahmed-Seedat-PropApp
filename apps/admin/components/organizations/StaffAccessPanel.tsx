@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import type { OrganizationMemberRole } from '@propvault/types';
+import type { OrganizationMemberRole, OrgSeatSummary } from '@propvault/types';
 import { Button } from '@/components/ui/Button';
 import { Panel } from '@/components/ui/Panel';
 import { safeJson } from '@/lib/safeJson';
@@ -65,10 +65,12 @@ export function StaffAccessPanel({
   orgId,
   properties,
   callerRole,
+  seatSummary,
 }: {
   orgId: string;
   properties: PropertyOption[];
   callerRole: 'principal' | 'manager';
+  seatSummary: OrgSeatSummary;
 }) {
   const [members, setMembers] = useState<Member[] | null>(null);
   const [invites, setInvites] = useState<Invite[] | null>(null);
@@ -170,6 +172,15 @@ export function StaffAccessPanel({
 
   return (
     <div className="space-y-4">
+      {/* Owner subscription + staff seat entitlement architecture (WORKLOG.md this date): a seat
+          belongs to the ORGANIZATION, never the staff member -- only manager+/principal see this
+          page at all, so this is never exposed to a staff user themselves. */}
+      <p className="rounded-md border border-light-border bg-light-surface px-3 py-2 text-xs text-light-textSecondary dark:border-dark-border dark:bg-dark-surface dark:text-dark-textSecondary">
+        {seatSummary.seatLimit === null
+          ? `Staff seats: ${seatSummary.activeBillableStaffCount} in use (unlimited on your current plan).`
+          : `Staff seats: ${seatSummary.activeBillableStaffCount} of ${seatSummary.seatLimit} used.`}
+      </p>
+
       {error ? (
         <p className="rounded-md border border-light-danger bg-light-danger/10 px-3 py-2 text-xs text-light-danger dark:border-dark-danger dark:bg-dark-danger/10 dark:text-dark-danger">
           {error}

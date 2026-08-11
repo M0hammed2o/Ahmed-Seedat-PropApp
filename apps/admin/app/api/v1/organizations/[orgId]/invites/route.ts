@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createOrganizationInviteSchema } from '@propvault/validation';
 import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { requireOrgRole } from '@/lib/portfolio';
+import { getOrgSeatSummary, canInviteStaff } from '@/lib/subscriptionEntitlements';
 import { dispatchEmail } from '@/lib/emailDispatch';
 import { getAppUrl } from '@/lib/appUrl';
 
@@ -141,6 +142,25 @@ async function handlePOST(request: NextRequest, { params }: RouteParams) {
         },
       },
       { status: 403 },
+    );
+  }
+
+  // Owner subscription + staff seat entitlement architecture (WORKLOG.md this date): a paid seat
+  // answers "is this org allowed to add another billable staff member," a separate question from
+  // role/property permissions (which the checks further below still answer). Friendlier message
+  // here; organization_invites' own INSERT policy (migration 20260101000094) re-checks this and
+  // is the actual, unbypassable enforcement -- this pre-check exists so a real seat-limit hit
+  // returns a clear, structured response instead of a bare RLS-violation 500.
+  const seatSummary = await getOrgSeatSummary(supabase, orgId);
+  if (!canInviteStaff(seatSummary)) {
+    return NextResponse.json(
+      {
+        error: {
+          code: 'staff_seat_limit_reached',
+          message: `This organization has used all ${seatSummary.seatLimit} of its available staff seats. Add another seat to your subscription to invite more staff.`,
+        },
+      },
+      { status: 402 },
     );
   }
 

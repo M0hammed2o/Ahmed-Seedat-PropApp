@@ -37,6 +37,15 @@ export const supportSessionCreateSchema = z.object({
 });
 export type SupportSessionCreateInput = z.infer<typeof supportSessionCreateSchema>;
 
+// Owner subscription + staff seat entitlement architecture (WORKLOG.md this date) -- the manual
+// lever unlocking create_organization() for a "linked owner only" account until a real payment
+// provider populates owner_portfolio_grants the same way.
+export const ownerPortfolioGrantCreateSchema = z.object({
+  userId: z.string().uuid('userId must be a valid UUID'),
+  note: z.string().max(500).optional(),
+});
+export type OwnerPortfolioGrantCreateInput = z.infer<typeof ownerPortfolioGrantCreateSchema>;
+
 export const planCreateSchema = z.object({
   code: z.string().min(1).max(40),
   name: z.string().min(1).max(200),
