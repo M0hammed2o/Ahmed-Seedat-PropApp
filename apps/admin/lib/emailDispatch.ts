@@ -71,11 +71,31 @@ const TEMPLATE_BODY: Record<EmailTemplateName, (vars: Record<string, unknown>) =
     `Your ${branding.productName} trial for ${v.legalName ?? 'your organization'} ends on ${v.trialEndsAt ?? 'soon'}. Choose a plan to continue without interruption.`,
   member_invited: (v) =>
     `${v.inviteeName ? `Hi ${v.inviteeName}, ` : ''}${v.inviterName ?? 'A team administrator'} invited you to join ${v.orgName ?? `a ${branding.productName} organization`} on ${branding.productName} as ${v.role ?? 'a team member'}. ${v.acceptUrl ? `Accept your invitation: ${v.acceptUrl}. ` : ''}${v.expiresAt ? `This invitation expires on ${v.expiresAt}. ` : ''}If you weren't expecting this, you can safely ignore this email.`,
+  // Tenant onboarding completion pass (WORKLOG.md this date): this body previously never
+  // interpolated `${v.acceptUrl}` at all -- a genuine, previously-shipped defect (found by the
+  // tenant onboarding audit) that made a real Resend-delivered tenant invitation email contain no
+  // link to click. Mirrors member_invited's own acceptUrl/expiresAt handling; the two
+  // "create or sign in" sentences are spelled out explicitly since, unlike a staff invite, the
+  // recipient here may have no idea beforehand whether they already have an account.
   tenant_invitation: (v) =>
-    `Activate your ${branding.productName} tenant portal for ${v.orgName ?? 'your rental'} to view your lease, payments, and submit maintenance requests.`,
+    `You've been invited to ${branding.productName} by ${v.orgName ?? 'your landlord'} to activate your tenant portal, where you can view your lease, payments, and submit maintenance requests. ${v.acceptUrl ? `Activate your account here: ${v.acceptUrl}. If you don't have a ${branding.productName} account yet, this link lets you create one. If you already have one, sign in with the same email address to link this tenancy to it. ` : ''}${v.expiresAt ? `This invitation expires on ${v.expiresAt}. ` : ''}If you weren't expecting this, you can safely ignore this email.`,
   owner_invitation: (v) =>
-    `${v.ownerName ?? 'You'} have been invited to view your properties on ${branding.productName}, on behalf of ${v.orgName ?? 'the managing organization'}. Sign in to accept.`,
+    `${v.ownerName ? `Hi ${v.ownerName}, ` : ''}${v.orgName ?? 'A managing organization'} has invited you to view your properties on ${branding.productName}. ${v.acceptUrl ? `Accept your invitation here: ${v.acceptUrl}. If you don't have a ${branding.productName} account yet, this link lets you create one. If you already have one, sign in with the same email address to link your properties to it. ` : ''}${v.expiresAt ? `This invitation expires on ${v.expiresAt}. ` : ''}If you weren't expecting this, you can safely ignore this email.`,
 };
+
+/** Renders a template's subject + body ahead of dispatch -- exported (not just used internally by
+ * dispatchEmail below) so tests can assert on real rendered content (e.g. "acceptUrl appears in
+ * the tenant_invitation body") without needing a live DB or a mocked provider, closing the test
+ * gap that let tenant_invitation/owner_invitation ship without ever interpolating acceptUrl. */
+export function renderEmailTemplate(
+  templateName: EmailTemplateName,
+  vars: Record<string, unknown>,
+): { subject: string; bodyText: string } {
+  return {
+    subject: TEMPLATE_SUBJECTS[templateName](vars),
+    bodyText: TEMPLATE_BODY[templateName](vars),
+  };
+}
 
 export interface DispatchEmailInput {
   orgId: string;
@@ -170,8 +190,7 @@ export async function dispatchEmail(
   }
 
   const provider = getEmailProvider();
-  const subject = TEMPLATE_SUBJECTS[input.templateName](input.templateVars);
-  const bodyText = TEMPLATE_BODY[input.templateName](input.templateVars);
+  const { subject, bodyText } = renderEmailTemplate(input.templateName, input.templateVars);
   const result = await provider.send({
     orgId: input.orgId,
     toAddress: input.toAddress,

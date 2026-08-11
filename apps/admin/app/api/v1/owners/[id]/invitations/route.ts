@@ -202,7 +202,12 @@ async function handlePOST(request: NextRequest, { params }: RouteParams) {
       orgId: owner.org_id,
       toAddress: owner.email,
       templateName: 'owner_invitation',
-      templateVars: { orgName: org?.legal_name, ownerName: owner.name, acceptUrl },
+      templateVars: {
+        orgName: org?.legal_name,
+        ownerName: owner.name,
+        acceptUrl,
+        expiresAt: new Date(created.expires_at).toLocaleDateString('en-ZA'),
+      },
       relatedEntityType: 'owner_invitations',
       relatedEntityId: created.invitation_id,
       actorUserId: user.id,

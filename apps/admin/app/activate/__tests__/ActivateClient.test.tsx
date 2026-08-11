@@ -5,10 +5,11 @@ import { ActivateClient } from '../ActivateClient';
 
 const getUser = vi.fn();
 const replace = vi.fn();
+let searchParams = new URLSearchParams();
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace }),
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => searchParams,
 }));
 
 vi.mock('@/lib/supabase/client', () => ({
@@ -19,6 +20,7 @@ afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
   vi.clearAllMocks();
+  searchParams = new URLSearchParams();
 });
 
 describe('ActivateClient', () => {
@@ -65,5 +67,80 @@ describe('ActivateClient', () => {
 
     await waitFor(() => expect(screen.getByText(/doesn’t match/)).toBeTruthy());
     expect(screen.getByText('Try a different code')).toBeTruthy();
+  });
+
+  // Tenant onboarding completion pass (WORKLOG.md this date), Phase 2: safe activation context.
+  it("shows org-only context before authentication (never property/unit pre-auth, matching the API's own safe-context response)", async () => {
+    searchParams = new URLSearchParams('token=abc123');
+    getUser.mockResolvedValueOnce({ data: { user: null } });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          valid: true,
+          orgName: 'Musgrave Property Group',
+          propertyLabel: null,
+          unitLabel: null,
+        }),
+      }),
+    );
+
+    render(<ActivateClient />);
+
+    await waitFor(() =>
+      expect(screen.getByText(/Managed by: Musgrave Property Group/)).toBeTruthy(),
+    );
+    expect(screen.queryByText(/Property:/)).toBeNull();
+    expect(screen.getByText('Sign in')).toBeTruthy();
+  });
+
+  it('shows property/unit context once authenticated, and lands on /portal (not /my-lease) after successful activation', async () => {
+    searchParams = new URLSearchParams('token=abc123');
+    getUser.mockResolvedValueOnce({ data: { user: { id: 'user-1' } } });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: unknown) => {
+        if (typeof url === 'string' && url.includes('/tenant-invitations/context')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({
+              valid: true,
+              orgName: 'Musgrave Property Group',
+              propertyLabel: 'Musgrave Flats',
+              unitLabel: 'Unit 601',
+            }),
+          });
+        }
+        return Promise.resolve({ ok: true, json: async () => ({ tenantId: 'tenant-1' }) });
+      }),
+    );
+
+    render(<ActivateClient />);
+
+    await waitFor(() => expect(screen.getByText('Go to my portal')).toBeTruthy());
+    expect(screen.getByText(/Property: Musgrave Flats/)).toBeTruthy();
+    expect(screen.getByText(/Unit: Unit 601/)).toBeTruthy();
+
+    fireEvent.click(screen.getByText('Go to my portal'));
+    expect(replace).toHaveBeenCalledWith('/portal');
+  });
+
+  it('never blocks the accept flow when the context preview fetch fails', async () => {
+    searchParams = new URLSearchParams('token=abc123');
+    getUser.mockResolvedValueOnce({ data: { user: { id: 'user-1' } } });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: unknown) => {
+        if (typeof url === 'string' && url.includes('/tenant-invitations/context')) {
+          return Promise.reject(new Error('network error'));
+        }
+        return Promise.resolve({ ok: true, json: async () => ({ tenantId: 'tenant-1' }) });
+      }),
+    );
+
+    render(<ActivateClient />);
+
+    await waitFor(() => expect(screen.getByText('Go to my portal')).toBeTruthy());
   });
 });

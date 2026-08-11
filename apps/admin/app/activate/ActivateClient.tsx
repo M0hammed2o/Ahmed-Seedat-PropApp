@@ -10,14 +10,30 @@ import { Button } from '@/components/ui/Button';
 
 type Stage = 'checking-session' | 'signed-out' | 'confirming' | 'code-entry' | 'success' | 'error';
 
+interface InvitationContext {
+  valid: boolean;
+  orgName?: string | null;
+  expiresAt?: string | null;
+  propertyLabel?: string | null;
+  unitLabel?: string | null;
+}
+
 /**
- * TENANT UI (PRODUCT DECISION 2, 2026-08-03). Never renders any property/unit/lease/tenant/
- * payment data -- this page's only job is turning a token or (code + email) into a linked
- * account via POST /api/v1/tenant-invitations/accept, then handing off to the real portal
- * (/my-lease) which loads that data through its own normal RLS-scoped read. Also reachable with
- * no token at all (manual short-code entry, e.g. a landlord read a code aloud) -- both cases
- * live on the same route so the "already-linked"/"expired"/"invalid" states share one place to
- * be designed once, matching PRODUCT DECISION 2's explicit UI state list.
+ * TENANT UI (PRODUCT DECISION 2, 2026-08-03; context preview added in the tenant onboarding
+ * completion pass, WORKLOG.md this date). Still never renders any payment/financial/ID/document
+ * data -- this page's job is turning a token or (code + email) into a linked account via
+ * POST /api/v1/tenant-invitations/accept, then handing off to the real portal (/portal) which
+ * loads everything else through its own normal RLS-scoped read.
+ *
+ * A safe, minimal preview (org name always; property/unit only once signed in) is fetched via
+ * GET /api/v1/tenant-invitations/context -- the audit's "INVITATION UX" gap: a recipient
+ * previously had no way to tell what they were accepting before clicking through. This is
+ * decorative only (best-effort, never blocks the accept flow if it fails) -- the real
+ * authorization boundary remains accept_tenant_invitation() alone.
+ *
+ * Also reachable with no token at all (manual short-code entry, e.g. a landlord read a code
+ * aloud) -- both cases live on the same route so the "already-linked"/"expired"/"invalid" states
+ * share one place to be designed once, matching PRODUCT DECISION 2's explicit UI state list.
  */
 export function ActivateClient() {
   const router = useRouter();
@@ -29,8 +45,21 @@ export function ActivateClient() {
   const [code, setCode] = useState('');
   const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [context, setContext] = useState<InvitationContext | null>(null);
 
   const currentPath = token ? `/activate?token=${encodeURIComponent(token)}` : '/activate';
+
+  useEffect(() => {
+    if (!token || process.env.NEXT_PUBLIC_DEMO_MODE === 'true') return;
+    // Best-effort preview -- never blocks or errors the real flow below if this fails.
+    fetch(`/api/v1/tenant-invitations/context?token=${encodeURIComponent(token)}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((body) => {
+        if (body) setContext(body as InvitationContext);
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally runs once on mount
+  }, []);
 
   useEffect(() => {
     if (process.env.NEXT_PUBLIC_DEMO_MODE === 'true') {
@@ -91,6 +120,29 @@ export function ActivateClient() {
         <h1 className="mt-4 font-display text-xl font-bold text-light-textPrimary dark:text-dark-textPrimary">
           {branding.productName}
         </h1>
+
+        {context?.valid ? (
+          <div className="mt-4 rounded-lg border border-light-border bg-light-surface px-4 py-3 text-left text-xs dark:border-dark-border dark:bg-dark-surface">
+            <p className="font-medium text-light-textPrimary dark:text-dark-textPrimary">
+              You&apos;ve been invited to {branding.productName}
+            </p>
+            {context.orgName ? (
+              <p className="mt-1 text-light-textSecondary dark:text-dark-textSecondary">
+                Managed by: {context.orgName}
+              </p>
+            ) : null}
+            {context.propertyLabel ? (
+              <p className="mt-1 text-light-textSecondary dark:text-dark-textSecondary">
+                Property: {context.propertyLabel}
+              </p>
+            ) : null}
+            {context.unitLabel ? (
+              <p className="mt-1 text-light-textSecondary dark:text-dark-textSecondary">
+                Unit: {context.unitLabel}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
 
         {stage === 'checking-session' || stage === 'confirming' ? (
           <p className="mt-3 text-sm text-light-textSecondary dark:text-dark-textSecondary">
@@ -159,7 +211,7 @@ export function ActivateClient() {
             <Button
               variant="primary"
               className="mt-4 w-full"
-              onClick={() => router.replace('/my-lease')}
+              onClick={() => router.replace('/portal')}
             >
               Go to my portal
             </Button>

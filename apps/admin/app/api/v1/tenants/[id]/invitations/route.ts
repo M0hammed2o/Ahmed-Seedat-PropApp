@@ -189,6 +189,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         orgName: branding.organizationName,
         tenantName: tenant.full_name,
         acceptUrl,
+        expiresAt: new Date(created.expires_at).toLocaleDateString('en-ZA'),
       },
       relatedEntityType: 'tenant_invitations',
       relatedEntityId: created.invitation_id,
