@@ -33,6 +33,12 @@ describe('TenantsTable', () => {
     expect(screen.getAllByText('—').length).toBe(2);
   });
 
+  it('shows "No account" for an unlinked tenant and "Account linked" once userId is set', () => {
+    render(<TenantsTable data={[TENANT, { ...TENANT, id: 'tenant-2', userId: 'user-1' }]} />);
+    expect(screen.getByText('No account')).toBeTruthy();
+    expect(screen.getByText('Account linked')).toBeTruthy();
+  });
+
   it('renders the empty state with the custom action when there are no tenants', () => {
     render(<TenantsTable data={[]} emptyAction={<button>+ Add tenant</button>} />);
     expect(screen.getByText('No tenants yet')).toBeTruthy();

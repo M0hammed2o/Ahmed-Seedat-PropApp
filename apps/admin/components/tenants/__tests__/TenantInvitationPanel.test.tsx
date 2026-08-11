@@ -101,6 +101,36 @@ describe('TenantInvitationPanel', () => {
     expect(screen.getByDisplayValue('ABCD1234')).toBeTruthy();
   });
 
+  it('Resend on an already-pending invitation calls the same create endpoint as an initial send', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        invitationId: 'invite-3',
+        token: 'raw-token-value-2',
+        shortCode: null,
+        expiresAt: new Date().toISOString(),
+        acceptUrl: 'http://localhost:3000/activate?token=raw-token-value-2',
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(
+      <TenantInvitationPanel
+        tenantId="tenant-1"
+        hasEmail
+        hasPhone={false}
+        invitations={[baseInvitation]}
+      />,
+    );
+    fireEvent.click(screen.getByText('Resend'));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/tenants/tenant-1/invitations',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
   it('surfaces a real API error (e.g. no destination on file) instead of silently failing', async () => {
     vi.stubGlobal(
       'fetch',

@@ -236,9 +236,19 @@ export function TenantInvitationPanel({
               Expires {new Date(active.expiresAt).toLocaleString('en-ZA')}
             </p>
           </div>
-          <Button size="sm" disabled={busyId === active.id} onClick={() => revoke(active.id)}>
-            {busyId === active.id ? 'Revoking…' : 'Revoke'}
-          </Button>
+          <div className="flex items-center gap-2">
+            {/* create_tenant_invitation() already revokes-then-recreates on every call (its own
+                migration comment: "there is no separate resend endpoint, deliberately"), so
+                Resend reuses the exact same send() -> POST .../invitations call as the initial
+                send -- this button existed nowhere in the UI before, forcing an explicit Revoke
+                click first to achieve the same result. */}
+            <Button size="sm" variant="primary" disabled={submitting} onClick={send}>
+              {submitting ? 'Resending…' : 'Resend'}
+            </Button>
+            <Button size="sm" disabled={busyId === active.id} onClick={() => revoke(active.id)}>
+              {busyId === active.id ? 'Revoking…' : 'Revoke'}
+            </Button>
+          </div>
         </div>
       ) : (
         <div className="mt-3 space-y-2">

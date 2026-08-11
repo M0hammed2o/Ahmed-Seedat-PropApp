@@ -29,10 +29,11 @@ export type { OrgSeatSummary };
 /**
  * Whether the calling user (the session-bound client's own auth.uid(), or an explicit
  * `targetUserId` for the super-admin grant-management routes) may create their own
- * organization/portfolio. False only for a "linked owner only" account -- has an `owners.user_id`
- * row somewhere, holds zero active `organization_members` rows of their own, and has not been
- * explicitly granted an `owner_portfolio_grants` row. True for every ordinary fresh signup
- * (unaffected by this migration) and every user who already runs at least one organization.
+ * organization/portfolio. False for a "linked owner or tenant only" account -- has an
+ * `owners.user_id` or `tenants.user_id` row somewhere, holds zero active `organization_members`
+ * rows of their own, and has not been explicitly granted an `owner_portfolio_grants` row (tenant
+ * case added migration 20260101000095). True for every ordinary fresh signup (unaffected by
+ * either migration) and every user who already runs at least one organization.
  */
 export async function mayCreatePortfolio(
   supabase: SupabaseClient,

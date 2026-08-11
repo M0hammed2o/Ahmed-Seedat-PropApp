@@ -6,6 +6,7 @@ import { mapTenantInvitationRow, maskDestination } from '@/lib/tenantInvitations
 import { dispatchEmail } from '@/lib/emailDispatch';
 import { dispatchWhatsApp, resolveOrgWhatsAppBranding } from '@/lib/whatsappDispatch';
 import { rateLimitOrRespond } from '@/lib/rateLimit';
+import { writeAuditEvent } from '@/lib/audit';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -153,6 +154,21 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
 
   const serviceClient = getServiceRoleClient();
+
+  // Tenant access audit logging (WORKLOG.md this date) -- covers both a genuinely first
+  // invitation and a "resend" through this same endpoint (create_tenant_invitation() always
+  // revokes-then-recreates, so there is no separate resend code path to log differently here);
+  // never logs the token/short code itself, only the fact and channel of dispatch.
+  await writeAuditEvent(serviceClient, {
+    orgId: tenant.org_id,
+    actorUserId: user.id,
+    actorType: 'user',
+    action: 'tenant_invitation.created',
+    entityType: 'tenant_invitations',
+    entityId: created.invitation_id,
+    after: { tenantId: id, deliveryChannel: parsed.data.deliveryChannel },
+  });
+
   const branding = await resolveOrgWhatsAppBranding(serviceClient, tenant.org_id);
   const acceptUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/activate?token=${created.token}`;
 

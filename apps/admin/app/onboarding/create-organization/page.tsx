@@ -6,6 +6,7 @@ import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { hasAcceptedCurrentLegalTerms } from '@/lib/legalConsent';
 import { isProfileComplete } from '@/lib/profileCompletion';
 import { mayCreatePortfolio } from '@/lib/subscriptionEntitlements';
+import { resolveTenantSession } from '@/lib/tenantSession';
 import { Button } from '@/components/ui/Button';
 import { CreateOrganizationForm } from './CreateOrganizationForm';
 
@@ -45,14 +46,19 @@ export default async function CreateOrganizationPage() {
     redirect('/complete-account?next=%2Fonboarding%2Fcreate-organization');
   }
 
-  // Owner subscription + staff seat entitlement architecture (WORKLOG.md this date): a "linked
-  // owner only" account (accepted someone else's owner invitation, holds zero organization
-  // memberships of their own) reaching this page by direct navigation -- the natural landing flow
-  // sends them to /owner-portal instead, never here (destinationResolver.ts) -- must see a clear
-  // upgrade explanation, not the org-creation form. create_organization() itself still enforces
-  // this server-side (migration 20260101000094); this is only the friendlier page-level message
-  // for the same reason access-restricted/page.tsx exists for a suspended org's principal.
+  // Owner subscription + staff seat entitlement architecture (WORKLOG.md this date, extended for
+  // tenants 20260101000095): a "linked owner or tenant only" account (accepted someone else's
+  // owner or tenant invitation, holds zero organization memberships of their own) reaching this
+  // page by direct navigation -- the natural landing flow sends them to /owner-portal or /portal
+  // instead, never here (destinationResolver.ts) -- must see a clear upgrade explanation, not the
+  // org-creation form. create_organization() itself still enforces this server-side (migration
+  // 20260101000095); this is only the friendlier page-level message for the same reason
+  // access-restricted/page.tsx exists for a suspended org's principal.
   if (!(await mayCreatePortfolio(supabase))) {
+    const tenantSession = await resolveTenantSession();
+    const backHref = tenantSession ? '/portal' : '/owner-portal';
+    const backLabel = tenantSession ? 'Back to your portal' : 'Back to your shared properties';
+
     return (
       <main className="flex min-h-screen items-center justify-center bg-light-surface px-6 dark:bg-dark-surface">
         <div className="w-full max-w-md rounded-card border border-light-border bg-light-surfaceRaised p-8 text-center shadow-lift dark:border-dark-border dark:bg-dark-surfaceRaised">
@@ -63,14 +69,14 @@ export default async function CreateOrganizationPage() {
             Upgrade to manage your own properties
           </h1>
           <p className="mt-2 text-sm text-light-textSecondary dark:text-dark-textSecondary">
-            You can already view any property shared with you as an owner. To create and manage your
-            own {branding.productName} portfolio -- your own properties, staff, and organization
+            You can already access what's been shared with you. To create and manage your own{' '}
+            {branding.productName} portfolio -- your own properties, staff, and organization
             settings -- you'll need an active owner subscription.
           </p>
           <div className="mt-6 flex flex-col gap-2">
-            <Link href="/owner-portal">
+            <Link href={backHref}>
               <Button variant="primary" className="w-full">
-                Back to your shared properties
+                {backLabel}
               </Button>
             </Link>
             <a href={`mailto:${branding.supportEmail}`}>

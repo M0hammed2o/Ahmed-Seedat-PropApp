@@ -192,6 +192,7 @@ describe('resolveAuthenticatedDestination', () => {
       userId: 'user-1',
       tenantId: 't-1',
       orgId: 'org-1',
+      otherTenancyIds: [],
     });
 
     expect(await resolveAuthenticatedDestination()).toEqual({
@@ -205,6 +206,7 @@ describe('resolveAuthenticatedDestination', () => {
       userId: 'user-1',
       tenantId: 't-1',
       orgId: 'org-1',
+      otherTenancyIds: [],
     });
 
     expect(await resolveAuthenticatedDestination()).toEqual({
@@ -312,6 +314,7 @@ describe('resolveAuthenticatedDestination', () => {
         userId: 'user-1',
         tenantId: 't-1',
         orgId: 'org-1',
+        otherTenancyIds: [],
       });
       mockHasAcceptedCurrentLegalTerms.mockResolvedValue(false);
       mockIsProfileComplete.mockResolvedValue(false);

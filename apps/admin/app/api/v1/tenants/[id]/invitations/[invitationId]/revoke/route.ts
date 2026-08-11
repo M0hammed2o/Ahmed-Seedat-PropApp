@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { requireOrgRole } from '@/lib/portfolio';
 import { mapTenantInvitationRow } from '@/lib/tenantInvitations';
+import { writeAuditEvent } from '@/lib/audit';
 
 type RouteParams = { params: Promise<{ id: string; invitationId: string }> };
 
@@ -76,6 +77,16 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       { status: 500 },
     );
   }
+
+  await writeAuditEvent(getServiceRoleClient(), {
+    orgId: invite.org_id,
+    actorUserId: user.id,
+    actorType: 'user',
+    action: 'tenant_invitation.revoked',
+    entityType: 'tenant_invitations',
+    entityId: invitationId,
+    after: { tenantId: id },
+  });
 
   return NextResponse.json({ invitation: mapTenantInvitationRow(data) });
 }

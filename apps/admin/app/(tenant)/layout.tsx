@@ -36,7 +36,12 @@ const ACCOUNT_MENU_LINKS = [{ href: '/profile', label: 'My Profile' }];
 
 export default async function TenantPortalLayout({ children }: { children: React.ReactNode }) {
   const session: TenantSession | null = ADMIN_DEMO_MODE
-    ? { userId: 'demo-tenant-user-1', tenantId: 'demo-tenant-1', orgId: 'demo-org-1' }
+    ? {
+        userId: 'demo-tenant-user-1',
+        tenantId: 'demo-tenant-1',
+        orgId: 'demo-org-1',
+        otherTenancyIds: [],
+      }
     : await resolveTenantSession();
 
   if (!session) redirect('/login');

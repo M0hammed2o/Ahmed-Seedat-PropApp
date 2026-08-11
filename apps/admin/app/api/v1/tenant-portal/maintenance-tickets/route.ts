@@ -1,7 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { tenantMaintenanceTicketCreateSchema } from '@propvault/validation';
-import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
+import { resolveTenantSession } from '@/lib/tenantSession';
 import { mapMaintenanceTicketRow } from '@/lib/operations';
+import { writeAuditEvent } from '@/lib/audit';
 
 /**
  * POST /api/v1/tenant-portal/maintenance-tickets (V1 scope correction, 2026-08-01 -- DECISIONS.md).
@@ -25,19 +27,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { data: tenant, error: tenantError } = await supabase
-    .from('tenants')
-    .select('id, org_id')
-    .eq('user_id', user.id)
-    .limit(1);
-  if (tenantError) {
-    return NextResponse.json(
-      { error: { code: 'tenant_fetch_failed', message: tenantError.message } },
-      { status: 500 },
-    );
-  }
-  const tenantRow = tenant?.[0];
-  if (!tenantRow) {
+  // Multi-tenancy architecture (WORKLOG.md this date): resolveTenantSession() picks the caller's
+  // currently-ACTIVE tenancy (the active_tenant_id cookie, when it names one of the caller's own
+  // tenancies, else their first) rather than this route re-deriving "some tenant row" itself with
+  // its own separate, unrelated .limit(1) query -- a tenant with more than one tenancy now
+  // submits a ticket against whichever tenancy their session actually has selected, not an
+  // arbitrary pick independent of what the rest of the portal is showing them.
+  const session = await resolveTenantSession();
+  if (!session) {
     return NextResponse.json(
       {
         error: {
@@ -48,6 +45,7 @@ export async function POST(request: NextRequest) {
       { status: 403 },
     );
   }
+  const tenantRow = { id: session.tenantId, org_id: session.orgId };
 
   let body: unknown;
   try {
@@ -126,6 +124,20 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     );
   }
+
+  // Tenant access audit logging (WORKLOG.md this date) -- audit_events has no client insert
+  // policy (service-role only, same as every other writeAuditEvent() call site in this
+  // codebase); the primary insert above still runs through the caller's own session-bound
+  // client, so RLS remains the actual enforcement for the write itself.
+  await writeAuditEvent(getServiceRoleClient(), {
+    orgId: tenantRow.org_id,
+    actorUserId: user.id,
+    actorType: 'user',
+    action: 'tenant_maintenance_ticket.created',
+    entityType: 'maintenance_tickets',
+    entityId: data.id,
+    after: { propertyId: data.property_id, unitId: data.unit_id, priority: data.priority },
+  });
 
   return NextResponse.json({ maintenanceTicket: mapMaintenanceTicketRow(data) }, { status: 201 });
 }

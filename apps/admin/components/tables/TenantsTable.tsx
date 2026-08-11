@@ -50,6 +50,22 @@ const columns: ColumnDef<Tenant, unknown>[] = [
       <StatusBadge presentation={TENANT_STATUS_PRESENTATION[info.getValue() as Tenant['status']]} />
     ),
   },
+  {
+    header: 'Account',
+    accessorKey: 'userId',
+    // A compact list-level signal only -- distinguishing "not invited" from "invitation pending"
+    // needs a tenant_invitations join this list query doesn't do; the full 4-state picture (Not
+    // invited/Pending/Sent/Failed/Account linked) already lives on the tenant detail page's
+    // TenantInvitationPanel, which this links to.
+    cell: (info) =>
+      info.getValue() ? (
+        <span className="text-xs font-medium text-light-statusPaid dark:text-dark-statusPaid">
+          Account linked
+        </span>
+      ) : (
+        <span className="text-xs text-light-textMuted dark:text-dark-textMuted">No account</span>
+      ),
+  },
 ];
 
 export function TenantsTable({ data, emptyAction }: { data: Tenant[]; emptyAction?: ReactNode }) {
