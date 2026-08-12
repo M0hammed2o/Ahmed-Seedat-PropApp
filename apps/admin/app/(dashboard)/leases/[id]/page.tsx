@@ -19,6 +19,7 @@ import { Panel } from '@/components/ui/Panel';
 import { LeaseRentScheduleClient } from '@/components/leases/LeaseRentScheduleClient';
 import { LeaseActions } from '@/components/leases/LeaseActions';
 import { DepositPanel } from '@/components/leases/DepositPanel';
+import { LeaseOccupantsPanel } from '@/components/leases/LeaseOccupantsPanel';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 import type { LeaseRow } from '@/components/tables/LeasesTable';
 
@@ -308,6 +309,8 @@ function LeaseDetailView({
           </ul>
         )}
       </Panel>
+
+      <LeaseOccupantsPanel leaseId={lease.id} canManage={canEdit} />
 
       <LeaseActions
         leaseId={lease.id}

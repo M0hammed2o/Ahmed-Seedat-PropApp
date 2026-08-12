@@ -19,14 +19,27 @@ export type EmailTemplateName =
   | 'member_invited'
   | 'tenant_invitation'
   | 'owner_invitation'
-  | 'compliance_requirement_assigned';
+  | 'compliance_requirement_assigned'
+  | 'compliance_requirement_acknowledged'
+  | 'compliance_requirement_due_soon'
+  | 'compliance_requirement_overdue';
 
 // Only categories with an existing notification_preferences row can be preference-gated
 // (DATABASE.md §7's closed enum has no 'billing'/'accounting' category) -- invoice/payment/
 // owner-statement/subscription emails are transactional (EMAIL.md §1: "not user-suppressible"),
 // so they omit `category` entirely and are never gated. Only maintenance_update is gated here.
-const TEMPLATE_CATEGORY: Partial<Record<EmailTemplateName, 'maintenance'>> = {
+//
+// Property compliance workflow, notification lifecycle completion (WORKLOG.md this date,
+// migration 20260101000098 added the 'compliance' category): compliance_requirement_assigned
+// stays deliberately ungated (same reasoning tenant_invitation already documents -- a recipient
+// can't meaningfully opt out of the one message telling them action is required). The three new
+// ones ARE genuinely opt-out-able conveniences (a staff FYI, and reminders for something the
+// recipient already knows is outstanding), so they're gated like maintenance_update.
+const TEMPLATE_CATEGORY: Partial<Record<EmailTemplateName, 'maintenance' | 'compliance'>> = {
   maintenance_update: 'maintenance',
+  compliance_requirement_acknowledged: 'compliance',
+  compliance_requirement_due_soon: 'compliance',
+  compliance_requirement_overdue: 'compliance',
 };
 
 const TEMPLATE_SUBJECTS: Record<EmailTemplateName, (vars: Record<string, unknown>) => string> = {
@@ -49,6 +62,12 @@ const TEMPLATE_SUBJECTS: Record<EmailTemplateName, (vars: Record<string, unknown
     `You've been invited to access your properties on ${v.orgName ?? branding.productName}`,
   compliance_requirement_assigned: (v) =>
     `Action required: ${v.ruleTitle ?? 'a rule'} for ${v.propertyLabel ?? 'your rental'}`,
+  compliance_requirement_acknowledged: (v) =>
+    `${v.tenantName ?? 'A tenant'} acknowledged ${v.ruleTitle ?? 'a rule'}`,
+  compliance_requirement_due_soon: (v) =>
+    `Reminder: ${v.ruleTitle ?? 'a rule'} for ${v.propertyLabel ?? 'your rental'} is due soon`,
+  compliance_requirement_overdue: (v) =>
+    `Overdue: ${v.ruleTitle ?? 'a rule'} for ${v.propertyLabel ?? 'your rental'}`,
 };
 
 // Plain-text bodies, deliberately minimal (a real HTML/branded template pass is out of scope for
@@ -89,6 +108,15 @@ const TEMPLATE_BODY: Record<EmailTemplateName, (vars: Record<string, unknown>) =
   // meaningfully opt out of the one message telling them a rule now requires their action.
   compliance_requirement_assigned: (v) =>
     `${v.orgName ?? 'Your property manager'} has updated ${v.ruleTitle ?? 'a rule'} for ${v.propertyLabel ?? 'your rental'}. Please sign in to ${branding.productName} to review and acknowledge it.`,
+  // Notification lifecycle completion (WORKLOG.md this date). Staff-facing FYI, gated by the
+  // 'compliance' category (see TEMPLATE_CATEGORY above) -- unlike the tenant-facing "action
+  // required" email, this is a genuine convenience a staff member can reasonably opt out of.
+  compliance_requirement_acknowledged: (v) =>
+    `${v.tenantName ?? 'A tenant'} acknowledged ${v.ruleTitle ?? 'a rule'} (version ${v.versionNumber ?? ''}) for ${v.propertyLabel ?? 'a property'} on ${v.acknowledgedAt ?? 'recently'}.`,
+  compliance_requirement_due_soon: (v) =>
+    `${v.ruleTitle ?? 'A rule'} for ${v.propertyLabel ?? 'your rental'} is due ${v.dueAt ?? 'soon'}. Please sign in to ${branding.productName} to review and acknowledge it.`,
+  compliance_requirement_overdue: (v) =>
+    `${v.ruleTitle ?? 'A rule'} for ${v.propertyLabel ?? 'your rental'} was due ${v.dueAt ?? 'recently'} and is now overdue. Please sign in to ${branding.productName} to review and acknowledge it.`,
 };
 
 /** Renders a template's subject + body ahead of dispatch -- exported (not just used internally by

@@ -72,6 +72,9 @@ export function PropertyCompliancePanel({
   const [newCategory, setNewCategory] = useState('conduct_rules');
   const [newTitle, setNewTitle] = useState('');
   const [creating, setCreating] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<
+    'pending' | 'acknowledged' | 'overdue' | 'waived' | null
+  >(null);
 
   const load = useCallback(async () => {
     try {
@@ -155,17 +158,24 @@ export function PropertyCompliancePanel({
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
           {(
             [
-              ['total', 'Total'],
-              ['pending', 'Pending'],
-              ['acknowledged', 'Acknowledged'],
-              ['overdue', 'Overdue'],
-              ['waived', 'Waived'],
+              ['total', 'Total', null],
+              ['pending', 'Pending', 'pending'],
+              ['acknowledged', 'Acknowledged', 'acknowledged'],
+              ['overdue', 'Overdue', 'overdue'],
+              ['waived', 'Waived', 'waived'],
             ] as const
-          ).map(([key, label]) => (
-            <div key={key} className="panel p-3 text-center">
+          ).map(([key, label, filterValue]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setStatusFilter(statusFilter === filterValue ? null : filterValue)}
+              className={`panel p-3 text-center transition-opacity ${
+                statusFilter === filterValue ? 'ring-2 ring-light-accent dark:ring-dark-accent' : ''
+              }`}
+            >
               <p className="text-lg font-semibold text-foreground">{summary[key] ?? 0}</p>
               <p className="text-[11px] text-muted-foreground">{label}</p>
-            </div>
+            </button>
           ))}
         </div>
       ) : null}
@@ -224,45 +234,66 @@ export function PropertyCompliancePanel({
         </div>
       </Panel>
 
-      <Panel title="Tenancy compliance">
-        {requirements.length === 0 ? (
-          <p className="py-4 text-center text-sm text-muted-foreground">
-            No compliance requirements assigned yet -- activate a rule version to assign one.
-          </p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="text-xs text-muted-foreground">
-                <tr>
-                  <th className="py-1.5 pr-3">Tenant</th>
-                  <th className="py-1.5 pr-3">Rule</th>
-                  <th className="py-1.5 pr-3">Status</th>
-                  <th className="py-1.5 pr-3" />
-                </tr>
-              </thead>
-              <tbody>
-                {requirements.map((r) => (
-                  <tr key={r.id} className="border-t border-border">
-                    <td className="py-1.5 pr-3">{r.tenant?.fullName ?? '—'}</td>
-                    <td className="py-1.5 pr-3">
-                      {r.ruleVersion?.rule?.title ?? 'Rule'} v{r.ruleVersion?.versionNumber}
-                    </td>
-                    <td className="py-1.5 pr-3">
-                      <Pill tone={requirementStatusTone(r.status)}>{r.status}</Pill>
-                    </td>
-                    <td className="py-1.5 pr-3 text-right">
-                      {canManage && (r.status === 'pending' || r.status === 'viewed') ? (
-                        <Button size="sm" variant="secondary" onClick={() => waive(r.id)}>
-                          Waive
-                        </Button>
-                      ) : null}
-                    </td>
+      <Panel
+        title={
+          statusFilter ? `Tenancy compliance — filtered: ${statusFilter}` : 'Tenancy compliance'
+        }
+      >
+        {(() => {
+          const isOverdue = (r: RequirementRow) =>
+            (r.status === 'pending' || r.status === 'viewed') &&
+            !!r.dueAt &&
+            r.dueAt < new Date().toISOString();
+          const filtered = requirements.filter((r) => {
+            if (!statusFilter) return true;
+            if (statusFilter === 'overdue') return isOverdue(r);
+            if (statusFilter === 'pending') return r.status === 'pending' || r.status === 'viewed';
+            return r.status === statusFilter;
+          });
+          if (filtered.length === 0) {
+            return (
+              <p className="py-4 text-center text-sm text-muted-foreground">
+                {requirements.length === 0
+                  ? 'No compliance requirements assigned yet -- activate a rule version to assign one.'
+                  : 'No requirements match this filter.'}
+              </p>
+            );
+          }
+          return (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="text-xs text-muted-foreground">
+                  <tr>
+                    <th className="py-1.5 pr-3">Tenant</th>
+                    <th className="py-1.5 pr-3">Rule</th>
+                    <th className="py-1.5 pr-3">Status</th>
+                    <th className="py-1.5 pr-3" />
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                </thead>
+                <tbody>
+                  {filtered.map((r) => (
+                    <tr key={r.id} className="border-t border-border">
+                      <td className="py-1.5 pr-3">{r.tenant?.fullName ?? '—'}</td>
+                      <td className="py-1.5 pr-3">
+                        {r.ruleVersion?.rule?.title ?? 'Rule'} v{r.ruleVersion?.versionNumber}
+                      </td>
+                      <td className="py-1.5 pr-3">
+                        <Pill tone={requirementStatusTone(r.status)}>{r.status}</Pill>
+                      </td>
+                      <td className="py-1.5 pr-3 text-right">
+                        {canManage && (r.status === 'pending' || r.status === 'viewed') ? (
+                          <Button size="sm" variant="secondary" onClick={() => waive(r.id)}>
+                            Waive
+                          </Button>
+                        ) : null}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        })()}
       </Panel>
     </div>
   );

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Panel } from '@/components/ui/Panel';
+import { LevyStatementsPanel } from './LevyStatementsPanel';
 
 // Body corporate / managing agent contacts (PHASE 9, WORKLOG.md this date). Staff/owner-only --
 // property_management_contacts has no tenant RLS policy at all (deliberate scoping decision, see
@@ -291,6 +292,8 @@ export function PropertyManagementPanel({
             </Button>
           )
         ) : null}
+
+        <LevyStatementsPanel propertyId={propertyId} canManage={canManage} />
       </div>
     </Panel>
   );

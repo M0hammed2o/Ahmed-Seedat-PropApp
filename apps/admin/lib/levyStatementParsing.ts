@@ -88,11 +88,17 @@ export function parseLevyStatementLineItems(rawText: string): ParsedLevyLineItem
       .trim();
     if (description.length === 0) continue;
 
-    const lineType: ParsedLevyLineItem['lineType'] =
-      amount < 0 || PAYMENT_KEYWORDS.test(description)
-        ? 'payment'
-        : CREDIT_KEYWORDS.test(description)
-          ? 'credit'
+    // Description-based keywords are checked BEFORE the sign -- a negative amount alone is
+    // ambiguous between "payment" and "credit" (a real statement uses a negative/parenthesised
+    // amount for both), but an explicit "credit"/"refund" keyword is a stronger, more specific
+    // signal than the sign and must not be overridden by the generic negative-amount fallback
+    // (found via a real test failure on "Credit -R50.00" being misclassified as 'payment').
+    const lineType: ParsedLevyLineItem['lineType'] = PAYMENT_KEYWORDS.test(description)
+      ? 'payment'
+      : CREDIT_KEYWORDS.test(description)
+        ? 'credit'
+        : amount < 0
+          ? 'payment'
           : 'charge';
 
     items.push({

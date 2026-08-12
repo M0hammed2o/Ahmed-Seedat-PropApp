@@ -67,10 +67,14 @@ export function TenancySwitcher({
 
   return (
     <div>
-      <label className="block text-[10px] font-semibold tracking-[0.1em] text-muted-foreground uppercase">
+      <label
+        htmlFor="tenancy-switcher-select"
+        className="block text-[10px] font-semibold tracking-[0.1em] text-muted-foreground uppercase"
+      >
         Tenancy
       </label>
       <select
+        id="tenancy-switcher-select"
         value={activeTenantId}
         disabled={switching}
         onChange={(e) => handleChange(e.target.value)}

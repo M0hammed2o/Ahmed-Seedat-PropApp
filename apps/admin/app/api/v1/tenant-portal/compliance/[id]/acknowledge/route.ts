@@ -1,9 +1,10 @@
 import { isIP } from 'node:net';
 import { NextResponse, type NextRequest } from 'next/server';
 import { complianceAcknowledgeSchema } from '@propvault/validation';
-import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { rateLimitOrRespond } from '@/lib/rateLimit';
 import { resolveTrustedClientIp } from '@/lib/clientIp';
+import { dispatchEmail } from '@/lib/emailDispatch';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -84,6 +85,55 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         },
       },
       { status: notFound ? 404 : conflict ? 409 : 400 },
+    );
+  }
+
+  // Best-effort staff notification -- never blocks or fails the acknowledgement response itself,
+  // which has already committed. Notifies whoever created the rule (the natural "owner" of it),
+  // gated by the 'compliance' category so a staff member who doesn't want this can opt out.
+  try {
+    const serviceClient = getServiceRoleClient();
+    const { data: requirement } = await serviceClient
+      .from('compliance_requirements')
+      .select(
+        `org_id, acknowledged_at, tenants(full_name), properties(nickname),
+         property_rule_versions(version_number, property_rules(title, created_by))`,
+      )
+      .eq('id', id)
+      .maybeSingle();
+    const ruleVersion = requirement?.property_rule_versions as unknown as {
+      version_number: number;
+      property_rules: { title: string; created_by: string } | null;
+    } | null;
+    const rule = ruleVersion?.property_rules;
+    if (requirement && rule) {
+      const { data: creatorAuth } = await serviceClient.auth.admin.getUserById(rule.created_by);
+      const toAddress = creatorAuth?.user?.email ?? null;
+      const tenant = requirement.tenants as unknown as { full_name: string } | null;
+      const property = requirement.properties as unknown as { nickname: string } | null;
+      if (toAddress) {
+        await dispatchEmail(serviceClient, {
+          orgId: requirement.org_id,
+          toAddress,
+          toUserId: rule.created_by,
+          templateName: 'compliance_requirement_acknowledged',
+          templateVars: {
+            tenantName: tenant?.full_name,
+            ruleTitle: rule.title,
+            versionNumber: ruleVersion?.version_number,
+            propertyLabel: property?.nickname,
+            acknowledgedAt: requirement.acknowledged_at,
+          },
+          relatedEntityType: 'compliance_acknowledgements',
+          relatedEntityId: String(acknowledgementId),
+          actorUserId: user.id,
+        });
+      }
+    }
+  } catch (notifyError) {
+    console.error(
+      '[tenant-portal/compliance/acknowledge] notification dispatch failed',
+      notifyError,
     );
   }
 
