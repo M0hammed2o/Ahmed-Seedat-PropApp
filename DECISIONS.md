@@ -629,3 +629,19 @@ Google/Apple production credentials (impossible without Mohammed's own accounts 
 TD-29), no production deploy. Full technical detail (schema, RLS, RPC signatures, API routes,
 conflict-handling matrix, external OAuth setup steps) lives in `AUTHENTICATION.md`, not duplicated
 here — this entry exists to record the _decisions_, not restate the implementation.
+
+## 2026-08-12 — Property compliance workflow: architecture decisions made autonomously
+
+Building the property rules / occupant compliance / body corporate / levy statement workflow (full detail: `WORKLOG.md` this date) required several judgment calls not explicitly specified by the task; recorded here since each is a real, non-obvious choice rather than a mechanical implementation detail.
+
+**Rule/levy documents remain `documents` rows, not a new file model.** A `property_rule_versions`/`levy_statements` row references an existing `documents` row rather than owning its own storage path — reuses the existing category taxonomy (`compliance_documents`/`levies`, already seeded), existing malware-scan/checksum pipeline, and existing storage bucket wiring. The alternative (a parallel compliance-document storage concept) would have duplicated a working system for no benefit.
+
+**Compliance requirements are tenancy-scoped by `tenant_id`, not lease-scoped.** Matches every other tenant-self-access policy in this codebase (`rent_schedules`, `invoices`, `maintenance_tickets` — all `caller_tenant_ids()`-based), and means a rule assignment survives a lease renewal for the same tenant rather than needing to be reassigned.
+
+**Occupants are a genuinely new, additive concept — not a rename of co-tenants.** A co-tenant (a second `tenants` row via `lease_tenants`, `is_primary=false`) already exists correctly and can have portal access; `lease_occupants` is deliberately only for people recorded as living in the unit with no `tenants` row and, in this pass, no login at all (`portal_user_id` is a reserved-but-unused forward-looking column). Collapsing the two would have either forced every child/dependant into a full tenant+auth identity, or silently weakened the existing co-tenant model.
+
+**Body corporate/managing agent contacts are staff/owner-only in this pass, not tenant-visible.** The task's own Phase 9 illustration is staff-facing only; extending it to tenants ("who do I call") is a reasonable, small, separately-reviewable follow-up rather than bundled in here by default.
+
+**Levy statement line-item OCR is an explicitly disclosed heuristic, not a claimed native provider feature.** Neither AWS Textract's `AnalyzeExpense` nor Google Document AI's invoice parser (the two real providers already integrated) has a variable multi-line-item extraction shape — both return a fixed single-vendor-bill field set. Rather than silently misrepresenting what the provider returns, the line items come from a new, clearly-labelled heuristic text parser (`source: 'ocr_heuristic'`, low fixed confidence) layered on top of the providers' already-generic `extractText()`, requiring human review before anything is treated as final.
+
+**No accounting posting from levy statements in this pass.** Whether a given line item is an owner expense or a recoverable tenant charge is not determinable from statement text alone (the same statement routinely contains both), and the existing accounting engine's immutability rules (no edits, only reversing/adjusting entries) make a wrong automatic guess expensive to undo. Extraction, human review, and correction are fully built; posting is a deliberate, disclosed follow-up requiring its own design pass, not a guess made under this task's time budget.

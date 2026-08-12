@@ -16,3 +16,4 @@ export * from './ai';
 export * from './superAdmin';
 export * from './billing';
 export * from './malwareScan';
+export * from './compliance';

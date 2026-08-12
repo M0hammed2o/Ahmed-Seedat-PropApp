@@ -16,6 +16,8 @@ import { SimpleTabs } from '@/components/ui/SimpleTabs';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 import { ValuationForm } from '@/components/properties/ValuationForm';
 import { PropertyPhotosPanel } from '@/components/properties/PropertyPhotosPanel';
+import { PropertyCompliancePanel } from '@/components/properties/PropertyCompliancePanel';
+import { PropertyManagementPanel } from '@/components/properties/PropertyManagementPanel';
 import { PropertyDocumentFolders } from '@/components/properties/PropertyDocumentFolders';
 import { PropertyOwnersPanel } from '@/components/properties/PropertyOwnersPanel';
 
@@ -598,6 +600,14 @@ function PropertyDetailView({
           {
             label: 'Photos',
             content: <PropertyPhotosPanel propertyId={property.id} canManage={canManage} />,
+          },
+          {
+            label: 'Compliance',
+            content: <PropertyCompliancePanel propertyId={property.id} canManage={canManage} />,
+          },
+          {
+            label: 'Management',
+            content: <PropertyManagementPanel propertyId={property.id} canManage={canManage} />,
           },
           {
             label: `Documents (${documents.length})`,

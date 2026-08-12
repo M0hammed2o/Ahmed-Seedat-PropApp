@@ -18,7 +18,8 @@ export type EmailTemplateName =
   | 'trial_expiring_soon'
   | 'member_invited'
   | 'tenant_invitation'
-  | 'owner_invitation';
+  | 'owner_invitation'
+  | 'compliance_requirement_assigned';
 
 // Only categories with an existing notification_preferences row can be preference-gated
 // (DATABASE.md §7's closed enum has no 'billing'/'accounting' category) -- invoice/payment/
@@ -46,6 +47,8 @@ const TEMPLATE_SUBJECTS: Record<EmailTemplateName, (vars: Record<string, unknown
     `Activate your ${branding.productName} tenant portal for ${v.orgName ?? 'your rental'}`,
   owner_invitation: (v) =>
     `You've been invited to access your properties on ${v.orgName ?? branding.productName}`,
+  compliance_requirement_assigned: (v) =>
+    `Action required: ${v.ruleTitle ?? 'a rule'} for ${v.propertyLabel ?? 'your rental'}`,
 };
 
 // Plain-text bodies, deliberately minimal (a real HTML/branded template pass is out of scope for
@@ -81,6 +84,11 @@ const TEMPLATE_BODY: Record<EmailTemplateName, (vars: Record<string, unknown>) =
     `You've been invited to ${branding.productName} by ${v.orgName ?? 'your landlord'} to activate your tenant portal, where you can view your lease, payments, and submit maintenance requests. ${v.acceptUrl ? `Activate your account here: ${v.acceptUrl}. If you don't have a ${branding.productName} account yet, this link lets you create one. If you already have one, sign in with the same email address to link this tenancy to it. ` : ''}${v.expiresAt ? `This invitation expires on ${v.expiresAt}. ` : ''}If you weren't expecting this, you can safely ignore this email.`,
   owner_invitation: (v) =>
     `${v.ownerName ? `Hi ${v.ownerName}, ` : ''}${v.orgName ?? 'A managing organization'} has invited you to view your properties on ${branding.productName}. ${v.acceptUrl ? `Accept your invitation here: ${v.acceptUrl}. If you don't have a ${branding.productName} account yet, this link lets you create one. If you already have one, sign in with the same email address to link your properties to it. ` : ''}${v.expiresAt ? `This invitation expires on ${v.expiresAt}. ` : ''}If you weren't expecting this, you can safely ignore this email.`,
+  // Property compliance workflow (WORKLOG.md this date). Ungated/transactional (no
+  // TEMPLATE_CATEGORY entry), same reasoning tenant_invitation already documents: a tenant can't
+  // meaningfully opt out of the one message telling them a rule now requires their action.
+  compliance_requirement_assigned: (v) =>
+    `${v.orgName ?? 'Your property manager'} has updated ${v.ruleTitle ?? 'a rule'} for ${v.propertyLabel ?? 'your rental'}. Please sign in to ${branding.productName} to review and acknowledge it.`,
 };
 
 /** Renders a template's subject + body ahead of dispatch -- exported (not just used internally by

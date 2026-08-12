@@ -42,6 +42,7 @@ interface PortalOverview {
   latestMaintenanceSummary: string | null;
   documentsCount: number;
   notices: Announcement[];
+  outstandingComplianceCount: number;
 }
 
 const DEMO_DATA: PortalOverview = {
@@ -59,6 +60,7 @@ const DEMO_DATA: PortalOverview = {
   openMaintenanceCount: 1,
   latestMaintenanceSummary: 'Kitchen tap leaking',
   documentsCount: 1,
+  outstandingComplianceCount: 1,
   notices: [
     {
       id: 'demo-tenant-announcement-1',
@@ -299,6 +301,7 @@ async function loadData(): Promise<PortalOverview> {
       latestMaintenanceSummary: null,
       documentsCount: 0,
       notices: [],
+      outstandingComplianceCount: 0,
     };
   }
 
@@ -318,28 +321,36 @@ async function loadData(): Promise<PortalOverview> {
     ? noticesQuery.or(`property_id.is.null,property_id.eq.${session.propertyId}`)
     : noticesQuery.is('property_id', null);
 
-  const [leaseResult, maintenanceResult, documentsResult, noticesResult] = await Promise.all([
-    session.leaseId
-      ? supabase
-          .from('leases')
-          .select('*, units(unit_label, properties(nickname))')
-          .eq('id', session.leaseId)
-          .maybeSingle()
-      : Promise.resolve({ data: null, error: null }),
-    supabase
-      .from('maintenance_tickets')
-      .select('summary, status, created_at')
-      .or(`tenant_id.eq.${session.tenantId},submitted_by_tenant_id.eq.${session.tenantId}`)
-      .order('created_at', { ascending: false }),
-    tenancyLeaseIds.length > 0
-      ? supabase
-          .from('documents')
-          .select('id')
-          .is('deleted_at', null)
-          .in('lease_id', tenancyLeaseIds)
-      : Promise.resolve({ data: [], error: null }),
-    noticesQuery,
-  ]);
+  const [leaseResult, maintenanceResult, documentsResult, noticesResult, complianceResult] =
+    await Promise.all([
+      session.leaseId
+        ? supabase
+            .from('leases')
+            .select('*, units(unit_label, properties(nickname))')
+            .eq('id', session.leaseId)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+      supabase
+        .from('maintenance_tickets')
+        .select('summary, status, created_at')
+        .or(`tenant_id.eq.${session.tenantId},submitted_by_tenant_id.eq.${session.tenantId}`)
+        .order('created_at', { ascending: false }),
+      tenancyLeaseIds.length > 0
+        ? supabase
+            .from('documents')
+            .select('id')
+            .is('deleted_at', null)
+            .in('lease_id', tenancyLeaseIds)
+        : Promise.resolve({ data: [], error: null }),
+      noticesQuery,
+      // Property compliance workflow (WORKLOG.md this date) -- scoped to the active tenancy only,
+      // same as every other query here.
+      supabase
+        .from('compliance_requirements')
+        .select('id', { count: 'exact', head: true })
+        .eq('tenant_id', session.tenantId)
+        .in('status', ['pending', 'viewed']),
+    ]);
   if (leaseResult.error) throw new Error(`Failed to load lease: ${leaseResult.error.message}`);
   if (maintenanceResult.error)
     throw new Error(`Failed to load maintenance: ${maintenanceResult.error.message}`);
@@ -347,6 +358,8 @@ async function loadData(): Promise<PortalOverview> {
     throw new Error(`Failed to load documents: ${documentsResult.error.message}`);
   if (noticesResult.error)
     throw new Error(`Failed to load notices: ${noticesResult.error.message}`);
+  if (complianceResult.error)
+    throw new Error(`Failed to load compliance requirements: ${complianceResult.error.message}`);
 
   const leaseRow = leaseResult.data as
     | (Record<string, unknown> & {
@@ -402,5 +415,6 @@ async function loadData(): Promise<PortalOverview> {
     latestMaintenanceSummary: openTickets[0]?.summary ?? null,
     documentsCount: documentsResult.data?.length ?? 0,
     notices: (noticesResult.data ?? []).map(mapAnnouncementRow),
+    outstandingComplianceCount: complianceResult.count ?? 0,
   };
 }

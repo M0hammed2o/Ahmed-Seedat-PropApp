@@ -1,6 +1,14 @@
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
-import { LayoutDashboard, FileSignature, Receipt, Wrench, Megaphone, FileText } from 'lucide-react';
+import {
+  LayoutDashboard,
+  FileSignature,
+  Receipt,
+  Wrench,
+  Megaphone,
+  FileText,
+  ClipboardCheck,
+} from 'lucide-react';
 import { branding } from '@propvault/config';
 import { resolveTenantSession, type TenantSession } from '@/lib/tenantSession';
 import { requireCustomerMfaIfEnrolled } from '@/lib/mfaGate';
@@ -24,6 +32,7 @@ const NAV_SECTIONS: NavSection[] = [
   {
     items: [
       { href: '/portal', label: 'Home', icon: navIcon(LayoutDashboard) },
+      { href: '/compliance', label: 'Required Actions', icon: navIcon(ClipboardCheck) },
       { href: '/my-lease', label: 'My Lease', icon: navIcon(FileSignature) },
       { href: '/my-payments', label: 'My Payments', icon: navIcon(Receipt) },
       { href: '/my-maintenance', label: 'My Maintenance', icon: navIcon(Wrench) },
