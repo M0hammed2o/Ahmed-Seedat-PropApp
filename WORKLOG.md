@@ -17,6 +17,7 @@ Follow-up to the core-slice pass below, closing the product-facing gaps its own 
 **A real accessibility gap found and fixed**: `TenancySwitcher`'s `<select>` had no `id`/`htmlFor` association with its `<label>` -- fixed (two-line change) rather than worked around in the new E2E test.
 
 **Playwright E2E** (`e2e/property-compliance-workflow.spec.ts` + `e2e/fixtures/complianceWorkflow.ts`), the major deferred gap named in the prior pass's own report -- 4 scenarios, all passing against a real dev server + real local Supabase:
+
 - **A+B**: rule v1 assigned -> tenant views (not acknowledged) -> explicitly acknowledges -> staff dashboard reflects it -> v2 activated -> old v1 acknowledgement untouched (same status, same timestamp) -> tenant acknowledges v2 separately.
 - **C**: an entirely unrelated tenant cannot open another tenant's `/compliance/[id]` URL, cannot acknowledge their requirement via direct API call, cannot read their rule document, and their own `/api/v1/tenant-portal/compliance` never includes it.
 - **D**: one auth user linked to two tenancies never sees both properties' requirements in one response, and the real tenancy-switcher UI correctly changes which one is shown.
