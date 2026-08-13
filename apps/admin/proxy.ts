@@ -137,7 +137,16 @@ const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 // never by a session cookie, so CSRF -- forging a request that rides an ambient cookie -- does not
 // apply to it in the first place. Exact pathnames only (never a prefix) so this list can't
 // accidentally widen to cover something that does need the check.
-const CSRF_EXEMPT_PATHS = new Set(['/api/v1/billing/webhook']);
+//
+// /api/v1/webhooks/resend (infrastructure hardening pass, WORKLOG.md this date) -- same reasoning
+// as billing/webhook exactly: authenticated by Resend's own Svix signature
+// (processResendWebhookEvent), never by a session cookie. Found and fixed via a real live
+// production probe of the newly-deployed route (POST with no Origin header returned 403
+// csrf_origin_mismatch before ever reaching signature verification) -- Resend's real webhook
+// calls never carry an Origin header either, so without this exemption the endpoint would have
+// been permanently unreachable by the real provider despite passing every local/CI test, since no
+// test in this codebase's own suite calls the route through this proxy layer.
+const CSRF_EXEMPT_PATHS = new Set(['/api/v1/billing/webhook', '/api/v1/webhooks/resend']);
 
 /**
  * True if a mutating request's Origin (or, failing that, Referer) header matches this app's own

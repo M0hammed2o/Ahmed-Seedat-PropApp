@@ -77,6 +77,14 @@ describe('isTrustedOrigin', () => {
     expect(isTrustedOrigin(req)).toBe(true);
   });
 
+  it('exempts the Resend webhook regardless of origin (signature-authenticated, not cookie-authenticated) -- found and fixed via a real live production probe, WORKLOG.md this date', () => {
+    const req = mutatingRequest('http://127.0.0.1:3100/api/v1/webhooks/resend', {
+      host: '127.0.0.1:3100',
+      // Deliberately no origin/referer at all -- exactly how Resend's real webhook call arrives.
+    });
+    expect(isTrustedOrigin(req)).toBe(true);
+  });
+
   it('exempts any request carrying an Authorization: Bearer header, regardless of origin', () => {
     const req = mutatingRequest('http://127.0.0.1:3100/api/v1/system/generate-rent-schedules', {
       host: '127.0.0.1:3100',
