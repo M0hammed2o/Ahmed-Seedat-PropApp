@@ -110,8 +110,12 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     );
   }
 
+  // Resolved before the try block (a pure, non-throwing call) so both the success AND failure
+  // paths below can record which provider was in use -- infrastructure hardening pass (WORKLOG.md
+  // this date): extraction_jobs.provider_name already existed as a column but was never written.
+  const provider = getDocumentIntelligenceProvider();
+
   try {
-    const provider = getDocumentIntelligenceProvider();
     const ocrResult = await provider.extractText({
       documentId: statement.document_id,
       storagePath: document.storage_path,
@@ -124,6 +128,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       org_id: statement.org_id,
       raw_provider_output: { rawText: ocrResult.rawText, metadata: ocrResult.metadata },
       overall_confidence: ocrResult.confidence,
+      provider_name: provider.providerName,
     });
     if (resultError) throw new Error(resultError.message);
 
@@ -146,7 +151,10 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       if (lineItemsError) throw new Error(lineItemsError.message);
     }
 
-    await serviceRole.from('extraction_jobs').update({ status: 'succeeded' }).eq('id', job.id);
+    await serviceRole
+      .from('extraction_jobs')
+      .update({ status: 'succeeded', provider_name: provider.providerName })
+      .eq('id', job.id);
     await serviceRole.from('levy_statements').update({ status: 'extracted' }).eq('id', id);
 
     await writeAuditEvent(serviceRole, {
@@ -166,6 +174,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       .update({
         status: 'failed',
         error_message: err instanceof Error ? err.message : 'Unknown error',
+        provider_name: provider.providerName,
       })
       .eq('id', job.id);
     await serviceRole.from('levy_statements').update({ status: 'uploaded' }).eq('id', id);

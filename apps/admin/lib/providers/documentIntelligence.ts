@@ -39,6 +39,8 @@ function mockMetadata(processingDurationMs: number) {
 }
 
 export class MockDocumentIntelligenceProvider implements DocumentIntelligenceProvider {
+  readonly providerName = 'mock';
+
   async classify(_input: ProcessingInput): Promise<ClassificationResult> {
     await delay(50);
     return { documentType: 'other', confidence: 0.5, metadata: mockMetadata(50) };
@@ -729,6 +731,21 @@ export class GoogleDocumentAIProvider implements DocumentIntelligenceProvider {
   }
 }
 
+// PRECEDENCE (explicit, not incidental -- infrastructure hardening pass, WORKLOG.md this date):
+// AWS Textract wins whenever BOTH AWS and Google credentials are configured; Google Document AI
+// is only used when Textract's own required env vars are absent. This order predates Google's
+// integration (Textract was the original/only provider; Google was added later as a second
+// option, per WORKLOG.md's own "second extraction provider" framing) and has never been
+// deliberately revisited as a product decision -- it is simply "whichever was checked first" in
+// the original implementation. A live production test (WORKLOG.md this date) proved a REAL
+// (non-Mock) provider is active and correctly extracting text, but could not determine from the
+// app's own data alone whether that was Textract or Google specifically, precisely because this
+// precedence was implicit. extraction_jobs.provider_name / extraction_results.provider_name (now
+// actually populated, see the two extract routes) closes that observability gap going forward --
+// this function's OWN precedence is deliberately left unchanged here, since silently reordering
+// it without evidence of which vendor Mohammed actually intends as primary would be a real
+// behavior change, not an infrastructure/observability fix. Flagged as an open product question
+// in this pass's own completion report, not decided unilaterally.
 export function getDocumentIntelligenceProvider(): DocumentIntelligenceProvider {
   const textractConfig = getTextractConfig();
   if (textractConfig) {

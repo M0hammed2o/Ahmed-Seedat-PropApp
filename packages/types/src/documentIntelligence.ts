@@ -80,6 +80,12 @@ export interface FieldExtractionResult {
  * only from server-side/Edge Function implementations of this interface. See DOCUMENT_INTELLIGENCE.md.
  */
 export interface DocumentIntelligenceProvider {
+  /** Stable provider identity (e.g. 'aws-textract' / 'google-document-ai' / 'mock') -- already
+   * echoed on every result's own metadata.providerName; declared here too (infrastructure
+   * hardening pass, WORKLOG.md this date) so a caller holding only the interface type, not a
+   * concrete class, can read it BEFORE calling any method (needed to record which provider was in
+   * use even when the call itself throws). Mirrors EmailProvider.providerName exactly. */
+  readonly providerName: string;
   classify(input: ProcessingInput): Promise<ClassificationResult>;
   extractText(input: ProcessingInput): Promise<OcrResult>;
   extractFields(input: ProcessingInput, documentType: DocumentType): Promise<FieldExtractionResult>;
@@ -111,6 +117,13 @@ export interface ExtractionResult {
   orgId: string | null;
   rawProviderOutput: FieldExtractionResult;
   overallConfidence: number | null;
+  /** Which concrete DocumentIntelligenceProvider actually served this extraction (its own
+   * `providerName`, e.g. 'aws-textract'/'google-document-ai'/'mock') -- previously only ever
+   * returned in-memory as part of the result's own metadata.providerName and never persisted, so
+   * there was no way to audit which vendor handled a given extraction after the fact. Mirrors
+   * ExtractionJob.providerName below, which already existed as a column but was likewise never
+   * written by either extract route. */
+  providerName: string | null;
   reviewedAt: string | null;
   reviewedBy: string | null;
   createdAt: string;

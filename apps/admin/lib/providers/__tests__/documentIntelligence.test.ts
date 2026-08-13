@@ -7,6 +7,17 @@ import {
 } from '../documentIntelligence';
 
 describe('MockDocumentIntelligenceProvider', () => {
+  it('exposes providerName "mock", matching metadata.providerName on every result', async () => {
+    const provider = new MockDocumentIntelligenceProvider();
+    expect(provider.providerName).toBe('mock');
+    const result = await provider.extractText({
+      documentId: 'd-1',
+      storagePath: 'x',
+      mimeType: 'application/pdf',
+    });
+    expect(result.metadata.providerName).toBe('mock');
+  });
+
   it('extractFields returns lease-shaped fields for documentType "lease"', async () => {
     const provider = new MockDocumentIntelligenceProvider();
     const result = await provider.extractFields(
@@ -63,6 +74,13 @@ describe('AWSTextractDocumentIntelligenceProvider', () => {
     await expect(
       provider.extractText({ documentId: 'd-1', storagePath: 'x', mimeType: 'application/pdf' }),
     ).rejects.toThrow(/signedUrl/);
+  });
+
+  it('exposes providerName "aws-textract", distinct from "google-document-ai" and "mock"', () => {
+    const provider = new AWSTextractDocumentIntelligenceProvider(CONFIG);
+    expect(provider.providerName).toBe('aws-textract');
+    expect(provider.providerName).not.toBe('google-document-ai');
+    expect(provider.providerName).not.toBe('mock');
   });
 
   it('extractText concatenates LINE blocks and averages their confidence', async () => {

@@ -17,6 +17,8 @@ function delay(ms: number) {
  * development"). Never used in a production build — see DOCUMENT_INTELLIGENCE.md.
  */
 export class MockDocumentIntelligenceProvider implements DocumentIntelligenceProvider {
+  readonly providerName = 'mock';
+
   async classify(input: ProcessingInput): Promise<ClassificationResult> {
     await delay(300);
     const documentType: DocumentType = input.mimeType === 'application/pdf' ? 'bill' : 'other';

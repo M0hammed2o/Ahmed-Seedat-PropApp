@@ -27,6 +27,7 @@ const RESULT: ExtractionResult = {
     },
   },
   overallConfidence: 0.62,
+  providerName: 'mock',
   reviewedAt: null,
   reviewedBy: null,
   createdAt: '2026-08-01T00:00:00Z',

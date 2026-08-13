@@ -111,6 +111,13 @@ describe('GoogleDocumentAIProvider (mocked fetch, no real Google call)', () => {
     vi.unstubAllGlobals();
   });
 
+  it('exposes providerName "google-document-ai", distinct from "aws-textract" and "mock"', () => {
+    const provider = new GoogleDocumentAIProvider(config);
+    expect(provider.providerName).toBe('google-document-ai');
+    expect(provider.providerName).not.toBe('aws-textract');
+    expect(provider.providerName).not.toBe('mock');
+  });
+
   it('extractText() returns the document text and average token confidence', async () => {
     mockDocumentResponse({
       text: 'INVOICE Amount Due: 500',

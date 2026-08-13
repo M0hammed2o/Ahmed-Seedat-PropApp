@@ -148,18 +148,23 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
         org_id: document.org_id,
         raw_provider_output: extraction,
         overall_confidence: extraction.overallConfidence,
+        provider_name: provider.providerName,
       })
       .select('*')
       .single();
     if (resultError) throw new Error(resultError.message);
 
-    await serviceRole.from('extraction_jobs').update({ status: 'succeeded' }).eq('id', job.id);
+    await serviceRole
+      .from('extraction_jobs')
+      .update({ status: 'succeeded', provider_name: provider.providerName })
+      .eq('id', job.id);
 
     // Phase 15 audit gap (overnight platform pass, WORKLOG.md this date) -- never logs
     // extracted field values (before/after intentionally omit raw_provider_output, same
     // reasoning as POST .../review's audit event) or which vendor ran, since neither is a secret
     // but neither belongs in an audit trail meant for "who did what," not provider diagnostics
-    // (that's extraction_jobs.provider_name, already queryable separately).
+    // (that's extraction_jobs.provider_name / extraction_results.provider_name, now actually
+    // populated -- infrastructure hardening pass, WORKLOG.md this date -- queryable separately).
     await writeAuditEvent(serviceRole, {
       orgId: document.org_id,
       actorUserId: user.id,
@@ -180,6 +185,10 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       .update({
         status: 'failed',
         error_message: err instanceof Error ? err.message : 'Unknown error',
+        // provider is resolved (a pure, non-throwing call) before this try block, so it's always
+        // known here too -- a failure happened calling the provider, not resolving which one to
+        // call, so recording which provider failed is real information, not a guess.
+        provider_name: provider.providerName,
       })
       .eq('id', job.id);
 

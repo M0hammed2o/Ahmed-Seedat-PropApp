@@ -88,6 +88,7 @@ interface ExtractionResultRow {
   org_id: string | null;
   raw_provider_output: unknown;
   overall_confidence: number | null;
+  provider_name: string | null;
   reviewed_at: string | null;
   reviewed_by: string | null;
   created_at: string;
@@ -101,6 +102,7 @@ export function mapExtractionResultRow(row: ExtractionResultRow): ExtractionResu
     orgId: row.org_id,
     rawProviderOutput: row.raw_provider_output as ExtractionResult['rawProviderOutput'],
     overallConfidence: row.overall_confidence,
+    providerName: row.provider_name,
     reviewedAt: row.reviewed_at,
     reviewedBy: row.reviewed_by,
     createdAt: row.created_at,

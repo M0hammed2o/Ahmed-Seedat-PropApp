@@ -1,5 +1,6 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { EmailWebhookHeaders } from '@propvault/types';
 import { branding } from '@propvault/config';
 import { getEmailProvider, isEmailProviderConfigured } from './providers/email';
 import { writeAuditEvent } from './audit';
@@ -265,4 +266,142 @@ export async function dispatchEmail(
   });
 
   return { sent: true, emailMessageId: message.id, deliveryConfigured };
+}
+
+// Infrastructure-hardening pass (WORKLOG.md this date): closes the gap dispatchEmail() itself
+// already documented -- "no provider webhook currently updates status afterward" -- so
+// email_messages.status was permanently stuck at 'queued' for every real send. Mirrors
+// processBillingWebhookEvent()'s exact idempotency pattern: verify signature, parse, insert into
+// a dedicated *_webhook_events table with a unique(provider_name, provider_event_id) guard FIRST,
+// treat a 23505 unique-violation as "already processed" (a provider retry) rather than an error,
+// and only then touch the row(s) the event actually concerns.
+export interface ProcessEmailWebhookResult {
+  alreadyProcessed: boolean;
+  eventType?: string;
+}
+
+// Forward-only status ranking (EMAIL.md-style "never let an old event un-deliver a delivered
+// message"): once a message reaches a terminal rank, no further event may move it, regardless of
+// arrival order. bounced/failed rank equal to delivered -- all three are equally terminal, just
+// different terminal outcomes; none should ever overwrite another.
+const STATUS_RANK: Record<string, number> = {
+  queued: 0,
+  sent: 1,
+  delivered: 2,
+  bounced: 2,
+  failed: 2,
+};
+
+export async function processResendWebhookEvent(
+  serviceClient: SupabaseClient,
+  input: { rawBody: string; headers: EmailWebhookHeaders },
+): Promise<ProcessEmailWebhookResult> {
+  const provider = getEmailProvider();
+
+  if (!provider.verifyWebhookSignature(input.rawBody, input.headers)) {
+    throw new Error('Invalid webhook signature');
+  }
+
+  const event = provider.parseWebhookEvent(input.rawBody);
+  // Prefer the real Svix delivery id (the true idempotency key) over parseWebhookEvent's
+  // content-derived fallback -- always present in practice, since verifyWebhookSignature already
+  // required headers.id to succeed.
+  const providerEventId = input.headers.id ?? event.providerEventId;
+
+  const { data: message } = await serviceClient
+    .from('email_messages')
+    .select('id, org_id, status')
+    .eq('provider_message_id', event.providerMessageId)
+    .maybeSingle();
+
+  const { error: insertError } = await serviceClient.from('email_webhook_events').insert({
+    org_id: message?.org_id ?? null,
+    email_message_id: message?.id ?? null,
+    provider_name: provider.providerName,
+    provider_event_id: providerEventId,
+    event_type: event.type,
+    payload: event.raw as object,
+  });
+  if (insertError) {
+    // 23505 = unique_violation -- this exact delivery was already processed, a provider retry.
+    if (insertError.code === '23505') {
+      return { alreadyProcessed: true, eventType: event.type };
+    }
+    throw new Error(insertError.message);
+  }
+
+  // An event for a provider_message_id this app never sent (wrong environment sharing the same
+  // Resend account, a stale test, etc.) -- the raw event is still recorded above for audit, but
+  // there is no local row to update. Not an error: the webhook was genuinely authentic, it just
+  // doesn't concern us.
+  if (!message) {
+    return { alreadyProcessed: false, eventType: event.type };
+  }
+
+  if (event.type === 'sent' || event.type === 'delivered' || event.type === 'bounced') {
+    const newStatus = event.type; // 'sent' | 'delivered' | 'bounced' are also EmailStatus values
+    const currentRank = STATUS_RANK[message.status] ?? 0;
+    const newRank = STATUS_RANK[newStatus] ?? 0;
+    if (newRank >= currentRank && currentRank < 2) {
+      const timestampColumn =
+        newStatus === 'delivered' ? 'delivered_at' : newStatus === 'bounced' ? 'bounced_at' : null;
+      await serviceClient
+        .from('email_messages')
+        .update({
+          status: newStatus,
+          provider_event_at: event.occurredAt,
+          last_provider_event: event.type,
+          ...(timestampColumn ? { [timestampColumn]: event.occurredAt } : {}),
+          ...(newStatus === 'bounced' ? { failure_reason: event.bounceType ?? 'bounced' } : {}),
+        })
+        .eq('id', message.id);
+
+      await writeAuditEvent(serviceClient, {
+        orgId: message.org_id,
+        actorUserId: null,
+        actorType: 'system',
+        action: 'email_status_updated',
+        entityType: 'email_messages',
+        entityId: message.id,
+        after: { status: newStatus, providerEvent: event.type },
+      });
+    }
+  } else {
+    // delivery_delayed/complained/other -- informational, no status-enum transition, but still
+    // worth a lightweight trail on the row itself for support/debugging.
+    await serviceClient
+      .from('email_messages')
+      .update({ provider_event_at: event.occurredAt, last_provider_event: event.type })
+      .eq('id', message.id);
+  }
+
+  // Hard bounce / spam complaint -> suppress future sends to this address, closing the gap
+  // dispatchEmail() already reads from (email_suppressions) but nothing has ever written to.
+  // Best-effort: never lets a suppression-write failure fail the whole webhook (already-committed
+  // status update above matters more than this secondary effect).
+  const isHardBounce =
+    event.type === 'bounced' && (event.bounceType ?? '').toLowerCase().includes('permanent');
+  if (isHardBounce || event.type === 'complained') {
+    try {
+      const { data: fullMessage } = await serviceClient
+        .from('email_messages')
+        .select('org_id, to_address')
+        .eq('id', message.id)
+        .single();
+      if (fullMessage) {
+        await serviceClient.from('email_suppressions').upsert(
+          {
+            org_id: fullMessage.org_id,
+            email_address: fullMessage.to_address,
+            reason: event.type === 'complained' ? 'spam_complaint' : 'hard_bounce',
+          },
+          { onConflict: 'org_id,email_address', ignoreDuplicates: true },
+        );
+      }
+    } catch {
+      // Suppression is a defensive secondary effect -- never fails the webhook over it.
+    }
+  }
+
+  return { alreadyProcessed: false, eventType: event.type };
 }
