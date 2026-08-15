@@ -79,11 +79,8 @@ export default async function CreateOrganizationPage() {
                 {backLabel}
               </Button>
             </Link>
-            <a href={`mailto:${branding.supportEmail}`}>
-              <Button variant="secondary" className="w-full">
-                Ask about an owner subscription
-              </Button>
-            </a>
+            {/* V1 communications productionisation (WORKLOG.md this date): removed rather than
+                shipped broken -- see access-restricted/page.tsx's matching comment. */}
           </div>
         </div>
       </main>

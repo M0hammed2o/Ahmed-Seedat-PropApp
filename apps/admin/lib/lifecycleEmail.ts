@@ -78,8 +78,9 @@ export async function sendWelcomeEmailOnce(
     '',
     `Jump back in any time at ${branding.websiteUrl}`,
     '',
-    `If you have any questions, reach out to us at ${branding.supportEmail}.`,
-    '',
+    // V1 communications productionisation (WORKLOG.md this date): no real support mailbox exists
+    // yet (branding.supportEmail is still a documented placeholder) -- omitted rather than
+    // referencing a non-functional address; re-add once Mohammed provides a real one.
     `-- The ${branding.productName} team`,
   ].join('\n');
 

@@ -17,6 +17,13 @@ export interface SendEmailInput {
    * templateName means, only send the already-rendered subject/body it's given. */
   subject: string;
   bodyText: string;
+  /** V1 communications productionisation: the branded HTML rendering of the same content
+   * (emailDispatch.ts's renderEmailTemplate(), built on lib/email/layout.ts's shared components).
+   * Optional at this boundary so a provider that never receives it (or a caller mid-migration)
+   * degrades to plain text, never a missing send -- but every real template in this codebase sets
+   * it. `bodyText` remains authoritative and is always sent alongside it as the MIME
+   * text/plain part, satisfying clients that don't render HTML. */
+  bodyHtml?: string;
   relatedEntityType?: string;
   relatedEntityId?: string;
   attachments?: { documentId: string }[];

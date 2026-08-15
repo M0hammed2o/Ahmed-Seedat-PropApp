@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { billingPlanChangeConfirmSchema } from '@propvault/validation';
 import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { requireBillingPrincipalAccess } from '@/lib/portfolio';
-import { startPlanChangeCheckout } from '@/lib/billing';
+import { startPlanChangeCheckout, dispatchPlanChangeLifecycleEmail } from '@/lib/billing';
 import { writeAuditEvent } from '@/lib/audit';
 
 type RouteParams = { params: Promise<{ orgId: string }> };
@@ -113,6 +113,29 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   });
 
   if (!result.requires_payment) {
+    // V1 communications productionisation (WORKLOG.md this date): a $0 upgrade, a scheduled
+    // downgrade, or a $0 reactivation is already fully applied above by confirm_plan_change()
+    // itself -- notify now, synchronously, since (unlike the paid path below) no later webhook
+    // will ever fire for this change. Best-effort: never fails the request over a notification.
+    if (!result.already_processed && result.change_type !== 'no_change') {
+      const { data: changeRow } = await serviceClient
+        .from('billing_plan_changes')
+        .select('new_plan_id')
+        .eq('id', result.billing_plan_change_id)
+        .maybeSingle();
+      if (changeRow?.new_plan_id) {
+        await dispatchPlanChangeLifecycleEmail(serviceClient, {
+          orgId,
+          billingPlanChangeId: result.billing_plan_change_id,
+          changeType: result.change_type,
+          newPlanId: changeRow.new_plan_id,
+          amountDueNow: result.amount_due_now,
+          effectiveAt: result.effective_at,
+          toEmail: user.email ?? null,
+        });
+      }
+    }
+
     return NextResponse.json({
       billingPlanChangeId: result.billing_plan_change_id,
       changeType: result.change_type,

@@ -57,11 +57,11 @@ export default async function AccessRestrictedPage() {
               Manage billing
             </Button>
           </Link>
-          <a href={`mailto:${branding.supportEmail}`}>
-            <Button variant="secondary" className="w-full">
-              Contact support
-            </Button>
-          </a>
+          {/* V1 communications productionisation (WORKLOG.md this date): a real support mailbox
+              does not exist yet -- branding.supportEmail is still a documented placeholder --
+              so a "Contact support" mailto link here would silently bounce for a real customer.
+              Removed rather than shipped broken; re-add once Mohammed provides a real address
+              (see the final report's MANUAL ACTION REQUIRED list). */}
         </div>
       </div>
     </main>

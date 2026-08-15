@@ -15,8 +15,16 @@ export const branding = {
   tagline: 'Property Intelligence. Simplified.',
   iosBundleIdentifier: 'com.proplyst.app', // TO_BE_CONFIRMED before store submission
   androidPackageName: 'com.proplyst.app', // TO_BE_CONFIRMED before store submission
-  supportEmail: 'support@proplyst.example', // TO_BE_CONFIRMED
-  websiteUrl: 'https://proplyst.example', // TO_BE_CONFIRMED
+  // V1 communications productionisation (WORKLOG.md this date): supportEmail is still a
+  // TO_BE_CONFIRMED placeholder -- no real support mailbox exists anywhere in this codebase
+  // (confirmed by grep before this pass), so it is deliberately never rendered in a customer-
+  // facing email (lib/email/layout.ts's footer omits a support line entirely rather than
+  // display a non-functional address) until Mohammed provides a real one. websiteUrl WAS also a
+  // placeholder pointing at a domain that was never registered/deployed -- corrected to the real,
+  // live production domain (not invented: the same https://proplyst.co.za this whole project has
+  // been deploying to since Release A).
+  supportEmail: 'support@proplyst.example', // TO_BE_CONFIRMED -- do not render in customer-facing copy
+  websiteUrl: 'https://proplyst.co.za',
 } as const;
 
 export type Branding = typeof branding;

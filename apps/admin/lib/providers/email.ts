@@ -26,6 +26,7 @@ export class MockEmailProvider implements EmailProvider {
       toAddress: input.toAddress,
       templateName: input.templateName,
       attachmentCount: input.attachments?.length ?? 0,
+      hasHtml: Boolean(input.bodyHtml),
     });
     return { providerMessageId: `mock-email-${crypto.randomUUID()}`, status: 'queued' };
   }
@@ -209,6 +210,12 @@ export class ResendEmailProvider implements EmailProvider {
       to: input.toAddress,
       subject: input.subject,
       text: input.bodyText,
+      // V1 communications productionisation: HTML is optional at the SendEmailInput boundary but
+      // every real template now provides it (emailDispatch.ts) -- Resend accepts both `text` and
+      // `html` in the same call and clients that can render HTML use it, falling back to `text`
+      // otherwise (the plain-text fallback this task requires, provided by the provider's own
+      // MIME multipart/alternative behavior, not something this code needs to construct itself).
+      ...(input.bodyHtml ? { html: input.bodyHtml } : {}),
       replyTo: input.replyTo,
     });
 

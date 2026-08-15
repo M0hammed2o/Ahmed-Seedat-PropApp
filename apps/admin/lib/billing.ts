@@ -2,7 +2,94 @@ import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { BillingGatewayProvider } from '@propvault/types';
 import { getBillingGatewayProvider } from './providers/billing';
-import { dispatchEmail } from './emailDispatch';
+import { dispatchEmail, type EmailTemplateName } from './emailDispatch';
+
+/** V1 communications productionisation (WORKLOG.md this date): every billing lifecycle email
+ * below is sent to the org's principal -- resolves the same way regardless of whether the caller
+ * has a live browser session (a route confirming its own request already has `user.email`
+ * directly) or not (a webhook has only a service client). Centralised here since 4 separate call
+ * sites in this file need it. */
+async function resolveOrgPrincipalEmail(
+  serviceClient: SupabaseClient,
+  orgId: string,
+): Promise<string | null> {
+  const { data: principal } = await serviceClient
+    .from('organization_members')
+    .select('user_id')
+    .eq('org_id', orgId)
+    .eq('role', 'principal')
+    .eq('status', 'active')
+    .limit(1)
+    .maybeSingle();
+  if (!principal) return null;
+  const { data: authUser } = await serviceClient.auth.admin.getUserById(principal.user_id);
+  return authUser?.user?.email ?? null;
+}
+
+function formatMoney(amount: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat('en-ZA', { style: 'currency', currency }).format(amount);
+  } catch {
+    return `${currency} ${amount.toFixed(2)}`;
+  }
+}
+
+/** Fires the one lifecycle email that corresponds to a completed billing_plan_changes row --
+ * shared by confirm-change/route.ts (a synchronous, no-payment-required change: a $0 upgrade, a
+ * downgrade, or a $0 reactivation) and processBillingWebhookEvent below (an upgrade/reactivation
+ * that required real payment, confirmed by the gateway webhook). Both call sites already know
+ * which plan changed and to whom; this only owns "which template for which change_type" and the
+ * actual dispatchEmail() call, so that mapping exists in exactly one place. */
+export async function dispatchPlanChangeLifecycleEmail(
+  serviceClient: SupabaseClient,
+  input: {
+    orgId: string;
+    billingPlanChangeId: string;
+    changeType: string;
+    newPlanId: string;
+    amountDueNow: number;
+    effectiveAt: string;
+    toEmail: string | null;
+  },
+): Promise<void> {
+  const template: EmailTemplateName | null =
+    input.changeType === 'upgrade'
+      ? 'plan_upgraded'
+      : input.changeType === 'downgrade'
+        ? 'plan_downgrade_scheduled'
+        : input.changeType === 'reactivation'
+          ? 'subscription_reactivated'
+          : input.changeType === 'new_subscription'
+            ? 'subscription_activated'
+            : null; // 'no_change' -- nothing meaningful happened, no email
+  if (!template) return;
+
+  try {
+    const { data: plan } = await serviceClient
+      .from('plans')
+      .select('name, base_price, currency')
+      .eq('id', input.newPlanId)
+      .maybeSingle();
+    if (!plan) return;
+
+    await dispatchEmail(serviceClient, {
+      orgId: input.orgId,
+      toAddress: input.toEmail,
+      templateName: template,
+      templateVars: {
+        planName: plan.name,
+        amountDueNow: formatMoney(input.amountDueNow, plan.currency),
+        nextRenewalAmount: formatMoney(plan.base_price, plan.currency),
+        effectiveAt: input.effectiveAt,
+      },
+      relatedEntityType: 'billing_plan_change',
+      relatedEntityId: input.billingPlanChangeId,
+      actorUserId: null,
+    });
+  } catch (err) {
+    console.error('[emailDispatch] plan-change lifecycle email dispatch failed', err);
+  }
+}
 
 // Organization-level SaaS billing service (SUBSCRIPTIONS.md) -- the one place subscription
 // business logic lives, calling BillingGatewayProvider as its only dependency on a real vendor.
@@ -270,7 +357,7 @@ export async function processBillingWebhookEvent(
 
   const { data: payment } = await serviceClient
     .from('subscription_payments')
-    .select('id, org_id, subscription_id, billing_plan_change_id')
+    .select('id, org_id, subscription_id, billing_plan_change_id, amount')
     .eq('provider_reference', event.providerReference)
     .maybeSingle();
 
@@ -314,6 +401,17 @@ export async function processBillingWebhookEvent(
     }
 
     if (event.type === 'payment_succeeded') {
+      // V1 communications productionisation (WORKLOG.md this date): read BEFORE this branch's own
+      // updates below overwrite it -- the only way to tell a genuine first activation or a
+      // suspended/cancelled org's reactivation apart from an uneventful recurring renewal charge
+      // (which must NOT send an email every billing cycle) is what the org's status *was* the
+      // instant before this payment landed.
+      const { data: orgBefore } = await serviceClient
+        .from('organizations')
+        .select('status, legal_name')
+        .eq('id', orgId)
+        .single();
+
       const subscriptionUpdate: Record<string, unknown> = { status: 'active' };
       // Captured once, never overwritten with null by a later event that doesn't carry a token
       // (e.g. a recurring charge's ITN after the first one) -- only ever set on a genuine value.
@@ -337,10 +435,11 @@ export async function processBillingWebhookEvent(
       // "Upgrade access becomes effective immediately" means immediately upon payment confirmation,
       // not before -- granting a paid-tier entitlement before money has actually moved would be a
       // real revenue-integrity gap, not a feature.
+      let planChangeCompleted = false;
       if (payment.billing_plan_change_id) {
         const { data: pendingChange } = await serviceClient
           .from('billing_plan_changes')
-          .select('id, new_plan_id, status')
+          .select('id, new_plan_id, status, change_type')
           .eq('id', payment.billing_plan_change_id)
           .maybeSingle();
         if (pendingChange && pendingChange.status === 'awaiting_payment') {
@@ -352,6 +451,51 @@ export async function processBillingWebhookEvent(
             .from('billing_plan_changes')
             .update({ status: 'completed', completed_at: new Date().toISOString() })
             .eq('id', pendingChange.id);
+          planChangeCompleted = true;
+
+          const toEmail = await resolveOrgPrincipalEmail(serviceClient, orgId);
+          await dispatchPlanChangeLifecycleEmail(serviceClient, {
+            orgId,
+            billingPlanChangeId: pendingChange.id,
+            changeType: pendingChange.change_type,
+            newPlanId: pendingChange.new_plan_id,
+            amountDueNow: payment.amount,
+            effectiveAt: new Date().toISOString(),
+            toEmail,
+          });
+        }
+      }
+
+      // No plan change was involved -- either the org's very first successful payment
+      // (startSubscriptionCheckout) or a gateway-side recovery of a previously
+      // suspended/cancelled subscription. A routine renewal charge for an org that was already
+      // 'active' falls through here with neither condition true, correctly sending nothing.
+      if (!planChangeCompleted && orgBefore) {
+        const isReactivation = orgBefore.status === 'suspended' || orgBefore.status === 'cancelled';
+        const isFirstActivation = orgBefore.status === 'trial';
+        if (isReactivation || isFirstActivation) {
+          try {
+            const { data: sub } = await serviceClient
+              .from('organization_subscriptions')
+              .select('plan_id')
+              .eq('id', payment.subscription_id)
+              .maybeSingle();
+            const { data: plan } = sub
+              ? await serviceClient.from('plans').select('name').eq('id', sub.plan_id).maybeSingle()
+              : { data: null };
+            const toEmail = await resolveOrgPrincipalEmail(serviceClient, orgId);
+            await dispatchEmail(serviceClient, {
+              orgId,
+              toAddress: toEmail,
+              templateName: isReactivation ? 'subscription_reactivated' : 'subscription_activated',
+              templateVars: { planName: plan?.name, legalName: orgBefore.legal_name },
+              relatedEntityType: `billing_event:${event.providerEventId}`,
+              relatedEntityId: orgId,
+              actorUserId: null,
+            });
+          } catch (err) {
+            console.error('[emailDispatch] subscription lifecycle email dispatch failed', err);
+          }
         }
       }
     } else if (event.type === 'payment_failed' && payment.billing_plan_change_id) {
@@ -388,29 +532,19 @@ export async function processBillingWebhookEvent(
       // EMAIL.md §1's "Billing (platform)" category names ("payment failed"). Never blocks/fails
       // the webhook response -- same "log, don't throw" boundary as every other dispatch site.
       try {
-        const { data: principal } = await serviceClient
-          .from('organization_members')
-          .select('user_id')
-          .eq('org_id', orgId)
-          .eq('role', 'principal')
-          .eq('status', 'active')
-          .limit(1)
-          .maybeSingle();
-        if (principal) {
-          const { data: authUser } = await serviceClient.auth.admin.getUserById(principal.user_id);
-          await dispatchEmail(serviceClient, {
-            orgId,
-            toAddress: authUser?.user?.email ?? null,
-            templateName: 'subscription_payment_issue',
-            templateVars: { providerReference: event.providerReference },
-            // relatedEntityType carries the specific event id (text column) since orgId is the
-            // only real uuid available here -- one failed-payment email per distinct gateway
-            // event, not one ever per org.
-            relatedEntityType: `billing_event:${event.providerEventId}`,
-            relatedEntityId: orgId,
-            actorUserId: null,
-          });
-        }
+        const toEmail = await resolveOrgPrincipalEmail(serviceClient, orgId);
+        await dispatchEmail(serviceClient, {
+          orgId,
+          toAddress: toEmail,
+          templateName: 'subscription_payment_issue',
+          templateVars: { providerReference: event.providerReference },
+          // relatedEntityType carries the specific event id (text column) since orgId is the
+          // only real uuid available here -- one failed-payment email per distinct gateway
+          // event, not one ever per org.
+          relatedEntityType: `billing_event:${event.providerEventId}`,
+          relatedEntityId: orgId,
+          actorUserId: null,
+        });
       } catch (err) {
         console.error('[emailDispatch] subscription_payment_issue dispatch failed', err);
       }
@@ -420,6 +554,26 @@ export async function processBillingWebhookEvent(
         .update({ status: 'cancelled' })
         .eq('id', payment.subscription_id);
       await serviceClient.from('organizations').update({ status: 'cancelled' }).eq('id', orgId);
+
+      // V1 communications productionisation: a gateway-reported cancellation (e.g. the customer
+      // cancelled directly through the PayFast customer portal, not through Proplyst) is just as
+      // real an account event as the self-serve /billing/cancel route below -- must notify either
+      // way, distinct relatedEntityType so it never collides with cancelOrgSubscription()'s own
+      // idempotency key for the same org.
+      try {
+        const toEmail = await resolveOrgPrincipalEmail(serviceClient, orgId);
+        await dispatchEmail(serviceClient, {
+          orgId,
+          toAddress: toEmail,
+          templateName: 'subscription_cancelled',
+          templateVars: {},
+          relatedEntityType: `billing_event:${event.providerEventId}`,
+          relatedEntityId: orgId,
+          actorUserId: null,
+        });
+      } catch (err) {
+        console.error('[emailDispatch] subscription_cancelled dispatch failed', err);
+      }
     }
   }
 
@@ -489,6 +643,25 @@ export async function cancelOrgSubscription(
     effective_at: new Date().toISOString(),
     completed_at: new Date().toISOString(),
   });
+
+  // V1 communications productionisation: distinct relatedEntityType from the webhook-driven
+  // subscription_cancelled dispatch above -- this is the self-serve principal-initiated
+  // cancellation, keyed by the org itself (only ever fires once per org per cancellation, guarded
+  // by the alreadyCancelled early-return above).
+  try {
+    const toEmail = await resolveOrgPrincipalEmail(serviceClient, input.orgId);
+    await dispatchEmail(serviceClient, {
+      orgId: input.orgId,
+      toAddress: toEmail,
+      templateName: 'subscription_cancelled',
+      templateVars: {},
+      relatedEntityType: 'organization_subscriptions',
+      relatedEntityId: input.orgId,
+      actorUserId: input.actorUserId ?? null,
+    });
+  } catch (err) {
+    console.error('[emailDispatch] subscription_cancelled dispatch failed', err);
+  }
 
   return { alreadyCancelled: false };
 }

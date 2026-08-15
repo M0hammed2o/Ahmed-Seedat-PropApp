@@ -3,7 +3,9 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { EmailWebhookHeaders } from '@propvault/types';
 import { branding } from '@propvault/config';
 import { getEmailProvider, isEmailProviderConfigured } from './providers/email';
+import { renderEmailLayout, type EmailContent } from './email/layout';
 import { writeAuditEvent } from './audit';
+import { getAppUrl } from './appUrl';
 
 // Wires the approved V1 notification catalogue (EMAIL.md §1) to the already-built EmailProvider
 // (TASKS.md M16) -- the provider/schema layer existed with nothing calling it (TD-23). This is
@@ -23,7 +25,20 @@ export type EmailTemplateName =
   | 'compliance_requirement_assigned'
   | 'compliance_requirement_acknowledged'
   | 'compliance_requirement_due_soon'
-  | 'compliance_requirement_overdue';
+  | 'compliance_requirement_overdue'
+  // V1 communications productionisation (WORKLOG.md this date): 5 real billing-lifecycle events
+  // that RELEASE A's own proration engine already triggers (organization_subscriptions/
+  // billing_plan_changes state transitions, migration 20260101000104) but never notified the
+  // customer about -- confirmed by grep before this pass: zero dispatchEmail() calls existed
+  // anywhere in lib/billing.ts or the billing routes for activation/upgrade/downgrade/
+  // cancellation/reactivation, only for payment failure and suspension. Wired into the exact
+  // points those state transitions already happen -- no new business logic, only notification of
+  // existing logic.
+  | 'subscription_activated'
+  | 'plan_upgraded'
+  | 'plan_downgrade_scheduled'
+  | 'subscription_cancelled'
+  | 'subscription_reactivated';
 
 // Only categories with an existing notification_preferences row can be preference-gated
 // (DATABASE.md §7's closed enum has no 'billing'/'accounting' category) -- invoice/payment/
@@ -36,6 +51,12 @@ export type EmailTemplateName =
 // can't meaningfully opt out of the one message telling them action is required). The three new
 // ones ARE genuinely opt-out-able conveniences (a staff FYI, and reminders for something the
 // recipient already knows is outstanding), so they're gated like maintenance_update.
+//
+// The 5 new billing-lifecycle templates are deliberately UNGATED (no category entry) -- same
+// "transactional, not user-suppressible" posture as subscription_payment_issue/
+// subscription_suspended above: a customer cannot opt out of being told their own subscription
+// was upgraded/downgraded/cancelled/reactivated, since that's evidence of a real account/money
+// event, not a convenience notification.
 const TEMPLATE_CATEGORY: Partial<Record<EmailTemplateName, 'maintenance' | 'compliance'>> = {
   maintenance_update: 'maintenance',
   compliance_requirement_acknowledged: 'compliance',
@@ -69,14 +90,19 @@ const TEMPLATE_SUBJECTS: Record<EmailTemplateName, (vars: Record<string, unknown
     `Reminder: ${v.ruleTitle ?? 'a rule'} for ${v.propertyLabel ?? 'your rental'} is due soon`,
   compliance_requirement_overdue: (v) =>
     `Overdue: ${v.ruleTitle ?? 'a rule'} for ${v.propertyLabel ?? 'your rental'}`,
+  subscription_activated: (v) =>
+    `Your ${branding.productName} subscription is active — welcome to ${v.planName ?? 'your plan'}`,
+  plan_upgraded: (v) => `You've upgraded to the ${v.planName ?? 'new'} plan`,
+  plan_downgrade_scheduled: (v) => `Your plan change to ${v.planName ?? 'a new plan'} is scheduled`,
+  subscription_cancelled: () => `Your ${branding.productName} subscription has been cancelled`,
+  subscription_reactivated: () =>
+    `Welcome back — your ${branding.productName} subscription is active again`,
 };
 
-// Plain-text bodies, deliberately minimal (a real HTML/branded template pass is out of scope for
-// this dispatch layer -- EMAIL.md doesn't specify one) -- one line per template, same
-// vars-in/string-out shape as TEMPLATE_SUBJECTS, so a real provider (ResendEmailProvider) has
-// actual content to send instead of a guessed convention. Never referenced by MockEmailProvider,
-// which only logs; a real provider is the only consumer, matching how templateVars itself was
-// unused by anything until a real provider needed real content.
+// Plain-text bodies -- the required MIME text/plain fallback for every real send (never removed
+// in favor of HTML-only, per this task's own explicit requirement). Renders identically to before
+// this pass for the 14 pre-existing templates; the 5 new ones follow the exact same
+// vars-in/string-out shape.
 const TEMPLATE_BODY: Record<EmailTemplateName, (vars: Record<string, unknown>) => string> = {
   invoice_issued: (v) =>
     `A new invoice is ready for ${v.propertyAddress ?? 'your rental'}. Sign in to ${branding.productName} to view and pay it.`,
@@ -94,43 +120,215 @@ const TEMPLATE_BODY: Record<EmailTemplateName, (vars: Record<string, unknown>) =
     `Your ${branding.productName} trial for ${v.legalName ?? 'your organization'} ends on ${v.trialEndsAt ?? 'soon'}. Choose a plan to continue without interruption.`,
   member_invited: (v) =>
     `${v.inviteeName ? `Hi ${v.inviteeName}, ` : ''}${v.inviterName ?? 'A team administrator'} invited you to join ${v.orgName ?? `a ${branding.productName} organization`} on ${branding.productName} as ${v.role ?? 'a team member'}. ${v.acceptUrl ? `Accept your invitation: ${v.acceptUrl}. ` : ''}${v.expiresAt ? `This invitation expires on ${v.expiresAt}. ` : ''}If you weren't expecting this, you can safely ignore this email.`,
-  // Tenant onboarding completion pass (WORKLOG.md this date): this body previously never
-  // interpolated `${v.acceptUrl}` at all -- a genuine, previously-shipped defect (found by the
-  // tenant onboarding audit) that made a real Resend-delivered tenant invitation email contain no
-  // link to click. Mirrors member_invited's own acceptUrl/expiresAt handling; the two
-  // "create or sign in" sentences are spelled out explicitly since, unlike a staff invite, the
-  // recipient here may have no idea beforehand whether they already have an account.
   tenant_invitation: (v) =>
     `You've been invited to ${branding.productName} by ${v.orgName ?? 'your landlord'} to activate your tenant portal, where you can view your lease, payments, and submit maintenance requests. ${v.acceptUrl ? `Activate your account here: ${v.acceptUrl}. If you don't have a ${branding.productName} account yet, this link lets you create one. If you already have one, sign in with the same email address to link this tenancy to it. ` : ''}${v.expiresAt ? `This invitation expires on ${v.expiresAt}. ` : ''}If you weren't expecting this, you can safely ignore this email.`,
   owner_invitation: (v) =>
     `${v.ownerName ? `Hi ${v.ownerName}, ` : ''}${v.orgName ?? 'A managing organization'} has invited you to view your properties on ${branding.productName}. ${v.acceptUrl ? `Accept your invitation here: ${v.acceptUrl}. If you don't have a ${branding.productName} account yet, this link lets you create one. If you already have one, sign in with the same email address to link your properties to it. ` : ''}${v.expiresAt ? `This invitation expires on ${v.expiresAt}. ` : ''}If you weren't expecting this, you can safely ignore this email.`,
-  // Property compliance workflow (WORKLOG.md this date). Ungated/transactional (no
-  // TEMPLATE_CATEGORY entry), same reasoning tenant_invitation already documents: a tenant can't
-  // meaningfully opt out of the one message telling them a rule now requires their action.
   compliance_requirement_assigned: (v) =>
     `${v.orgName ?? 'Your property manager'} has updated ${v.ruleTitle ?? 'a rule'} for ${v.propertyLabel ?? 'your rental'}. Please sign in to ${branding.productName} to review and acknowledge it.`,
-  // Notification lifecycle completion (WORKLOG.md this date). Staff-facing FYI, gated by the
-  // 'compliance' category (see TEMPLATE_CATEGORY above) -- unlike the tenant-facing "action
-  // required" email, this is a genuine convenience a staff member can reasonably opt out of.
   compliance_requirement_acknowledged: (v) =>
     `${v.tenantName ?? 'A tenant'} acknowledged ${v.ruleTitle ?? 'a rule'} (version ${v.versionNumber ?? ''}) for ${v.propertyLabel ?? 'a property'} on ${v.acknowledgedAt ?? 'recently'}.`,
   compliance_requirement_due_soon: (v) =>
     `${v.ruleTitle ?? 'A rule'} for ${v.propertyLabel ?? 'your rental'} is due ${v.dueAt ?? 'soon'}. Please sign in to ${branding.productName} to review and acknowledge it.`,
   compliance_requirement_overdue: (v) =>
     `${v.ruleTitle ?? 'A rule'} for ${v.propertyLabel ?? 'your rental'} was due ${v.dueAt ?? 'recently'} and is now overdue. Please sign in to ${branding.productName} to review and acknowledge it.`,
+  subscription_activated: (v) =>
+    `Your ${branding.productName} subscription is now active on the ${v.planName ?? ''} plan. You have full access to ${v.legalName ? `${v.legalName}'s` : "your organization's"} workspace.`,
+  plan_upgraded: (v) =>
+    `Your subscription has been upgraded to ${v.planName ?? 'a new plan'}, effective immediately. ${v.amountDueNow ? `An amount of ${v.amountDueNow} was charged for the remainder of this billing period. ` : ''}From your next renewal, you'll be charged ${v.nextRenewalAmount ?? 'the new plan price'}.`,
+  plan_downgrade_scheduled: (v) =>
+    `Your subscription is scheduled to change to ${v.planName ?? 'a new plan'} on ${v.effectiveAt ?? 'your next renewal date'}. You'll keep your current plan's full access until then, and no refund is issued for the remainder of this billing period.`,
+  subscription_cancelled: (v) =>
+    `Your ${branding.productName} subscription has been cancelled${v.periodEnd ? `, effective ${v.periodEnd}` : ''}. You can reactivate at any time from Billing & subscription.`,
+  subscription_reactivated: (v) =>
+    `Your ${branding.productName} subscription is active again on the ${v.planName ?? ''} plan. Welcome back.`,
 };
 
-/** Renders a template's subject + body ahead of dispatch -- exported (not just used internally by
- * dispatchEmail below) so tests can assert on real rendered content (e.g. "acceptUrl appears in
- * the tenant_invitation body") without needing a live DB or a mocked provider, closing the test
- * gap that let tenant_invitation/owner_invitation ship without ever interpolating acceptUrl. */
+/**
+ * V1 communications productionisation (WORKLOG.md this date). One structured content descriptor
+ * per template -- lib/email/layout.ts's renderEmailLayout() is the ONLY place that turns this into
+ * markup, so every template shares exactly one design (heading, intro, CTA button, info box,
+ * footer), never a bespoke per-template HTML string. Deliberately mirrors TEMPLATE_SUBJECTS/
+ * TEMPLATE_BODY's own vars-in/content-out shape, kept as its own map rather than merged into
+ * TEMPLATE_BODY so the plain-text fallback stays simple, unstructured prose (what a plain-text
+ * client needs) while the HTML gets real visual structure (what an HTML client can render).
+ */
+const TEMPLATE_HTML_CONTENT: Record<
+  EmailTemplateName,
+  (vars: Record<string, unknown>, appUrl: string) => EmailContent
+> = {
+  invoice_issued: (v, appUrl) => ({
+    eyebrow: 'Rent invoice',
+    heading: `Invoice for ${v.propertyAddress ?? 'your rental'}`,
+    intro: `A new invoice is ready for ${v.propertyAddress ?? 'your rental'}.`,
+    infoBox: v.amount
+      ? { label: 'Amount due', text: `${v.amount}${v.period ? ` — ${v.period}` : ''}` }
+      : undefined,
+    cta: { label: `View invoice in ${branding.productName}`, url: `${appUrl}/my-payments` },
+  }),
+  payment_recorded: (v, appUrl) => ({
+    eyebrow: 'Payment received',
+    heading: 'Thank you — payment received',
+    intro: `We've recorded your payment for ${v.propertyAddress ?? 'your rental'}.`,
+    cta: { label: 'View payment history', url: `${appUrl}/my-payments` },
+  }),
+  owner_statement_ready: (v, appUrl) => ({
+    eyebrow: 'Owner statement',
+    heading: `Your statement for ${v.period ?? 'this period'} is ready`,
+    intro: `Your owner statement for ${v.period ?? 'this period'} is ready to view.`,
+    cta: { label: 'View owner statement', url: `${appUrl}/accounting` },
+  }),
+  maintenance_update: (v, appUrl) => ({
+    eyebrow: 'Maintenance update',
+    heading: 'There’s an update on your maintenance ticket',
+    intro: String(v.summary ?? 'One of your maintenance tickets has a new update.'),
+    cta: { label: 'View ticket', url: `${appUrl}/maintenance` },
+  }),
+  subscription_payment_issue: (v, appUrl) => ({
+    eyebrow: 'Billing',
+    heading: 'We couldn’t process your subscription payment',
+    intro: `We were unable to process your subscription payment (reference ${v.providerReference ?? 'unknown'}).`,
+    infoBox: {
+      label: 'Action needed',
+      text: 'Please update your payment details to avoid a loss of access.',
+    },
+    cta: { label: 'Update billing details', url: `${appUrl}/organization/billing` },
+  }),
+  subscription_suspended: (v, appUrl) => ({
+    eyebrow: 'Account access',
+    heading: `Your ${branding.productName} access has been suspended`,
+    intro: `Your account access has been suspended: ${v.reason ?? 'a billing issue'}.`,
+    cta: { label: 'Restore access', url: `${appUrl}/organization/billing` },
+  }),
+  trial_expiring_soon: (v, appUrl) => ({
+    eyebrow: 'Trial ending',
+    heading: 'Your trial ends soon',
+    intro: `Your ${branding.productName} trial for ${v.legalName ?? 'your organization'} ends on ${v.trialEndsAt ?? 'soon'}.`,
+    paragraphs: [
+      'Choose a plan to continue without interruption to your properties, tenants, and records.',
+    ],
+    cta: { label: 'Choose a plan', url: `${appUrl}/organization/billing` },
+  }),
+  member_invited: (v, _appUrl) => ({
+    eyebrow: 'Team invitation',
+    heading: `You've been invited to join ${v.orgName ?? branding.productName}`,
+    intro: `${v.inviterName ?? 'A team administrator'} invited you to join ${v.orgName ?? `a ${branding.productName} organization`} as ${v.role ?? 'a team member'}.`,
+    infoBox: v.expiresAt
+      ? { label: 'Expires', text: `This invitation expires on ${v.expiresAt}.` }
+      : undefined,
+    cta: v.acceptUrl ? { label: 'Accept invitation', url: String(v.acceptUrl) } : undefined,
+    paragraphs: ["If you weren't expecting this, you can safely ignore this email."],
+  }),
+  tenant_invitation: (v, _appUrl) => ({
+    eyebrow: 'Tenant portal invitation',
+    heading: `Activate your tenant portal for ${v.orgName ?? 'your rental'}`,
+    intro: `${v.orgName ?? 'Your landlord'} has invited you to activate your ${branding.productName} tenant portal, where you can view your lease, payments, and submit maintenance requests.`,
+    paragraphs: [
+      "If you don't have an account yet, this link lets you create one. If you already have one, sign in with the same email address to link this tenancy to it.",
+      "If you weren't expecting this, you can safely ignore this email.",
+    ],
+    infoBox: v.expiresAt
+      ? { label: 'Expires', text: `This invitation expires on ${v.expiresAt}.` }
+      : undefined,
+    // WHATSAPP.md §3's "never disclose lease terms/balances/sensitive detail before identity is
+    // established" discipline applies equally here -- only the secure activation link, nothing
+    // else about the tenancy itself.
+    cta: v.acceptUrl ? { label: 'Activate your account', url: String(v.acceptUrl) } : undefined,
+  }),
+  owner_invitation: (v, _appUrl) => ({
+    eyebrow: 'Owner portal invitation',
+    heading: `You've been invited to view your properties on ${branding.productName}`,
+    intro: `${v.orgName ?? 'A managing organization'} has invited you to view your properties on ${branding.productName}.`,
+    paragraphs: [
+      "If you don't have an account yet, this link lets you create one. If you already have one, sign in with the same email address to link your properties to it.",
+      "If you weren't expecting this, you can safely ignore this email.",
+    ],
+    infoBox: v.expiresAt
+      ? { label: 'Expires', text: `This invitation expires on ${v.expiresAt}.` }
+      : undefined,
+    cta: v.acceptUrl ? { label: 'Accept invitation', url: String(v.acceptUrl) } : undefined,
+  }),
+  compliance_requirement_assigned: (v, appUrl) => ({
+    eyebrow: 'Action required',
+    heading: String(v.ruleTitle ?? 'A rule requires your acknowledgement'),
+    intro: `${v.orgName ?? 'Your property manager'} has updated ${v.ruleTitle ?? 'a rule'} for ${v.propertyLabel ?? 'your rental'}.`,
+    cta: { label: 'Review and acknowledge', url: `${appUrl}/compliance` },
+  }),
+  compliance_requirement_acknowledged: (v, appUrl) => ({
+    eyebrow: 'Compliance',
+    heading: 'A tenant acknowledged a rule',
+    intro: `${v.tenantName ?? 'A tenant'} acknowledged ${v.ruleTitle ?? 'a rule'}${v.versionNumber ? ` (version ${v.versionNumber})` : ''} for ${v.propertyLabel ?? 'a property'}.`,
+    cta: { label: 'View compliance records', url: `${appUrl}/compliance` },
+  }),
+  compliance_requirement_due_soon: (v, appUrl) => ({
+    eyebrow: 'Reminder',
+    heading: String(v.ruleTitle ?? 'A rule is due soon'),
+    intro: `${v.ruleTitle ?? 'A rule'} for ${v.propertyLabel ?? 'your rental'} is due ${v.dueAt ?? 'soon'}.`,
+    cta: { label: 'Review and acknowledge', url: `${appUrl}/compliance` },
+  }),
+  compliance_requirement_overdue: (v, appUrl) => ({
+    eyebrow: 'Overdue',
+    heading: String(v.ruleTitle ?? 'A rule is overdue'),
+    intro: `${v.ruleTitle ?? 'A rule'} for ${v.propertyLabel ?? 'your rental'} was due ${v.dueAt ?? 'recently'} and is now overdue.`,
+    cta: { label: 'Review and acknowledge', url: `${appUrl}/compliance` },
+  }),
+  subscription_activated: (v, appUrl) => ({
+    eyebrow: 'Subscription active',
+    heading: `Welcome to ${v.planName ?? 'your plan'}`,
+    intro: `Your ${branding.productName} subscription is now active${v.legalName ? ` for ${v.legalName}` : ''}.`,
+    paragraphs: [
+      'You now have full access to your workspace, including every feature included in your plan.',
+    ],
+    cta: { label: 'Go to dashboard', url: `${appUrl}/dashboard` },
+  }),
+  plan_upgraded: (v, appUrl) => ({
+    eyebrow: 'Plan upgraded',
+    heading: `You've upgraded to ${v.planName ?? 'a new plan'}`,
+    intro: `Your subscription has been upgraded to ${v.planName ?? 'a new plan'}, effective immediately.`,
+    infoBox: {
+      label: 'Billing summary',
+      text: `${v.amountDueNow ? `Due today: ${v.amountDueNow}. ` : ''}Next renewal: ${v.nextRenewalAmount ?? 'the new plan price'}.`,
+    },
+    cta: { label: 'View billing', url: `${appUrl}/organization/billing` },
+  }),
+  plan_downgrade_scheduled: (v, appUrl) => ({
+    eyebrow: 'Plan change scheduled',
+    heading: `Your plan will change to ${v.planName ?? 'a new plan'}`,
+    intro: `Your subscription is scheduled to change to ${v.planName ?? 'a new plan'} on ${v.effectiveAt ?? 'your next renewal date'}.`,
+    infoBox: {
+      label: 'What stays the same until then',
+      text: "You keep your current plan's full access until the change takes effect. No refund is issued for the remainder of this billing period.",
+    },
+    cta: { label: 'View or change this', url: `${appUrl}/organization/billing` },
+  }),
+  subscription_cancelled: (v, appUrl) => ({
+    eyebrow: 'Subscription cancelled',
+    heading: 'Your subscription has been cancelled',
+    intro: `Your ${branding.productName} subscription has been cancelled${v.periodEnd ? `, effective ${v.periodEnd}` : ''}.`,
+    paragraphs: ['You can reactivate at any time — your data is preserved.'],
+    cta: { label: 'Reactivate subscription', url: `${appUrl}/organization/billing` },
+  }),
+  subscription_reactivated: (v, appUrl) => ({
+    eyebrow: 'Welcome back',
+    heading: 'Your subscription is active again',
+    intro: `Your ${branding.productName} subscription is active again on the ${v.planName ?? ''} plan.`,
+    cta: { label: 'Go to dashboard', url: `${appUrl}/dashboard` },
+  }),
+};
+
+/** Renders a template's subject + plain-text body + HTML body ahead of dispatch -- exported (not
+ * just used internally by dispatchEmail below) so tests can assert on real rendered content
+ * without needing a live DB or a mocked provider. */
 export function renderEmailTemplate(
   templateName: EmailTemplateName,
   vars: Record<string, unknown>,
-): { subject: string; bodyText: string } {
+  appUrl: string = getAppUrl(),
+): { subject: string; bodyText: string; bodyHtml: string } {
+  const subject = TEMPLATE_SUBJECTS[templateName](vars);
   return {
-    subject: TEMPLATE_SUBJECTS[templateName](vars),
+    subject,
     bodyText: TEMPLATE_BODY[templateName](vars),
+    bodyHtml: renderEmailLayout(TEMPLATE_HTML_CONTENT[templateName](vars, appUrl)),
   };
 }
 
@@ -227,7 +425,10 @@ export async function dispatchEmail(
   }
 
   const provider = getEmailProvider();
-  const { subject, bodyText } = renderEmailTemplate(input.templateName, input.templateVars);
+  const { subject, bodyText, bodyHtml } = renderEmailTemplate(
+    input.templateName,
+    input.templateVars,
+  );
   const result = await provider.send({
     orgId: input.orgId,
     toAddress: input.toAddress,
@@ -235,6 +436,7 @@ export async function dispatchEmail(
     templateVars: input.templateVars,
     subject,
     bodyText,
+    bodyHtml,
     relatedEntityType: input.relatedEntityType,
     relatedEntityId: input.relatedEntityId,
   });
