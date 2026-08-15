@@ -368,7 +368,10 @@ describeIfSupabase('billing service (real local Supabase integration)', () => {
         amount: 400,
         currency: 'ZAR',
       });
-      await processBillingWebhookEvent(serviceClient, { rawBody, signatureHeader: 'test-signature' });
+      await processBillingWebhookEvent(serviceClient, {
+        rawBody,
+        signatureHeader: 'test-signature',
+      });
 
       // After payment: plan_id has flipped to the TARGET plan, and the change is completed.
       const { data: after } = await serviceClient
