@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { dispatchWhatsApp, resolveOrgWhatsAppBranding } from '../whatsappDispatch';
+import {
+  dispatchWhatsApp,
+  resolveOrgWhatsAppBranding,
+  processWhatsAppWebhookEvent,
+} from '../whatsappDispatch';
 
 // Real integration test against local Supabase, same pattern as emailDispatch.test.ts.
 
@@ -183,6 +187,279 @@ describeIfSupabase('dispatchWhatsApp (real local Supabase integration)', () => {
       const branding = await resolveOrgWhatsAppBranding(serviceClient, crypto.randomUUID());
       expect(branding.organizationName).toBe('your property manager');
       expect(branding.supportName).toBe('');
+    });
+  });
+});
+
+// V1 communications productionisation (WORKLOG.md this date): processWhatsAppWebhookEvent's real
+// integration coverage -- against real local Supabase (migration 20260101000105's new columns/
+// table), through MockWhatsAppProvider (no real Meta credentials in this test environment,
+// matching every other provider test in this codebase). MockWhatsAppProvider.verifyWebhookSignature
+// always returns true (see providers/whatsapp.ts) -- real HMAC accept/reject logic is covered
+// separately and directly in providers/__tests__/whatsapp.test.ts against MetaWhatsAppProvider,
+// which needs no live account since it's a pure local computation.
+describeIfSupabase('processWhatsAppWebhookEvent (real local Supabase integration)', () => {
+  const serviceClient: SupabaseClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+
+  let orgId: string;
+  let otherOrgId: string;
+
+  beforeEach(async () => {
+    const { data: org, error: orgError } = await serviceClient
+      .from('organizations')
+      .insert({ legal_name: `WhatsApp Webhook Vitest Org ${Date.now()}`, org_type: 'agency' })
+      .select('id')
+      .single();
+    if (orgError) throw orgError;
+    orgId = org.id;
+
+    const { data: otherOrg, error: otherOrgError } = await serviceClient
+      .from('organizations')
+      .insert({ legal_name: `WhatsApp Webhook Vitest Org B ${Date.now()}`, org_type: 'agency' })
+      .select('id')
+      .single();
+    if (otherOrgError) throw otherOrgError;
+    otherOrgId = otherOrg.id;
+  });
+
+  afterEach(async () => {
+    await serviceClient.from('whatsapp_webhook_events').delete().eq('org_id', orgId);
+    await serviceClient.from('whatsapp_messages').delete().eq('org_id', orgId);
+    await serviceClient.from('verified_phone_numbers').delete().eq('org_id', orgId);
+    await serviceClient.from('verified_phone_numbers').delete().eq('org_id', otherOrgId);
+    await serviceClient.from('organizations').delete().eq('id', orgId);
+    await serviceClient.from('organizations').delete().eq('id', otherOrgId);
+  });
+
+  describe('status callbacks', () => {
+    it('updates whatsapp_messages.status and the matching timestamp column on a real status callback', async () => {
+      const providerMessageId = `wamid-vitest-${crypto.randomUUID()}`;
+      const { data: message } = await serviceClient
+        .from('whatsapp_messages')
+        .insert({
+          org_id: orgId,
+          direction: 'outbound',
+          to_number: '+27821234567',
+          from_number: '+27000000000',
+          template_name: 'payment_accepted',
+          status: 'sent',
+          provider_message_id: providerMessageId,
+        })
+        .select('id')
+        .single();
+
+      const result = await processWhatsAppWebhookEvent(serviceClient, {
+        rawBody: JSON.stringify({ providerMessageId, status: 'delivered' }),
+        signatureHeader: 'irrelevant-in-mock-mode',
+      });
+      expect(result.alreadyProcessed).toBe(false);
+      expect(result.eventType).toBe('status_callback');
+
+      const { data: updated } = await serviceClient
+        .from('whatsapp_messages')
+        .select('status, delivered_at')
+        .eq('id', message!.id)
+        .single();
+      expect(updated!.status).toBe('delivered');
+      expect(updated!.delivered_at).not.toBeNull();
+    });
+
+    it('is idempotent for a redelivered identical status callback', async () => {
+      const providerMessageId = `wamid-vitest-${crypto.randomUUID()}`;
+      await serviceClient.from('whatsapp_messages').insert({
+        org_id: orgId,
+        direction: 'outbound',
+        to_number: '+27821234567',
+        from_number: '+27000000000',
+        template_name: 'payment_accepted',
+        status: 'sent',
+        provider_message_id: providerMessageId,
+      });
+
+      const payload = {
+        rawBody: JSON.stringify({ providerMessageId, status: 'delivered' }),
+        signatureHeader: 'x',
+      };
+      const first = await processWhatsAppWebhookEvent(serviceClient, payload);
+      const second = await processWhatsAppWebhookEvent(serviceClient, payload);
+      expect(first.alreadyProcessed).toBe(false);
+      expect(second.alreadyProcessed).toBe(true);
+    });
+
+    it('never regresses status on an out-of-order callback (forward-only rank)', async () => {
+      const providerMessageId = `wamid-vitest-${crypto.randomUUID()}`;
+      const { data: message } = await serviceClient
+        .from('whatsapp_messages')
+        .insert({
+          org_id: orgId,
+          direction: 'outbound',
+          to_number: '+27821234567',
+          from_number: '+27000000000',
+          template_name: 'payment_accepted',
+          status: 'sent',
+          provider_message_id: providerMessageId,
+        })
+        .select('id')
+        .single();
+
+      await processWhatsAppWebhookEvent(serviceClient, {
+        rawBody: JSON.stringify({ providerMessageId, status: 'delivered' }),
+        signatureHeader: 'x',
+      });
+      // A stale/out-of-order redelivery of the earlier 'sent' event arriving after 'delivered' --
+      // must not move status backwards.
+      await processWhatsAppWebhookEvent(serviceClient, {
+        rawBody: JSON.stringify({ providerMessageId, status: 'sent' }),
+        signatureHeader: 'x',
+      });
+
+      const { data: updated } = await serviceClient
+        .from('whatsapp_messages')
+        .select('status')
+        .eq('id', message!.id)
+        .single();
+      expect(updated!.status).toBe('delivered');
+    });
+
+    it('records failure_reason and failed_at on a failed callback', async () => {
+      const providerMessageId = `wamid-vitest-${crypto.randomUUID()}`;
+      const { data: message } = await serviceClient
+        .from('whatsapp_messages')
+        .insert({
+          org_id: orgId,
+          direction: 'outbound',
+          to_number: '+27821234567',
+          from_number: '+27000000000',
+          template_name: 'payment_accepted',
+          status: 'sent',
+          provider_message_id: providerMessageId,
+        })
+        .select('id')
+        .single();
+
+      await processWhatsAppWebhookEvent(serviceClient, {
+        rawBody: JSON.stringify({
+          providerMessageId,
+          status: 'failed',
+          failureReason: 'Recipient number not on WhatsApp',
+        }),
+        signatureHeader: 'x',
+      });
+
+      const { data: updated } = await serviceClient
+        .from('whatsapp_messages')
+        .select('status, failed_at, failure_reason')
+        .eq('id', message!.id)
+        .single();
+      expect(updated!.status).toBe('failed');
+      expect(updated!.failed_at).not.toBeNull();
+      expect(updated!.failure_reason).toBe('Recipient number not on WhatsApp');
+    });
+  });
+
+  describe('inbound messages -- WHATSAPP.md §1.2 resolution', () => {
+    // whatsapp_webhook_events rows for an UNAUTHENTICATED (0-match) inbound message always carry
+    // org_id: null by design (see the migration/dispatch comments) -- afterEach above only scopes
+    // its cleanup by org_id, so it can never delete these. A fixed literal phone number reused
+    // across test runs would accumulate duplicate rows and make the exact-count assertions below
+    // flaky (this failed exactly that way once during this pass); a per-run-unique number sidesteps
+    // it entirely without needing a second, broader cleanup query.
+    const uniqueFromNumber = (seed: string) => `+2782${Date.now().toString().slice(-7)}${seed}`;
+
+    it('UNAUTHENTICATED (0 matches): records a webhook_events row with no org, creates no whatsapp_messages row', async () => {
+      const fromNumber = uniqueFromNumber('1');
+      const result = await processWhatsAppWebhookEvent(serviceClient, {
+        rawBody: JSON.stringify({ from: fromNumber, body: 'Hi, is my rent due?' }),
+        signatureHeader: 'x',
+      });
+      expect(result.eventType).toBe('message');
+
+      const { data: messages } = await serviceClient
+        .from('whatsapp_messages')
+        .select('id')
+        .eq('from_number', fromNumber);
+      expect(messages).toEqual([]);
+
+      const { data: events } = await serviceClient
+        .from('whatsapp_webhook_events')
+        .select('org_id')
+        .eq('event_type', 'inbound_message')
+        .contains('payload', { from: fromNumber });
+      expect(events!.length).toBe(1);
+      expect(events![0]!.org_id).toBeNull();
+    });
+
+    it('RESOLVED (exactly 1 match): creates an org-scoped whatsapp_messages row with the resolved entity', async () => {
+      const fromNumber = uniqueFromNumber('2');
+      const entityId = crypto.randomUUID();
+      await serviceClient.from('verified_phone_numbers').insert({
+        org_id: orgId,
+        entity_type: 'tenant',
+        entity_id: entityId,
+        phone_number_e164: fromNumber,
+      });
+
+      const result = await processWhatsAppWebhookEvent(serviceClient, {
+        rawBody: JSON.stringify({ from: fromNumber, body: 'Hi, is my rent due?' }),
+        signatureHeader: 'x',
+      });
+      expect(result.eventType).toBe('message');
+
+      const { data: messages } = await serviceClient
+        .from('whatsapp_messages')
+        .select('org_id, related_entity_type, related_entity_id, direction, body')
+        .eq('from_number', fromNumber);
+      expect(messages!.length).toBe(1);
+      expect(messages![0]!.org_id).toBe(orgId);
+      expect(messages![0]!.related_entity_type).toBe('tenant');
+      expect(messages![0]!.related_entity_id).toBe(entityId);
+      expect(messages![0]!.direction).toBe('inbound');
+      expect(messages![0]!.body).toBe('Hi, is my rent due?');
+    });
+
+    it('AMBIGUOUS (2+ matches across different orgs): creates no whatsapp_messages row, never guesses an org', async () => {
+      const fromNumber = uniqueFromNumber('3');
+      await serviceClient.from('verified_phone_numbers').insert([
+        {
+          org_id: orgId,
+          entity_type: 'tenant',
+          entity_id: crypto.randomUUID(),
+          phone_number_e164: fromNumber,
+        },
+        {
+          org_id: otherOrgId,
+          entity_type: 'owner',
+          entity_id: crypto.randomUUID(),
+          phone_number_e164: fromNumber,
+        },
+      ]);
+
+      const result = await processWhatsAppWebhookEvent(serviceClient, {
+        rawBody: JSON.stringify({ from: fromNumber, body: 'Hi' }),
+        signatureHeader: 'x',
+      });
+      expect(result.eventType).toBe('message');
+
+      const { data: messages } = await serviceClient
+        .from('whatsapp_messages')
+        .select('id')
+        .eq('from_number', fromNumber);
+      expect(messages).toEqual([]);
+    });
+
+    it('is idempotent for a redelivered identical inbound message (same providerMessageId)', async () => {
+      const fromNumber = uniqueFromNumber('4');
+      const providerMessageId = `wamid-inbound-${crypto.randomUUID()}`;
+      const payload = {
+        rawBody: JSON.stringify({ from: fromNumber, body: 'Hi', providerMessageId }),
+        signatureHeader: 'x',
+      };
+      const first = await processWhatsAppWebhookEvent(serviceClient, payload);
+      const second = await processWhatsAppWebhookEvent(serviceClient, payload);
+      expect(first.alreadyProcessed).toBe(false);
+      expect(second.alreadyProcessed).toBe(true);
     });
   });
 });

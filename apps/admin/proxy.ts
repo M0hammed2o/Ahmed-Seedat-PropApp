@@ -146,7 +146,18 @@ const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 // calls never carry an Origin header either, so without this exemption the endpoint would have
 // been permanently unreachable by the real provider despite passing every local/CI test, since no
 // test in this codebase's own suite calls the route through this proxy layer.
-const CSRF_EXEMPT_PATHS = new Set(['/api/v1/billing/webhook', '/api/v1/webhooks/resend']);
+//
+// /api/v1/webhooks/whatsapp (V1 communications productionisation, WORKLOG.md this date) --
+// identical reasoning, pre-emptively applied rather than found live: authenticated by Meta's own
+// X-Hub-Signature-256 (processWhatsAppWebhookEvent), never by a session cookie, and Meta's real
+// webhook calls carry no Origin header either. Added at build time specifically because the
+// Resend route above already proved this exact gap silently breaks a real provider in production
+// despite passing every test -- no reason to wait for the same failure mode to recur live.
+const CSRF_EXEMPT_PATHS = new Set([
+  '/api/v1/billing/webhook',
+  '/api/v1/webhooks/resend',
+  '/api/v1/webhooks/whatsapp',
+]);
 
 /**
  * True if a mutating request's Origin (or, failing that, Referer) header matches this app's own

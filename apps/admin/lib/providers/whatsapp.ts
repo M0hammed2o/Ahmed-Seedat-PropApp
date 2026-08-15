@@ -6,6 +6,7 @@ import type {
   SendWhatsAppTemplateResult,
   WhatsAppProvider,
   WhatsAppStatusCallback,
+  WhatsAppWebhookEventKind,
 } from '@propvault/types';
 
 // Mock-first WhatsAppProvider (WHATSAPP.md §5) -- no real BSP/Meta account exists
@@ -34,15 +35,36 @@ export class MockWhatsAppProvider implements WhatsAppProvider {
     return true;
   }
 
+  // No real BSP payload shape exists in mock mode -- a status-callback mock payload always has a
+  // `status` field (parseStatusCallback below), a message mock payload never does, so that field's
+  // presence is what distinguishes them here, mirroring MockEmailProvider.parseWebhookEvent's own
+  // convention of parsing a well-defined mock shape rather than blindly wrapping the input.
+  classifyWebhookEvent(rawBody: unknown): WhatsAppWebhookEventKind {
+    const payload = rawBody as { status?: string };
+    return payload.status ? 'status_callback' : 'message';
+  }
+
   parseInboundEvent(rawBody: unknown): InboundWhatsAppEvent {
-    return { kind: 'message', rawPayload: rawBody };
+    const payload = rawBody as { from?: string; body?: string; providerMessageId?: string };
+    return {
+      kind: 'message',
+      from: payload.from,
+      body: payload.body,
+      providerMessageId: payload.providerMessageId,
+      rawPayload: rawBody,
+    };
   }
 
   parseStatusCallback(rawBody: unknown): WhatsAppStatusCallback {
-    const payload = rawBody as { providerMessageId?: string; status?: string };
+    const payload = rawBody as {
+      providerMessageId?: string;
+      status?: string;
+      failureReason?: string;
+    };
     return {
       providerMessageId: payload.providerMessageId ?? 'unknown',
       status: (payload.status as WhatsAppStatusCallback['status']) ?? 'sent',
+      failureReason: payload.failureReason,
     };
   }
 }
@@ -52,6 +74,14 @@ export interface MetaWhatsAppConfig {
   phoneNumberId: string;
   webhookSecret: string;
   templateLanguage: string;
+  /** V1 communications productionisation (WORKLOG.md this date): a SEPARATE secret from
+   * webhookSecret -- Meta's webhook setup has two distinct values: the app secret used for
+   * X-Hub-Signature-256 HMAC over every POST (webhookSecret), and an arbitrary string Mohammed
+   * himself chooses and enters into both this env var and the Meta App Dashboard's "Verify Token"
+   * field, checked only during the one-time GET handshake when the callback URL is registered.
+   * Optional here (unlike the other three) since the GET handshake is a one-time setup step, not
+   * every-request traffic -- POST delivery (the real ongoing traffic) works without it. */
+  webhookVerifyToken?: string;
 }
 
 export function getMetaWhatsAppConfig(): MetaWhatsAppConfig | null {
@@ -69,6 +99,7 @@ export function getMetaWhatsAppConfig(): MetaWhatsAppConfig | null {
     phoneNumberId,
     webhookSecret,
     templateLanguage: process.env.WHATSAPP_TEMPLATE_LANGUAGE ?? 'en_US',
+    webhookVerifyToken: process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN,
   };
 }
 
@@ -84,12 +115,17 @@ const META_GRAPH_API_VERSION = 'v21.0';
 // so it's exercised by real unit tests below despite that; sendTemplateMessage necessarily cannot
 // be, the same limitation as every other real provider added this session.
 //
-// parseInboundEvent/parseStatusCallback/verifyWebhookSignature have an additional, more basic gap
-// beyond "unverified live": confirmed by grep before writing this that NO inbound webhook API
-// route exists anywhere in this codebase yet (only outbound sends, via whatsappDispatch.ts, have
-// a real caller) -- WHATSAPP.md §1.2's phone-resolution/ambiguous-match flow and the webhook route
-// itself are undesigned-and-unbuilt scope beyond "swap the mock for a real provider," tracked
-// separately (TECHNICAL_DEBT_REGISTER.md TD-38) rather than invented here.
+// V1 communications productionisation (WORKLOG.md this date): closes TD-38's inbound half --
+// POST /api/v1/webhooks/whatsapp (whatsappDispatch.ts's processWhatsAppWebhookEvent) now calls
+// classifyWebhookEvent/parseStatusCallback/parseInboundEvent/verifyWebhookSignature for real,
+// covering signature verification and delivery-status tracking end to end. WHATSAPP.md §1.2's
+// resolution branching (0/1/2+ matches) is wired too, via resolve_whatsapp_sender() -- but that
+// RPC's only populate path, the OTP-verification flow that writes verified_phone_numbers, remains
+// undesigned (WHATSAPP.md's own "Unresolved" section), so in practice every real inbound message
+// resolves to 0 matches (UNAUTHENTICATED) today. The full conversational disambiguation round trip
+// (auto-replying, tracking whatsapp_conversation_state across a multi-message exchange) is
+// deliberately NOT built against a table that cannot yet be non-empty -- speculative scaffolding
+// for a prerequisite that doesn't exist, not a scoped-down version of a real, reachable feature.
 export class MetaWhatsAppProvider implements WhatsAppProvider {
   constructor(private readonly config: MetaWhatsAppConfig) {}
 
@@ -155,6 +191,16 @@ export class MetaWhatsAppProvider implements WhatsAppProvider {
     return crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
   }
 
+  // Real Meta shape: entry[].changes[].value.{messages,statuses} -- whichever key is present (and
+  // non-empty) tells the route which of the two parse methods below to call, without the route
+  // itself needing to know this BSP-specific structure.
+  classifyWebhookEvent(rawBody: unknown): WhatsAppWebhookEventKind {
+    const value = extractChangeValue(rawBody);
+    if (value?.messages && value.messages.length > 0) return 'message';
+    if (value?.statuses && value.statuses.length > 0) return 'status_callback';
+    return 'unknown';
+  }
+
   // Meta's webhook payload nests both inbound messages and status callbacks under the identical
   // entry[].changes[].value shape, distinguished by which key is present -- this method only
   // handles the `messages` case; parseStatusCallback below handles `statuses`. No live route calls
@@ -172,6 +218,7 @@ export class MetaWhatsAppProvider implements WhatsAppProvider {
       kind: 'message',
       from: message.from ? `+${message.from}` : undefined,
       body: message.text?.body,
+      providerMessageId: message.id,
       rawPayload: rawBody,
     };
   }
@@ -193,7 +240,7 @@ export class MetaWhatsAppProvider implements WhatsAppProvider {
 }
 
 interface MetaWebhookChangeValue {
-  messages?: { from?: string; text?: { body?: string } }[];
+  messages?: { id?: string; from?: string; text?: { body?: string } }[];
   statuses?: { id: string; status: string; errors?: { title?: string }[] }[];
 }
 

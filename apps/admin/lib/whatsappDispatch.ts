@@ -1,6 +1,7 @@
 import 'server-only';
+import crypto from 'crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { WhatsAppNotificationType } from '@propvault/types';
+import type { WhatsAppNotificationType, WhatsAppProvider } from '@propvault/types';
 import { getWhatsAppProvider, isWhatsAppProviderConfigured } from './providers/whatsapp';
 import { writeAuditEvent } from './audit';
 
@@ -189,4 +190,227 @@ export async function dispatchWhatsApp(
   });
 
   return { sent: true, whatsappMessageId: message.id, deliveryConfigured };
+}
+
+// V1 communications productionisation (WORKLOG.md this date): closes TECHNICAL_DEBT_REGISTER.md
+// TD-38's inbound half -- POST /api/v1/webhooks/whatsapp calls this, mirroring
+// processResendWebhookEvent's (emailDispatch.ts) exact structure: verify signature first, classify
+// the event, insert into a webhook_events idempotency ledger before touching anything else, treat
+// a 23505 unique-violation as "already processed," and only then apply the real effect.
+
+/** Thrown only for a signature-verification failure -- the one case the caller (the route) must
+ * distinguish for WHATSAPP.md §4 point 2's specific handling (401 + a security audit_events row),
+ * as opposed to every other failure here, which is an ordinary 400. */
+export class WhatsAppWebhookSignatureError extends Error {}
+
+export interface ProcessWhatsAppWebhookResult {
+  alreadyProcessed: boolean;
+  eventType: 'message' | 'status_callback' | 'unknown';
+}
+
+// Forward-only status ranking (WHATSAPP.md §6: "an out-of-order or redelivered callback can only
+// move status forward... never regress it"). read/failed are both terminal at the same rank --
+// once either is reached, no further callback may change status, matching
+// processResendWebhookEvent's delivered/bounced/failed convention.
+const WHATSAPP_STATUS_RANK: Record<string, number> = {
+  queued: 0,
+  sent: 1,
+  delivered: 2,
+  read: 3,
+  failed: 3,
+};
+
+async function resolveWhatsAppSender(
+  serviceClient: SupabaseClient,
+  phoneE164: string,
+): Promise<{ orgId: string; entityType: string; entityId: string }[]> {
+  const { data, error } = await serviceClient.rpc('resolve_whatsapp_sender', {
+    p_phone_number_e164: phoneE164,
+  });
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((row: { org_id: string; entity_type: string; entity_id: string }) => ({
+    orgId: row.org_id,
+    entityType: row.entity_type,
+    entityId: row.entity_id,
+  }));
+}
+
+async function processStatusCallback(
+  serviceClient: SupabaseClient,
+  provider: WhatsAppProvider,
+  parsedBody: unknown,
+): Promise<ProcessWhatsAppWebhookResult> {
+  const callback = provider.parseStatusCallback(parsedBody);
+
+  const { data: message } = await serviceClient
+    .from('whatsapp_messages')
+    .select('id, org_id, status')
+    .eq('provider_message_id', callback.providerMessageId)
+    .maybeSingle();
+
+  // Meta doesn't assign status callbacks their own separate stable event id the way Resend's
+  // svix-id does -- (providerMessageId, status) is the natural dedup key: a redelivery of the
+  // exact same status for the exact same message is what "already processed" means here.
+  const providerEventId = `${callback.providerMessageId}:${callback.status}`;
+
+  const { error: insertError } = await serviceClient.from('whatsapp_webhook_events').insert({
+    org_id: message?.org_id ?? null,
+    whatsapp_message_id: message?.id ?? null,
+    provider_name: 'meta',
+    provider_event_id: providerEventId,
+    event_type: `status:${callback.status}`,
+    payload: parsedBody as object,
+  });
+  if (insertError) {
+    if (insertError.code === '23505') {
+      return { alreadyProcessed: true, eventType: 'status_callback' };
+    }
+    throw new Error(insertError.message);
+  }
+
+  if (!message) {
+    // Authentic callback for a message this app never sent (or a different environment sharing
+    // the same Meta app) -- recorded above for audit; nothing local to update.
+    return { alreadyProcessed: false, eventType: 'status_callback' };
+  }
+
+  const currentRank = WHATSAPP_STATUS_RANK[message.status] ?? 0;
+  const newRank = WHATSAPP_STATUS_RANK[callback.status] ?? 0;
+  if (newRank >= currentRank && currentRank < 3) {
+    const now = new Date().toISOString();
+    const timestampColumn =
+      callback.status === 'delivered'
+        ? 'delivered_at'
+        : callback.status === 'read'
+          ? 'read_at'
+          : callback.status === 'failed'
+            ? 'failed_at'
+            : null;
+    await serviceClient
+      .from('whatsapp_messages')
+      .update({
+        status: callback.status,
+        provider_event_at: now,
+        last_provider_event: callback.status,
+        ...(timestampColumn ? { [timestampColumn]: now } : {}),
+        ...(callback.status === 'failed'
+          ? { failure_reason: callback.failureReason ?? 'unknown' }
+          : {}),
+      })
+      .eq('id', message.id);
+
+    await writeAuditEvent(serviceClient, {
+      orgId: message.org_id,
+      actorUserId: null,
+      actorType: 'system',
+      action: 'whatsapp_status_updated',
+      entityType: 'whatsapp_messages',
+      entityId: message.id,
+      after: { status: callback.status },
+    });
+  }
+
+  return { alreadyProcessed: false, eventType: 'status_callback' };
+}
+
+async function processInboundMessage(
+  serviceClient: SupabaseClient,
+  provider: WhatsAppProvider,
+  parsedBody: unknown,
+): Promise<ProcessWhatsAppWebhookResult> {
+  const event = provider.parseInboundEvent(parsedBody);
+  const fromNumber = toE164(event.from);
+
+  // WHATSAPP.md §1.2 steps 1-2: normalize + resolve, service-role, unscoped by org (org is what
+  // we're trying to find). A missing/unparseable sender number cannot be resolved at all --
+  // treated as UNAUTHENTICATED (0 matches) rather than thrown: a real, signature-verified webhook
+  // call with an odd "from" value is still an authentic event worth acknowledging with 200, not
+  // an error that makes Meta retry forever.
+  const matches = fromNumber ? await resolveWhatsAppSender(serviceClient, fromNumber) : [];
+  const resolvedOrgId = matches.length === 1 ? matches[0]!.orgId : null;
+
+  const providerEventId = event.providerMessageId ?? crypto.randomUUID();
+
+  const { error: insertError } = await serviceClient.from('whatsapp_webhook_events').insert({
+    org_id: resolvedOrgId,
+    whatsapp_message_id: null,
+    provider_name: 'meta',
+    provider_event_id: providerEventId,
+    event_type: 'inbound_message',
+    payload: parsedBody as object,
+  });
+  if (insertError) {
+    if (insertError.code === '23505') {
+      return { alreadyProcessed: true, eventType: 'message' };
+    }
+    throw new Error(insertError.message);
+  }
+
+  // WHATSAPP.md §1.2: RESOLVED (exactly 1 match) is the only branch that creates a real,
+  // org-scoped whatsapp_messages row -- an UNAUTHENTICATED (0 matches) or AMBIGUOUS (2+ matches)
+  // inbound message has no single org to attribute a row to (whatsapp_messages.org_id is NOT
+  // NULL, correctly, since it's an org-scoped, RLS-visible table). Both non-resolved outcomes are
+  // still durably recorded above via whatsapp_webhook_events for audit purposes -- nothing is
+  // silently dropped, it's just not promoted into org-scoped business data without a resolved org.
+  //
+  // Full conversational disambiguation/auto-reply (WHATSAPP.md §1.2-1.3: replying with role
+  // labels for the AMBIGUOUS case, tracking whatsapp_conversation_state across a multi-message
+  // exchange) is deliberately NOT built here -- see providers/whatsapp.ts's header comment: the
+  // OTP-verification flow that would ever populate verified_phone_numbers doesn't exist yet, so
+  // every real inbound message resolves to 0 matches today regardless. The correct branching
+  // (resolve once, record, never guess among 2+ matches) is real and in place; sending an actual
+  // reply back to the sender needs a freeform (non-template) send capability WhatsAppProvider
+  // doesn't have yet -- a genuinely separate, larger piece of work, not a scoped-down version of
+  // this one.
+  if (matches.length === 1) {
+    const match = matches[0]!;
+    await serviceClient.from('whatsapp_messages').insert({
+      org_id: match.orgId,
+      direction: 'inbound',
+      to_number: PLATFORM_WHATSAPP_NUMBER,
+      from_number: fromNumber,
+      related_entity_type: match.entityType,
+      related_entity_id: match.entityId,
+      body: event.body ?? null,
+      status: 'delivered',
+      provider_message_id: providerEventId,
+    });
+  }
+
+  return { alreadyProcessed: false, eventType: 'message' };
+}
+
+/** Idempotent, signature-verified inbound WhatsApp webhook processing -- the one call site
+ * POST /api/v1/webhooks/whatsapp uses. Handles both event shapes Meta sends through the same
+ * endpoint (delivery-status callbacks for outbound sends, and genuinely inbound messages). */
+export async function processWhatsAppWebhookEvent(
+  serviceClient: SupabaseClient,
+  input: { rawBody: string; signatureHeader: string },
+): Promise<ProcessWhatsAppWebhookResult> {
+  const provider = getWhatsAppProvider();
+
+  if (!provider.verifyWebhookSignature(input.rawBody, input.signatureHeader)) {
+    throw new WhatsAppWebhookSignatureError('Invalid WhatsApp webhook signature');
+  }
+
+  let parsedBody: unknown;
+  try {
+    parsedBody = JSON.parse(input.rawBody);
+  } catch {
+    throw new Error('WhatsApp webhook payload is not valid JSON');
+  }
+
+  const kind = provider.classifyWebhookEvent(parsedBody);
+  if (kind === 'status_callback') {
+    return processStatusCallback(serviceClient, provider, parsedBody);
+  }
+  if (kind === 'message') {
+    return processInboundMessage(serviceClient, provider, parsedBody);
+  }
+
+  // Unrecognized event shape (e.g. a payload type this integration doesn't model, or Meta's own
+  // subscription-verification traffic arriving as a POST) -- accept and ignore. A real signature
+  // already proved authenticity; Meta should not keep retrying an event this app deliberately
+  // doesn't act on.
+  return { alreadyProcessed: false, eventType: 'unknown' };
 }

@@ -6,7 +6,7 @@
 -- whatsapp_messages.
 
 begin;
-select plan(12);
+select plan(15);
 
 insert into auth.users (id, email) values
   ('ea000000-0000-0000-0000-000000000001', 'ew-agent-a@test.propertyvault.example'),
@@ -144,6 +144,35 @@ select is(
   (select count(*) from public.whatsapp_messages where id = 'ea333333-0000-0000-0000-000000000002'),
   0::bigint,
   'Org B cannot see Org A''s whatsapp_messages row'
+);
+
+-- === whatsapp_webhook_events (migration 20260101000105, V1 communications productionisation):
+--     same org-scoped-read/zero-client-write posture as email_messages/whatsapp_messages above.
+reset role;
+insert into public.whatsapp_webhook_events (id, org_id, provider_name, provider_event_id, event_type)
+values ('ea333333-0000-0000-0000-000000000003', 'ea111111-0000-0000-0000-000000000001', 'meta', 'wamid-test-1:delivered', 'status:delivered');
+
+set local role authenticated;
+set local "request.jwt.claim.sub" = 'ea000000-0000-0000-0000-000000000001';
+
+select is(
+  (select event_type from public.whatsapp_webhook_events where id = 'ea333333-0000-0000-0000-000000000003'),
+  'status:delivered',
+  'org staff can read their own org''s whatsapp_webhook_events row'
+);
+
+select throws_ok(
+  $$ insert into public.whatsapp_webhook_events (org_id, provider_name, provider_event_id, event_type)
+     values ('ea111111-0000-0000-0000-000000000001', 'meta', 'x', 'x') $$,
+  '42501'
+);
+
+set local "request.jwt.claim.sub" = 'ea000000-0000-0000-0000-000000000002';
+
+select is(
+  (select count(*) from public.whatsapp_webhook_events where id = 'ea333333-0000-0000-0000-000000000003'),
+  0::bigint,
+  'Org B cannot see Org A''s whatsapp_webhook_events row'
 );
 
 select * from finish();
