@@ -1,22 +1,20 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getServiceRoleClient, getAdminServerEnv } from '@/lib/supabase/server';
 import { requireAdminRoleOrRespond } from '@/lib/adminApiAuth';
-import { writeAuditEvent } from '@/lib/audit';
+import { runRentScheduleJob } from '@/lib/systemJobs';
 
 /**
  * POST /api/v1/system/generate-rent-schedules (TASKS.md M10, TECHNICAL_DEBT_REGISTER.md TD-20).
+ * Real, callable, tested logic -- no dedicated production scheduler is wired to THIS route
+ * specifically (WORKLOG.md this date, daily-job consolidation pass: the production Render Cron
+ * Job now calls POST /api/v1/system/daily-jobs instead, which runs the exact same
+ * runRentScheduleJob() this route calls). Kept, unchanged in behavior, for manual super-admin
+ * runs, independent testing, and any future scheduling need that wants this job in isolation --
+ * see lib/systemJobs.ts, the one place this logic actually lives.
  *
- * The callable surface for the recurring-rent-schedule generator until a real production
- * scheduler exists (TASKS.md M24 "deployment" owns wiring an actual cron trigger against this
- * endpoint — e.g. a Vercel Cron / hosting-platform scheduled HTTP call once that platform is
- * chosen). Until then this is invoked either manually by a super_admin from Super Admin tooling,
- * or by any external scheduler that has been given CRON_JOB_SECRET out of band.
- *
- * Two independent ways to authenticate, deliberately not merged into one check:
- * - A signed-in platform-admin session (super_admin+) — for manual/on-demand runs.
- * - `Authorization: Bearer <CRON_JOB_SECRET>` — for a scheduler with no user session at all.
- * CRON_JOB_SECRET is optional; if unset in this environment, only the session path works (safe
- * local/dev default — nothing accepts an empty secret as a valid Bearer value).
+ * Two independent ways to authenticate:
+ * - A signed-in platform-admin session (super_admin+) -- for manual/on-demand runs.
+ * - `Authorization: Bearer <CRON_JOB_SECRET>` -- for a scheduler with no user session at all.
  */
 export async function POST(request: NextRequest) {
   const env = getAdminServerEnv();
@@ -44,54 +42,23 @@ export async function POST(request: NextRequest) {
       horizonMonths = Math.floor(body.horizonMonths);
     }
   } catch {
-    // No/invalid body is fine — default 1-month horizon applies.
+    // No/invalid body is fine -- default 1-month horizon applies.
   }
 
   const serviceClient = getServiceRoleClient();
 
-  const throughDate = new Date();
-  throughDate.setMonth(throughDate.getMonth() + horizonMonths);
-  const throughIso = throughDate.toISOString().slice(0, 10);
-
-  const { data, error } = await serviceClient.rpc('generate_rent_schedules_for_active_leases', {
-    p_through: throughIso,
-  });
-
-  if (error) {
+  try {
+    const result = await runRentScheduleJob(serviceClient, actorUserId, horizonMonths);
+    return NextResponse.json(result);
+  } catch (err) {
     return NextResponse.json(
-      { error: { code: 'rent_schedule_generation_failed', message: error.message } },
+      {
+        error: {
+          code: 'rent_schedule_generation_failed',
+          message: err instanceof Error ? err.message : 'Unknown error',
+        },
+      },
       { status: 500 },
     );
   }
-
-  const rows = (data ?? []) as Array<{ lease_id: string; org_id: string; created_count: number }>;
-  const totalCreated = rows.reduce((sum, r) => sum + r.created_count, 0);
-  const leasesWithNewRows = rows.filter((r) => r.created_count > 0).length;
-  const byOrg = rows.reduce<Record<string, number>>((acc, r) => {
-    acc[r.org_id] = (acc[r.org_id] ?? 0) + r.created_count;
-    return acc;
-  }, {});
-
-  await writeAuditEvent(serviceClient, {
-    orgId: null,
-    actorUserId,
-    actorType: actorUserId ? 'user' : 'system',
-    action: 'rent_schedules.generate',
-    entityType: 'rent_schedules',
-    entityId: 'bulk',
-    after: {
-      through: throughIso,
-      leases_processed: rows.length,
-      leases_with_new_rows: leasesWithNewRows,
-      total_created: totalCreated,
-    },
-  });
-
-  return NextResponse.json({
-    through: throughIso,
-    leasesProcessed: rows.length,
-    leasesWithNewRows,
-    totalCreated,
-    createdByOrg: byOrg,
-  });
 }
