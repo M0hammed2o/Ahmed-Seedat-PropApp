@@ -76,12 +76,12 @@ WhatsApp is reserved for urgent/important events. It is **not** a substitute for
 type WhatsAppNotificationType =
   // Tenant-facing
   | 'rent_overdue_material' // materially overdue rent
-  | 'payment_accepted'
+  | 'payment_received_confirmation'
   | 'payment_rejected'
   | 'lease_expiring_soon'
   | 'urgent_property_announcement'
   | 'inspection_reminder_important'
-  | 'maintenance_update_critical'
+  | 'maintenance_request_update'
   | 'document_missing_required' // missing legally required document
   | 'id_document_expiring'
   // Owner-facing
@@ -92,10 +92,10 @@ type WhatsAppNotificationType =
   | 'maintenance_approval_urgent'
   | 'account_security_event' // e.g. new device login, password/phone changed
   | 'owner_statement_available'
-  | 'tenant_invitation'; // added 2026-08-03, PRODUCT DECISION 2 — activation link/code, AUTHENTICATION.md §5
+  | 'tenant_account_invitation'; // added 2026-08-03, PRODUCT DECISION 2 — activation link/code, AUTHENTICATION.md §5; renamed from 'tenant_invitation' during the WhatsApp production readiness pass to match Mohammed's real Meta-approved template name
 ```
 
-**`tenant_invitation`, added 2026-08-03** (`DECISIONS.md`, full design `AUTHENTICATION.md` §5): sent from the same shared platform number as every other trigger above, through a pre-approved transactional template — the secure activation link and/or short code only, never lease terms, balances, or other financial/sensitive detail (matching `tenant_invitations.destination_hint`'s own masked-display discipline, `SECURITY.md`). Wired into `POST /api/v1/tenants/:id/invitations` via `dispatchWhatsApp`, but — same as every other trigger in this table — still running against `MockWhatsAppProvider` (§5), no real delivery has been sent for this or any template (`TECHNICAL_DEBT_REGISTER.md` TD-30, same root cause as TD-23). Manual delivery (staff reads the short code aloud/copies it, no message sent at all) needs no provider and works today regardless of that gap.
+**`tenant_account_invitation`, added 2026-08-03 as `tenant_invitation`, renamed for Meta template compatibility** (`DECISIONS.md`, full design `AUTHENTICATION.md` §5): sent from the same shared platform number as every other trigger above, through a pre-approved transactional template — the secure activation link and/or short code only, never lease terms, balances, or other financial/sensitive detail (matching `tenant_invitations.destination_hint`'s own masked-display discipline, `SECURITY.md`). Wired into `POST /api/v1/tenants/:id/invitations` via `dispatchWhatsApp`. Real Meta credentials and a real, Mohammed-created template of this exact name now exist in production (App ID `1617745723107744`, WABA `1559676719189988`) — but the template's actual approved body/parameter structure has not been shared with or confirmed by this codebase, so the variable order at the call site remains unverified pending Mohammed's confirmation, and no real send has been attempted. `payment_received_confirmation` (`maintenance-tickets`/`bank-transactions confirm-match`/`cash-receipts confirm-deposit` routes) and `maintenance_request_update` (`maintenance-tickets` route) were renamed from `payment_accepted`/`maintenance_update_critical` the same session, same reasoning.
 
 Each value maps 1:1 to exactly one pre-approved WhatsApp message template (§3) and is the _only_ accepted input to the send function — there is no `sendWhatsApp(freeformText)` entry point on the dispatcher. Adding a new trigger means adding an enum value, a template, and a code review, mirroring how `plans`/`feature_limits` and other fixed-vocabulary product surfaces in this codebase are deliberately closed rather than string-typed (`DATABASE.md` §1). This is what keeps the shared number from becoming a firehose: nothing outside the dispatcher can originate a WhatsApp send, so a bug in, say, the announcements feature can't accidentally blast every tenant's WhatsApp.
 
@@ -103,17 +103,17 @@ Everything else — routine reminders, marketing, non-urgent status updates — 
 
 **Trigger type → `notification_preferences.category` mapping** (architecture review, 2026-07-30 — closes a gap where several trigger types had no matching category in the original 5-category enum; `DATABASE.md` §7 extended the enum to `rent|maintenance|lease|inspections|announcements|security|promotional`):
 
-| `WhatsAppNotificationType`                                                                                                                          | Category                                                                                                                |
-| --------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `rent_overdue_material`, `payment_accepted`, `payment_rejected`, `payment_awaiting_confirmation`, `payment_discrepancy`, `rent_overdue_significant` | `rent`                                                                                                                  |
-| `lease_expiring_soon`, `lease_expiring_soon_owner`                                                                                                  | `lease`                                                                                                                 |
-| `urgent_property_announcement`                                                                                                                      | `announcements`                                                                                                         |
-| `inspection_reminder_important`                                                                                                                     | `inspections`                                                                                                           |
-| `maintenance_update_critical`, `maintenance_approval_urgent`                                                                                        | `maintenance`                                                                                                           |
-| `document_missing_required`, `id_document_expiring`                                                                                                 | `lease` (identity/lease-compliance documents)                                                                           |
-| `account_security_event`                                                                                                                            | `security` — **not gated by `whatsapp_enabled`**, sent regardless of preference, per the "not optional" rule above      |
-| `owner_statement_available`                                                                                                                         | `rent` (financial-statement family; no dedicated "accounting" category exists yet — revisit if the category list grows) |
-| `tenant_invitation`                                                                                                                                 | `lease` (identity/lease-onboarding family, same category as `document_missing_required`/`id_document_expiring` above)   |
+| `WhatsAppNotificationType`                                                                                                                                       | Category                                                                                                                |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `rent_overdue_material`, `payment_received_confirmation`, `payment_rejected`, `payment_awaiting_confirmation`, `payment_discrepancy`, `rent_overdue_significant` | `rent`                                                                                                                  |
+| `lease_expiring_soon`, `lease_expiring_soon_owner`                                                                                                               | `lease`                                                                                                                 |
+| `urgent_property_announcement`                                                                                                                                   | `announcements`                                                                                                         |
+| `inspection_reminder_important`                                                                                                                                  | `inspections`                                                                                                           |
+| `maintenance_request_update`, `maintenance_approval_urgent`                                                                                                      | `maintenance`                                                                                                           |
+| `document_missing_required`, `id_document_expiring`                                                                                                              | `lease` (identity/lease-compliance documents)                                                                           |
+| `account_security_event`                                                                                                                                         | `security` — **not gated by `whatsapp_enabled`**, sent regardless of preference, per the "not optional" rule above      |
+| `owner_statement_available`                                                                                                                                      | `rent` (financial-statement family; no dedicated "accounting" category exists yet — revisit if the category list grows) |
+| `tenant_account_invitation`                                                                                                                                      | `lease` (identity/lease-onboarding family, same category as `document_missing_required`/`id_document_expiring` above)   |
 
 ## 3. Personalization — templates, not generic text
 

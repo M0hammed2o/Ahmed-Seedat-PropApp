@@ -1,5 +1,59 @@
 # Worklog
 
+## 2026-08-16 — WhatsApp production readiness pass: template renames, payment-confirmation gap closed, audit-only phases documented
+
+Follow-up to the previous day's WhatsApp inbound webhook work, prompted by Mohammed's real Meta
+app setup: a separate Proplyst Meta app (App ID `1617745723107744`, WABA `1559676719189988`,
+production number `+27 78 812 1419`) was provisioned, the WABA-subscription gap found during live
+verification was corrected, and 8 real Meta Utility templates were manually created and submitted
+for review, replacing the old provisional template names this codebase's dispatch code referenced.
+
+**3 real template renames** (the only 3 `WhatsAppNotificationType` values with an actual wired
+dispatch call site): `tenant_invitation` → `tenant_account_invitation`
+(`tenants/:id/invitations`), `payment_accepted` → `payment_received_confirmation`
+(`bank-transactions/:id/confirm-match`), `maintenance_update_critical` →
+`maintenance_request_update` (`maintenance-tickets/:id`). Every other closed-enum value was
+deliberately left unchanged -- none has a real caller yet, and guessing whether Mohammed's new
+`rent_overdue_notice`/`lease_expiry_reminder`/`owner_monthly_property_summary` templates are meant
+to replace the existing unwired `rent_overdue_material`/`lease_expiring_soon(_owner)`/
+`owner_statement_available` values, or coexist as distinct events, would be exactly the kind of
+speculative mapping this pass was explicitly told not to make. **The new templates' actual
+approved parameter count/order has not been shared** -- all 3 renamed call sites keep their old
+variable structure, explicitly flagged UNVERIFIED in code, pending Mohammed confirming the real
+template bodies before any production send is attempted.
+
+**A real, previously-undiscovered gap closed**: auditing the payment-confirmation lifecycle for
+Phase 4 of the readiness pass found `confirm_bank_transaction_match()`'s route already notified
+the tenant on confirmed payment, but the cash-receipt equivalent
+(`confirm_cash_receipt_deposit()`, migration `20260101000073`'s own "report, then separately
+confirm" two-step design -- exactly the REPORTED/CONFIRMED distinction this pass was asked to
+verify) never did. Added the same `payment_received_confirmation` dispatch, mirroring the
+bank-transaction route's pattern exactly (best-effort, never blocks the response, only fires when
+the receipt is tied to a real lease).
+
+**`payment_confirmation_required` deliberately not wired**: the only role that can actually confirm
+a payment (`accountant`+ org members) has no phone-number column anywhere in the schema, and the
+only entities with a phone column (tenants/owners) have no permission to perform the confirming
+action. There is no safe recipient for this notification today without either adding staff phone
+verification or building a new owner-confirmation permission -- both real, separate pieces of work,
+not a wiring gap. Documented, not guessed around.
+
+**`rent_payment_reminder`/`rent_overdue_notice`/`lease_expiry_reminder`/
+`owner_monthly_property_summary` deliberately not built**: each needs genuinely new
+scheduled-detection logic (a new marker column + RPC + job function, mirroring
+`systemJobs.ts`'s already-proven compliance-reminder pattern exactly) or new cross-table
+aggregation with no existing reporting service to reuse -- this codebase's own established
+principle (`whatsappDispatch.ts`'s pre-existing header comment) is explicit that inventing an
+ad-hoc scheduled-detection job is exactly the kind of guessed automation to avoid. Precise designs
+for all four are in the session's own readiness report rather than rushed into this pass.
+
+**Verification, this pass**: `tsc --noEmit`/`eslint`/`prettier --check` all clean. `vitest run`
+(apps/admin) **549/549 passing** (unchanged count -- renames and one new dispatch call site, no
+new test files this pass; the existing `dispatchWhatsApp`/`processWhatsAppWebhookEvent` coverage
+already exercises the changed code paths). `supabase test db` **744/744** (unaffected -- no schema
+change this pass). `next build` succeeds. No real WhatsApp send was attempted -- Meta template
+approval status remains unconfirmed.
+
 ## 2026-08-15 — V1 communications productionisation: branded HTML email system, 5 billing lifecycle emails, WhatsApp inbound webhook
 
 Full audit-first pass across email and WhatsApp, per explicit instruction not to assume something
