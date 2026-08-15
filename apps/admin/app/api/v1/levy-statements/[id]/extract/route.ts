@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { requireOrgRole } from '@/lib/portfolio';
+import { canUseOcr } from '@/lib/subscriptionEntitlements';
 import { getDocumentIntelligenceProvider } from '@/lib/providers/documentIntelligence';
 import { parseLevyStatementLineItems } from '@/lib/levyStatementParsing';
 import { writeAuditEvent } from '@/lib/audit';
@@ -49,6 +50,21 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
         error: {
           code: 'forbidden',
           message: 'You do not have permission to process this statement.',
+        },
+      },
+      { status: 403 },
+    );
+  }
+
+  // RELEASE A P0 fix: OCR is a real, gated commercial differentiator (feature_limits.ocrEnabled)
+  // that was previously readable but never enforced anywhere.
+  if (!(await canUseOcr(supabase, statement.org_id))) {
+    return NextResponse.json(
+      {
+        error: {
+          code: 'feature_not_available',
+          message: 'Document scanning (OCR) is not included in your current plan.',
+          upgradeRequired: true,
         },
       },
       { status: 403 },

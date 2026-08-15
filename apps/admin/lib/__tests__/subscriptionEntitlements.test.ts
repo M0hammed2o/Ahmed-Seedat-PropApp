@@ -5,6 +5,12 @@ import {
   mayCreateProperty,
   getOrgSeatSummary,
   canInviteStaff,
+  getOrganizationEntitlements,
+  canUseOcr,
+  canUseOwnerPortal,
+  canUseAdvancedReporting,
+  canUseBulkCommunications,
+  canUseApiAccess,
 } from '../subscriptionEntitlements';
 
 // Real integration tests against local Supabase (same pattern as emailDispatch.test.ts) -- these
@@ -159,5 +165,85 @@ describeIfSupabase('subscriptionEntitlements (real local Supabase integration)',
     expect(afterStaff.activeBillableStaffCount).toBe(1);
     expect(afterStaff.availableSeats).toBe(0);
     expect(canInviteStaff(afterStaff)).toBe(false);
+  });
+
+  // RELEASE A P0 fix (V1 Commercial Launch Gap Audit): maxProperties + boolean feature_limits
+  // enforcement (migration 20260101000102). None of org_property_limit()/available_property_slots()/
+  // org_feature_enabled() check auth.uid() internally (pure data lookups, like
+  // org_staff_seat_limit() above) -- exercisable directly via the service-role client with no
+  // session, same as the getOrgSeatSummary tests above. The RPC/RLS-level enforcement itself
+  // (create_property() raising property_limit_reached:) is proven at the SQL layer by
+  // supabase/tests/entitlement_engine_and_max_properties.test.sql -- these tests exercise the
+  // TypeScript wrapper (correct RPC param names/shapes) on top of it.
+
+  it('getOrganizationEntitlements() is fully permissive for an org with no subscription row (trial)', async () => {
+    const entitlements = await getOrganizationEntitlements(serviceClient, orgId);
+    expect(entitlements.propertyLimit).toBeNull();
+    expect(entitlements.activePropertyCount).toBe(0);
+    expect(entitlements.availablePropertySlots).toBeNull();
+    expect(entitlements.ocrEnabled).toBe(true);
+    expect(entitlements.ownerPortalEnabled).toBe(true);
+    expect(entitlements.advancedReporting).toBe(true);
+  });
+
+  it("getOrganizationEntitlements() reflects the Starter plan's real, restrictive feature_limits", async () => {
+    const { data: starterPlan, error: planError } = await serviceClient
+      .from('plans')
+      .select('id')
+      .eq('code', 'starter')
+      .single();
+    if (planError) throw planError;
+
+    await serviceClient.from('organization_subscriptions').insert({
+      org_id: orgId,
+      plan_id: starterPlan.id,
+      billing_cycle: 'monthly',
+      current_period_start: new Date().toISOString().slice(0, 10),
+      current_period_end: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+      status: 'active',
+    });
+
+    const entitlements = await getOrganizationEntitlements(serviceClient, orgId);
+    expect(entitlements.propertyLimit).toBe(5);
+    expect(entitlements.availablePropertySlots).toBe(5);
+    expect(entitlements.ocrEnabled).toBe(false);
+    expect(entitlements.ownerPortalEnabled).toBe(false);
+    expect(entitlements.advancedReporting).toBe(false);
+    expect(entitlements.apiAccess).toBe(false);
+
+    expect(await canUseOcr(serviceClient, orgId)).toBe(false);
+    expect(await canUseOwnerPortal(serviceClient, orgId)).toBe(false);
+    expect(await canUseAdvancedReporting(serviceClient, orgId)).toBe(false);
+  });
+
+  it("getOrganizationEntitlements() reflects the Business plan's unlimited/fully-enabled feature_limits", async () => {
+    const { data: businessPlan, error: planError } = await serviceClient
+      .from('plans')
+      .select('id')
+      .eq('code', 'business')
+      .single();
+    if (planError) throw planError;
+
+    await serviceClient.from('organization_subscriptions').insert({
+      org_id: orgId,
+      plan_id: businessPlan.id,
+      billing_cycle: 'monthly',
+      current_period_start: new Date().toISOString().slice(0, 10),
+      current_period_end: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+      status: 'active',
+    });
+
+    const entitlements = await getOrganizationEntitlements(serviceClient, orgId);
+    expect(entitlements.propertyLimit).toBeNull();
+    expect(entitlements.availablePropertySlots).toBeNull();
+    expect(entitlements.ocrEnabled).toBe(true);
+    expect(entitlements.ownerPortalEnabled).toBe(true);
+    expect(entitlements.advancedReporting).toBe(true);
+    expect(entitlements.apiAccess).toBe(true);
+  });
+
+  it('canUseBulkCommunications()/canUseApiAccess() always return true -- no real feature to gate yet (audit finding, not a stub oversight)', async () => {
+    expect(await canUseBulkCommunications()).toBe(true);
+    expect(await canUseApiAccess()).toBe(true);
   });
 });

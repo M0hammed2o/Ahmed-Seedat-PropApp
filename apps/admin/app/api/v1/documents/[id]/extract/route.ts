@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { requireOrgRole, requirePropertyAccess } from '@/lib/portfolio';
+import { canUseOcr } from '@/lib/subscriptionEntitlements';
 import { getDocumentIntelligenceProvider } from '@/lib/providers/documentIntelligence';
 import { mapExtractionResultRow } from '@/lib/documents';
 import { writeAuditEvent } from '@/lib/audit';
@@ -95,6 +96,21 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
         },
       },
       { status: 400 },
+    );
+  }
+
+  // RELEASE A P0 fix: OCR is a real, gated commercial differentiator (feature_limits.ocrEnabled)
+  // that was previously readable but never enforced anywhere.
+  if (!(await canUseOcr(supabase, document.org_id))) {
+    return NextResponse.json(
+      {
+        error: {
+          code: 'feature_not_available',
+          message: 'Document scanning (OCR) is not included in your current plan.',
+          upgradeRequired: true,
+        },
+      },
+      { status: 403 },
     );
   }
 

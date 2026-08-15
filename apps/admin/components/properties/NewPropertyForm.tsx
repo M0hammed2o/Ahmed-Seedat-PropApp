@@ -50,6 +50,10 @@ export function NewPropertyForm({ orgId }: { orgId: string }) {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // RELEASE A P0 fix: true when the API rejected the create because the org's plan property limit
+  // was reached (`error.upgradeRequired`, apps/admin/app/api/v1/properties/route.ts) -- renders an
+  // "Upgrade plan" link instead of leaving the customer at a dead end.
+  const [upgradeRequired, setUpgradeRequired] = useState(false);
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -71,6 +75,7 @@ export function NewPropertyForm({ orgId }: { orgId: string }) {
     setSubmitting(true);
     setError(null);
     setFieldErrors({});
+    setUpgradeRequired(false);
     try {
       const response = await fetch('/api/v1/properties', {
         method: 'POST',
@@ -94,6 +99,7 @@ export function NewPropertyForm({ orgId }: { orgId: string }) {
       if (!response.ok) {
         setFieldErrors(body.error?.field_errors ?? {});
         setError(body.error?.message ?? 'Failed to create property.');
+        setUpgradeRequired(body.error?.upgradeRequired === true);
         return;
       }
       router.push(`/properties/${body.property.id}`);
@@ -111,9 +117,14 @@ export function NewPropertyForm({ orgId }: { orgId: string }) {
       <Panel className="max-w-xl">
         <form onSubmit={handleSubmit} className="space-y-4">
           {error ? (
-            <p className="rounded-md border border-light-danger bg-light-danger/10 px-3 py-2 text-xs text-light-danger dark:border-dark-danger dark:bg-dark-danger/10 dark:text-dark-danger">
-              {error}
-            </p>
+            <div className="rounded-md border border-light-danger bg-light-danger/10 px-3 py-2 text-xs text-light-danger dark:border-dark-danger dark:bg-dark-danger/10 dark:text-dark-danger">
+              <p>{error}</p>
+              {upgradeRequired ? (
+                <a href="/organization/billing" className="mt-1 inline-block font-medium underline">
+                  Upgrade plan
+                </a>
+              ) : null}
+            </div>
           ) : null}
 
           <Field label="Property name" error={fieldErrors.nickname}>

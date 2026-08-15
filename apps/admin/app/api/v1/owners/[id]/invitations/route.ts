@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { ownerInvitationCreateSchema } from '@propvault/validation';
 import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { requireOrgRole } from '@/lib/portfolio';
+import { canUseOwnerPortal } from '@/lib/subscriptionEntitlements';
 import { mapOwnerInvitationRow, maskDestination } from '@/lib/ownerInvitations';
 import { dispatchEmail } from '@/lib/emailDispatch';
 import { rateLimitOrRespond } from '@/lib/rateLimit';
@@ -107,6 +108,21 @@ async function handlePOST(request: NextRequest, { params }: RouteParams) {
   if (!canWrite) {
     return NextResponse.json(
       { error: { code: 'forbidden', message: 'You do not have permission to invite this owner.' } },
+      { status: 403 },
+    );
+  }
+
+  // RELEASE A P0 fix: the owner portal is a real, gated commercial differentiator
+  // (feature_limits.ownerPortalEnabled) that was previously readable but never enforced anywhere.
+  if (!(await canUseOwnerPortal(supabase, owner.org_id))) {
+    return NextResponse.json(
+      {
+        error: {
+          code: 'feature_not_available',
+          message: 'The owner portal is not included in your current plan.',
+          upgradeRequired: true,
+        },
+      },
       { status: 403 },
     );
   }

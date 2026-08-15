@@ -117,6 +117,34 @@ export interface OwnerPortfolioEntitlement {
   mayCreatePortfolio: boolean;
 }
 
+/**
+ * RELEASE A P0 fix (V1 Commercial Launch Gap Audit): the full plan-entitlement snapshot for one
+ * organization — apps/admin's `getOrganizationEntitlements()` (subscriptionEntitlements.ts)
+ * returns exactly this shape, backed by `org_property_limit()`/`available_property_slots()`/
+ * `org_feature_enabled()` (migration 20260101000102). ONE authoritative shape every
+ * property-limit/feature-gate check in the app reads from — never re-derived per component.
+ */
+export interface OrganizationEntitlements {
+  /** The org's current plan's feature_limits.maxProperties. null = unlimited. */
+  propertyLimit: number | null;
+  /** Active (non-archived) properties only — see org_active_property_count()'s own comment. */
+  activePropertyCount: number;
+  /** null = unlimited. May be zero or negative once the limit is reached. */
+  availablePropertySlots: number | null;
+  /** Real, gated feature: the three OCR extraction routes (documents/leases/levy-statements). */
+  ocrEnabled: boolean;
+  /** Real, gated feature: inviting a property owner to their own portal login. */
+  ownerPortalEnabled: boolean;
+  /** Real, gated feature: the tax-pack CSV export (ACCOUNTING.md §7). */
+  advancedReporting: boolean;
+  /** No technical surface exists anywhere in this codebase to gate (RELEASE A audit finding) --
+   * exposed here as the raw plan value for UI display only, never enforced. */
+  bulkCommunications: boolean;
+  /** No technical surface exists anywhere in this codebase to gate (RELEASE A audit finding) --
+   * exposed here as the raw plan value for UI display only, never enforced. */
+  apiAccess: boolean;
+}
+
 // Rank order for "at least X" comparisons — mirrors has_org_role()'s per-branch semantics in
 // 20260101000021_org_role_helpers.sql. NOT a total order for 'accountant' vs 'agent' (they're
 // siblings, per PERMISSIONS.md §2) — only use this for principal/manager/viewer comparisons.

@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { canUseAdvancedReporting } from '@/lib/subscriptionEntitlements';
 
 function csvEscape(value: string): string {
   if (/[",\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
@@ -51,6 +52,23 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       { error: { code: 'tax_pack_compute_failed', message: error.message } },
       { status: 422 },
+    );
+  }
+
+  // RELEASE A P0 fix: the tax-pack CSV export is the real, gated "advanced reporting" surface
+  // (feature_limits.advancedReporting) -- the compute_tax_pack RPC call above already proved
+  // org-role access (accountant+, checked inside the RPC itself), so this only needs the plan
+  // check, not a repeated role check.
+  if (!(await canUseAdvancedReporting(supabase, orgId))) {
+    return NextResponse.json(
+      {
+        error: {
+          code: 'feature_not_available',
+          message: 'Tax pack export is not included in your current plan.',
+          upgradeRequired: true,
+        },
+      },
+      { status: 403 },
     );
   }
 

@@ -1,9 +1,9 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { OrgSeatSummary } from '@propvault/types';
+import type { OrgSeatSummary, OrganizationEntitlements } from '@propvault/types';
 import { requireOrgRole } from './portfolio';
 
-export type { OrgSeatSummary };
+export type { OrgSeatSummary, OrganizationEntitlements };
 
 /**
  * Owner subscription + staff seat entitlement boundary (WORKLOG.md this date). One business-
@@ -48,11 +48,128 @@ export async function mayCreatePortfolio(
 }
 
 /** Property creation is already org-scoped (`requireOrgRole('agent')`) -- a linked-owner-only
- * account has no org membership anywhere to create a property IN, so this is a thin, named alias
- * rather than new logic. Kept as its own function (matching the task's own `may_create_property`
- * vocabulary) so a future per-org property-count limit has one place to live. */
+ * account has no org membership anywhere to create a property IN, so the role check is a thin,
+ * named alias. RELEASE A P0 fix: this now ALSO consults the org's real property-count limit
+ * (`available_property_slots()`, migration 20260101000102) -- the exact "future per-org
+ * property-count limit" this function's own comment anticipated when it was written. The real
+ * enforcement lives inside `create_property()` itself (unbypassable via raw PostgREST -- there is
+ * no client-facing INSERT policy on `properties` at all); this function exists so the API route
+ * can render a specific "upgrade your plan" message instead of surfacing the RPC's raw exception
+ * text, matching `canInviteStaff()`'s own "friendlier message at the API layer" split below. */
 export async function mayCreateProperty(supabase: SupabaseClient, orgId: string): Promise<boolean> {
-  return requireOrgRole(supabase, orgId, 'agent');
+  const canWrite = await requireOrgRole(supabase, orgId, 'agent');
+  if (!canWrite) return false;
+  const { data, error } = await supabase.rpc('available_property_slots', { p_org_id: orgId });
+  if (error) throw new Error(`available_property_slots RPC failed: ${error.message}`);
+  return data === null || Number(data) > 0;
+}
+
+/**
+ * RELEASE A P0 fix (V1 Commercial Launch Gap Audit): the ONE authoritative entitlement snapshot
+ * for an organization -- every property-limit/feature-gate check in the app reads from this
+ * function's return value (or the individual `canUse*` helpers below, which call it), never a
+ * bespoke re-derivation. Backed entirely by database RPCs (`org_property_limit()`,
+ * `org_active_property_count()`, `available_property_slots()`, `org_feature_enabled()`, migration
+ * 20260101000102) -- same "the database is the real enforcement, this is a thin named wrapper"
+ * posture as `mayCreatePortfolio()`/`getOrgSeatSummary()` above.
+ */
+export async function getOrganizationEntitlements(
+  supabase: SupabaseClient,
+  orgId: string,
+): Promise<OrganizationEntitlements> {
+  const [limit, count, slots, ocr, ownerPortal, advancedReporting, bulkCommunications, apiAccess] =
+    await Promise.all([
+      supabase.rpc('org_property_limit', { p_org_id: orgId }),
+      supabase.rpc('org_active_property_count', { p_org_id: orgId }),
+      supabase.rpc('available_property_slots', { p_org_id: orgId }),
+      supabase.rpc('org_feature_enabled', { p_org_id: orgId, p_feature_key: 'ocrEnabled' }),
+      supabase.rpc('org_feature_enabled', { p_org_id: orgId, p_feature_key: 'ownerPortalEnabled' }),
+      supabase.rpc('org_feature_enabled', { p_org_id: orgId, p_feature_key: 'advancedReporting' }),
+      supabase.rpc('org_feature_enabled', { p_org_id: orgId, p_feature_key: 'bulkCommunications' }),
+      supabase.rpc('org_feature_enabled', { p_org_id: orgId, p_feature_key: 'apiAccess' }),
+    ]);
+  for (const [name, result] of [
+    ['org_property_limit', limit],
+    ['org_active_property_count', count],
+    ['available_property_slots', slots],
+    ['org_feature_enabled(ocrEnabled)', ocr],
+    ['org_feature_enabled(ownerPortalEnabled)', ownerPortal],
+    ['org_feature_enabled(advancedReporting)', advancedReporting],
+    ['org_feature_enabled(bulkCommunications)', bulkCommunications],
+    ['org_feature_enabled(apiAccess)', apiAccess],
+  ] as const) {
+    if (result.error) throw new Error(`${name} RPC failed: ${result.error.message}`);
+  }
+
+  return {
+    propertyLimit: limit.data === null ? null : Number(limit.data),
+    activePropertyCount: Number(count.data ?? 0),
+    availablePropertySlots: slots.data === null ? null : Number(slots.data),
+    ocrEnabled: ocr.data === true,
+    ownerPortalEnabled: ownerPortal.data === true,
+    advancedReporting: advancedReporting.data === true,
+    bulkCommunications: bulkCommunications.data === true,
+    apiAccess: apiAccess.data === true,
+  };
+}
+
+/** Real, gated feature: the three OCR extraction routes (documents/leases/levy-statements). */
+export async function canUseOcr(supabase: SupabaseClient, orgId: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('org_feature_enabled', {
+    p_org_id: orgId,
+    p_feature_key: 'ocrEnabled',
+  });
+  if (error) throw new Error(`org_feature_enabled RPC failed: ${error.message}`);
+  return data === true;
+}
+
+/** Real, gated feature: inviting a property owner to their own portal login. */
+export async function canUseOwnerPortal(supabase: SupabaseClient, orgId: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('org_feature_enabled', {
+    p_org_id: orgId,
+    p_feature_key: 'ownerPortalEnabled',
+  });
+  if (error) throw new Error(`org_feature_enabled RPC failed: ${error.message}`);
+  return data === true;
+}
+
+/** Real, gated feature: the tax-pack CSV export (ACCOUNTING.md §7) -- the closest thing to a
+ * distinct "advanced reporting" surface this codebase actually has (confirmed by audit -- there is
+ * no separate basic/advanced reporting split anywhere else). */
+export async function canUseAdvancedReporting(
+  supabase: SupabaseClient,
+  orgId: string,
+): Promise<boolean> {
+  const { data, error } = await supabase.rpc('org_feature_enabled', {
+    p_org_id: orgId,
+    p_feature_key: 'advancedReporting',
+  });
+  if (error) throw new Error(`org_feature_enabled RPC failed: ${error.message}`);
+  return data === true;
+}
+
+/**
+ * RELEASE A audit finding: no bulk-communication feature (sending one message to many
+ * tenants/owners at once) exists anywhere in this codebase today -- every dispatchEmail()/
+ * dispatchWhatsApp() call site sends to exactly one recipient tied to one event. Per the task's own
+ * instruction ("do NOT pretend a feature exists merely to gate it"), this deliberately always
+ * returns true (nothing to restrict) rather than gating a feature that isn't real. Kept as its own
+ * function, not deleted, so the day a real bulk-send feature is built, this is the one place to
+ * flip to `org_feature_enabled(supabase, orgId, 'bulkCommunications')` -- exactly this file's own
+ * established "one place to live" precedent (mayCreateProperty's own comment history).
+ */
+export async function canUseBulkCommunications(): Promise<boolean> {
+  return true;
+}
+
+/**
+ * RELEASE A audit finding: no external/API-key-authenticated access surface exists anywhere in
+ * this codebase today -- every route is session-cookie or bearer-JWT (the app's own users),
+ * there is no third-party API product. Deliberately always returns true (nothing to restrict) for
+ * the same "do not gate a feature that isn't real" reasoning as canUseBulkCommunications() above.
+ */
+export async function canUseApiAccess(): Promise<boolean> {
+  return true;
 }
 
 /** Staff seat accounting for one organization. */

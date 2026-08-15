@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { propertyCreateSchema } from '@propvault/validation';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapPropertyRow, requireOrgRole } from '@/lib/portfolio';
+import { mayCreateProperty } from '@/lib/subscriptionEntitlements';
 import { getGeocodingProvider } from '@/lib/providers/geocoding';
 import { parseListQuery, encodeCursor, beforeCursorFilter } from '@/lib/cursorPagination';
 
@@ -115,6 +116,25 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // RELEASE A P0 fix: friendlier, specific message + an `upgradeRequired` flag the UI can use to
+  // render an "Upgrade plan" call to action -- the real, unbypassable enforcement is inside
+  // create_property() itself (below); this pre-check exists only so the common case doesn't have
+  // to round-trip a raw RPC exception message to the client. A raw PostgREST caller who skips this
+  // route entirely still hits the RPC's own check (see the createError handling below).
+  const withinLimit = await mayCreateProperty(supabase, parsed.data.orgId);
+  if (!withinLimit) {
+    return NextResponse.json(
+      {
+        error: {
+          code: 'property_limit_reached',
+          message: "You've reached the property limit for your current plan.",
+          upgradeRequired: true,
+        },
+      },
+      { status: 403 },
+    );
+  }
+
   // Property creation goes through create_property() (migration 20260101000064), not a raw
   // client insert -- properties no longer has a client-facing INSERT policy at all. A raw
   // `.insert().select().single()` here would fail RLS: the newly-inserted row's own RETURNING
@@ -141,6 +161,21 @@ export async function POST(request: NextRequest) {
   });
 
   if (createError) {
+    // Defense in depth against a race (two concurrent creates both pass the pre-check above when
+    // only one slot remains) -- create_property() itself is the real, unbypassable enforcement,
+    // and it raises this exact message prefix (see migration 20260101000102's own comment).
+    if (createError.message.startsWith('property_limit_reached:')) {
+      return NextResponse.json(
+        {
+          error: {
+            code: 'property_limit_reached',
+            message: "You've reached the property limit for your current plan.",
+            upgradeRequired: true,
+          },
+        },
+        { status: 403 },
+      );
+    }
     return NextResponse.json(
       { error: { code: 'property_create_failed', message: createError.message } },
       { status: 500 },
