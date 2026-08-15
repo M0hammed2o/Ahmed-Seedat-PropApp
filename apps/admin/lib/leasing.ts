@@ -133,3 +133,21 @@ export function mapRentScheduleRow(row: RentScheduleRow): RentSchedule {
     generatedAt: row.generated_at,
   };
 }
+
+/**
+ * V1 launch readiness pass (WORKLOG.md this date): the tenant portal's own "amount outstanding"
+ * total (`(tenant)/my-payments/page.tsx`) previously filtered only `pending`/`overdue`, silently
+ * excluding `invoiced` (the ordinary state for currently-due rent once an invoice entry is posted
+ * -- see `accounting_posting_operations.sql`'s `pending -> invoiced` transition) and `partial` (a
+ * schedule the tenant has part-paid, still genuinely owed) -- a tenant whose rent had already been
+ * invoiced could see "R0 outstanding" while genuinely owing money. Every status except `paid`
+ * represents an amount still owed; extracted as its own pure function specifically so this rule is
+ * unit-testable without standing up the whole server-component page.
+ */
+export function calculateOutstandingRentTotal(
+  rentSchedules: Pick<RentSchedule, 'status' | 'amount'>[],
+): number {
+  return rentSchedules
+    .filter((r) => r.status !== 'paid')
+    .reduce((sum, r) => sum + Number(r.amount), 0);
+}

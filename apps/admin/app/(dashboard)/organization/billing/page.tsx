@@ -91,7 +91,7 @@ export default async function OrganizationBillingPage() {
       <div className="space-y-5 animate-rise">
         <PageHeader
           title="Billing & subscription"
-          subtitle="Manage your PropertyVault plan and view payment history."
+          subtitle="Manage your Proplyst plan and view payment history."
         />
         <OrganizationBillingView
           organization={DEMO_ORGANIZATION}
@@ -200,7 +200,7 @@ export default async function OrganizationBillingPage() {
     <div className="space-y-5 animate-rise">
       <PageHeader
         title="Billing & subscription"
-        subtitle="Manage your PropertyVault plan and view payment history."
+        subtitle="Manage your Proplyst plan and view payment history."
       />
       <OrganizationBillingView
         organization={mapOrganizationRow(orgRow)}

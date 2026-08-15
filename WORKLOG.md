@@ -1,5 +1,151 @@
 # Worklog
 
+## 2026-08-15 — V1 launch readiness verification pass: 2 brand leaks + 1 tenant balance display bug found and fixed
+
+Follow-up to Release A and the daily-job consolidation below (neither got a WORKLOG entry at the
+time -- backfilled here since both are load-bearing for this pass's own findings). This pass was
+verification-first: reconciled the prior V1 Commercial Launch Gap Audit's P0/P1 list against
+current code, then fixed the small number of genuine, safely-fixable defects it surfaced.
+
+**Two real, user-facing brand leaks, missed by Release A's own partial fix**: Release A fixed the
+one "PropertyVault" string inside `OrganizationBillingView.tsx`'s cancellation dialog, but missed
+the page wrapper's own subtitle (`organization/billing/page.tsx:94,203`, both branches -- demo and
+real) and, more seriously, the footer text on a real **printed owner statement**
+(`accounting/owner-statements/[id]/print/page.tsx:144`) -- a document an owner might actually
+download and keep. All three now read "Proplyst." Confirmed via a full re-grep of every
+`PropertyVault`/`PropVault` occurrence in `apps/admin/components`/`apps/admin/app`: everything
+remaining is a code comment (harmless) or the `@propvault/*` internal package name (intentional,
+not customer-facing).
+
+**A real tenant-facing bug, worse than the original audit's own finding**: the audit flagged
+`(tenant)/my-payments/page.tsx`'s outstanding-balance total as missing the `partial` rent-schedule
+status. Re-reading the actual `rent_schedules.status` state machine (5 values:
+`pending`/`invoiced`/`paid`/`overdue`/`partial` -- `pending -> invoiced` happens when
+`accounting_posting_operations.sql` posts a real invoice entry) found the filter was ALSO missing
+`invoiced` -- the ordinary state for currently-due rent once it's actually been posted to the
+ledger. A tenant whose rent had already been invoiced could see "R0 outstanding" while genuinely
+owing money, a materially worse symptom than the originally-reported one. Fixed by inverting the
+rule to its correct, simplest form: every status except `paid` counts as outstanding. Extracted
+into `calculateOutstandingRentTotal()` (`lib/leasing.ts`) specifically so this rule is
+unit-testable without standing up the whole server-component page -- 8 new Vitest cases pin every
+status individually plus a realistic mixed-set sum.
+
+**Verification, this pass**: `prettier --check`/`tsc --noEmit`/`eslint` all clean. `vitest run`
+**501/501** (85 files, +8 new). `supabase db reset` (fresh) applies cleanly (no migrations this
+pass). `supabase test db` **741/741** (unaffected -- no RLS/schema change). `next build` succeeds.
+`git diff --check` clean, no secrets/debug code in changed files. Playwright
+(`property-workflow-ui`/`property-lease-workflow`/`property-compliance-workflow`, 14 scenarios)
+re-run as a final broad smoke check, unaffected by this pass's changes.
+
+**Audit reconciliation highlights** (full classification in the session's own final report, not
+duplicated here): selected-property staff isolation, maxProperties/feature-flag enforcement, and
+subscription self-reactivation (all Release A P0s) confirmed CLOSED by direct code re-inspection.
+Rent-schedule/compliance-reminder/subscription-lifecycle scheduling confirmed CLOSED --
+consolidated behind `POST /api/v1/system/daily-jobs`, one live Render Cron Job
+(`proplyst-daily-jobs`), manually triggered in production with a real `HTTP 200` and successful
+per-job results. Branch protection on `main`, real legal Terms/Privacy text, owner-removal route,
+lease renewal, cash-payment capture UI, and PayFast live merchant verification all confirmed
+STILL OPEN or EXTERNALLY BLOCKED, unchanged from the prior audit -- none required a code fix this
+pass, all disclosed in the final report rather than silently deferred.
+
+## 2026-08-15 — Daily system job consolidation: one orchestration endpoint replaces 3 separate cron jobs
+
+`POST /api/v1/system/daily-jobs` runs subscription lifecycle (+ scheduled plan-change/downgrade
+application), rent schedule generation, and compliance reminders in deterministic order, each
+caught independently so one job's failure doesn't stop the others and the overall HTTP response
+(500) never silently reports success on a partial failure. The three existing routes
+(`check-subscriptions`/`generate-rent-schedules`/`check-compliance-requirements`) were refactored
+to call the same extracted functions (new `lib/systemJobs.ts`) instead of duplicating their logic
+-- kept unchanged in behavior and available for manual admin use / independent testing, per
+explicit instruction not to delete them.
+
+**A real, previously-undiscovered bug found while extracting this code**: `audit_events.entity_id`
+is `uuid not null`, but the rent-schedule job's own audit write passed the literal string `'bulk'`
+-- that insert has silently failed on every single run since it shipped (`writeAuditEvent` only
+`console.error`s on failure, never throws, so this was invisible without reading the logs).
+Fixed with a fresh random UUID per run; applied the same fix to the new daily-jobs summary event.
+
+Same dual-auth as every other system-job route (`CRON_JOB_SECRET` bearer or a `super_admin`
+session). 17 new tests: 6 mocked-dependency orchestration tests (execution order, structured
+result, partial-failure isolation, no-200-on-failure, no-stack-trace-leak) + 11 real-Supabase
+integration tests (4 auth cases including a genuine non-admin rejection, full-run structure,
+end-to-end idempotency across a real duplicate invocation with real lease/compliance fixtures).
+
+**Verification**: `prettier`/`tsc`/`eslint` clean. `vitest run` **493/493** (84 files, +11). `supabase
+db reset`/`test db` **741/741** (no schema change). `next build` succeeds. `git diff --check`
+clean. CI green on first push. Deployed; production-verified anonymously (unauthenticated/
+incorrect-secret both correctly `403`; valid-secret call intentionally not attempted -- no
+`CRON_JOB_SECRET` access in that session). Manual Render Cron Job edit (rename + command change,
+reusing the existing `proplyst-compliance-reminders` job rather than creating new ones) delivered
+to Mohammed separately -- since applied and confirmed live with a real `HTTP 200`.
+
+## 2026-08-15 — RELEASE A, Part 1: selected-property staff isolation, plan entitlement enforcement, billing self-reactivation, and a provider-independent proration engine
+
+The largest single pass of the project so far, closing all 6 P0s from the V1 Commercial Launch Gap
+Audit that were addressable without PayFast merchant credentials (the 6th, a live PayFast round
+trip, remains externally blocked). Four focused commits, each independently migrated/tested/
+verified before the next began -- full detail lives in the session's own delivered report, this
+entry is the durable summary.
+
+**Selected-property staff isolation (P0 security fix)**: a fresh, exhaustive migration-by-migration
+audit confirmed `tenants`/`inspections`(+items+photos)/`vendor_bills` (where a property context
+exists)/`property_rules`(+versions)/`compliance_requirements`(+acknowledgements)/
+`property_management_contacts`/`levy_statements`(+line items)/`lease_occupants` were never cut over
+to `has_property_access()` the way properties/units/leases/documents/expenses/maintenance_tickets
+already were -- a staff member restricted to selected properties could read another property's
+tenant/inspection/compliance/levy data by direct ID. Closed with the same proven cutover pattern,
+migration `20260101000101`. Found and fixed a genuine RLS-recursion bug (`property_rules` <->
+`property_rule_versions`) via local `db reset` before it ever reached production. 29 new pgTAP
+tests with real linked fixtures (the prior smoke test's own tenant assertion could not actually
+prove isolation -- fixed here, not just added to).
+
+**Plan entitlement enforcement (P0)**: only `maxStaff` was ever enforced; `maxProperties` and every
+boolean `feature_limits` key were readable but never consulted. New `org_property_limit()`/
+`available_property_slots()`/`org_feature_enabled()` (migration `20260101000102`), enforced inside
+`create_property()` itself (the only client-facing creation path, unbypassable via raw PostgREST).
+One authoritative TypeScript entitlement service (`lib/subscriptionEntitlements.ts`). Gated the 3
+real OCR extraction routes, owner-invitation creation (`ownerPortalEnabled`), and the tax-pack CSV
+export (`advancedReporting`) -- audited first; `bulkCommunications`/`apiAccess` have no real
+technical surface anywhere in this codebase and are deliberately left unenforced rather than
+gating a feature that doesn't exist.
+
+**Billing self-reactivation (P0)**: `has_org_role()`'s status branch forces suspended/cancelled
+orgs to viewer-only regardless of stored role -- correct everywhere except the billing checkout/
+cancel routes, which required exactly `principal` with no exemption, so a suspended org's own
+principal got a bare 403 trying to pay again. New, narrow `has_billing_principal_access()`
+(migration `20260101000103`) -- real auth, active membership, role exactly `principal`, org not
+archived, deliberately no suspended/cancelled downgrade -- used only by billing routes; every other
+route keeps `has_org_role()` unchanged. 11 pgTAP tests proving the exception works for the right
+person and nobody else.
+
+**Provider-independent proration engine**: implements the exact business rules directed --
+UPGRADE (immediate access, prorated difference only, never a duplicate full charge, next renewal
+at full price), DOWNGRADE (scheduled at `current_period_end`, no refund, current entitlement kept
+until then, existing over-limit data never deleted), REACTIVATION (priced as a fresh full period,
+no proration input exists for a suspended org), CANCELLATION (existing lifecycle preserved, now
+idempotent). All pricing computed in Postgres `numeric` (migration `20260101000104`) -- never
+floating point, never a browser-supplied amount:
+`compute_plan_change_quote()`/`create_plan_change_quote()` (15-minute expiry)/`confirm_plan_change()`
+(idempotent by quote id -- a duplicate confirm replays the identical prior outcome, never a second
+charge)/`apply_due_scheduled_plan_changes()` (applied by the existing subscription-lifecycle
+scheduler). New self-serve endpoints (`.../billing/{quote,confirm-change,pending-change}`);
+`OrganizationBillingView.tsx` now shows "Due today"/"From [renewal date]" before anything is
+confirmed. PayFast itself untouched -- the engine passes the server-computed amount through
+whichever `BillingGatewayProvider` is configured; a new `assertRealPaymentGatewayAvailable()`
+guard refuses to silently process a real payment through the mock gateway in production if
+credentials are absent (local/CI unaffected). 34 new pgTAP tests covering every proration boundary
+
+- 10 new Vitest tests for the TypeScript layer.
+
+**Verification**: `prettier`/`tsc`/`eslint` clean throughout. Final combined numbers: `vitest run`
+**482/482**, `supabase test db` **741/741**, 14/14 relevant Playwright specs (including the
+compliance workflow, which directly exercises the newly-isolated tables), clean production build.
+CI green. Pushed and deployed; migrations `101`-`104` applied to production and confirmed aligned.
+Production-verified anonymously (new routes live, scheduler auth intact) -- deeper authenticated
+verification (plan limits, OCR gating, staff isolation, reactivation under a real session) was
+deliberately left `EXTERNAL VERIFICATION PENDING`, disclosed rather than assumed, pending either a
+live session or the Supabase service-role key in a future pass.
+
 ## 2026-08-12 (continued) — Property compliance completion pass: occupants UI, levy review UI, notification lifecycle, and full Playwright E2E coverage
 
 Follow-up to the core-slice pass below, closing the product-facing gaps its own final report disclosed. Preserves every already-verified system (rule versioning, immutable acknowledgement evidence, RLS) untouched -- this pass is additive UI/notification/test work plus two real bugs found and fixed while building real E2E coverage against a real dev server + real local Supabase (never demo mode).

@@ -141,9 +141,9 @@ function PrintableStatement({
         </table>
 
         <p className="mt-8 text-xs text-light-textMuted dark:text-dark-textMuted">
-          Generated from PropertyVault's accounting ledger. This is a snapshot of the ledger at the
-          time it was issued and does not change if later corrections are made to the underlying
-          records — any such correction appears in the following period's statement instead.
+          Generated from Proplyst's accounting ledger. This is a snapshot of the ledger at the time
+          it was issued and does not change if later corrections are made to the underlying records
+          — any such correction appears in the following period's statement instead.
         </p>
       </div>
     </div>

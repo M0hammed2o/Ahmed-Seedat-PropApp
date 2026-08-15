@@ -6,7 +6,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { resolveTenantSession, getTenancyLeaseIds } from '@/lib/tenantSession';
-import { mapRentScheduleRow } from '@/lib/leasing';
+import { mapRentScheduleRow, calculateOutstandingRentTotal } from '@/lib/leasing';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 const DEMO_RENT_SCHEDULES: RentSchedule[] = [
@@ -33,9 +33,7 @@ const DEMO_RENT_SCHEDULES: RentSchedule[] = [
 /** GET /my-payments — tenant portal (V1 scope correction, 2026-08-01, DECISIONS.md). */
 export default async function MyPaymentsPage() {
   const rentSchedules = ADMIN_DEMO_MODE ? DEMO_RENT_SCHEDULES : await loadRentSchedules();
-  const outstanding = rentSchedules
-    .filter((r) => r.status === 'pending' || r.status === 'overdue')
-    .reduce((sum, r) => sum + Number(r.amount), 0);
+  const outstanding = calculateOutstandingRentTotal(rentSchedules);
 
   return (
     <div className="space-y-5 animate-rise">
