@@ -147,6 +147,28 @@ export async function requireOrgRole(
   return data === true;
 }
 
+/**
+ * RELEASE A P0 fix (V1 Commercial Launch Gap Audit): `requireOrgRole(supabase, orgId, 'principal')`
+ * is has_org_role() under the hood, which deliberately forces suspended/cancelled orgs to
+ * viewer-only regardless of the caller's stored role — correct everywhere EXCEPT the billing
+ * checkout/cancel/reactivation routes, where it produces the exact bug this fix closes: a
+ * suspended org's own principal, the one person who should be able to reactivate, gets a bare 403.
+ * Calls the narrow `has_billing_principal_access()` RPC (migration 20260101000103) instead — real
+ * authentication, an ACTIVE membership with role exactly 'principal', org not archived, and
+ * deliberately NO suspended/cancelled downgrade. Use ONLY for billing checkout/cancel routes; every
+ * other org-mutating route must keep using `requireOrgRole(..., 'principal')` unchanged.
+ */
+export async function requireBillingPrincipalAccess(
+  supabase: SupabaseClient,
+  orgId: string,
+): Promise<boolean> {
+  const { data, error } = await supabase.rpc('has_billing_principal_access', {
+    target_org_id: orgId,
+  });
+  if (error) throw new Error(`has_billing_principal_access RPC failed: ${error.message}`);
+  return data === true;
+}
+
 // Shared-access architecture pass (WORKLOG.md this date): the app-layer companion to
 // requireOrgRole() for property-scoped actions that write through the service-role client or a
 // security-definer RPC (bypassing the property_access-aware table RLS the 7 cut-over tables
