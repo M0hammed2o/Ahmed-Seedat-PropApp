@@ -11,8 +11,9 @@ import { writeAuditEvent } from './audit';
 // shared platform resource and "no code path may free-text an arbitrary message through it" --
 // this file is the *entire* set of call sites allowed to send, mirroring the closed-enum
 // discipline: only WhatsAppNotificationType values with a real, already-existing synchronous
-// trigger in this codebase are wired (owner_statement_available, payment_accepted,
-// maintenance_update_critical, tenant_invitation -- PRODUCT DECISION 2, 2026-08-03). Types
+// trigger in this codebase are wired (owner_statement_available, payment_received_confirmation,
+// maintenance_request_update, tenant_account_invitation -- PRODUCT DECISION 2, 2026-08-03, values
+// renamed WORKLOG.md this date to match Mohammed's real Meta-approved templates). Types
 // requiring an unbuilt scheduled-detection job
 // (rent_overdue_material, lease_expiring_soon, rent_overdue_significant, ...) are deliberately
 // NOT wired -- inventing an ad-hoc "check overdue on every request" trigger would be exactly the
@@ -54,20 +55,21 @@ const PLATFORM_WHATSAPP_NUMBER = '+27000000000'; // TO_BE_CONFIRMED
 
 // WHATSAPP.md §2's trigger -> notification_preferences.category mapping table, restricted to the
 // subset this dispatcher actually sends. Partial (not every dispatchable type is gated) --
-// tenant_invitation is transactional, same as member_invited's email equivalent: a tenant can't
-// meaningfully "opt out" of the one message that grants them portal access in the first place.
+// tenant_account_invitation is transactional, same as member_invited's email equivalent: a tenant
+// can't meaningfully "opt out" of the one message that grants them portal access in the first
+// place.
 const TEMPLATE_CATEGORY: Partial<Record<DispatchableWhatsAppType, 'rent' | 'maintenance'>> = {
   owner_statement_available: 'rent',
-  payment_accepted: 'rent',
-  maintenance_update_critical: 'maintenance',
+  payment_received_confirmation: 'rent',
+  maintenance_request_update: 'maintenance',
 };
 
 export type DispatchableWhatsAppType = Extract<
   WhatsAppNotificationType,
   | 'owner_statement_available'
-  | 'payment_accepted'
-  | 'maintenance_update_critical'
-  | 'tenant_invitation'
+  | 'payment_received_confirmation'
+  | 'maintenance_request_update'
+  | 'tenant_account_invitation'
 >;
 
 function toE164(phone: string | null | undefined): string | null {

@@ -107,7 +107,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       await dispatchWhatsApp(serviceClient, {
         orgId: schedule.org_id,
         toPhone: tenant?.phone ?? null,
-        templateName: 'payment_accepted',
+        // WhatsApp production readiness pass (WORKLOG.md this date): renamed from
+        // 'payment_accepted' to match the real Meta-approved template -- variable structure
+        // (single `amount`) carried over UNVERIFIED; see this route's own dispatch below and the
+        // session's readiness report for the same caveat.
+        templateName: 'payment_received_confirmation',
         variables: { amount: String(Math.abs(data.amount)) },
         relatedEntityType: 'bank_transaction',
         relatedEntityId: data.id,

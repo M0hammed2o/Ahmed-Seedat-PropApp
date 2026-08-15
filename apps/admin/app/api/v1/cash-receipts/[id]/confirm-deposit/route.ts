@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { cashReceiptConfirmDepositSchema } from '@propvault/validation';
-import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { mapCashReceiptRow } from '@/lib/accounting';
+import { dispatchWhatsApp } from '@/lib/whatsappDispatch';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -66,6 +67,44 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       { error: { code: 'cash_receipt_fetch_failed', message: error.message } },
       { status: 500 },
     );
+  }
+
+  // WhatsApp production readiness pass (WORKLOG.md this date): a genuine gap found while auditing
+  // the payment-confirmation lifecycle -- confirm_bank_transaction_match()'s own route already
+  // notified the tenant on confirmed payment (payment_received_confirmation), but this cash-deposit
+  // equivalent never did, despite being the exact same "reported -> confirmed" transition
+  // (record_cash_receipt() logs the report; THIS call is the confirmation, migration
+  // 20260101000073's own two-step design). Mirrors that route's pattern exactly: best-effort,
+  // never blocks the response, only fires when the receipt is actually tied to a lease (a
+  // standalone cash receipt with no lease_id has no tenant to notify).
+  if (data.lease_id) {
+    try {
+      const serviceClient = getServiceRoleClient();
+      const { data: primaryTenant } = await serviceClient
+        .from('lease_tenants')
+        .select('tenants(phone)')
+        .eq('lease_id', data.lease_id)
+        .eq('is_primary', true)
+        .maybeSingle();
+      const tenant = (primaryTenant as { tenants?: { phone?: string } } | null)?.tenants;
+
+      await dispatchWhatsApp(serviceClient, {
+        orgId: data.org_id,
+        toPhone: tenant?.phone ?? null,
+        // Variable structure carried over UNVERIFIED from the old 'payment_accepted' template,
+        // same caveat as bank-transactions/confirm-match's identical dispatch call.
+        templateName: 'payment_received_confirmation',
+        variables: { amount: String(data.deposited_amount ?? data.amount) },
+        relatedEntityType: 'cash_receipt',
+        relatedEntityId: data.id,
+        actorUserId: user.id,
+      });
+    } catch (err) {
+      console.error(
+        '[notificationDispatch] payment_received_confirmation (cash) dispatch failed',
+        err,
+      );
+    }
   }
 
   return NextResponse.json({ cashReceipt: mapCashReceiptRow(data) });

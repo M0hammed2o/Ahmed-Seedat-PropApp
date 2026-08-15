@@ -197,7 +197,10 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         await dispatchWhatsApp(serviceClient, {
           orgId: data.org_id,
           toPhone: tenant?.phone ?? null,
-          templateName: 'maintenance_update_critical',
+          // WhatsApp production readiness pass (WORKLOG.md this date): renamed from
+          // 'maintenance_update_critical' to match the real Meta-approved template -- variable
+          // order (organizationName, summary, status, supportName) carried over UNVERIFIED.
+          templateName: 'maintenance_request_update',
           variables: {
             organizationName: branding.organizationName,
             summary: data.summary,

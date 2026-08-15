@@ -325,14 +325,28 @@ export type WhatsAppConversationStateType = (typeof WHATSAPP_CONVERSATION_STATE_
 // WHATSAPP.md §2: closed trigger list, the ONLY accepted input to the WhatsApp send dispatcher --
 // no sendWhatsApp(freeformText) entry point exists anywhere. Adding a trigger means adding a
 // value here, a template, and a code review, not a string.
+//
+// WhatsApp production readiness pass (WORKLOG.md this date): 'payment_accepted',
+// 'maintenance_update_critical', and 'tenant_invitation' renamed to 'payment_received_confirmation',
+// 'maintenance_request_update', and 'tenant_account_invitation' respectively -- these are the
+// ONLY three values with a real, currently-wired dispatch call site, and each rename matches the
+// exact Meta-approved template name Mohammed created for it (the old template names were deleted
+// and no longer exist in Meta Business Manager; sending under the old name would fail outright).
+// Every other value below is currently unwired (no call site references it) and is deliberately
+// left unchanged -- renaming an unused value carries no correctness benefit and risks guessing at
+// a mapping Mohammed hasn't confirmed (e.g. whether the new 'rent_overdue_notice'/
+// 'lease_expiry_reminder'/'owner_monthly_property_summary' Meta templates are meant to replace
+// 'rent_overdue_material'/'lease_expiring_soon(_owner)'/'owner_statement_available' outright, or
+// coexist as distinct events) -- see the session's own readiness report for the exact open
+// questions this leaves for Mohammed to resolve before any of those five are wired.
 export const WHATSAPP_NOTIFICATION_TYPES = [
   'rent_overdue_material',
-  'payment_accepted',
+  'payment_received_confirmation',
   'payment_rejected',
   'lease_expiring_soon',
   'urgent_property_announcement',
   'inspection_reminder_important',
-  'maintenance_update_critical',
+  'maintenance_request_update',
   'document_missing_required',
   'id_document_expiring',
   'payment_awaiting_confirmation',
@@ -345,7 +359,7 @@ export const WHATSAPP_NOTIFICATION_TYPES = [
   // PRODUCT DECISION 2 (2026-08-03): tenant activation delivered via WhatsApp -- a real,
   // synchronous trigger (staff clicks "Send invitation"), matching this list's existing
   // "already has a real trigger" discipline (WHATSAPP.md §2).
-  'tenant_invitation',
+  'tenant_account_invitation',
 ] as const;
 export type WhatsAppNotificationType = (typeof WHATSAPP_NOTIFICATION_TYPES)[number];
 

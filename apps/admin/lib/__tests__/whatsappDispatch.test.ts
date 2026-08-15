@@ -58,7 +58,7 @@ describeIfSupabase('dispatchWhatsApp (real local Supabase integration)', () => {
     const result = await dispatchWhatsApp(serviceClient, {
       orgId,
       toPhone: '+27821234567',
-      templateName: 'payment_accepted',
+      templateName: 'payment_received_confirmation',
       variables: { amount: '5000' },
       relatedEntityType: 'bank_transaction',
       relatedEntityId: crypto.randomUUID(),
@@ -72,7 +72,7 @@ describeIfSupabase('dispatchWhatsApp (real local Supabase integration)', () => {
       .eq('id', result.whatsappMessageId)
       .single();
     expect(data.to_number).toBe('+27821234567');
-    expect(data.template_name).toBe('payment_accepted');
+    expect(data.template_name).toBe('payment_received_confirmation');
     expect(data.status).toBe('queued');
     expect(data.direction).toBe('outbound');
   });
@@ -107,7 +107,7 @@ describeIfSupabase('dispatchWhatsApp (real local Supabase integration)', () => {
     const result = await dispatchWhatsApp(serviceClient, {
       orgId,
       toPhone: '082 123 4567',
-      templateName: 'payment_accepted',
+      templateName: 'payment_received_confirmation',
       variables: {},
       relatedEntityType: 'bank_transaction',
       relatedEntityId: crypto.randomUUID(),
@@ -121,7 +121,7 @@ describeIfSupabase('dispatchWhatsApp (real local Supabase integration)', () => {
     const result = await dispatchWhatsApp(serviceClient, {
       orgId,
       toPhone: null,
-      templateName: 'payment_accepted',
+      templateName: 'payment_received_confirmation',
       variables: {},
       relatedEntityType: 'bank_transaction',
       relatedEntityId: crypto.randomUUID(),
@@ -140,7 +140,7 @@ describeIfSupabase('dispatchWhatsApp (real local Supabase integration)', () => {
       orgId,
       toPhone: '+27821234567',
       toUserId: userId,
-      templateName: 'maintenance_update_critical',
+      templateName: 'maintenance_request_update',
       variables: { summary: 'Burst pipe', status: 'in_progress' },
       relatedEntityType: 'maintenance_ticket',
       relatedEntityId: crypto.randomUUID(),
@@ -156,7 +156,7 @@ describeIfSupabase('dispatchWhatsApp (real local Supabase integration)', () => {
       orgId,
       toPhone: '+27821234567',
       toUserId: userId,
-      templateName: 'maintenance_update_critical',
+      templateName: 'maintenance_request_update',
       variables: { summary: 'Burst pipe', status: 'in_progress' },
       relatedEntityType: 'maintenance_ticket',
       relatedEntityId: crypto.randomUUID(),
@@ -243,7 +243,7 @@ describeIfSupabase('processWhatsAppWebhookEvent (real local Supabase integration
           direction: 'outbound',
           to_number: '+27821234567',
           from_number: '+27000000000',
-          template_name: 'payment_accepted',
+          template_name: 'payment_received_confirmation',
           status: 'sent',
           provider_message_id: providerMessageId,
         })
@@ -273,7 +273,7 @@ describeIfSupabase('processWhatsAppWebhookEvent (real local Supabase integration
         direction: 'outbound',
         to_number: '+27821234567',
         from_number: '+27000000000',
-        template_name: 'payment_accepted',
+        template_name: 'payment_received_confirmation',
         status: 'sent',
         provider_message_id: providerMessageId,
       });
@@ -297,7 +297,7 @@ describeIfSupabase('processWhatsAppWebhookEvent (real local Supabase integration
           direction: 'outbound',
           to_number: '+27821234567',
           from_number: '+27000000000',
-          template_name: 'payment_accepted',
+          template_name: 'payment_received_confirmation',
           status: 'sent',
           provider_message_id: providerMessageId,
         })
@@ -332,7 +332,7 @@ describeIfSupabase('processWhatsAppWebhookEvent (real local Supabase integration
           direction: 'outbound',
           to_number: '+27821234567',
           from_number: '+27000000000',
-          template_name: 'payment_accepted',
+          template_name: 'payment_received_confirmation',
           status: 'sent',
           provider_message_id: providerMessageId,
         })
