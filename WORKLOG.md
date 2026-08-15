@@ -1,5 +1,96 @@
 # Worklog
 
+## 2026-08-15 — V1 communications productionisation: branded HTML email system, 5 billing lifecycle emails, WhatsApp inbound webhook
+
+Full audit-first pass across email and WhatsApp, per explicit instruction not to assume something
+missing just because it wasn't obvious, and not to build a second competing architecture where one
+already existed. The audit found the real infrastructure substantially more complete than a
+surface read would suggest (real Resend/Meta provider classes, real webhook idempotency patterns,
+a fully-designed WhatsApp resolution algorithm) -- the actual gaps were narrower: email was 100%
+plain-text, several real billing events never notified anyone, two placeholder contact-info values
+were live in customer-facing surfaces, and the WhatsApp inbound webhook route was never built
+despite the provider class already being ready for it (`TECHNICAL_DEBT_REGISTER.md` TD-38).
+
+**Email design system** (`apps/admin/lib/email/layout.ts`, new): one shared, table-based,
+inline-styled HTML layout (Outlook/Word-engine compatible) every transactional template now
+renders through -- brand blue `#106ADD` reused from the app's own real `theme_color`, not invented.
+`escapeHtml()`/`escapeUrlForHtmlAttribute()` (http/https-only, rejects `javascript:`/`data:`)
+guard every dynamic value; a real defect was found and fixed by the new test suite itself: the
+"if the button doesn't work, copy this link" fallback text used the text-safe escaper instead of
+the protocol-validated one, so a CTA whose url was correctly rejected as unsafe for the button
+still leaked into the fallback line as plain text. `bodyHtml` threaded through
+`packages/types/src/email.ts`'s `SendEmailInput`, `ResendEmailProvider`/`MockEmailProvider`, and
+`emailDispatch.ts`'s `renderEmailTemplate()`/`dispatchEmail()` -- `bodyText` remains the always-sent
+MIME fallback, never removed.
+
+**5 new billing lifecycle emails** (`subscription_activated`, `plan_upgraded`,
+`plan_downgrade_scheduled`, `subscription_cancelled`, `subscription_reactivated`): zero email
+dispatch existed for any of these real, already-firing state transitions (Release A's own
+proration engine) before this pass -- only payment-failure and suspension notified anyone. Wired
+at the exact points those transitions already happen: `processBillingWebhookEvent`'s
+`payment_succeeded` branch (new `dispatchPlanChangeLifecycleEmail()` for a paid upgrade/
+reactivation, plus a pre-update `organizations.status` snapshot to distinguish a genuine first
+activation or suspended/cancelled-org recovery from an uneventful recurring renewal, which
+correctly sends nothing), the `confirm-change` route's synchronous `$0`-change branch (a free
+upgrade or a scheduled downgrade, both fully applied with no gateway round trip), and
+`cancelOrgSubscription()`/the webhook's own `subscription_cancelled` event (self-serve and
+gateway-reported cancellation, distinct idempotency keys so neither can double-fire for the same
+event).
+
+**WhatsApp inbound webhook** (`POST`/`GET /api/v1/webhooks/whatsapp`, new; migration
+`20260101000105`): closes TD-38's inbound half. `WhatsAppProvider` gained
+`classifyWebhookEvent()` (message vs. status-callback, without the route needing to know Meta's
+JSON shape) and `InboundWhatsAppEvent.providerMessageId`; `MockWhatsAppProvider.parseInboundEvent`/
+`parseStatusCallback` were also fixed to actually parse a well-defined mock shape (previously
+`parseInboundEvent` blindly wrapped the raw payload with no field extraction at all, unlike
+`MockEmailProvider`'s own established convention). New `whatsappDispatch.ts`
+`processWhatsAppWebhookEvent()`: real HMAC signature verification (401 + an
+`webhook_signature_rejected` audit_events row on failure, WHATSAPP.md §4), forward-only delivery
+status tracking (`queued→sent→delivered→read→failed`, mirroring email's own rank-based webhook
+handler), and WHATSAPP.md §1.2's resolution algorithm via the existing `resolve_whatsapp_sender()`
+RPC (0/1/2+ matches → UNAUTHENTICATED/RESOLVED/AMBIGUOUS) -- only the RESOLVED case writes a
+real, org-scoped `whatsapp_messages` row, since `whatsapp_messages.org_id` is correctly `NOT NULL`
+and an unauthenticated/ambiguous inbound message has no single org to attribute one to (both are
+still durably recorded via the new `whatsapp_webhook_events` idempotency ledger). The full
+conversational disambiguation round trip (auto-replying, tracking `whatsapp_conversation_state`
+across a multi-message exchange) was deliberately **not** built: WHATSAPP.md's own "Unresolved"
+section already flags that the OTP-verification flow which would ever populate
+`verified_phone_numbers` doesn't exist yet, so every real inbound message resolves to 0 matches
+today regardless -- building the reply/conversation-tracking machinery against a table that cannot
+yet be non-empty would be speculative scaffolding, not a real feature. New CSRF exemption for the
+route (`proxy.ts`), matching the Resend webhook's own identical signature-authenticated-not-
+cookie-authenticated reasoning, added pre-emptively rather than found live in production this time.
+
+**Two placeholder contact-info leaks closed**: `branding.websiteUrl` pointed at a
+never-registered `proplyst.example` domain -- corrected to the real, already-live
+`https://proplyst.co.za`. `branding.supportEmail` remains a genuine `TO_BE_CONFIRMED` placeholder
+(no real support mailbox exists anywhere in this codebase) -- rather than invent one, two broken
+`mailto:` buttons (`access-restricted`, `onboarding/create-organization`) and one plain-text
+welcome-email line (`lifecycleEmail.ts`) that referenced it were removed; the new email footer
+omits a support line entirely until a real address exists.
+
+**Found already complete, not rebuilt**: Supabase Auth email templates (confirmation/recovery/
+invite/email_change/reauthentication, `supabase/templates/*.html` + `supabase/config.toml`) were
+already professional, real, and version-controlled from an earlier pass -- verified for quality
+and absence of invented contact info rather than assumed missing and redone.
+
+**Documented, not built**: an `announcement_posted` email was considered (a real, currently-silent
+feature) but requires genuinely new recipient-fan-out logic (resolving every tenant of a property
+or portfolio-wide) rather than wiring an existing single-recipient trigger point -- documented as a
+follow-up in the session's own final report per the task's explicit "document instead of creating
+scope unnecessarily" instruction, rather than expanded into new scope.
+
+**Verification, this pass**: `tsc --noEmit`/`eslint`/`prettier --check` all clean across every
+changed file. `vitest run` (apps/admin) **549/549 passing** (3 pre-existing skips needing a live
+ClamAV instance, unrelated to this pass), including 8 new email-layout escaping tests, 25 new
+`renderEmailTemplate` tests (one per template name, so a template ever added to the union without a
+matching content-map entry fails immediately), and 8 new real-local-Supabase
+`processWhatsAppWebhookEvent` integration tests (status-callback delivery tracking, forward-only
+rank, idempotency, and all three WHATSAPP.md §1.2 resolution branches). `supabase test db`
+**744/744** (+3 new RLS isolation assertions for `whatsapp_webhook_events`, migration applied
+cleanly against local Postgres via `supabase migration up`, fully additive). `next build`
+succeeds. No secrets logged or committed.
+
 ## 2026-08-15 — V1 launch readiness verification pass: 2 brand leaks + 1 tenant balance display bug found and fixed
 
 Follow-up to Release A and the daily-job consolidation below (neither got a WORKLOG entry at the
