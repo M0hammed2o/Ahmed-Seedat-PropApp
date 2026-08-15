@@ -11,13 +11,18 @@ import { dispatchEmail } from '@/lib/emailDispatch';
  * on-demand runs, or `Authorization: Bearer <CRON_JOB_SECRET>` for an external scheduler once a
  * hosting target is chosen (TASKS.md M24).
  *
- * Does two independent things per run:
+ * Does three independent things per run:
  * 1. Calls expire_trials_and_suspend_overdue() (20260101000076) -- transitions trials past
  *    trial_ends_at, and orgs overdue for more than 7 days, to 'suspended'. Audit-logs and emails
  *    the org's principal for every org actually transitioned.
  * 2. Calls trials_expiring_soon() and sends a reminder email to any trial org expiring within 3
  *    days that hasn't already been reminded, then stamps trial_reminder_sent_at so it is never
  *    reminded twice.
+ * 3. RELEASE A: calls apply_due_scheduled_plan_changes() (migration 20260101000104) -- applies
+ *    every SCHEDULED downgrade whose effective_at (the renewal date captured when it was
+ *    confirmed) has arrived. Reuses this same "subscription lifecycle" sweep rather than a second
+ *    scheduled route -- idempotent by construction (a row leaves status='scheduled' the moment
+ *    it's applied, so re-running this is always safe, same posture as steps 1-2 above).
  */
 export async function POST(request: NextRequest) {
   const env = getAdminServerEnv();
@@ -148,9 +153,20 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  const { data: appliedCount, error: applyError } = await serviceClient.rpc(
+    'apply_due_scheduled_plan_changes',
+  );
+  if (applyError) {
+    return NextResponse.json(
+      { error: { code: 'subscription_lifecycle_check_failed', message: applyError.message } },
+      { status: 500 },
+    );
+  }
+
   return NextResponse.json({
     transitioned: rows.length,
     transitions: rows,
     remindersSent,
+    scheduledPlanChangesApplied: appliedCount ?? 0,
   });
 }

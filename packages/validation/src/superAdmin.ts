@@ -20,6 +20,19 @@ export const billingRefundSchema = z.object({
   idempotencyKey: z.string().min(1, 'idempotencyKey is required').max(200),
 });
 export type BillingRefundInput = z.infer<typeof billingRefundSchema>;
+
+// RELEASE A: provider-independent billing-change engine (SUBSCRIPTIONS.md, migration
+// 20260101000104, apps/admin/lib/billing.ts).
+export const billingPlanChangeQuoteSchema = z.object({
+  targetPlanId: z.string().uuid('targetPlanId must be a valid UUID'),
+});
+export type BillingPlanChangeQuoteInput = z.infer<typeof billingPlanChangeQuoteSchema>;
+
+export const billingPlanChangeConfirmSchema = z.object({
+  quoteId: z.string().uuid('quoteId must be a valid UUID'),
+  idempotencyKey: z.string().min(1, 'idempotencyKey is required').max(200),
+});
+export type BillingPlanChangeConfirmInput = z.infer<typeof billingPlanChangeConfirmSchema>;
 export type OrganizationPlanUpdateInput = z.infer<typeof organizationPlanUpdateSchema>;
 
 export const creditIssueSchema = z.object({

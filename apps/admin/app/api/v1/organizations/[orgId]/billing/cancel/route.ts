@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
-import { requireOrgRole } from '@/lib/portfolio';
+import { requireBillingPrincipalAccess } from '@/lib/portfolio';
 import { cancelOrgSubscription } from '@/lib/billing';
 import { writeAuditEvent } from '@/lib/audit';
 
@@ -11,6 +11,11 @@ type RouteParams = { params: Promise<{ orgId: string }> };
  * Mirrors /api/v1/organizations/:orgId/billing/checkout's auth pattern exactly. No request body:
  * cancelOrgSubscription resolves the gateway token itself from
  * organization_subscriptions.provider_subscription_token.
+ *
+ * RELEASE A P0 fix: uses `requireBillingPrincipalAccess()`, not `requireOrgRole(..., 'principal')`
+ * -- see checkout/route.ts's matching comment for the full reasoning. A cancelled org's own
+ * principal must still be able to reach this route too (e.g. to clean up a duplicate/erroneous
+ * subscription state), same as checkout.
  */
 export async function POST(_request: NextRequest, { params }: RouteParams) {
   const { orgId } = await params;
@@ -25,7 +30,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     );
   }
 
-  const isPrincipal = await requireOrgRole(supabase, orgId, 'principal');
+  const isPrincipal = await requireBillingPrincipalAccess(supabase, orgId);
   if (!isPrincipal) {
     return NextResponse.json(
       {
@@ -41,7 +46,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
   const serviceClient = getServiceRoleClient();
 
   try {
-    await cancelOrgSubscription(serviceClient, { orgId });
+    await cancelOrgSubscription(serviceClient, { orgId, actorUserId: user.id });
 
     await writeAuditEvent(serviceClient, {
       orgId,

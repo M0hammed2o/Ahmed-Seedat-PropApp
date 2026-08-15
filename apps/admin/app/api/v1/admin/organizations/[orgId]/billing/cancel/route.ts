@@ -20,7 +20,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
   const serviceClient = getServiceRoleClient();
 
   try {
-    await cancelOrgSubscription(serviceClient, { orgId });
+    await cancelOrgSubscription(serviceClient, { orgId, actorUserId: guard.session.authUserId });
 
     await writeAuditEvent(serviceClient, {
       orgId,

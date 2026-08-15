@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import {
   startSubscriptionCheckout,
+  startPlanChangeCheckout,
   processBillingWebhookEvent,
   cancelOrgSubscription,
 } from '../billing';
@@ -59,6 +60,8 @@ describeIfSupabase('billing service (real local Supabase integration)', () => {
 
   afterEach(async () => {
     await serviceClient.from('billing_events').delete().eq('org_id', orgId);
+    await serviceClient.from('billing_change_quotes').delete().eq('org_id', orgId);
+    await serviceClient.from('billing_plan_changes').delete().eq('org_id', orgId);
     await serviceClient.from('subscription_payments').delete().eq('org_id', orgId);
     await serviceClient.from('organization_subscriptions').delete().eq('org_id', orgId);
     await serviceClient.from('organizations').delete().eq('id', orgId);
@@ -237,5 +240,182 @@ describeIfSupabase('billing service (real local Supabase integration)', () => {
     await expect(
       processBillingWebhookEvent(serviceClient, { rawBody, signatureHeader: null }),
     ).rejects.toThrow();
+  });
+
+  // RELEASE A P0 (V1 Commercial Launch Gap Audit, Phase 13/18): startPlanChangeCheckout()/the
+  // webhook's deferred-plan-change completion/cancelOrgSubscription()'s idempotency. The
+  // compute/confirm RPCs themselves (auth.uid()-gated) are fully covered at the SQL layer by
+  // supabase/tests/billing_proration_engine.test.sql -- these tests exercise the TypeScript layer
+  // that composes with them, using a directly-inserted billing_plan_changes row (service-role,
+  // bypassing the auth.uid()-gated RPCs) to simulate exactly what confirm_plan_change() would have
+  // produced for a real, authenticated principal.
+  describe('plan-change checkout + webhook completion (RELEASE A)', () => {
+    let targetPlanId: string;
+
+    beforeEach(async () => {
+      const { data: targetPlan, error: targetPlanError } = await serviceClient
+        .from('plans')
+        .insert({
+          code: `vitest-target-plan-${Date.now()}`,
+          name: 'Vitest Target Plan',
+          billing_cycle: 'monthly',
+          base_price: 999,
+          currency: 'ZAR',
+        })
+        .select('id')
+        .single();
+      if (targetPlanError) throw targetPlanError;
+      targetPlanId = targetPlan.id;
+
+      // A real, active current subscription -- the state startPlanChangeCheckout() expects to
+      // find and reuse (never create a second subscription row for an upgrade).
+      await serviceClient.from('organization_subscriptions').insert({
+        org_id: orgId,
+        plan_id: planId,
+        billing_cycle: 'monthly',
+        current_period_start: new Date().toISOString().slice(0, 10),
+        current_period_end: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+        status: 'active',
+      });
+    });
+
+    afterEach(async () => {
+      await serviceClient.from('plans').delete().eq('id', targetPlanId);
+    });
+
+    it('startPlanChangeCheckout charges the server-computed prorated amount, never plan.base_price', async () => {
+      const { data: change, error: changeError } = await serviceClient
+        .from('billing_plan_changes')
+        .insert({
+          org_id: orgId,
+          change_type: 'upgrade',
+          old_plan_id: planId,
+          new_plan_id: targetPlanId,
+          charge_due: 250.0,
+          currency: 'ZAR',
+          status: 'awaiting_payment',
+          effective_at: new Date().toISOString(),
+        })
+        .select('id')
+        .single();
+      if (changeError) throw changeError;
+
+      const checkout = await startPlanChangeCheckout(serviceClient, {
+        orgId,
+        billingPlanChangeId: change.id,
+        targetPlanId,
+        amountDueNow: 250.0,
+        idempotencyKey: `plan-change-test-${change.id}`,
+      });
+
+      const { data: payment } = await serviceClient
+        .from('subscription_payments')
+        .select('amount, billing_plan_change_id, status')
+        .eq('id', checkout.subscriptionPaymentId)
+        .single();
+      // 250.00, NOT the target plan's 999 base_price -- proves the prorated amount is what's
+      // actually charged, not the full new-plan price.
+      expect(Number(payment!.amount)).toBe(250);
+      expect(payment!.billing_plan_change_id).toBe(change.id);
+      expect(payment!.status).toBe('pending');
+
+      // The org's CURRENT subscription row is reused, not duplicated -- still exactly one row.
+      const { count } = await serviceClient
+        .from('organization_subscriptions')
+        .select('id', { count: 'exact', head: true })
+        .eq('org_id', orgId);
+      expect(count).toBe(1);
+    });
+
+    it('a payment_succeeded webhook for a plan-change payment flips plan_id and completes the change', async () => {
+      const { data: change, error: changeError } = await serviceClient
+        .from('billing_plan_changes')
+        .insert({
+          org_id: orgId,
+          change_type: 'upgrade',
+          old_plan_id: planId,
+          new_plan_id: targetPlanId,
+          charge_due: 400.0,
+          currency: 'ZAR',
+          status: 'awaiting_payment',
+          effective_at: new Date().toISOString(),
+        })
+        .select('id')
+        .single();
+      if (changeError) throw changeError;
+
+      const checkout = await startPlanChangeCheckout(serviceClient, {
+        orgId,
+        billingPlanChangeId: change.id,
+        targetPlanId,
+        amountDueNow: 400.0,
+        idempotencyKey: `plan-change-webhook-test-${change.id}`,
+      });
+
+      // Before payment: plan_id is UNCHANGED (still the original plan).
+      const { data: before } = await serviceClient
+        .from('organization_subscriptions')
+        .select('plan_id')
+        .eq('org_id', orgId)
+        .single();
+      expect(before!.plan_id).toBe(planId);
+
+      const rawBody = JSON.stringify({
+        providerEventId: `evt-planchange-${change.id}`,
+        type: 'payment_succeeded',
+        providerReference: checkout.providerSubscriptionId,
+        orgId,
+        amount: 400,
+        currency: 'ZAR',
+      });
+      await processBillingWebhookEvent(serviceClient, { rawBody, signatureHeader: 'test-signature' });
+
+      // After payment: plan_id has flipped to the TARGET plan, and the change is completed.
+      const { data: after } = await serviceClient
+        .from('organization_subscriptions')
+        .select('plan_id')
+        .eq('org_id', orgId)
+        .single();
+      expect(after!.plan_id).toBe(targetPlanId);
+
+      const { data: completedChange } = await serviceClient
+        .from('billing_plan_changes')
+        .select('status, completed_at')
+        .eq('id', change.id)
+        .single();
+      expect(completedChange!.status).toBe('completed');
+      expect(completedChange!.completed_at).not.toBeNull();
+    });
+  });
+
+  it('cancelOrgSubscription is idempotent -- a second call reports alreadyCancelled without a second audit row or gateway call', async () => {
+    const checkout = await startSubscriptionCheckout(serviceClient, {
+      orgId,
+      planId,
+      idempotencyKey: `test-${orgId}`,
+    });
+    const rawBody = JSON.stringify({
+      providerEventId: `evt-cancel-idem-${orgId}`,
+      type: 'payment_succeeded',
+      providerReference: checkout.providerSubscriptionId,
+      providerSubscriptionToken: `mock-token-idem-${orgId}`,
+      orgId,
+      amount: 499,
+      currency: 'ZAR',
+    });
+    await processBillingWebhookEvent(serviceClient, { rawBody, signatureHeader: 'test-signature' });
+
+    const first = await cancelOrgSubscription(serviceClient, { orgId });
+    expect(first.alreadyCancelled).toBe(false);
+
+    const second = await cancelOrgSubscription(serviceClient, { orgId });
+    expect(second.alreadyCancelled).toBe(true);
+
+    const { count } = await serviceClient
+      .from('billing_plan_changes')
+      .select('id', { count: 'exact', head: true })
+      .eq('org_id', orgId)
+      .eq('change_type', 'cancellation');
+    expect(count).toBe(1);
   });
 });

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Organization, OrganizationSubscription, Plan } from '@propvault/types';
 import { Button } from '@/components/ui/Button';
@@ -23,6 +23,23 @@ interface Props {
   payments: SubscriptionPaymentSummary[];
 }
 
+interface PlanChangeQuote {
+  quoteId: string;
+  changeType: 'new_subscription' | 'upgrade' | 'downgrade' | 'reactivation' | 'no_change';
+  targetPlanId: string;
+  amountDueNow: number;
+  nextRenewalAmount: number | null;
+  currency: string;
+  effectiveAt: string;
+  expiresAt: string;
+}
+
+interface PendingDowngrade {
+  billingPlanChangeId: string;
+  scheduledPlanId: string;
+  effectiveAt: string;
+}
+
 function formatMoney(amount: number, currency: string) {
   return `${currency === 'ZAR' ? 'R' : currency + ' '}${amount.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
@@ -32,14 +49,21 @@ function daysUntil(iso: string): number {
 }
 
 // PWA_V1_COMPLETION_PLAN.md Stage 4 -- self-serve equivalent of the Super Admin billing panel,
-// scoped to the org's own principal instead of platform staff. Every mutation here goes through
-// /api/v1/organizations/:orgId/billing/{checkout,cancel} (principal-only, re-checked server-side)
-// -- this component itself enforces nothing, matching every other org-settings form in this app.
+// scoped to the org's own principal instead of platform staff. RELEASE A (V1 Commercial Launch Gap
+// Audit): plan changes now go through the server-computed quote-then-confirm flow
+// (/api/v1/organizations/:orgId/billing/{quote,confirm-change}, migration 20260101000104) instead
+// of jumping straight to a generic checkout -- the customer always sees "Due today" and "From
+// [renewal date]" BEFORE anything is charged. Every mutation is re-checked server-side
+// (requireBillingPrincipalAccess) -- this component itself enforces nothing.
 export function OrganizationBillingView({ organization, plans, subscription, payments }: Props) {
   const router = useRouter();
-  const [startingCheckoutFor, setStartingCheckoutFor] = useState<string | null>(null);
+  const [quoting, setQuoting] = useState<string | null>(null);
+  const [quote, setQuote] = useState<PlanChangeQuote | null>(null);
+  const [confirming, setConfirming] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pendingDowngrade, setPendingDowngrade] = useState<PendingDowngrade | null>(null);
+  const [cancellingDowngrade, setCancellingDowngrade] = useState(false);
 
   /** React #418 fix (WORKLOG.md this date): daysUntil() reads Date.now(), and organization is a
    *  server-fetched prop present on the very first render -- SSR and the client's hydration pass
@@ -51,38 +75,92 @@ export function OrganizationBillingView({ organization, plans, subscription, pay
     setMounted(true);
   }, []);
 
+  const loadPendingDowngrade = useCallback(async () => {
+    try {
+      const response = await fetch(
+        `/api/v1/organizations/${organization.id}/billing/pending-change`,
+      );
+      if (!response.ok) return;
+      const body = await response.json();
+      setPendingDowngrade(body.pendingChange ?? null);
+    } catch {
+      // Non-critical display data -- a failed fetch just leaves the pending-downgrade panel absent.
+    }
+  }, [organization.id]);
+
+  useEffect(() => {
+    void loadPendingDowngrade();
+  }, [loadPendingDowngrade]);
+
   const currentPlan = subscription ? plans.find((p) => p.id === subscription.planId) : null;
+  const pendingDowngradePlan = pendingDowngrade
+    ? plans.find((p) => p.id === pendingDowngrade.scheduledPlanId)
+    : null;
   const canCancel =
     subscription && (subscription.status === 'active' || subscription.status === 'overdue');
 
-  async function startCheckout(planId: string) {
+  async function requestQuote(planId: string) {
     setError(null);
-    setStartingCheckoutFor(planId);
+    setQuote(null);
+    setQuoting(planId);
     try {
-      const response = await fetch(`/api/v1/organizations/${organization.id}/billing/checkout`, {
+      const response = await fetch(`/api/v1/organizations/${organization.id}/billing/quote`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planId, idempotencyKey: crypto.randomUUID() }),
+        body: JSON.stringify({ targetPlanId: planId }),
       });
       const body = await response.json();
       if (!response.ok) {
-        setError(body.error?.message ?? 'Failed to start checkout.');
+        setError(body.error?.message ?? 'Could not price this plan change.');
         return;
       }
-      // Real gateway (PayFast): a hosted checkout page. Mock: a local placeholder URL that still
-      // navigates, so this flow is exercisable end-to-end without live credentials configured.
-      window.location.href = body.checkoutUrl;
+      setQuote(body);
     } catch {
-      setError('Failed to start checkout — check your connection and try again.');
+      setError('Could not price this plan change -- check your connection and try again.');
     } finally {
-      setStartingCheckoutFor(null);
+      setQuoting(null);
+    }
+  }
+
+  async function confirmQuote() {
+    if (!quote) return;
+    setError(null);
+    setConfirming(true);
+    try {
+      const response = await fetch(
+        `/api/v1/organizations/${organization.id}/billing/confirm-change`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ quoteId: quote.quoteId, idempotencyKey: crypto.randomUUID() }),
+        },
+      );
+      const body = await response.json();
+      if (!response.ok) {
+        setError(body.error?.message ?? 'Could not confirm this plan change.');
+        return;
+      }
+      if (body.checkoutUrl) {
+        // Real gateway (PayFast): a hosted checkout page for the exact prorated amount. Mock: a
+        // local placeholder URL that still navigates, so this flow is exercisable end-to-end
+        // without live credentials configured.
+        window.location.href = body.checkoutUrl;
+        return;
+      }
+      setQuote(null);
+      router.refresh();
+      void loadPendingDowngrade();
+    } catch {
+      setError('Could not confirm this plan change -- check your connection and try again.');
+    } finally {
+      setConfirming(false);
     }
   }
 
   async function cancelSubscription() {
     if (
       !window.confirm(
-        'Cancel your PropertyVault subscription? Your access will be locked at the end of the current billing period.',
+        'Cancel your Proplyst subscription? Your access will be locked at the end of the current billing period.',
       )
     ) {
       return;
@@ -100,11 +178,35 @@ export function OrganizationBillingView({ organization, plans, subscription, pay
       }
       router.refresh();
     } catch {
-      setError('Failed to cancel — check your connection and try again.');
+      setError('Failed to cancel -- check your connection and try again.');
     } finally {
       setCancelling(false);
     }
   }
+
+  async function cancelPendingDowngrade() {
+    setError(null);
+    setCancellingDowngrade(true);
+    try {
+      const response = await fetch(
+        `/api/v1/organizations/${organization.id}/billing/pending-change`,
+        { method: 'DELETE' },
+      );
+      const body = await response.json();
+      if (!response.ok) {
+        setError(body.error?.message ?? 'Failed to cancel the scheduled downgrade.');
+        return;
+      }
+      setPendingDowngrade(null);
+      router.refresh();
+    } catch {
+      setError('Failed to cancel the scheduled downgrade -- check your connection and try again.');
+    } finally {
+      setCancellingDowngrade(false);
+    }
+  }
+
+  const quotedPlan = quote ? plans.find((p) => p.id === quote.targetPlanId) : null;
 
   return (
     <div className="space-y-5">
@@ -117,7 +219,9 @@ export function OrganizationBillingView({ organization, plans, subscription, pay
       <Panel>
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-xs text-light-textMuted dark:text-dark-textMuted">Current status</p>
+            <p className="text-xs text-light-textMuted dark:text-dark-textMuted">
+              Subscription status
+            </p>
             <div className="mt-1 flex items-center gap-2">
               <Pill tone={statusTone(organization.status)} dot>
                 {organization.status}
@@ -136,9 +240,15 @@ export function OrganizationBillingView({ organization, plans, subscription, pay
                   : 'Your trial has ended. Choose a plan below to restore full access.'}
               </p>
             ) : null}
-            {subscription?.nextPaymentDate ? (
+            {(organization.status === 'suspended' || organization.status === 'cancelled') &&
+            currentPlan ? (
               <p className="mt-2 text-xs text-light-textSecondary dark:text-dark-textSecondary">
-                Next payment: {new Date(subscription.nextPaymentDate).toLocaleDateString('en-ZA')}
+                Your subscription is {organization.status}. Choose a plan below to reactivate.
+              </p>
+            ) : null}
+            {subscription?.currentPeriodEnd ? (
+              <p className="mt-2 text-xs text-light-textSecondary dark:text-dark-textSecondary">
+                Renewal date: {new Date(subscription.currentPeriodEnd).toLocaleDateString('en-ZA')}
               </p>
             ) : null}
           </div>
@@ -155,13 +265,41 @@ export function OrganizationBillingView({ organization, plans, subscription, pay
         </div>
       </Panel>
 
+      {pendingDowngrade && pendingDowngradePlan ? (
+        <Panel className="border-light-warning dark:border-dark-warning">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+                Scheduled plan change
+              </p>
+              <p className="mt-1 text-xs text-light-textSecondary dark:text-dark-textSecondary">
+                Scheduled plan: {pendingDowngradePlan.name}. Effective:{' '}
+                {new Date(pendingDowngrade.effectiveAt).toLocaleDateString('en-ZA')}. You keep your
+                current plan&rsquo;s access until then.
+              </p>
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={cancellingDowngrade}
+              onClick={cancelPendingDowngrade}
+            >
+              {cancellingDowngrade ? 'Cancelling…' : 'Keep current plan'}
+            </Button>
+          </div>
+        </Panel>
+      ) : null}
+
       <Panel>
         <h3 className="mb-3 text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
           {currentPlan ? 'Change plan' : 'Choose a plan'}
         </h3>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           {plans.map((plan) => {
-            const isCurrent = currentPlan?.id === plan.id;
+            const isCurrent =
+              currentPlan?.id === plan.id &&
+              organization.status !== 'suspended' &&
+              organization.status !== 'cancelled';
             return (
               <div
                 key={plan.id}
@@ -184,22 +322,72 @@ export function OrganizationBillingView({ organization, plans, subscription, pay
                   className="mt-3 w-full"
                   variant={isCurrent ? 'secondary' : 'primary'}
                   size="sm"
-                  disabled={isCurrent || startingCheckoutFor !== null}
-                  onClick={() => startCheckout(plan.id)}
+                  disabled={isCurrent || quoting !== null}
+                  onClick={() => requestQuote(plan.id)}
                 >
                   {isCurrent
                     ? 'Current plan'
-                    : startingCheckoutFor === plan.id
-                      ? 'Starting…'
-                      : currentPlan
-                        ? 'Switch to this plan'
-                        : 'Subscribe'}
+                    : quoting === plan.id
+                      ? 'Calculating…'
+                      : organization.status === 'suspended' || organization.status === 'cancelled'
+                        ? 'Reactivate on this plan'
+                        : currentPlan
+                          ? 'Switch to this plan'
+                          : 'Subscribe'}
                 </Button>
               </div>
             );
           })}
         </div>
       </Panel>
+
+      {quote && quotedPlan ? (
+        <Panel className="border-light-accent dark:border-dark-accent">
+          <h3 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+            Confirm: switch to {quotedPlan.name}
+          </h3>
+          <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+            <dt className="text-light-textMuted dark:text-dark-textMuted">Due today</dt>
+            <dd className="text-right font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+              {formatMoney(quote.amountDueNow, quote.currency)}
+            </dd>
+            {quote.nextRenewalAmount !== null ? (
+              <>
+                <dt className="text-light-textMuted dark:text-dark-textMuted">
+                  From {new Date(quote.effectiveAt).toLocaleDateString('en-ZA')}
+                </dt>
+                <dd className="text-right text-light-textPrimary dark:text-dark-textPrimary">
+                  {formatMoney(quote.nextRenewalAmount, quote.currency)}/month
+                </dd>
+              </>
+            ) : null}
+          </dl>
+          {quote.changeType === 'downgrade' ? (
+            <p className="mt-3 text-xs text-light-textSecondary dark:text-dark-textSecondary">
+              You keep your current plan&rsquo;s full access until{' '}
+              {new Date(quote.effectiveAt).toLocaleDateString('en-ZA')} — no refund is issued for
+              the remainder of this billing period.
+            </p>
+          ) : (
+            <p className="mt-3 text-xs text-light-textSecondary dark:text-dark-textSecondary">
+              Access to {quotedPlan.name} begins immediately once this is confirmed.
+            </p>
+          )}
+          <div className="mt-4 flex gap-2">
+            <Button size="sm" disabled={confirming} onClick={confirmQuote}>
+              {confirming ? 'Confirming…' : 'Confirm'}
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={confirming}
+              onClick={() => setQuote(null)}
+            >
+              Cancel
+            </Button>
+          </div>
+        </Panel>
+      ) : null}
 
       <Panel bodyClassName="p-0">
         <h3 className="px-4 pt-4 text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
