@@ -1,5 +1,92 @@
 # Worklog
 
+## 2026-08-16 — WhatsApp V1 completion pass: payment reporting/confirmation, OTP phone verification, rent/lease reminder jobs, template approval gate
+
+Follow-up to the same day's earlier WhatsApp production readiness pass, completing as much of the
+remaining V1 infrastructure as could safely be built while Mohammed's 8 Meta templates are still
+in review. One new additive migration (`20260101000106`), applied and pgTAP-tested locally only --
+**not applied to production**, pending Mohammed's explicit approval.
+
+**Template approval gate (`lib/whatsappTemplates.ts`), now urgent**: Render carries real Meta
+credentials as of the prior pass, so `dispatchWhatsApp()` was one real trigger away from attempting
+a genuine (currently-rejected) Meta API call against an in-review template. Every dispatchable
+template now has a registry entry defaulting to `approved: false`; `dispatchWhatsApp()` checks it
+before ever calling a real provider (gated on `deliveryConfigured` specifically, so local/CI's
+`MockWhatsAppProvider` runs are unaffected). Flipping one boolean per template is the entire "go
+live" action once Mohammed confirms approval.
+
+**Payment reporting + confirmation (`payment_reports`, new table)**: a claim layer sitting above
+the existing, UNCHANGED accounting primitives (`cash_receipts`/`bank_transactions`) -- deliberately
+never posts to the ledger or touches `rent_schedules.status` itself. Tenants report a payment
+(`POST /api/v1/tenant-portal/payment-reports`, multipart with optional proof-of-payment upload,
+reusing the exact same MIME-allowlist/size-limit/malware-scan pipeline `/api/v1/documents` already
+uses -- routed through the service-role client since the `documents` bucket's RLS requires agent+
+org role, which a tenant structurally never holds; `resolveTenantSession()` + `payment_reports`'
+own tenant-self RLS policy are the real authorization). Every LINKED owner with a phone on file
+(via `property_owners` -> `owners.user_id`/`.phone`) is notified independently
+(`payment_confirmation_required`, renamed from the already-existing-but-unwired
+`payment_awaiting_confirmation` -- a real trigger for it didn't exist until this pass) -- never "the
+org" as one recipient, each with its own per-owner idempotency key so a 2-owner property genuinely
+notifies both. Accountant+ confirm/reject (`POST /api/v1/payment-reports/:id/{confirm,reject}`,
+`confirm_payment_report()`/`reject_payment_report()`) only flip this table's own state; confirming
+dispatches `payment_received_confirmation` to the tenant, matching the exact "reported is not
+confirmed" distinction this pass was asked to preserve.
+
+**OTP phone verification (`phone_verification_challenges`, new table)**: the backend
+`verified_phone_numbers` has needed since it was built. `request_phone_verification()`/
+`confirm_phone_verification()`/`revoke_verified_phone_number()` (all ownership-gated SECURITY
+DEFINER RPCs -- ownership check is the real authorization, ordinary ownership-not-a-general-lookup
+same posture as `link_owner_to_self()`) generate a 6-digit, 10-minute, hashed (pgcrypto
+`digest()`, same convention `tenant_invitations`' own token hashing already established), 5-attempt
+OTP. Delivered by **email** (`phone_verification_code`, new template) -- WhatsApp OTP delivery
+needs a Meta _Authentication_-category template (distinct from the 8 Utility templates in review)
+that doesn't exist and wasn't created here, per this pass's own explicit instruction not to invent
+one. Supports tenants, owners, and staff (`organization_members` gained a `phone` column -- it had
+none at all before this pass, a real, disclosed gap: staff phone verification had no phone to
+verify).
+
+**Rent/lease reminder jobs**, integrated into the existing `POST /api/v1/system/daily-jobs`
+endpoint (no new Render cron): `rent_payment_reminder`/`rent_overdue_notice` (renamed from the
+already-existing-but-unwired `rent_overdue_material`)/`lease_expiry_reminder` (renamed from
+`lease_expiring_soon`) now have real detection RPCs
+(`rent_schedules_due_soon()`/`rent_schedules_overdue_unreminded()`/`leases_expiring_unreminded()`),
+mirroring `sendComplianceReminders()`'s exact sweep -> dispatch -> stamp-idempotency-marker
+pattern. All three RPCs exclude any schedule with a `payment_reports` row still `reported` --
+never send an overdue notice or reminder while a tenant-submitted payment might already cover it,
+this pass's own explicit instruction.
+
+**Conversational provider foundation (`sendFreeformMessage`)**: added to `WhatsAppProvider`
+(both `MockWhatsAppProvider` and a real `MetaWhatsAppProvider` implementation, Meta's `type: 'text'`
+send) but wired to **zero callers** -- provider-layer primitive only, for a future controlled
+assistant to call into, per this pass's explicit "do not build LLM orchestration yet" instruction.
+
+**Android App Links, partial**: `/.well-known/assetlinks.json` (new route) serves a real,
+dynamically-built Digital Asset Links file using the real `androidPackageName`
+(`packages/config/src/branding.ts`) -- but an **empty, honest** statements array when no signing
+fingerprint is configured (`ANDROID_APP_SHA256_FINGERPRINTS`, unset today), never an invented one.
+The Android app's own `AndroidManifest.xml`/nav-graph intent-filter half is NOT touched this pass
+-- documented precisely in the session's own final report instead of edited blind, since verifying
+it would actually navigate correctly needs reading `RootNavGraph.kt`'s current Compose Navigation
+structure first, not assumed.
+
+**Explicitly audited, not built this pass** (each requires either information/credentials only
+Mohammed has, or is a substantial separate feature beyond a wiring task -- see the session's own
+final report for the exact reasoning): multi-owner monthly/quiet-hours preference UI (Phase C, blocked on Phase D existing first),
+`owner_monthly_property_summary` aggregation + monthly scheduling (Phase D, no existing reporting
+service to reuse, genuinely new cross-table aggregation), secure inbound-media pipeline (Phase I,
+depends on conversation-state tracking that was deliberately scoped out in the prior WhatsApp
+inbound-webhook pass), full Android deep-link wiring (Phase J's other half).
+
+**Verification, this pass**: `tsc --noEmit`/`eslint`/`prettier --check` all clean. `vitest run`
+(apps/admin) **564/564 passing** (+15 new: template registry, payment-report owner-resolution
+fan-out, freeform-provider, assetlinks route, daily-jobs 4th-job orchestration -- 3 pre-existing
+skips unrelated, live ClamAV only). `supabase test db` **769/769** (+25 new: payment_reports
+RLS/RPC correctness including the "confirm never touches rent_schedules/cash_receipts" property,
+phone-verification ownership/rate-limit/attempt-limit/anon-cannot-call). Migration applied and
+reset-tested locally via `supabase db reset`; **not pushed to production**. `next build` succeeds.
+No real WhatsApp send attempted -- every dispatch in this pass's own new code paths correctly
+returns `template_not_approved` or (locally, no real credentials) exercises the mock only.
+
 ## 2026-08-16 — WhatsApp production readiness pass: template renames, payment-confirmation gap closed, audit-only phases documented
 
 Follow-up to the previous day's WhatsApp inbound webhook work, prompted by Mohammed's real Meta

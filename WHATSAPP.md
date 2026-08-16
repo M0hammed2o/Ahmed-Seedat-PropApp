@@ -75,17 +75,18 @@ WhatsApp is reserved for urgent/important events. It is **not** a substitute for
 // packages/types — WhatsAppNotificationType
 type WhatsAppNotificationType =
   // Tenant-facing
-  | 'rent_overdue_material' // materially overdue rent
+  | 'rent_overdue_notice' // materially overdue rent -- renamed from 'rent_overdue_material', WhatsApp V1 completion pass, now has a real trigger (rent_schedules_overdue_unreminded())
   | 'payment_received_confirmation'
   | 'payment_rejected'
-  | 'lease_expiring_soon'
+  | 'lease_expiry_reminder' // renamed from 'lease_expiring_soon', same pass, now has a real trigger (leases_expiring_unreminded())
   | 'urgent_property_announcement'
   | 'inspection_reminder_important'
   | 'maintenance_request_update'
   | 'document_missing_required' // missing legally required document
   | 'id_document_expiring'
+  | 'rent_payment_reminder' // new, WhatsApp V1 completion pass -- no "upcoming, not yet overdue" reminder concept existed before (rent_schedules_due_soon())
   // Owner-facing
-  | 'payment_awaiting_confirmation'
+  | 'payment_confirmation_required' // renamed from 'payment_awaiting_confirmation', same pass -- real trigger is a new payment_reports row (§8 below)
   | 'payment_discrepancy'
   | 'rent_overdue_significant'
   | 'lease_expiring_soon_owner'
@@ -95,25 +96,71 @@ type WhatsAppNotificationType =
   | 'tenant_account_invitation'; // added 2026-08-03, PRODUCT DECISION 2 — activation link/code, AUTHENTICATION.md §5; renamed from 'tenant_invitation' during the WhatsApp production readiness pass to match Mohammed's real Meta-approved template name
 ```
 
-**`tenant_account_invitation`, added 2026-08-03 as `tenant_invitation`, renamed for Meta template compatibility** (`DECISIONS.md`, full design `AUTHENTICATION.md` §5): sent from the same shared platform number as every other trigger above, through a pre-approved transactional template — the secure activation link and/or short code only, never lease terms, balances, or other financial/sensitive detail (matching `tenant_invitations.destination_hint`'s own masked-display discipline, `SECURITY.md`). Wired into `POST /api/v1/tenants/:id/invitations` via `dispatchWhatsApp`. Real Meta credentials and a real, Mohammed-created template of this exact name now exist in production (App ID `1617745723107744`, WABA `1559676719189988`) — but the template's actual approved body/parameter structure has not been shared with or confirmed by this codebase, so the variable order at the call site remains unverified pending Mohammed's confirmation, and no real send has been attempted. `payment_received_confirmation` (`maintenance-tickets`/`bank-transactions confirm-match`/`cash-receipts confirm-deposit` routes) and `maintenance_request_update` (`maintenance-tickets` route) were renamed from `payment_accepted`/`maintenance_update_critical` the same session, same reasoning.
+**`tenant_account_invitation`, added 2026-08-03 as `tenant_invitation`, renamed for Meta template compatibility** (`DECISIONS.md`, full design `AUTHENTICATION.md` §5): sent from the same shared platform number as every other trigger above, through a pre-approved transactional template — the secure activation link and/or short code only, never lease terms, balances, or other financial/sensitive detail (matching `tenant_invitations.destination_hint`'s own masked-display discipline, `SECURITY.md`). Wired into `POST /api/v1/tenants/:id/invitations` via `dispatchWhatsApp`. Real Meta credentials and a real, Mohammed-created template of this exact name now exist in production (App ID `1617745723107744`, WABA `1559676719189988`) — but the template's actual approved body/parameter structure has not been shared with or confirmed by this codebase, so the variable order at the call site remains unverified pending Mohammed's confirmation, and no real send has been attempted. `payment_received_confirmation` (`maintenance-tickets`/`bank-transactions confirm-match`/`cash-receipts confirm-deposit` routes) and `maintenance_request_update` (`maintenance-tickets` route) were renamed from `payment_accepted`/`maintenance_update_critical` the same session, same reasoning. `rent_overdue_notice`/`lease_expiry_reminder`/`payment_confirmation_required` were renamed and wired for real in the WhatsApp V1 completion pass (§8/§9 below) -- `rent_payment_reminder` is genuinely new. **None of these 7 dispatchable templates are Meta-approved yet** (`lib/whatsappTemplates.ts`'s registry gates every one of them behind an explicit, human-confirmed `approved: true` before any real send is attempted — see §10).
 
-Each value maps 1:1 to exactly one pre-approved WhatsApp message template (§3) and is the _only_ accepted input to the send function — there is no `sendWhatsApp(freeformText)` entry point on the dispatcher. Adding a new trigger means adding an enum value, a template, and a code review, mirroring how `plans`/`feature_limits` and other fixed-vocabulary product surfaces in this codebase are deliberately closed rather than string-typed (`DATABASE.md` §1). This is what keeps the shared number from becoming a firehose: nothing outside the dispatcher can originate a WhatsApp send, so a bug in, say, the announcements feature can't accidentally blast every tenant's WhatsApp.
+Each value maps 1:1 to exactly one pre-approved WhatsApp message template (§3) and is the _only_ accepted input to the send function — there is no `sendWhatsApp(freeformText)` entry point on the dispatcher **for any caller today** (Phase H of the WhatsApp V1 completion pass added `WhatsAppProvider.sendFreeformMessage()` as a provider-layer primitive for a future controlled assistant, but zero code path calls it yet — see §11). Adding a new trigger means adding an enum value, a template, and a code review, mirroring how `plans`/`feature_limits` and other fixed-vocabulary product surfaces in this codebase are deliberately closed rather than string-typed (`DATABASE.md` §1). This is what keeps the shared number from becoming a firehose: nothing outside the dispatcher can originate a WhatsApp send, so a bug in, say, the announcements feature can't accidentally blast every tenant's WhatsApp.
 
 Everything else — routine reminders, marketing, non-urgent status updates — stays on `notifications`/`email_messages`/push, gated per-user by `notification_preferences.whatsapp_enabled` (which still applies: even a listed trigger is suppressed if the recipient opted out, except account-security events, which are compliance/safety-critical and not optional).
 
 **Trigger type → `notification_preferences.category` mapping** (architecture review, 2026-07-30 — closes a gap where several trigger types had no matching category in the original 5-category enum; `DATABASE.md` §7 extended the enum to `rent|maintenance|lease|inspections|announcements|security|promotional`):
 
-| `WhatsAppNotificationType`                                                                                                                                       | Category                                                                                                                |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `rent_overdue_material`, `payment_received_confirmation`, `payment_rejected`, `payment_awaiting_confirmation`, `payment_discrepancy`, `rent_overdue_significant` | `rent`                                                                                                                  |
-| `lease_expiring_soon`, `lease_expiring_soon_owner`                                                                                                               | `lease`                                                                                                                 |
-| `urgent_property_announcement`                                                                                                                                   | `announcements`                                                                                                         |
-| `inspection_reminder_important`                                                                                                                                  | `inspections`                                                                                                           |
-| `maintenance_request_update`, `maintenance_approval_urgent`                                                                                                      | `maintenance`                                                                                                           |
-| `document_missing_required`, `id_document_expiring`                                                                                                              | `lease` (identity/lease-compliance documents)                                                                           |
-| `account_security_event`                                                                                                                                         | `security` — **not gated by `whatsapp_enabled`**, sent regardless of preference, per the "not optional" rule above      |
-| `owner_statement_available`                                                                                                                                      | `rent` (financial-statement family; no dedicated "accounting" category exists yet — revisit if the category list grows) |
-| `tenant_account_invitation`                                                                                                                                      | `lease` (identity/lease-onboarding family, same category as `document_missing_required`/`id_document_expiring` above)   |
+| `WhatsAppNotificationType`                                                                                                                                                              | Category                                                                                                                |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `rent_overdue_notice`, `payment_received_confirmation`, `payment_rejected`, `payment_confirmation_required`, `payment_discrepancy`, `rent_overdue_significant`, `rent_payment_reminder` | `rent`                                                                                                                  |
+| `lease_expiry_reminder`, `lease_expiring_soon_owner`                                                                                                                                    | `lease`                                                                                                                 |
+| `urgent_property_announcement`                                                                                                                                                          | `announcements`                                                                                                         |
+| `inspection_reminder_important`                                                                                                                                                         | `inspections`                                                                                                           |
+| `maintenance_request_update`, `maintenance_approval_urgent`                                                                                                                             | `maintenance`                                                                                                           |
+| `document_missing_required`, `id_document_expiring`                                                                                                                                     | `lease` (identity/lease-compliance documents)                                                                           |
+| `account_security_event`                                                                                                                                                                | `security` — **not gated by `whatsapp_enabled`**, sent regardless of preference, per the "not optional" rule above      |
+| `owner_statement_available`                                                                                                                                                             | `rent` (financial-statement family; no dedicated "accounting" category exists yet — revisit if the category list grows) |
+| `tenant_account_invitation`                                                                                                                                                             | `lease` (identity/lease-onboarding family, same category as `document_missing_required`/`id_document_expiring` above)   |
+
+## 8. Payment reporting + confirmation (WhatsApp V1 completion pass, WORKLOG.md 2026-08-16)
+
+`payment_reports` (migration `20260101000106`) is a claim layer sitting above the existing,
+UNCHANGED accounting primitives (`cash_receipts`/`bank_transactions`) — it never posts to the
+ledger or touches `rent_schedules.status` itself. A tenant reports a payment
+(`POST /api/v1/tenant-portal/payment-reports`, EFT with optional proof-of-payment upload or cash);
+this fires `payment_confirmation_required` to every LINKED owner (`owners.user_id` set) with a
+phone on file, independently — never "the org" as one recipient (`lib/paymentReports.ts`'s
+`resolveEligibleOwnerRecipients()`/`notifyOwnersOfPaymentReport()`). An accountant+ reviews and
+confirms/rejects (`POST /api/v1/payment-reports/:id/{confirm,reject}`) — confirming fires
+`payment_received_confirmation` to the tenant and is the ONLY effect; it does not touch
+`rent_schedules`/`cash_receipts`. The real accounting confirmation (a schedule actually being
+marked paid) remains `confirm_cash_receipt_deposit()`/`confirm_bank_transaction_match()`,
+completely separate, unchanged staff actions.
+
+## 9. Rent/lease reminder jobs (same pass)
+
+`rent_payment_reminder`/`rent_overdue_notice`/`lease_expiry_reminder` are dispatched by
+`runPaymentAndLeaseReminderJob()` (`lib/systemJobs.ts`), integrated into the existing
+`POST /api/v1/system/daily-jobs` endpoint (no new Render cron), mirroring
+`sendComplianceReminders()`'s exact sweep → dispatch → stamp-idempotency-marker pattern. All three
+detection RPCs (`rent_schedules_due_soon()`/`rent_schedules_overdue_unreminded()`/
+`leases_expiring_unreminded()`) exclude any schedule with a `payment_reports` row still `reported`
+— a reminder/overdue notice is never sent while a tenant-submitted payment might already cover it.
+
+## 10. Template approval gate (same pass)
+
+`lib/whatsappTemplates.ts`'s `WHATSAPP_TEMPLATE_REGISTRY` is the single source of truth for which
+of the 7 dispatchable templates above Meta has actually approved — every entry defaults to
+`approved: false`, and `dispatchWhatsApp()` refuses to call a real provider for an unapproved one
+(returning `reason: 'template_not_approved'` instead), gated on `deliveryConfigured` specifically
+so local/CI's `MockWhatsAppProvider` runs are unaffected. Flipping one boolean per template, once
+Mohammed confirms Meta's Active/Approved status, is the entire "go live" action for that event.
+
+## 11. Phone verification / OTP (same pass)
+
+`phone_verification_challenges` (migration `20260101000106`) backs
+`request_phone_verification()`/`confirm_phone_verification()`/`revoke_verified_phone_number()` —
+the OTP lifecycle `verified_phone_numbers` needed since §1.1 first documented "the OTP-verification
+flow... is not yet designed." Ownership-gated (a caller can only verify their OWN tenant/owner/
+`organization_member` record), rate-limited, 5-attempt-bounded, hashed at rest. Delivered by
+**email** today (a new `phone_verification_code` template) — WhatsApp OTP delivery needs a Meta
+_Authentication_-category template (distinct from the 8 Utility templates §2 covers) that doesn't
+exist and wasn't invented here. `organization_members` gained a `phone` column (it had none before
+this pass) so staff verification has something to verify in the first place.
 
 ## 3. Personalization — templates, not generic text
 
@@ -182,7 +229,7 @@ Once a conversation is resolved (§1.2) to `(org_id, entity_type, entity_id)`, e
 ## Unresolved / open questions
 
 - ~~`verified_phone_numbers`/`whatsapp_conversation_state` not in `DATABASE.md`~~ — **resolved, architecture review 2026-07-30**: both now defined in `DATABASE.md` §7 with full RLS/index treatment.
-- The OTP verification flow that populates `verified_phone_numbers` (who triggers it — signup, profile update, first WhatsApp contact attempt — and what OTP provider sends it) is not yet designed; this document assumes it exists but doesn't specify it.
+- ~~The OTP verification flow that populates `verified_phone_numbers`... is not yet designed~~ — **resolved, WhatsApp V1 completion pass, 2026-08-16**: §11 above. Triggered by the account holder themselves (self-service, `POST /api/v1/phone-verification/request`), delivered by email today — WhatsApp delivery remains open, since it needs a Meta Authentication-category template that doesn't exist (a genuinely separate item from the 8 Utility templates §2 already covers).
 - `SECURITY.md`'s "OWASP-relevant controls" section should list this endpoint's signature-verification requirement explicitly once built — currently covered generically under "WhatsApp / email webhook security," which is sufficient for now but worth a named entry once implementation starts.
 - BSP selection (Meta direct vs. Twilio/MessageBird/360dialog) is an open Phase-2 decision blocked on an external account being provisioned — cost/deliverability/template-approval-speed tradeoffs need Mohammed's input, not guessed here.
 - Rate limiting / cost control on outbound sends (WhatsApp Business API messages are billed per conversation by Meta) isn't addressed in this document and should probably live alongside the `RATE_LIMITS` constant set noted in `SECURITY.md`.
