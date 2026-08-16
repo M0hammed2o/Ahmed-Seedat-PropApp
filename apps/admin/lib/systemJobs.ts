@@ -2,6 +2,7 @@ import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { writeAuditEvent } from './audit';
 import { dispatchEmail } from './emailDispatch';
+import { dispatchWhatsApp, resolveOrgWhatsAppBranding } from './whatsappDispatch';
 
 /**
  * Daily system-job consolidation (WORKLOG.md this date). The ONE place each scheduled job's real
@@ -336,4 +337,147 @@ export async function runComplianceReminderJob(
     dueSoonRemindersSent: dueSoonSent,
     overdueRemindersSent: overdueSent,
   };
+}
+
+// ============================================================
+// 4. WhatsApp V1 completion pass, Phase E (WORKLOG.md this date): rent payment reminder / rent
+//    overdue notice / lease expiry reminder. Mirrors sendComplianceReminders()'s exact sweep ->
+//    dispatch -> stamp-idempotency-marker shape above, integrated into the SAME daily-jobs
+//    endpoint rather than a new Render cron, per this pass's own explicit instruction. All three
+//    RPCs (rent_schedules_due_soon/rent_schedules_overdue_unreminded/leases_expiring_unreminded,
+//    migration 20260101000106) already exclude any schedule with a payment_reports row currently
+//    `reported` -- a reminder/overdue notice is never sent while a tenant-submitted payment might
+//    already cover it, this pass's own explicit "do not send if a payment is merely awaiting
+//    confirmation" instruction.
+// ============================================================
+export interface PaymentAndLeaseReminderJobResult {
+  rentRemindersSent: number;
+  rentOverdueNoticesSent: number;
+  leaseExpiryRemindersSent: number;
+}
+
+interface PrimaryTenantContact {
+  phone: string | null;
+  userId: string | null;
+}
+
+async function resolvePrimaryTenantContact(
+  serviceClient: SupabaseClient,
+  leaseId: string,
+): Promise<PrimaryTenantContact | null> {
+  const { data } = await serviceClient
+    .from('lease_tenants')
+    .select('tenants(phone, user_id)')
+    .eq('lease_id', leaseId)
+    .eq('is_primary', true)
+    .maybeSingle();
+  const tenant = (data as unknown as { tenants: PrimaryTenantContact | null } | null)?.tenants;
+  return tenant ?? null;
+}
+
+export async function runPaymentAndLeaseReminderJob(
+  serviceClient: SupabaseClient,
+): Promise<PaymentAndLeaseReminderJobResult> {
+  const [dueSoonResult, overdueResult, expiringResult] = await Promise.all([
+    serviceClient.rpc('rent_schedules_due_soon', { p_within_days: 3 }),
+    serviceClient.rpc('rent_schedules_overdue_unreminded'),
+    serviceClient.rpc('leases_expiring_unreminded', { p_within_days: 30 }),
+  ]);
+  if (dueSoonResult.error) throw new Error(dueSoonResult.error.message);
+  if (overdueResult.error) throw new Error(overdueResult.error.message);
+  if (expiringResult.error) throw new Error(expiringResult.error.message);
+
+  type RentScheduleRow = {
+    id: string;
+    org_id: string;
+    lease_id: string;
+    due_date: string;
+    amount: number;
+  };
+  type LeaseRow = { id: string; org_id: string; unit_id: string; end_date: string };
+
+  let rentRemindersSent = 0;
+  for (const row of (dueSoonResult.data ?? []) as RentScheduleRow[]) {
+    try {
+      const tenant = await resolvePrimaryTenantContact(serviceClient, row.lease_id);
+      const branding = await resolveOrgWhatsAppBranding(serviceClient, row.org_id);
+      await dispatchWhatsApp(serviceClient, {
+        orgId: row.org_id,
+        toPhone: tenant?.phone ?? null,
+        toUserId: tenant?.userId ?? null,
+        templateName: 'rent_payment_reminder',
+        variables: {
+          organizationName: branding.organizationName,
+          amount: String(row.amount),
+          dueDate: row.due_date,
+        },
+        relatedEntityType: 'rent_schedule:reminder',
+        relatedEntityId: row.id,
+        actorUserId: null,
+      });
+    } catch (err) {
+      console.error('[whatsappDispatch] rent_payment_reminder dispatch failed', err);
+    }
+    await serviceClient
+      .from('rent_schedules')
+      .update({ rent_reminder_sent_at: new Date().toISOString() })
+      .eq('id', row.id);
+    rentRemindersSent += 1;
+  }
+
+  let rentOverdueNoticesSent = 0;
+  for (const row of (overdueResult.data ?? []) as RentScheduleRow[]) {
+    try {
+      const tenant = await resolvePrimaryTenantContact(serviceClient, row.lease_id);
+      const branding = await resolveOrgWhatsAppBranding(serviceClient, row.org_id);
+      await dispatchWhatsApp(serviceClient, {
+        orgId: row.org_id,
+        toPhone: tenant?.phone ?? null,
+        toUserId: tenant?.userId ?? null,
+        templateName: 'rent_overdue_notice',
+        variables: {
+          organizationName: branding.organizationName,
+          amount: String(row.amount),
+          dueDate: row.due_date,
+        },
+        relatedEntityType: 'rent_schedule:overdue',
+        relatedEntityId: row.id,
+        actorUserId: null,
+      });
+    } catch (err) {
+      console.error('[whatsappDispatch] rent_overdue_notice dispatch failed', err);
+    }
+    await serviceClient
+      .from('rent_schedules')
+      .update({ overdue_notice_sent_at: new Date().toISOString() })
+      .eq('id', row.id);
+    rentOverdueNoticesSent += 1;
+  }
+
+  let leaseExpiryRemindersSent = 0;
+  for (const row of (expiringResult.data ?? []) as LeaseRow[]) {
+    try {
+      const tenant = await resolvePrimaryTenantContact(serviceClient, row.id);
+      const branding = await resolveOrgWhatsAppBranding(serviceClient, row.org_id);
+      await dispatchWhatsApp(serviceClient, {
+        orgId: row.org_id,
+        toPhone: tenant?.phone ?? null,
+        toUserId: tenant?.userId ?? null,
+        templateName: 'lease_expiry_reminder',
+        variables: { organizationName: branding.organizationName, endDate: row.end_date },
+        relatedEntityType: 'lease:expiry_reminder',
+        relatedEntityId: row.id,
+        actorUserId: null,
+      });
+    } catch (err) {
+      console.error('[whatsappDispatch] lease_expiry_reminder dispatch failed', err);
+    }
+    await serviceClient
+      .from('leases')
+      .update({ expiry_reminder_sent_at: new Date().toISOString() })
+      .eq('id', row.id);
+    leaseExpiryRemindersSent += 1;
+  }
+
+  return { rentRemindersSent, rentOverdueNoticesSent, leaseExpiryRemindersSent };
 }

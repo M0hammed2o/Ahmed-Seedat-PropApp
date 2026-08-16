@@ -6,6 +6,7 @@ import {
   runSubscriptionLifecycleJob,
   runRentScheduleJob,
   runComplianceReminderJob,
+  runPaymentAndLeaseReminderJob,
 } from '@/lib/systemJobs';
 
 /**
@@ -55,12 +56,13 @@ export async function POST(request: NextRequest) {
   console.warn('[daily-jobs] run started', { startedAt: new Date(runStartedAt).toISOString() });
 
   const jobs: Record<
-    'subscriptions' | 'rentSchedules' | 'compliance',
+    'subscriptions' | 'rentSchedules' | 'compliance' | 'paymentAndLeaseReminders',
     { success: boolean; durationMs: number; result?: unknown; error?: string }
   > = {
     subscriptions: { success: false, durationMs: 0 },
     rentSchedules: { success: false, durationMs: 0 },
     compliance: { success: false, durationMs: 0 },
+    paymentAndLeaseReminders: { success: false, durationMs: 0 },
   };
 
   // 1. Subscription lifecycle + scheduled plan-change application.
@@ -114,8 +116,38 @@ export async function POST(request: NextRequest) {
     durationMs: jobs.compliance.durationMs,
   });
 
+  // 4. WhatsApp V1 completion pass, Phase E: rent payment reminder / rent overdue notice / lease
+  //    expiry reminder -- run last, after rent-schedule generation (2) so a schedule generated
+  //    earlier in THIS SAME run is eligible for a reminder sweep in the same pass, not one run
+  //    behind. dispatchWhatsApp's own template-approval gate (Phase K) means every dispatch inside
+  //    this job currently returns template_not_approved rather than a real send -- the sweep still
+  //    runs and stamps its own idempotency markers either way, so once Mohammed confirms approval
+  //    there is no backlog to "catch up" on, only the next scheduled run sending for real.
+  const remindersStart = Date.now();
+  try {
+    const result = await runPaymentAndLeaseReminderJob(serviceClient);
+    jobs.paymentAndLeaseReminders = {
+      success: true,
+      durationMs: Date.now() - remindersStart,
+      result,
+    };
+  } catch (err) {
+    jobs.paymentAndLeaseReminders = {
+      success: false,
+      durationMs: Date.now() - remindersStart,
+      error: err instanceof Error ? err.message : 'Unknown error',
+    };
+  }
+  console.warn('[daily-jobs] paymentAndLeaseReminders job complete', {
+    success: jobs.paymentAndLeaseReminders.success,
+    durationMs: jobs.paymentAndLeaseReminders.durationMs,
+  });
+
   const overallSuccess =
-    jobs.subscriptions.success && jobs.rentSchedules.success && jobs.compliance.success;
+    jobs.subscriptions.success &&
+    jobs.rentSchedules.success &&
+    jobs.compliance.success &&
+    jobs.paymentAndLeaseReminders.success;
   const totalDurationMs = Date.now() - runStartedAt;
 
   console.warn('[daily-jobs] run complete', {
@@ -151,6 +183,10 @@ export async function POST(request: NextRequest) {
         durationMs: jobs.rentSchedules.durationMs,
       },
       compliance: { success: jobs.compliance.success, durationMs: jobs.compliance.durationMs },
+      paymentAndLeaseReminders: {
+        success: jobs.paymentAndLeaseReminders.success,
+        durationMs: jobs.paymentAndLeaseReminders.durationMs,
+      },
     },
   });
 

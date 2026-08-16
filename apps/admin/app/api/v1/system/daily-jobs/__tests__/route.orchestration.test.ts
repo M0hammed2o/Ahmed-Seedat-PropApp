@@ -38,6 +38,10 @@ vi.mock('@/lib/systemJobs', () => ({
     callOrder.push('compliance');
     return { dueSoonRemindersSent: 0, overdueRemindersSent: 0 };
   }),
+  runPaymentAndLeaseReminderJob: vi.fn(async () => {
+    callOrder.push('paymentAndLeaseReminders');
+    return { rentRemindersSent: 0, rentOverdueNoticesSent: 0, leaseExpiryRemindersSent: 0 };
+  }),
 }));
 
 vi.mock('@/lib/audit', () => ({
@@ -64,9 +68,14 @@ describe('POST /api/v1/system/daily-jobs (orchestration, mocked systemJobs)', ()
     vi.clearAllMocks();
   });
 
-  it('runs subscriptions, then rentSchedules, then compliance, in that exact deterministic order', async () => {
+  it('runs subscriptions, then rentSchedules, then compliance, then paymentAndLeaseReminders, in that exact deterministic order', async () => {
     await POST(cronRequest());
-    expect(callOrder).toEqual(['subscriptions', 'rentSchedules', 'compliance']);
+    expect(callOrder).toEqual([
+      'subscriptions',
+      'rentSchedules',
+      'compliance',
+      'paymentAndLeaseReminders',
+    ]);
   });
 
   it('returns a structured result including every job, with 200 when all succeed', async () => {
@@ -77,12 +86,14 @@ describe('POST /api/v1/system/daily-jobs (orchestration, mocked systemJobs)', ()
     expect(body.jobs.subscriptions.success).toBe(true);
     expect(body.jobs.rentSchedules.success).toBe(true);
     expect(body.jobs.compliance.success).toBe(true);
+    expect(body.jobs.paymentAndLeaseReminders.success).toBe(true);
     expect(typeof body.jobs.subscriptions.durationMs).toBe('number');
     expect(typeof body.jobs.rentSchedules.durationMs).toBe('number');
     expect(typeof body.jobs.compliance.durationMs).toBe('number');
+    expect(typeof body.jobs.paymentAndLeaseReminders.durationMs).toBe('number');
   });
 
-  it('a subscriptions-job failure does not stop rentSchedules/compliance from running, and the overall response reports failure', async () => {
+  it('a subscriptions-job failure does not stop rentSchedules/compliance/paymentAndLeaseReminders from running, and the overall response reports failure', async () => {
     subscriptionsShouldFail = true;
     const response = await POST(cronRequest());
     expect(response.status).toBe(500);
@@ -90,13 +101,19 @@ describe('POST /api/v1/system/daily-jobs (orchestration, mocked systemJobs)', ()
     expect(body.success).toBe(false);
     expect(body.jobs.subscriptions.success).toBe(false);
     expect(typeof body.jobs.subscriptions.error).toBe('string');
-    // The other two jobs still ran despite the first one failing -- they are independent.
+    // The other jobs still ran despite the first one failing -- they are independent.
     expect(body.jobs.rentSchedules.success).toBe(true);
     expect(body.jobs.compliance.success).toBe(true);
-    expect(callOrder).toEqual(['subscriptions', 'rentSchedules', 'compliance']);
+    expect(body.jobs.paymentAndLeaseReminders.success).toBe(true);
+    expect(callOrder).toEqual([
+      'subscriptions',
+      'rentSchedules',
+      'compliance',
+      'paymentAndLeaseReminders',
+    ]);
   });
 
-  it('a rentSchedules-job failure is isolated -- subscriptions still reports success, compliance still runs, overall response reports failure', async () => {
+  it('a rentSchedules-job failure is isolated -- subscriptions still reports success, compliance/paymentAndLeaseReminders still run, overall response reports failure', async () => {
     rentSchedulesShouldFail = true;
     const response = await POST(cronRequest());
     expect(response.status).toBe(500);
@@ -105,6 +122,7 @@ describe('POST /api/v1/system/daily-jobs (orchestration, mocked systemJobs)', ()
     expect(body.jobs.subscriptions.success).toBe(true);
     expect(body.jobs.rentSchedules.success).toBe(false);
     expect(body.jobs.compliance.success).toBe(true);
+    expect(body.jobs.paymentAndLeaseReminders.success).toBe(true);
   });
 
   it('never returns HTTP 200 when any job failed', async () => {
