@@ -332,24 +332,35 @@ export type WhatsAppConversationStateType = (typeof WHATSAPP_CONVERSATION_STATE_
 // ONLY three values with a real, currently-wired dispatch call site, and each rename matches the
 // exact Meta-approved template name Mohammed created for it (the old template names were deleted
 // and no longer exist in Meta Business Manager; sending under the old name would fail outright).
-// Every other value below is currently unwired (no call site references it) and is deliberately
-// left unchanged -- renaming an unused value carries no correctness benefit and risks guessing at
-// a mapping Mohammed hasn't confirmed (e.g. whether the new 'rent_overdue_notice'/
-// 'lease_expiry_reminder'/'owner_monthly_property_summary' Meta templates are meant to replace
-// 'rent_overdue_material'/'lease_expiring_soon(_owner)'/'owner_statement_available' outright, or
-// coexist as distinct events) -- see the session's own readiness report for the exact open
-// questions this leaves for Mohammed to resolve before any of those five are wired.
+//
+// WhatsApp V1 completion pass (WORKLOG.md this date): 'payment_awaiting_confirmation' renamed to
+// 'payment_confirmation_required' and wired for real (Phase B) -- it's the exact same
+// owner-facing "a payment needs your review" concept this enum already modeled, just now with a
+// real trigger (payment_reports, migration 20260101000106) and a real recipient-resolution path
+// (linked owners with a phone on file, via property_owners) that didn't exist before this pass.
+//
+// WhatsApp V1 completion pass (WORKLOG.md this date), Phase E: 'rent_overdue_material' renamed to
+// 'rent_overdue_notice' and 'lease_expiring_soon' renamed to 'lease_expiry_reminder' -- both now
+// have real triggers (rent_schedules_overdue_unreminded()/leases_expiring_unreminded(), migration
+// 20260101000106) and match Mohammed's new template names as the closest existing tenant-facing
+// semantic equivalent. 'rent_payment_reminder' is genuinely new (no "upcoming, not yet overdue"
+// reminder concept existed in this enum before). The OWNER-facing variants
+// ('rent_overdue_significant', 'lease_expiring_soon_owner') are deliberately left untouched and
+// unwired -- Mohammed's 8 new templates don't obviously distinguish a tenant vs. owner audience
+// for these two, and guessing that mapping would be exactly the kind of speculative rename this
+// pass was told to avoid; see the session's own readiness report for this open question.
 export const WHATSAPP_NOTIFICATION_TYPES = [
-  'rent_overdue_material',
+  'rent_overdue_notice',
   'payment_received_confirmation',
   'payment_rejected',
-  'lease_expiring_soon',
+  'lease_expiry_reminder',
   'urgent_property_announcement',
   'inspection_reminder_important',
   'maintenance_request_update',
   'document_missing_required',
   'id_document_expiring',
-  'payment_awaiting_confirmation',
+  'payment_confirmation_required',
+  'rent_payment_reminder',
   'payment_discrepancy',
   'rent_overdue_significant',
   'lease_expiring_soon_owner',

@@ -7,11 +7,21 @@ describe('MockWhatsAppProvider', () => {
     const provider = new MockWhatsAppProvider();
     const result = await provider.sendTemplateMessage({
       to: '+27000000001',
-      templateName: 'rent_overdue_material',
+      templateName: 'rent_overdue_notice',
       variables: { tenant_first_name: 'Test' },
       orgId: 'org-1',
     });
     expect(result.providerMessageId).toMatch(/^mock-whatsapp-/);
+  });
+
+  it('returns a providerMessageId from sendFreeformMessage', async () => {
+    const provider = new MockWhatsAppProvider();
+    const result = await provider.sendFreeformMessage({
+      to: '+27000000001',
+      body: 'Test freeform reply',
+      orgId: 'org-1',
+    });
+    expect(result.providerMessageId).toMatch(/^mock-whatsapp-freeform-/);
   });
 
   it('parseInboundEvent wraps the raw payload as a message event', () => {
@@ -52,7 +62,7 @@ describe('MetaWhatsAppProvider', () => {
 
       const result = await provider.sendTemplateMessage({
         to: '+27821234567',
-        templateName: 'rent_overdue_material',
+        templateName: 'rent_overdue_notice',
         variables: { tenant_first_name: 'Jane', amount: 'R1,200' },
         orgId: 'org-1',
       });
@@ -64,7 +74,7 @@ describe('MetaWhatsAppProvider', () => {
       expect(options.headers.Authorization).toBe(`Bearer ${CONFIG.accessToken}`);
       const body = JSON.parse(options.body);
       expect(body.to).toBe('27821234567'); // leading '+' stripped
-      expect(body.template.name).toBe('rent_overdue_material');
+      expect(body.template.name).toBe('rent_overdue_notice');
       expect(body.template.language.code).toBe('en_US');
       // Positional, in insertion order -- {{1}}=Jane, {{2}}=R1,200, never named.
       expect(body.template.components[0].parameters).toEqual([
@@ -84,11 +94,56 @@ describe('MetaWhatsAppProvider', () => {
       await expect(
         provider.sendTemplateMessage({
           to: '+27821234567',
-          templateName: 'rent_overdue_material',
+          templateName: 'rent_overdue_notice',
           variables: {},
           orgId: 'org-1',
         }),
       ).rejects.toThrow(/401/);
+    });
+  });
+
+  describe('sendFreeformMessage', () => {
+    const originalFetch = global.fetch;
+    afterEach(() => {
+      global.fetch = originalFetch;
+    });
+
+    it('POSTs a type:text message to the Graph API messages endpoint', async () => {
+      const fetchSpy = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ messages: [{ id: 'wamid.FREEFORM1' }] }),
+      });
+      global.fetch = fetchSpy as unknown as typeof fetch;
+      const provider = new MetaWhatsAppProvider(CONFIG);
+
+      const result = await provider.sendFreeformMessage({
+        to: '+27821234567',
+        body: 'Your maintenance ticket has been updated.',
+        orgId: 'org-1',
+      });
+
+      expect(result.providerMessageId).toBe('wamid.FREEFORM1');
+      const [url, options] = fetchSpy.mock.calls[0]!;
+      expect(String(url)).toBe(`https://graph.facebook.com/v21.0/${CONFIG.phoneNumberId}/messages`);
+      const body = JSON.parse(options.body);
+      expect(body.to).toBe('27821234567');
+      expect(body.type).toBe('text');
+      expect(body.text.body).toBe('Your maintenance ticket has been updated.');
+      // No template field on a freeform send.
+      expect(body.template).toBeUndefined();
+    });
+
+    it('throws on a non-2xx response rather than pretending the send succeeded', async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        statusText: 'Bad Request',
+        text: async () => 'Message outside the 24-hour customer service window',
+      }) as unknown as typeof fetch;
+      const provider = new MetaWhatsAppProvider(CONFIG);
+      await expect(
+        provider.sendFreeformMessage({ to: '+27821234567', body: 'Hi', orgId: 'org-1' }),
+      ).rejects.toThrow(/400/);
     });
   });
 

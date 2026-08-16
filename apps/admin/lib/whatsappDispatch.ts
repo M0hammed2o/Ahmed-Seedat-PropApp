@@ -4,6 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { WhatsAppNotificationType, WhatsAppProvider } from '@propvault/types';
 import { getWhatsAppProvider, isWhatsAppProviderConfigured } from './providers/whatsapp';
 import { writeAuditEvent } from './audit';
+import { isWhatsAppTemplateApproved } from './whatsappTemplates';
 
 // Wires a subset of WHATSAPP.md §2's fixed, pre-approved trigger list to the already-built
 // WhatsAppProvider (TASKS.md M17) -- the provider/resolution layer existed with no dispatcher
@@ -58,10 +59,21 @@ const PLATFORM_WHATSAPP_NUMBER = '+27000000000'; // TO_BE_CONFIRMED
 // tenant_account_invitation is transactional, same as member_invited's email equivalent: a tenant
 // can't meaningfully "opt out" of the one message that grants them portal access in the first
 // place.
-const TEMPLATE_CATEGORY: Partial<Record<DispatchableWhatsAppType, 'rent' | 'maintenance'>> = {
+const TEMPLATE_CATEGORY: Partial<
+  Record<DispatchableWhatsAppType, 'rent' | 'maintenance' | 'lease'>
+> = {
   owner_statement_available: 'rent',
   payment_received_confirmation: 'rent',
   maintenance_request_update: 'maintenance',
+  // Phase B, WhatsApp V1 completion pass: same 'rent' family as payment_received_confirmation --
+  // no dedicated "accounting" category exists yet (WHATSAPP.md §2's own owner_statement_available
+  // entry documents the same gap).
+  payment_confirmation_required: 'rent',
+  // Phase E, WhatsApp V1 completion pass -- matches WHATSAPP.md §2's own documented category table
+  // for these events exactly.
+  rent_payment_reminder: 'rent',
+  rent_overdue_notice: 'rent',
+  lease_expiry_reminder: 'lease',
 };
 
 export type DispatchableWhatsAppType = Extract<
@@ -70,6 +82,10 @@ export type DispatchableWhatsAppType = Extract<
   | 'payment_received_confirmation'
   | 'maintenance_request_update'
   | 'tenant_account_invitation'
+  | 'rent_payment_reminder'
+  | 'rent_overdue_notice'
+  | 'lease_expiry_reminder'
+  | 'payment_confirmation_required'
 >;
 
 function toE164(phone: string | null | undefined): string | null {
@@ -91,7 +107,8 @@ export interface DispatchWhatsAppInput {
 
 export interface DispatchWhatsAppResult {
   sent: boolean;
-  reason?: 'no_phone' | 'invalid_phone' | 'preference_disabled' | 'already_sent';
+  reason?:
+    'no_phone' | 'invalid_phone' | 'preference_disabled' | 'already_sent' | 'template_not_approved';
   whatsappMessageId?: string;
   /** False whenever this dispatch went through MockWhatsAppProvider (no WHATSAPP_ACCESS_TOKEN/
    * WHATSAPP_PHONE_NUMBER_ID/WHATSAPP_WEBHOOK_SECRET configured) -- mirrors
@@ -154,6 +171,19 @@ export async function dispatchWhatsApp(
         return { sent: false, reason: 'preference_disabled', deliveryConfigured };
       }
     }
+  }
+
+  // Phase K, WhatsApp V1 completion pass: fail fast, locally, observably for a template Mohammed
+  // hasn't confirmed Active/Approved -- never rely on Meta's own API rejection as the only thing
+  // standing between "in review" and a real send attempt. Gated on deliveryConfigured
+  // specifically, not unconditionally: the registry only matters the moment a REAL Meta API call
+  // would otherwise be made -- MockWhatsAppProvider (every local/CI run, no real credentials) never
+  // talks to Meta at all, so approval status is meaningless there, and gating it unconditionally
+  // would make every existing dispatch test require editing this registry to pass. See
+  // whatsappTemplates.ts's own header comment for why this became urgent this pass (Render now
+  // carries real Meta credentials).
+  if (deliveryConfigured && !isWhatsAppTemplateApproved(input.templateName)) {
+    return { sent: false, reason: 'template_not_approved', deliveryConfigured };
   }
 
   const provider = getWhatsAppProvider();

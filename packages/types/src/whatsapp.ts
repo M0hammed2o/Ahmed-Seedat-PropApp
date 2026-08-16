@@ -16,6 +16,28 @@ export interface SendWhatsAppTemplateResult {
   providerMessageId: string;
 }
 
+/**
+ * WhatsApp V1 completion pass, Phase H (WORKLOG.md this date). A freeform (non-template) reply --
+ * only valid within Meta's 24-hour customer-service window after the recipient's last inbound
+ * message (WHATSAPP.md §3's own documented rule). Provider-layer foundation ONLY: no caller in
+ * this codebase invokes this yet (no LLM orchestration, no auto-reply route) -- built so a future
+ * controlled assistant has a real, tested send primitive to call into, per this pass's own explicit
+ * "implement only the provider/service abstraction needed for future use" instruction. Deliberately
+ * NOT part of WhatsAppNotificationType's closed enum -- that enum is specifically "pre-approved
+ * template names Meta can send outside the session window" (WHATSAPP.md §2); a freeform reply is
+ * the opposite case (inside the window, no template), so it needs its own destination-and-body
+ * shape, not a templateName.
+ */
+export interface SendWhatsAppFreeformInput {
+  to: string; // E.164 -- MUST come from a verified, server-resolved identity, never client-supplied
+  body: string;
+  orgId: string;
+}
+
+export interface SendWhatsAppFreeformResult {
+  providerMessageId: string;
+}
+
 export type InboundWhatsAppEventKind = 'message' | 'status_callback';
 
 export interface InboundWhatsAppEvent {
@@ -45,6 +67,8 @@ export type WhatsAppWebhookEventKind = 'message' | 'status_callback' | 'unknown'
 
 export interface WhatsAppProvider {
   sendTemplateMessage(input: SendWhatsAppTemplateInput): Promise<SendWhatsAppTemplateResult>;
+  /** Phase H, WhatsApp V1 completion pass -- see SendWhatsAppFreeformInput's own doc comment. */
+  sendFreeformMessage(input: SendWhatsAppFreeformInput): Promise<SendWhatsAppFreeformResult>;
   verifyWebhookSignature(rawBody: string, signatureHeader: string): boolean;
   classifyWebhookEvent(rawBody: unknown): WhatsAppWebhookEventKind;
   parseInboundEvent(rawBody: unknown): InboundWhatsAppEvent;

@@ -2,6 +2,8 @@ import 'server-only';
 import crypto from 'crypto';
 import type {
   InboundWhatsAppEvent,
+  SendWhatsAppFreeformInput,
+  SendWhatsAppFreeformResult,
   SendWhatsAppTemplateInput,
   SendWhatsAppTemplateResult,
   WhatsAppProvider,
@@ -25,6 +27,14 @@ export class MockWhatsAppProvider implements WhatsAppProvider {
       templateName: input.templateName,
     });
     return { providerMessageId: `mock-whatsapp-${crypto.randomUUID()}` };
+  }
+
+  async sendFreeformMessage(input: SendWhatsAppFreeformInput): Promise<SendWhatsAppFreeformResult> {
+    console.warn('[MockWhatsAppProvider] would send freeform message', {
+      orgId: input.orgId,
+      to: input.to,
+    });
+    return { providerMessageId: `mock-whatsapp-freeform-${crypto.randomUUID()}` };
   }
 
   verifyWebhookSignature(_rawBody: string, _signatureHeader: string): boolean {
@@ -172,6 +182,49 @@ export class MetaWhatsAppProvider implements WhatsAppProvider {
     if (!messageId) {
       throw new Error(
         'Meta WhatsApp send returned 2xx but no message id -- unexpected response shape',
+      );
+    }
+
+    return { providerMessageId: messageId };
+  }
+
+  // Phase H, WhatsApp V1 completion pass: freeform (non-template) send -- Meta's `type: 'text'`
+  // message, only deliverable within the 24-hour customer-service window after the recipient's
+  // last inbound message (Meta's own documented HSM/session-message rule, WHATSAPP.md §3). Same
+  // endpoint/auth as sendTemplateMessage above, deliberately not deduplicated into a shared
+  // private helper -- the two request bodies differ enough (template vs. text, positional
+  // parameters vs. a plain body string) that sharing would add an if-branch for marginal benefit.
+  // No caller in this codebase invokes this yet -- see this method's own interface-level doc
+  // comment (packages/types/src/whatsapp.ts) for why.
+  async sendFreeformMessage(input: SendWhatsAppFreeformInput): Promise<SendWhatsAppFreeformResult> {
+    const url = `https://graph.facebook.com/${META_GRAPH_API_VERSION}/${this.config.phoneNumberId}/messages`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${this.config.accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        to: input.to.replace(/^\+/, ''),
+        type: 'text',
+        text: { body: input.body },
+      }),
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      throw new Error(
+        `Meta WhatsApp freeform send failed (${response.status}): ${body || response.statusText}`,
+      );
+    }
+
+    const json = (await response.json()) as { messages?: { id: string }[] };
+    const messageId = json.messages?.[0]?.id;
+    if (!messageId) {
+      throw new Error(
+        'Meta WhatsApp freeform send returned 2xx but no message id -- unexpected response shape',
       );
     }
 
