@@ -10,3 +10,4 @@ export * from './notifications';
 export * from './ai';
 export * from './superAdmin';
 export * from './compliance';
+export * from './whatsappCompletion';
