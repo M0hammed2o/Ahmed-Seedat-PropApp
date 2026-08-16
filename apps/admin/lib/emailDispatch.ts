@@ -38,7 +38,14 @@ export type EmailTemplateName =
   | 'plan_upgraded'
   | 'plan_downgrade_scheduled'
   | 'subscription_cancelled'
-  | 'subscription_reactivated';
+  | 'subscription_reactivated'
+  // WhatsApp V1 completion pass, Phase F (WORKLOG.md this date): the OTP delivery channel for
+  // phone-verification challenges (migration 20260101000106's request_phone_verification()).
+  // WhatsApp itself would need a Meta Authentication-category template (distinct from the 8
+  // Utility templates currently in review) to deliver an OTP -- deliberately not built; email is
+  // the "already-supported secure verification channel" this pass was explicitly told to use
+  // instead, per its own instruction not to invent a WhatsApp Authentication template.
+  | 'phone_verification_code';
 
 // Only categories with an existing notification_preferences row can be preference-gated
 // (DATABASE.md §7's closed enum has no 'billing'/'accounting' category) -- invoice/payment/
@@ -97,6 +104,7 @@ const TEMPLATE_SUBJECTS: Record<EmailTemplateName, (vars: Record<string, unknown
   subscription_cancelled: () => `Your ${branding.productName} subscription has been cancelled`,
   subscription_reactivated: () =>
     `Welcome back — your ${branding.productName} subscription is active again`,
+  phone_verification_code: (v) => `Your ${branding.productName} verification code: ${v.code ?? ''}`,
 };
 
 // Plain-text bodies -- the required MIME text/plain fallback for every real send (never removed
@@ -142,6 +150,8 @@ const TEMPLATE_BODY: Record<EmailTemplateName, (vars: Record<string, unknown>) =
     `Your ${branding.productName} subscription has been cancelled${v.periodEnd ? `, effective ${v.periodEnd}` : ''}. You can reactivate at any time from Billing & subscription.`,
   subscription_reactivated: (v) =>
     `Your ${branding.productName} subscription is active again on the ${v.planName ?? ''} plan. Welcome back.`,
+  phone_verification_code: (v) =>
+    `Your ${branding.productName} verification code is ${v.code ?? ''}. It expires in 10 minutes. If you didn't request this, you can safely ignore this email.`,
 };
 
 /**
@@ -313,6 +323,16 @@ const TEMPLATE_HTML_CONTENT: Record<
     heading: 'Your subscription is active again',
     intro: `Your ${branding.productName} subscription is active again on the ${v.planName ?? ''} plan.`,
     cta: { label: 'Go to dashboard', url: `${appUrl}/dashboard` },
+  }),
+  phone_verification_code: (v) => ({
+    eyebrow: 'Verification code',
+    heading: 'Your verification code',
+    intro: 'Use this code to verify your phone number:',
+    infoBox: { label: 'Verification code', text: String(v.code ?? '') },
+    paragraphs: [
+      'This code expires in 10 minutes.',
+      "If you didn't request this, you can safely ignore this email.",
+    ],
   }),
 };
 
