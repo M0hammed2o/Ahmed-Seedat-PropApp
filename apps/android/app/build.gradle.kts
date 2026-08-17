@@ -35,6 +35,19 @@ val apiBaseUrl: String = localProperties.getProperty("API_BASE_URL", "http://10.
 // toggle inside the real repository (which would risk mock behaviour leaking into it).
 val useMockData: Boolean = localProperties.getProperty("USE_MOCK_DATA", "false").toBoolean()
 
+// Release-only config (Android V1 last local blocker pass, WORKLOG.md this date): a real, separate
+// RELEASE_* property set, deliberately with NO loopback-address fallback. Before this, a release
+// build produced without local.properties fully filled in would silently bake in
+// http://10.0.2.2:3000 (the emulator's own loopback alias) as BuildConfig.API_BASE_URL -- on a
+// real device that address resolves to nothing meaningful, so the app would build and install
+// fine and then fail every network call in a way that gives no hint the endpoint itself was
+// misconfigured. Empty-string is deliberately used instead: still fails, but obviously (an empty
+// base URL throws immediately on the first request), not silently-wrong. See
+// local.properties.example for what a real release build needs before this is filled in.
+val releaseSupabaseUrl: String = localProperties.getProperty("RELEASE_SUPABASE_URL", "")
+val releaseSupabaseAnonKey: String = localProperties.getProperty("RELEASE_SUPABASE_ANON_KEY", "")
+val releaseApiBaseUrl: String = localProperties.getProperty("RELEASE_API_BASE_URL", "")
+
 android {
     // Android V1 final gap-closure pass (WORKLOG.md this date), Phase 1: renamed from
     // com.propertyvault.app -- the product is Proplyst, and this had never been published to
@@ -53,23 +66,30 @@ android {
         versionName = "0.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-
-        buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
-        buildConfigField("String", "SUPABASE_ANON_KEY", "\"$supabaseAnonKey\"")
-        buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
-        buildConfigField("boolean", "USE_MOCK_DATA", "$useMockData")
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+
+            buildConfigField("String", "SUPABASE_URL", "\"$releaseSupabaseUrl\"")
+            buildConfigField("String", "SUPABASE_ANON_KEY", "\"$releaseSupabaseAnonKey\"")
+            buildConfigField("String", "API_BASE_URL", "\"$releaseApiBaseUrl\"")
+            // Never sourced from local.properties for release, regardless of what a developer's
+            // own USE_MOCK_DATA value happens to be set to for local UI work -- a release build
+            // must never be able to accidentally ship with mock data baked in.
+            buildConfigField("boolean", "USE_MOCK_DATA", "false")
         }
         debug {
             // Debug builds may point at a local `supabase start` instance -- no separate flag
             // needed, the developer's own local.properties value governs both build types for now
             // (matches this repo's existing "no separate mock backend toggle" simplicity until a
             // real staging environment exists, ENVIRONMENT.md).
+            buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
+            buildConfigField("String", "SUPABASE_ANON_KEY", "\"$supabaseAnonKey\"")
+            buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
+            buildConfigField("boolean", "USE_MOCK_DATA", "$useMockData")
         }
     }
 

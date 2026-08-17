@@ -20,5 +20,15 @@ API_BASE_URL=http://10.0.2.2:3000
 # true to use MockPropertiesRepository/MockAuthRepository (deterministic fixture data, no
 # network, any non-blank email/password "signs in") instead of the real Postgrest/Supabase-Auth-
 # backed repositories -- useful for UI development or toolchain verification with no backend
-# running.
+# running. Debug builds only -- a release build always forces this to false (app/build.gradle.kts),
+# regardless of this value.
 USE_MOCK_DATA=false
+
+# Release-only config (Android V1 last local blocker pass, WORKLOG.md this date) -- assembleRelease/
+# bundleRelease read THESE, never the debug values above, and have no loopback-address fallback if
+# left unset (an empty API_BASE_URL fails loudly on the first request, rather than silently baking
+# in the emulator's own loopback alias). Fill in with the real production Supabase project and the
+# real deployed apps/admin URL before producing a release build meant for actual distribution.
+RELEASE_SUPABASE_URL=
+RELEASE_SUPABASE_ANON_KEY=
+RELEASE_API_BASE_URL=
