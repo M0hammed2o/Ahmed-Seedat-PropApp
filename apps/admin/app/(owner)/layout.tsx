@@ -8,6 +8,7 @@ import {
   FileText,
   Wrench,
   History,
+  Settings,
 } from 'lucide-react';
 import { branding } from '@propvault/config';
 import { resolveOwnerSession, type OwnerSession } from '@/lib/ownerSession';
@@ -40,6 +41,7 @@ const NAV_SECTIONS: NavSection[] = [
       { href: '/owner-portal/documents', label: 'Documents', icon: navIcon(FileText) },
       { href: '/owner-portal/maintenance', label: 'Maintenance', icon: navIcon(Wrench) },
       { href: '/owner-portal/activity', label: 'Activity', icon: navIcon(History) },
+      { href: '/owner-portal/settings', label: 'Settings', icon: navIcon(Settings) },
     ],
   },
 ];
