@@ -1,5 +1,80 @@
 # Worklog
 
+## 2026-08-17 (continued further) — Android V1 final gap-closure pass
+
+Continued directly from the commercial-launch completion pass below, per Mohammed's explicit
+instruction to close every locally-solvable P0/P1 gap rather than merely re-audit. Implemented,
+not just documented:
+
+**Phase 1 — applicationId/package rename**: `com.propertyvault.app` → `za.co.proplyst.app`
+(never published, so no post-publish-permanence constraint blocked it). Every reference moved
+together: `namespace`/`applicationId` (`build.gradle.kts`), `ProplystApplication`/
+`ProplystDatabase`/`Theme.Proplyst` (renamed from their PropertyVault-era names), all ~96 `.kt`
+files under `main`/`test`/`androidTest` moved to the new package directory with imports rewritten,
+the stale Room schema directory removed (regenerates under the new FQN), and
+`packages/config/src/branding.ts`'s `androidPackageName` corrected from a stale `com.proplyst.app`
+placeholder to the now-final value — confirmed this does NOT affect `apps/mobile` (a separate,
+out-of-scope Expo app with its own disconnected local branding object) and DOES correctly flow
+into `apps/admin`'s `/.well-known/assetlinks.json` route, whose test was updated to match.
+
+**Phase 2 — automatic token refresh**: `TokenAuthenticator` (OkHttp `Authenticator`, not a
+pre-emptive interceptor, so it only fires on a real 401 with the failed request already formed).
+Concurrency-safe via a `Mutex` that re-checks whether a racing thread already refreshed before
+hitting the network again; loop-avoidance via walking `priorResponse` chain length; clears the
+session on an unrecoverable refresh failure. 6 dedicated tests including a genuinely
+multi-threaded "only one real refresh call for two concurrent 401s" test.
+
+**Phases 3/7/8/9 — owner portal completion**: Payment review (confirm/reject a tenant's reported
+payment, view proof-of-payment via the existing signed-URL document endpoint — reuses the same
+backend RPCs the web review UI calls, no duplicated business logic), monthly summary (reads
+`owner_property_summaries` exactly as the server-side job stored it, never recalculated
+on-device), in-app notification centre + per-category channel-preference settings (both direct
+RLS-scoped PostgREST reads/writes against tables that already existed with correct policies —
+cheaper to build than the prior pass's audit assumed).
+
+**Phases 4/5/6 — tenant portal completion**: Maintenance (list own tickets via the same
+RLS-scoped repository the owner board already uses, submit a new one via the existing
+tenant-portal endpoint — no photo/file attachment, since the backend schema has no attachment
+field yet, a disclosed gap not an oversight); Documents (tenancy documents explicitly tagged with
+the caller's own lease, opened via the same signed-URL endpoint Phase 3 uses); Notices (the
+existing `announcements` endpoint + RLS already supported tenant visibility with zero backend
+changes needed — Acknowledge wired to its existing dedicated endpoint; read/unread tracking for
+notices that don't require acknowledgement was NOT built, since the shared list endpoint has no
+per-caller read-status join and no tenant-facing web UI exists yet to establish one).
+
+**Phase 11 — branding**: found and fixed a real, live bug — `SplashScreen.kt`/`SignInScreen.kt`
+were still hardcoding the literal text "PropertyVault" on-screen even though `strings.xml`'s
+`app_name` (launcher label) had already been corrected to "Proplyst" in the prior pass. Both now
+read `R.string.app_name`. Launcher icon remains an honest flat-brand-color placeholder — a real
+logo exists (`apps/admin/branding/proplyst-logo.png`) but no image-manipulation tooling was
+available in this session to safely generate a properly safe-zoned adaptive icon from it.
+
+**Phase 12 — release readiness audit**: confirmed already-correct: `allowBackup=false`, zero
+cleartext in release (debug-only exception scoped to the emulator loopback), release logging
+fully disabled (`Level.NONE`), no hardcoded credentials found (grepped). `isMinifyEnabled` stays
+`false` — the app's hand-rolled `SerializationConverterFactory` resolves serializers via JVM
+reflection, and R8 correctness needs physical-device verification this session cannot perform;
+added standard kotlinx.serialization keep rules to `proguard-rules.pro` as groundwork only.
+
+**Phase 13 — App Links**: `/.well-known/assetlinks.json`'s package name corrected (see Phase 1).
+No SHA-256 fingerprint invented — still the honest empty-`statements` fallback until Mohammed
+provides the real one.
+
+**Verification**: real `gradlew clean compileDebugKotlin compileDebugUnitTestKotlin
+testDebugUnitTest lintDebug assembleDebug assembleRelease bundleRelease` run — **109/109 unit
+tests passing** (was 47 at the start of this pass), `lintDebug` **0 errors, 55 warnings**, all
+three build artifacts produced and confirmed on disk (`app-debug.apk` 21.1MB,
+`app-release-unsigned.apk` 14.2MB, `app-release.aab` 13.7MB). Two compile errors from
+interrupted mid-session edits (a `BottomNavItem` class-name collision between
+`OwnerRootScreen.kt`/`TenantRootScreen.kt` in the same package, a missing `padding` import) were
+found and fixed before any of the above ran clean.
+
+**Not built this pass** (real, disclosed remaining gaps — see this pass's own final report for
+the full breakdown): tenant maintenance photo/file attachment, non-required-announcement
+read/unread tracking, release minification, a real (non-placeholder) launcher icon,
+deep-link-to-specific-subscreen resume, the real App Links signing fingerprint, physical-device
+testing, push notifications (FCM), full Google Play Console submission readiness.
+
 ## 2026-08-17 (continued) — Android V1 commercial-launch completion pass
 
 Audited the native Android app (`apps/android`) against current web/backend V1 functionality and
