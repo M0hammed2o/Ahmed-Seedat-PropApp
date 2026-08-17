@@ -1,18 +1,29 @@
 package za.co.proplyst.app.data.maintenance
 
+import android.content.Context
+import android.net.Uri
+import za.co.proplyst.app.data.documents.DocumentUrlResult
+import za.co.proplyst.app.data.documents.TenantDocument
 import za.co.proplyst.app.data.local.MaintenanceTicketDao
 import za.co.proplyst.app.data.local.MaintenanceTicketEntity
 import za.co.proplyst.app.data.network.PostgrestApi
 import za.co.proplyst.app.data.network.WebApi
 import za.co.proplyst.app.data.network.dto.CreateTenantMaintenanceTicketRequest
+import za.co.proplyst.app.data.network.dto.DocumentDto
 import za.co.proplyst.app.data.network.dto.MaintenanceTicketCreatedDto
 import za.co.proplyst.app.data.network.dto.MaintenanceTicketDto
+import dagger.hilt.android.qualifiers.ApplicationContext
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
+import java.io.File
 import javax.inject.Inject
 
 class PostgrestMaintenanceRepository @Inject constructor(
     private val api: PostgrestApi,
     private val webApi: WebApi,
     private val dao: MaintenanceTicketDao,
+    @ApplicationContext private val context: Context,
 ) : MaintenanceRepository {
 
     override suspend fun getTickets(): MaintenanceResult {
@@ -59,6 +70,68 @@ class PostgrestMaintenanceRepository @Inject constructor(
         } catch (e: Exception) {
             CreateMaintenanceTicketResult.Error(e.message ?: "Failed to submit maintenance ticket")
         }
+    }
+
+    override suspend fun getAttachments(ticketId: String): AttachmentsResult {
+        return try {
+            val response = webApi.getMaintenanceTicketDocuments(ticketId)
+            val body = response.body()
+            if (!response.isSuccessful || body == null) {
+                AttachmentsResult.Error("Failed to load attachments (${response.code()})")
+            } else {
+                AttachmentsResult.Loaded(body.documents.map { it.toTenantDocument() })
+            }
+        } catch (e: Exception) {
+            AttachmentsResult.Error(e.message ?: "Failed to load attachments — check your connection.")
+        }
+    }
+
+    override suspend fun uploadAttachment(ticketId: String, fileUri: Uri): AttachmentUploadResult {
+        return try {
+            val part = uriToMultipart(fileUri)
+            val response = webApi.uploadMaintenanceTicketDocument(ticketId, part)
+            val body = response.body()
+            if (!response.isSuccessful || body == null) {
+                AttachmentUploadResult.Error("Failed to upload attachment (${response.code()})")
+            } else {
+                AttachmentUploadResult.Success(body.document.toTenantDocument())
+            }
+        } catch (e: Exception) {
+            AttachmentUploadResult.Error(e.message ?: "Failed to upload attachment — check your connection.")
+        }
+    }
+
+    override suspend fun getAttachmentUrl(documentId: String): DocumentUrlResult {
+        return try {
+            val response = webApi.getDocument(documentId)
+            if (!response.isSuccessful) {
+                return DocumentUrlResult.Error("Failed to open this attachment (${response.code()})")
+            }
+            val body = response.body() ?: return DocumentUrlResult.Error("Failed to open this attachment.")
+            DocumentUrlResult.Success(body.signedUrl, body.document.mimeType)
+        } catch (e: Exception) {
+            DocumentUrlResult.Error(e.message ?: "Failed to open this attachment — check your connection.")
+        }
+    }
+
+    /** Reads the picked file into a temporary cache file (content:// Uris aren't directly
+     * readable as a File by OkHttp) -- same conversion WebApiPaymentReportsRepository's own
+     * proof-of-payment upload uses. */
+    private fun uriToMultipart(uri: Uri): MultipartBody.Part {
+        val resolver = context.contentResolver
+        val mimeType = resolver.getType(uri) ?: "application/octet-stream"
+        val extension = when (mimeType) {
+            "image/png" -> ".png"
+            "application/pdf" -> ".pdf"
+            "image/heic" -> ".heic"
+            else -> ".jpg"
+        }
+        val tempFile = File.createTempFile("maintenance_attachment", extension, context.cacheDir)
+        resolver.openInputStream(uri)?.use { input ->
+            tempFile.outputStream().use { output -> input.copyTo(output) }
+        }
+        val requestBody = tempFile.asRequestBody(mimeType.toMediaTypeOrNull())
+        return MultipartBody.Part.createFormData("file", tempFile.name, requestBody)
     }
 
     private suspend fun fallbackToCache(errorMessage: String): MaintenanceResult {
@@ -113,5 +186,13 @@ private fun MaintenanceTicketCreatedDto.toDomain() = MaintenanceTicket(
     description = description,
     priority = priority,
     status = status,
+    createdAt = createdAt,
+)
+
+private fun DocumentDto.toTenantDocument() = TenantDocument(
+    id = id,
+    originalFileName = originalFileName,
+    mimeType = mimeType,
+    documentType = documentType,
     createdAt = createdAt,
 )

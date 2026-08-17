@@ -46,3 +46,11 @@ data class MaintenanceTicketCreatedDto(
 data class MaintenanceTicketCreateResponse(
     val maintenanceTicket: MaintenanceTicketCreatedDto,
 )
+
+/** POST api/v1/tenant-portal/maintenance-tickets/{id}/documents (Android V1 last local blocker
+ * pass, WORKLOG.md this date). Reuses DocumentDto (PaymentReportDto.kt) -- the wire shape is
+ * identical to every other document response in this app, not a new one. */
+@Serializable
+data class MaintenanceDocumentUploadResponse(
+    val document: DocumentDto,
+)

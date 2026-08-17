@@ -34,6 +34,10 @@ export async function GET(request: NextRequest) {
   const { limit, cursor } = parseListQuery(request);
   const url = new URL(request.url);
   const propertyIdFilter = url.searchParams.get('filter[property_id]');
+  // Android V1 last local blocker pass (WORKLOG.md this date): lets both the staff web ticket
+  // detail view and the tenant/owner Android app list a maintenance ticket's attached documents
+  // through this same shared, already-RLS-scoped endpoint -- no new route needed.
+  const maintenanceTicketIdFilter = url.searchParams.get('filter[maintenance_ticket_id]');
 
   let query = supabase
     .from('documents')
@@ -44,6 +48,7 @@ export async function GET(request: NextRequest) {
     .limit(limit);
 
   if (propertyIdFilter) query = query.eq('property_id', propertyIdFilter);
+  if (maintenanceTicketIdFilter) query = query.eq('maintenance_ticket_id', maintenanceTicketIdFilter);
   if (cursor) query = query.or(beforeCursorFilter(cursor));
 
   const { data, error } = await query;

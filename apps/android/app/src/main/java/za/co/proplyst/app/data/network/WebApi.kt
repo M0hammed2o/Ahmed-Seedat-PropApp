@@ -4,6 +4,7 @@ import za.co.proplyst.app.data.network.dto.AnnouncementListResponse
 import za.co.proplyst.app.data.network.dto.CreateTenantMaintenanceTicketRequest
 import za.co.proplyst.app.data.network.dto.DocumentDetailResponse
 import za.co.proplyst.app.data.network.dto.DocumentListResponse
+import za.co.proplyst.app.data.network.dto.MaintenanceDocumentUploadResponse
 import za.co.proplyst.app.data.network.dto.MaintenanceTicketCreateResponse
 import za.co.proplyst.app.data.network.dto.PaymentReportCreateResponse
 import za.co.proplyst.app.data.network.dto.PaymentReportListResponse
@@ -17,6 +18,7 @@ import retrofit2.http.Multipart
 import retrofit2.http.POST
 import retrofit2.http.Part
 import retrofit2.http.Path
+import retrofit2.http.Query
 
 /**
  * Calls into the Next.js web API (`BuildConfig.API_BASE_URL`), never Supabase directly -- for
@@ -85,4 +87,23 @@ interface WebApi {
      * announcement_reads row -- never a client-supplied tenant_id. */
     @POST("api/v1/announcements/{id}/acknowledge")
     suspend fun acknowledgeAnnouncement(@Path("id") id: String): Response<Unit>
+
+    /** Attach a photo/file to the caller's OWN maintenance ticket (Android V1 last local blocker
+     * pass, WORKLOG.md this date). The route derives org/property/tenant context from the ticket
+     * itself, server-side, after proving ownership via the caller's own session-bound client --
+     * this app never sends anything beyond the ticket id in the path and the file. */
+    @Multipart
+    @POST("api/v1/tenant-portal/maintenance-tickets/{id}/documents")
+    suspend fun uploadMaintenanceTicketDocument(
+        @Path("id") ticketId: String,
+        @Part file: MultipartBody.Part,
+    ): Response<MaintenanceDocumentUploadResponse>
+
+    /** A maintenance ticket's attached documents -- RLS scopes this exactly like every other
+     * `documents` read (tenant: only their own lease-tagged rows; staff: org/property access) --
+     * shared by the tenant attachment viewer and any future staff-side ticket detail screen. */
+    @GET("api/v1/documents")
+    suspend fun getMaintenanceTicketDocuments(
+        @Query("filter[maintenance_ticket_id]") ticketId: String,
+    ): Response<DocumentListResponse>
 }
