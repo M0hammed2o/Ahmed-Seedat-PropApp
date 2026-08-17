@@ -15,6 +15,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -61,8 +62,17 @@ private val OWNER_BOTTOM_NAV_ITEMS: List<OwnerBottomNavItem> = listOf(
  * each tab keeps its own back stack independently, same behavioral goal as iOS's per-tab
  * NavigationStack. */
 @Composable
-fun OwnerRootScreen() {
+fun OwnerRootScreen(pendingRoute: String? = null) {
     val navController = rememberNavController()
+
+    // App Link resume (Android V1 last local blocker pass, WORKLOG.md this date): one extra hop
+    // right after this NavHost's own graph is built, landing on Dashboard first then navigating
+    // to the deep-linked tab/screen -- NavHost's startDestination can't be switched dynamically,
+    // so this is the same "navigate immediately after the graph exists" pattern used to resume
+    // App Links across a nested NavHost boundary.
+    LaunchedEffect(pendingRoute) {
+        if (pendingRoute != null) navController.navigate(pendingRoute)
+    }
 
     Scaffold(
         bottomBar = {

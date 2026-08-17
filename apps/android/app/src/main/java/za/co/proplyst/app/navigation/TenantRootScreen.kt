@@ -13,6 +13,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -49,8 +50,15 @@ private val TENANT_BOTTOM_NAV_ITEMS: List<TenantBottomNavItem> = listOf(
  * with a real bottom nav this pass now that a second real destination -- Alerts -- exists).
  */
 @Composable
-fun TenantRootScreen() {
+fun TenantRootScreen(pendingRoute: String? = null) {
     val navController = rememberNavController()
+
+    // App Link resume (Android V1 last local blocker pass, WORKLOG.md this date) -- see
+    // OwnerRootScreen's identical LaunchedEffect for why this is a post-graph navigate hop rather
+    // than a dynamic startDestination.
+    LaunchedEffect(pendingRoute) {
+        if (pendingRoute != null) navController.navigate(pendingRoute)
+    }
 
     Scaffold(
         bottomBar = {

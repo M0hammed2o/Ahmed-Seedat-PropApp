@@ -4,6 +4,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -25,6 +28,13 @@ fun RootNavGraph() {
     val authViewModel: RootAuthViewModel = hiltViewModel()
     val authState by authViewModel.authState.collectAsState()
 
+    // App Link resume (Android V1 last local blocker pass, WORKLOG.md this date): consumed once,
+    // right when a role is actually resolved (see below) -- read here as plain composition state
+    // rather than re-reading the store's own StateFlow, since consumePendingDeepLink() clears it
+    // as a side effect and must only run once per sign-in/cold-start, not on every recomposition.
+    var pendingOwnerRoute by remember { mutableStateOf<String?>(null) }
+    var pendingTenantRoute by remember { mutableStateOf<String?>(null) }
+
     LaunchedEffect(Unit) {
         authViewModel.restoreSession()
     }
@@ -33,8 +43,23 @@ fun RootNavGraph() {
         composable(Destinations.SPLASH) {
             LaunchedEffect(authState) {
                 when (val state = authState) {
-                    is AuthState.Authenticated -> navController.navigate(destinationForRole(state)) {
-                        popUpTo(Destinations.SPLASH) { inclusive = true }
+                    is AuthState.Authenticated -> {
+                        val destination = destinationForRole(state)
+                        // A pending target only ever applies to the role the caller actually
+                        // resolved to -- an OwnerScreen link opened by a tenant-only account (or
+                        // vice versa) is silently dropped here, not shown/denied with an error:
+                        // the caller still lands on their own real portal home, exactly the
+                        // "safe...correct fallback" this pass's own instruction asks for.
+                        when (val pending = authViewModel.consumePendingDeepLink()) {
+                            is AppLinkDestination.OwnerScreen ->
+                                if (destination == Destinations.OWNER_ROOT) pendingOwnerRoute = pending.route
+                            is AppLinkDestination.TenantScreen ->
+                                if (destination == Destinations.TENANT_ROOT) pendingTenantRoute = pending.route
+                            null -> Unit
+                        }
+                        navController.navigate(destination) {
+                            popUpTo(Destinations.SPLASH) { inclusive = true }
+                        }
                     }
                     is AuthState.Unauthenticated -> navController.navigate(Destinations.SIGN_IN) {
                         popUpTo(Destinations.SPLASH) { inclusive = true }
@@ -51,7 +76,11 @@ fun RootNavGraph() {
                     // Authenticated (signIn() already fetched both memberships and tenancies) --
                     // re-navigating through SPLASH re-runs the LaunchedEffect above with that real
                     // state, rather than guessing OWNER_ROOT here and potentially routing a
-                    // tenant-only account to a portal with zero organizations to show.
+                    // tenant-only account to a portal with zero organizations to show. The pending
+                    // deep link (if any) survives this hop unread -- it's still sitting in
+                    // PendingDeepLinkStore, consumed only once SPLASH's LaunchedEffect re-runs
+                    // with a real Authenticated state, i.e. "unauthenticated -> retain pending
+                    // destination -> sign in -> resume destination" end to end.
                     navController.navigate(Destinations.SPLASH) {
                         popUpTo(Destinations.SIGN_IN) { inclusive = true }
                     }
@@ -59,10 +88,10 @@ fun RootNavGraph() {
             )
         }
         composable(Destinations.OWNER_ROOT) {
-            OwnerRootScreen()
+            OwnerRootScreen(pendingRoute = pendingOwnerRoute)
         }
         composable(Destinations.TENANT_ROOT) {
-            TenantRootScreen()
+            TenantRootScreen(pendingRoute = pendingTenantRoute)
         }
     }
 }
