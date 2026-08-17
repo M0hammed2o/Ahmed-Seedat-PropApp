@@ -36,7 +36,7 @@ class SupabaseAuthRepository @Inject constructor(
         }
         val memberships = fetchOrgMemberships(userId)
         _authState.value = if (memberships != null) {
-            AuthState.Authenticated(userId, memberships)
+            AuthState.Authenticated(userId, memberships, fetchTenancies(userId))
         } else {
             // Stored token is missing/expired/invalid -- clear it rather than leaving a stale
             // credential around, and drop back to signed-out.
@@ -54,7 +54,11 @@ class SupabaseAuthRepository @Inject constructor(
             }
             sessionManager.saveSession(session.accessToken, session.refreshToken, session.user.id)
             val memberships = fetchOrgMemberships(session.user.id) ?: emptyList()
-            _authState.value = AuthState.Authenticated(session.user.id, memberships)
+            _authState.value = AuthState.Authenticated(
+                session.user.id,
+                memberships,
+                fetchTenancies(session.user.id),
+            )
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -80,6 +84,19 @@ class SupabaseAuthRepository @Inject constructor(
             response.body()?.map { OrgMembership(it.orgId, it.role, it.status) }
         } catch (_: Exception) {
             null
+        }
+    }
+
+    /** Best-effort: a tenancy-lookup failure must never block sign-in for an owner/staff account
+     * (whose membership fetch already succeeded, above) -- falls back to "no tenancies," which is
+     * simply the correct answer for the overwhelmingly common owner/staff caller anyway. */
+    private suspend fun fetchTenancies(userId: String): List<TenancyMembership> {
+        return try {
+            val response = postgrestApi.getMyTenancies(userIdFilter = "eq.$userId")
+            if (!response.isSuccessful) return emptyList()
+            response.body()?.map { TenancyMembership(it.id, it.orgId, it.status) } ?: emptyList()
+        } catch (_: Exception) {
+            emptyList()
         }
     }
 }

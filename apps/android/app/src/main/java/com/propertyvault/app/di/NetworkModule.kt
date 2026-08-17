@@ -4,6 +4,7 @@ import com.propertyvault.app.BuildConfig
 import com.propertyvault.app.data.auth.SessionManager
 import com.propertyvault.app.data.network.PostgrestApi
 import com.propertyvault.app.data.network.SupabaseAuthApi
+import com.propertyvault.app.data.network.WebApi
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -87,6 +88,38 @@ object NetworkModule {
     @Singleton
     fun providePostgrestApi(@Named("supabase") retrofit: Retrofit): PostgrestApi =
         retrofit.create(PostgrestApi::class.java)
+
+    /** Separate OkHttpClient for the web API -- same auth-bearer interceptor (RLS still needs the
+     * caller's own JWT), but deliberately WITHOUT the Supabase `apikey` header, which the Next.js
+     * app neither needs nor expects. */
+    @Provides
+    @Singleton
+    @Named("web")
+    fun provideWebOkHttpClient(sessionManager: SessionManager): OkHttpClient {
+        val logging = HttpLoggingInterceptor().apply {
+            level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BASIC else HttpLoggingInterceptor.Level.NONE
+        }
+        return OkHttpClient.Builder()
+            .addInterceptor(authInterceptor(sessionManager))
+            .addInterceptor(logging)
+            .build()
+    }
+
+    @Provides
+    @Singleton
+    @Named("web")
+    fun provideWebRetrofit(@Named("web") okHttpClient: OkHttpClient): Retrofit {
+        val contentType = "application/json".toMediaType()
+        return Retrofit.Builder()
+            .baseUrl(ensureTrailingSlash(BuildConfig.API_BASE_URL))
+            .client(okHttpClient)
+            .addConverterFactory(SerializationConverterFactory.create(json, contentType))
+            .build()
+    }
+
+    @Provides
+    @Singleton
+    fun provideWebApi(@Named("web") retrofit: Retrofit): WebApi = retrofit.create(WebApi::class.java)
 
     private fun ensureTrailingSlash(url: String): String = if (url.endsWith("/")) url else "$url/"
 }

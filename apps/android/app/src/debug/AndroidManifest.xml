@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug-build-only manifest fragment (app/src/debug/), merged into the main manifest ONLY for
+     debug builds, per Android's standard per-build-type manifest merging. Adds the cleartext
+     exception (network_security_config.xml, same directory) for local emulator development
+     without touching the release manifest at all (Android V1 commercial-launch pass, WORKLOG.md
+     this date, Phase 10). -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application android:networkSecurityConfig="@xml/network_security_config" />
+</manifest>

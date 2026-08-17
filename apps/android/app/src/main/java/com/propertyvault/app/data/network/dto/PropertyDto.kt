@@ -36,3 +36,13 @@ data class OrganizationMemberDto(
     val role: String,
     val status: String,
 )
+
+/** Android V1 commercial-launch pass (WORKLOG.md this date) -- the tenant-portal equivalent of
+ * OrganizationMemberDto, used only to detect "does this signed-in user hold a tenancy" during
+ * sign-in/session-restore role routing. */
+@Serializable
+data class TenancyMembershipDto(
+    val id: String,
+    @SerialName("org_id") val orgId: String,
+    val status: String,
+)

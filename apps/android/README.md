@@ -98,11 +98,55 @@ untouched, reference-only.
   submission, the one write path`MOBILE_ARCHITECTURE_DECISION.md` §9 scopes for V1 offline
   support) — not built in this first vertical slice, which is read-only (Properties list/detail).
 
-## What this first vertical slice includes
+## What's actually built (updated 2026-08-17, Android V1 commercial-launch pass)
 
-Authentication shell (splash/session-restore, sign-in, sign-out plumbing) + Owner portal
-(bottom nav shell, Dashboard placeholder, Properties list, Property detail) with loading/empty/
-error states and a cached-data-banner foundation. Everything else in `NATIVE_ANDROID_SPEC.md`
-(Units, Tenants, Leases, Maintenance, the remaining owner tabs, the Tenant portal) is
-specification only until its own vertical slice is built the same way, one module at a time
-(`TASKS.md` M22).
+This section had gone stale (last updated 2026-08-01, describing only Auth + a Dashboard
+placeholder + Properties) despite real growth since then. Current state, verified via a real
+`gradlew` run this pass (see `WORKLOG.md` for the full transcript):
+
+- **Auth shell**: splash/session-restore, sign-in, sign-out. Session token in
+  `EncryptedSharedPreferences` (Keystore-backed), `android:allowBackup="false"`.
+- **Role routing** (new this pass): `restoreSession()`/`signIn()` now resolve both org
+  memberships AND tenancies (`tenants` table, RLS `tenants_select_org_or_self`), and
+  `RootNavGraph` routes to `OWNER_ROOT` or `TENANT_ROOT` accordingly (owner/staff takes
+  precedence if an account somehow holds both, matching the web app's own
+  `destinationResolver.ts` precedence).
+- **Owner portal**: bottom-nav shell (Dashboard placeholder, Properties, Tenants, Maintenance),
+  Properties/Units/Tenants/Leases/Maintenance list+detail screens, each with a real repository
+  (`PostgrestXxxRepository` + `MockXxxRepository`, switched via `local.properties`'s
+  `USE_MOCK_DATA`), Room-backed offline read-through cache with a "showing cached data" banner.
+- **Tenant portal** (new this pass, Phase 4 of the same pass's own task brief): "My Payments" —
+  a tenant's own `payment_reports` history + a "Report a payment" form (amount/method/date/
+  optional proof-of-payment file via `ActivityResultContracts.OpenDocument()`). Calls the
+  Next.js web API directly (`WebApi.kt`, `BuildConfig.API_BASE_URL`) rather than raw PostgREST,
+  since that endpoint carries real server-side business logic (storage upload + malware scan +
+  owner-notification dispatch) this app must not reimplement — `getServerSupabaseClient()`
+  (apps/admin) already explicitly supports `Authorization: Bearer <token>` callers with no
+  cookie, so no backend change was needed beyond one small response-shape consistency fix
+  (`POST /api/v1/tenant-portal/payment-reports` now returns the same camelCase shape as the
+  GET list route). Owner payment REVIEW (confirming/rejecting a tenant's report), tenant
+  Maintenance/Documents/Notices, and the owner monthly summary have no Android screens yet —
+  real, disclosed gaps, not silently stubbed.
+- **App Links** (new this pass, partial): the manifest declares an `autoVerify="true"` intent
+  filter for `https://proplyst.co.za`, so a tapped link opens the app (landing on the correct
+  role's home) once Mohammed provides the real signing SHA-256 for
+  `ANDROID_APP_SHA256_FINGERPRINTS` (`apps/admin`'s `/.well-known/assetlinks.json` route already
+  reads that env var; it currently returns an empty `statements` array, so verification will not
+  succeed yet, an intentional honest fallback, not a bug). Resuming to a *specific* deep-linked
+  sub-screen (not just the portal's start screen) is not implemented — the app currently has two
+  independent `NavHost`s (Root's auth shell, and each portal's own nested one), and true resume-
+  to-subscreen needs either a single flattened nav graph or manual intent-URI-to-route plumbing
+  through both — a real, disclosed remaining gap.
+- **Debug-only cleartext exception** (new this pass): `local.properties`'s own documented dev
+  values (`http://10.0.2.2:3000`/`:54321`) were previously unreachable on a real device/emulator,
+  since Android blocks all cleartext traffic by default for `targetSdk 28+` and no
+  `network_security_config` existed. Added `app/src/debug/` (manifest fragment + XML config)
+  permitting cleartext ONLY to `10.0.2.2`, ONLY in debug builds — the release build is unaffected
+  (still zero cleartext exceptions).
+- **App display name** (new this pass): `strings.xml`'s `app_name` was still "PropertyVault" —
+  fixed to "Proplyst". The `applicationId`/package (`com.propertyvault.app`) was deliberately
+  NOT renamed in this pass — a separate, higher-risk decision (Play Store treats it as a
+  different app if changed post-publish) flagged for Mohammed rather than silently changed.
+
+Everything else in `NATIVE_ANDROID_SPEC.md` not listed above (the remaining owner tabs,
+Documents, Notifications, tenant Maintenance) is specification only.

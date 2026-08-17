@@ -10,6 +10,9 @@ import com.propertyvault.app.data.leases.PostgrestLeasesRepository
 import com.propertyvault.app.data.maintenance.MaintenanceRepository
 import com.propertyvault.app.data.maintenance.MockMaintenanceRepository
 import com.propertyvault.app.data.maintenance.PostgrestMaintenanceRepository
+import com.propertyvault.app.data.paymentreports.MockPaymentReportsRepository
+import com.propertyvault.app.data.paymentreports.PaymentReportsRepository
+import com.propertyvault.app.data.paymentreports.WebApiPaymentReportsRepository
 import com.propertyvault.app.data.properties.MockPropertiesRepository
 import com.propertyvault.app.data.properties.PostgrestPropertiesRepository
 import com.propertyvault.app.data.properties.PropertiesRepository
@@ -64,6 +67,13 @@ object RepositoryModule {
         real: PostgrestMaintenanceRepository,
         mock: MockMaintenanceRepository,
     ): MaintenanceRepository = if (BuildConfig.USE_MOCK_DATA) mock else real
+
+    @Provides
+    @Singleton
+    fun providePaymentReportsRepository(
+        real: WebApiPaymentReportsRepository,
+        mock: MockPaymentReportsRepository,
+    ): PaymentReportsRepository = if (BuildConfig.USE_MOCK_DATA) mock else real
 
     @Provides
     @Singleton

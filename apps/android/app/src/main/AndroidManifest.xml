@@ -21,10 +21,30 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTask"
             android:theme="@style/Theme.PropertyVault">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- Android App Links (Android V1 commercial-launch pass, WORKLOG.md this date,
+                 Phase 9). android:autoVerify="true" makes Android check
+                 https://proplyst.co.za/.well-known/assetlinks.json before treating a link as
+                 app-owned; that endpoint currently returns an empty `statements` array (no
+                 signing fingerprint configured yet, apps/admin's own honest-fallback design),
+                 so verification will not succeed and every one of these links falls through to
+                 the browser/PWA until Mohammed provides the real SHA-256 (see this pass's final
+                 report). The intent-filter itself is still correct groundwork; once the
+                 fingerprint is added server-side, verification starts succeeding with zero
+                 Android-side change. android:launchMode="singleTask" so a link tapped while the
+                 app is already running is delivered to the same MainActivity instance via
+                 onNewIntent(), not a second stacked copy. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="proplyst.co.za" />
             </intent-filter>
         </activity>
     </application>

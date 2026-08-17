@@ -30,4 +30,11 @@ object Destinations {
     const val MAINTENANCE_DETAIL = "maintenance/{ticketId}"
 
     fun maintenanceDetail(ticketId: String) = "maintenance/$ticketId"
+
+    // Tenant portal (Android V1 commercial-launch pass, WORKLOG.md this date, Phase 4) -- payment
+    // reporting only in this first slice; tenant Maintenance/Documents/Notices follow once their
+    // own modules are built (see the same pass's final report for the disclosed remaining gaps).
+    const val TENANT_ROOT = "tenant_root"
+    const val PAYMENTS_LIST = "payments"
+    const val REPORT_PAYMENT = "payments/report"
 }

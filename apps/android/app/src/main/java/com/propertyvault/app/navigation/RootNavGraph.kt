@@ -32,8 +32,8 @@ fun RootNavGraph() {
     NavHost(navController = navController, startDestination = Destinations.SPLASH) {
         composable(Destinations.SPLASH) {
             LaunchedEffect(authState) {
-                when (authState) {
-                    is AuthState.Authenticated -> navController.navigate(Destinations.OWNER_ROOT) {
+                when (val state = authState) {
+                    is AuthState.Authenticated -> navController.navigate(destinationForRole(state)) {
                         popUpTo(Destinations.SPLASH) { inclusive = true }
                     }
                     is AuthState.Unauthenticated -> navController.navigate(Destinations.SIGN_IN) {
@@ -47,7 +47,12 @@ fun RootNavGraph() {
         composable(Destinations.SIGN_IN) {
             SignInScreen(
                 onSignedIn = {
-                    navController.navigate(Destinations.OWNER_ROOT) {
+                    // Real role is only known once RootAuthViewModel's authState actually flips to
+                    // Authenticated (signIn() already fetched both memberships and tenancies) --
+                    // re-navigating through SPLASH re-runs the LaunchedEffect above with that real
+                    // state, rather than guessing OWNER_ROOT here and potentially routing a
+                    // tenant-only account to a portal with zero organizations to show.
+                    navController.navigate(Destinations.SPLASH) {
                         popUpTo(Destinations.SIGN_IN) { inclusive = true }
                     }
                 },
@@ -56,5 +61,18 @@ fun RootNavGraph() {
         composable(Destinations.OWNER_ROOT) {
             OwnerRootScreen()
         }
+        composable(Destinations.TENANT_ROOT) {
+            TenantRootScreen()
+        }
     }
+}
+
+/** Owner/staff (has an org membership) takes precedence over tenant when an account somehow holds
+ * both -- mirrors the web app's own destinationResolver.ts precedence (an org-staff caller lands
+ * on the staff dashboard first). Neither -- the genuine "signed in, no portal access" edge case --
+ * falls back to SIGN_IN rather than crashing on a portal with nothing to show. */
+private fun destinationForRole(state: AuthState.Authenticated): String = when {
+    state.organizations.isNotEmpty() -> Destinations.OWNER_ROOT
+    state.tenancies.isNotEmpty() -> Destinations.TENANT_ROOT
+    else -> Destinations.SIGN_IN
 }

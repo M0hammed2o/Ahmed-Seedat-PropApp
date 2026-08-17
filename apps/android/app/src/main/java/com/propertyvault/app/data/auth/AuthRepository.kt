@@ -4,10 +4,22 @@ import kotlinx.coroutines.flow.StateFlow
 
 data class OrgMembership(val orgId: String, val role: String, val status: String)
 
+/** A tenancy the signed-in user holds (`tenants.user_id = auth.uid()`) -- the tenant-portal
+ * equivalent of OrgMembership. Android V1 Android commercial-launch pass (WORKLOG.md this date):
+ * added so restoreSession()/signIn() can tell an owner/staff account from a tenant account and
+ * route to the correct root (OWNER_ROOT vs TENANT_ROOT), mirroring the web app's own
+ * resolvePortalSession()-vs-resolveTenantSession() split (PERMISSIONS.md "never merge role
+ * systems"). */
+data class TenancyMembership(val tenantId: String, val orgId: String, val status: String)
+
 sealed interface AuthState {
     data object Loading : AuthState
     data object Unauthenticated : AuthState
-    data class Authenticated(val userId: String, val organizations: List<OrgMembership>) : AuthState
+    data class Authenticated(
+        val userId: String,
+        val organizations: List<OrgMembership>,
+        val tenancies: List<TenancyMembership> = emptyList(),
+    ) : AuthState
 }
 
 /**

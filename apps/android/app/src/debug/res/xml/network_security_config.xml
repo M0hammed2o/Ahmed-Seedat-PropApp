@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug-build-only (app/src/debug/, never merged into a release build); Android V1 commercial-
+     launch pass, WORKLOG.md this date, Phase 10. Android blocks ALL cleartext (http://) traffic
+     by default for apps targeting API 28+ (this app's targetSdk 34), which is the correct secure
+     default and was previously undeclared here, meaning a real device/emulator obeying that
+     default could never actually complete a network call against local.properties's own documented
+     dev values (http://10.0.2.2:3000, http://10.0.2.2:54321, the Android emulator's alias for the
+     host machine). This narrowly permits cleartext ONLY to that one loopback alias, ONLY in debug
+     builds. Production endpoints (proplyst.co.za, the real Supabase project) are https and need no
+     exception; the release build ships with zero cleartext permissions, the secure default. -->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">10.0.2.2</domain>
+    </domain-config>
+</network-security-config>

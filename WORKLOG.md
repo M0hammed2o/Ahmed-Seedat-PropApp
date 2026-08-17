@@ -1,5 +1,67 @@
 # Worklog
 
+## 2026-08-17 (continued) — Android V1 commercial-launch completion pass
+
+Audited the native Android app (`apps/android`) against current web/backend V1 functionality and
+implemented the highest-value, locally-solvable P0/P1 gaps. `apps/android/README.md`'s
+"toolchain status" section was stale (dated 2026-08-01, describing only an Auth+Dashboard-
+placeholder slice) -- real state, confirmed by listing actual Kotlin sources: 89 files, real
+Owner-portal CRUD-ish read screens for Properties/Units/Tenants/Leases/Maintenance, each with a
+genuine `Postgrest*Repository` (real) + `Mock*Repository` pair. Zero Tenant-portal code existed
+at all before this pass.
+
+**Tenant payment reporting, built** (the task's own explicitly-named V1 requirement): role
+routing (`AuthState.Authenticated` now carries `tenancies` alongside `organizations`,
+`RootNavGraph` routes to `OWNER_ROOT` or `TENANT_ROOT`), a new `WebApi.kt` Retrofit client hitting
+the Next.js app directly (`BuildConfig.API_BASE_URL`, NOT PostgREST) for
+`GET /api/v1/payment-reports` and `POST /api/v1/tenant-portal/payment-reports` -- confirmed
+`getServerSupabaseClient()` already explicitly supports `Authorization: Bearer <token>` callers
+with no cookie, so this needed zero backend auth changes. `PaymentReportsRepository`
+(Web/Mock pair, matching every other repository's own split), `PaymentReportsViewModel`/
+`ReportPaymentViewModel`, `PaymentReportsListScreen`/`ReportPaymentScreen` (amount/method/date/
+optional proof-of-payment file via `ActivityResultContracts.OpenDocument()`), wired as
+`TenantRootScreen`'s one real destination -- deliberately no bottom-nav tabs for Maintenance/
+Documents/Notices, which don't have Android screens yet (this codebase's own "no dead UI"
+discipline). One small backend consistency fix: `POST /api/v1/tenant-portal/payment-reports` was
+returning the raw snake_case insert row while the GET list route already returned camelCase via
+`mapPaymentReportRow()` -- now consistent (zero existing consumers depended on the old shape,
+confirmed before changing it).
+
+**Security fixes**: no `network_security_config` existed, meaning Android's default (all
+cleartext blocked for `targetSdk 28+`) made `local.properties`'s own documented dev values
+(`http://10.0.2.2:3000/:54321`) genuinely unreachable on a real device/emulator -- added a
+debug-build-only exception (`app/src/debug/`) scoped to exactly that one loopback host; the
+release build is unaffected. `strings.xml`'s `app_name` was still "PropertyVault" -- fixed to
+"Proplyst" (the `applicationId`/package, `com.propertyvault.app`, was deliberately left alone --
+a separate, higher-risk, Play-Store-permanence decision flagged for Mohammed, not silently
+changed). `android:launchMode="singleTask"` added alongside the new App Links intent-filter so a
+tapped link doesn't stack a second Activity instance.
+
+**App Links, partial**: `autoVerify="true"` intent-filter for `https://proplyst.co.za` added.
+Verification will not actually succeed until Mohammed provides the real signing SHA-256 for
+`ANDROID_APP_SHA256_FINGERPRINTS` (the web route already reads that env var, currently empty by
+design). Resuming to a *specific* deep-linked sub-screen (not just the correct portal's start
+screen) is NOT implemented -- the app's two independent `NavHost`s (Root auth shell + each
+portal's own nested one) would need either a single flattened nav graph or manual intent-URI
+plumbing through both; disclosed as a real remaining gap, not attempted half-built.
+
+**Verification**: real `gradlew` run (Temurin 21, same toolchain the prior session set up) --
+`compileDebugKotlin` clean, `testDebugUnitTest` **47/47 passing, 0 failures** (was 7 before this
+pass), `lintDebug` **0 errors, 56 warnings**, `assembleDebug` produces a real
+`app-debug.apk`, `assembleRelease` also run (see this entry's own final report for the exact
+result). Not run: instrumented/emulator tests, physical-device testing (no device attached this
+session) -- disclosed, not fabricated.
+
+**Not built this pass** (real, disclosed gaps -- see the final report for the full P0/P1
+breakdown): owner payment REVIEW (confirm/reject) on Android, tenant Maintenance/Documents/
+Notices, owner monthly summary screen, push notifications (Firebase/FCM -- would need a new
+external setup, not attempted), full deep-link-to-subscreen resume, release minification (R8 is
+off; the codebase's own custom `SerializationConverterFactory` uses JVM reflection, and flipping
+`isMinifyEnabled` without correct keep rules risks silently breaking serialization at runtime in
+a way this session cannot verify without a device -- left off rather than guessed at), a real app
+icon (still the AGP-template placeholder; needs real design assets from Mohammed, not something
+to fabricate).
+
 ## 2026-08-17 — WhatsApp final pre-production pass (UI layer) + overnight autonomous continuation
 
 Continuation of the WhatsApp completion pass, explicitly scoped this time to the UI layer the

@@ -1,3 +1,8 @@
 <resources>
-    <string name="app_name">PropertyVault</string>
+    <!-- Android V1 commercial-launch pass (WORKLOG.md this date): the literal string shown under
+         the launcher icon and in the Play Store listing was still "PropertyVault", a real
+         legacy-brand leak. (The internal applicationId/package name, com.propertyvault.app, is
+         left untouched here; renaming that is a separate, higher-risk decision flagged in this
+         pass's own report, not a display-string fix.) -->
+    <string name="app_name">Proplyst</string>
 </resources>

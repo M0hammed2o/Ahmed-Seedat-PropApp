@@ -3,6 +3,7 @@ package com.propertyvault.app.data.network
 import com.propertyvault.app.data.network.dto.LeaseDto
 import com.propertyvault.app.data.network.dto.MaintenanceTicketDto
 import com.propertyvault.app.data.network.dto.OrganizationMemberDto
+import com.propertyvault.app.data.network.dto.TenancyMembershipDto
 import com.propertyvault.app.data.network.dto.PropertyDto
 import com.propertyvault.app.data.network.dto.TenantDto
 import com.propertyvault.app.data.network.dto.UnitDto
@@ -25,6 +26,16 @@ interface PostgrestApi {
         @Query("select") select: String = "org_id,role,status",
         @Query("user_id") userIdFilter: String,
     ): Response<List<OrganizationMemberDto>>
+
+    /** Android V1 commercial-launch pass: role-routing at sign-in/session-restore (owner/staff vs
+     * tenant). `tenants_select_org_or_self` RLS (migration 20260101000028 -- the same policy
+     * resolveTenantSession() on the web relies on) scopes this to the caller's own tenancy rows
+     * (`user_id = auth.uid()`) -- never another tenant's. */
+    @GET("rest/v1/tenants")
+    suspend fun getMyTenancies(
+        @Query("select") select: String = "id,org_id,status",
+        @Query("user_id") userIdFilter: String,
+    ): Response<List<TenancyMembershipDto>>
 
     @GET("rest/v1/properties")
     suspend fun getProperties(
