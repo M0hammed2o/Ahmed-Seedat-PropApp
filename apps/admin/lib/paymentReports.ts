@@ -2,6 +2,7 @@ import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { PaymentReport } from '@propvault/types';
 import { dispatchWhatsApp, resolvePropertyLabel, formatPaymentPeriod } from './whatsappDispatch';
+import { buildPaymentConfirmationRequiredVariables } from './whatsappTemplateVariables';
 import { getAppUrl } from './appUrl';
 
 interface PaymentReportRow {
@@ -122,14 +123,14 @@ export async function notifyOwnersOfPaymentReport(
         toPhone: recipient.phone,
         toUserId: recipient.userId,
         templateName: 'payment_confirmation_required',
-        variables: {
+        variables: buildPaymentConfirmationRequiredVariables({
           amount: String(input.amount),
           propertyLabel,
           tenantName,
           paymentMethod: input.paymentMethod,
           paymentPeriod: formatPaymentPeriod(input.paymentDate),
           reviewLink,
-        },
+        }),
         // Per-recipient idempotency key -- a property with 2 owners must notify BOTH, never let
         // the second owner's dispatch be silently swallowed by dispatchWhatsApp's own
         // (relatedEntityType, relatedEntityId, templateName) idempotency guard matching the first.

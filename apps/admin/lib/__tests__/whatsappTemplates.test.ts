@@ -20,16 +20,12 @@ describe('WHATSAPP_TEMPLATE_REGISTRY', () => {
     }
   });
 
-  it('every template has a positive expectedVariableCount, and only the one template without a confirmed real structure (rent_payment_reminder) is variableCountVerified: false', () => {
+  it('every one of the 8 templates has a positive expectedVariableCount and is variableCountVerified, per the real Meta export Mohammed reviewed 2026-08-17', () => {
     for (const [name, def] of Object.entries(WHATSAPP_TEMPLATE_REGISTRY)) {
       expect(
         def.expectedVariableCount,
         `${name} should have a positive variable count`,
       ).toBeGreaterThan(0);
-    }
-    expect(WHATSAPP_TEMPLATE_REGISTRY.rent_payment_reminder.variableCountVerified).toBe(false);
-    for (const [name, def] of Object.entries(WHATSAPP_TEMPLATE_REGISTRY)) {
-      if (name === 'rent_payment_reminder') continue;
       expect(def.variableCountVerified, `${name} should be variableCountVerified`).toBe(true);
     }
   });

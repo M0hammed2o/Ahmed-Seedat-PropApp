@@ -5,6 +5,7 @@ import { requireOrgRole } from '@/lib/portfolio';
 import { mapMaintenanceTicketRow, isValidMaintenanceTransition } from '@/lib/operations';
 import { dispatchEmail } from '@/lib/emailDispatch';
 import { dispatchWhatsApp, resolvePropertyLabel } from '@/lib/whatsappDispatch';
+import { buildMaintenanceRequestUpdateVariables } from '@/lib/whatsappTemplateVariables';
 import { getAppUrl } from '@/lib/appUrl';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -208,13 +209,13 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
           orgId: data.org_id,
           toPhone: tenant?.phone ?? null,
           templateName: 'maintenance_request_update',
-          variables: {
+          variables: buildMaintenanceRequestUpdateVariables({
             propertyLabel,
             summary: data.summary,
             status: data.status,
             updateMessage: data.description ?? 'Your maintenance request status has been updated.',
             ticketLink: `${getAppUrl()}/my-maintenance`,
-          },
+          }),
           relatedEntityType: `maintenance_ticket:${data.status}`,
           relatedEntityId: data.id,
           actorUserId: user.id,

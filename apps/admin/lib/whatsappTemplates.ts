@@ -23,16 +23,19 @@ import type { WhatsAppNotificationType } from '@propvault/types';
  * **2026-08-17 update (final pre-production pass)**: Mohammed directly confirmed, in conversation,
  * that all 8 templates now show Active/Approved in Meta Business Manager, and provided the real
  * approved parameter structure (count + semantic order) for 7 of the 8 -- every `approved` flag
- * below is now `true`. For those 7, every call site (`lib/paymentReports.ts`,
- * `lib/systemJobs.ts`, `app/api/v1/tenants/[id]/invitations`, `app/api/v1/payment-reports/[id]/
- * confirm`, `app/api/v1/cash-receipts/[id]/confirm-deposit`, `app/api/v1/bank-transactions/[id]/
- * confirm-match`, `app/api/v1/maintenance-tickets/[id]`) was rewritten to send exactly that
- * structure, in that order, and `variableCountVerified` is `true`. The 8th, `rent_payment_
- * reminder`, was explicitly excluded from that structure hand-off ("verify against current
- * implementation... do not guess if not already documented") -- its call site is UNCHANGED and
- * `variableCountVerified` stays `false`: `approved` and `variableCountVerified` are independent
- * facts, and Meta accepting the template doesn't mean this codebase's guess at its parameter order
- * has been confirmed correct.
+ * below is now `true`.
+ *
+ * **Same-day follow-up**: Mohammed then exported and reviewed the actual approved body text for
+ * ALL 8 templates directly from Meta WhatsApp Manager (the authoritative source, superseding the
+ * earlier partial hand-off) -- including `rent_payment_reminder`, previously excluded and
+ * unverified. Its real structure (amount, paymentPeriod, dueDate, propertyLabel, accountLink -- 5
+ * vars, not the earlier 3-var organizationName/amount/dueDate guess) is now confirmed and its
+ * call site corrected. **All 8 templates are now `variableCountVerified: true`.** Every call site
+ * builds its `variables` object through a matching function in `lib/whatsappTemplateVariables.ts`
+ * (never an inline object literal) specifically so the exact key order Meta requires
+ * (`MetaWhatsAppProvider` sends `Object.values(input.variables)` positionally) is a single,
+ * directly unit-tested source of truth per template, not a fact that could silently drift at one
+ * call site while a test only checks another.
  */
 export interface WhatsAppTemplateDefinition {
   /** Must match the exact template name in Meta Business Manager -- `sendTemplateMessage()` sends
@@ -73,7 +76,12 @@ export const WHATSAPP_TEMPLATE_REGISTRY: Record<
   payment_received_confirmation: {
     metaTemplateName: 'payment_received_confirmation',
     approved: true,
-    expectedVariableCount: 5, // amount, propertyLabel, paymentPeriod, dateConfirmed, accountLink -- confirmed by Mohammed 2026-08-17
+    // amount, propertyLabel, paymentPeriod, dateConfirmed, accountLink -- confirmed by Mohammed
+    // 2026-08-17, RE-confirmed the same day against the real Meta rendered-preview positional
+    // mapping ({{1}}..{{5}}) after the Word/text export's own "Variable samples" section turned
+    // out malformed/incomplete (4 rows shown for a 5-variable body) -- the export artifact was
+    // wrong, not this structure.
+    expectedVariableCount: 5,
     variableCountVerified: true,
   },
   maintenance_request_update: {
@@ -88,14 +96,14 @@ export const WHATSAPP_TEMPLATE_REGISTRY: Record<
     expectedVariableCount: 6, // amount, propertyLabel, tenantName, paymentMethod, paymentPeriod, reviewLink -- confirmed by Mohammed 2026-08-17
     variableCountVerified: true,
   },
-  // Explicitly excluded from Mohammed's 2026-08-17 structure hand-off ("verify against current
-  // implementation... do not guess if not already documented") -- approved (Meta status confirmed
-  // directly), but its variable structure is still this codebase's own unverified guess.
   rent_payment_reminder: {
     metaTemplateName: 'rent_payment_reminder',
     approved: true,
-    expectedVariableCount: 3, // organizationName, amount, dueDate -- UNVERIFIED, structure not provided
-    variableCountVerified: false,
+    // amount, paymentPeriod, dueDate, propertyLabel, accountLink -- confirmed by Mohammed's real
+    // Meta export, 2026-08-17. Corrects the earlier unverified 3-var guess (organizationName,
+    // amount, dueDate), which was wrong.
+    expectedVariableCount: 5,
+    variableCountVerified: true,
   },
   rent_overdue_notice: {
     metaTemplateName: 'rent_overdue_notice',

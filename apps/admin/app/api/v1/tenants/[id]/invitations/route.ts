@@ -5,6 +5,7 @@ import { requireOrgRole } from '@/lib/portfolio';
 import { mapTenantInvitationRow, maskDestination } from '@/lib/tenantInvitations';
 import { dispatchEmail } from '@/lib/emailDispatch';
 import { dispatchWhatsApp, resolveOrgWhatsAppBranding } from '@/lib/whatsappDispatch';
+import { buildTenantAccountInvitationVariables } from '@/lib/whatsappTemplateVariables';
 import { rateLimitOrRespond } from '@/lib/rateLimit';
 import { writeAuditEvent } from '@/lib/audit';
 
@@ -204,11 +205,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       // separate template variable -- it's already embedded in acceptUrl's `?token=` query param,
       // so a redundant 4th `code` variable (this call site's own pre-approval guess) is dropped.
       templateName: 'tenant_account_invitation',
-      variables: {
+      variables: buildTenantAccountInvitationVariables({
         organizationName: branding.organizationName,
         acceptUrl,
         supportName: branding.supportName,
-      },
+      }),
       relatedEntityType: 'tenant_invitations',
       relatedEntityId: created.invitation_id,
       actorUserId: user.id,

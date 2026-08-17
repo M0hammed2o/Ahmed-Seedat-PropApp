@@ -5,6 +5,7 @@ import {
   resolvePropertyLabel,
   formatPaymentPeriod,
 } from '@/lib/whatsappDispatch';
+import { buildPaymentReceivedConfirmationVariables } from '@/lib/whatsappTemplateVariables';
 import { getAppUrl } from '@/lib/appUrl';
 import { writeAuditEvent } from '@/lib/audit';
 
@@ -102,13 +103,13 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
         toPhone: tenant?.phone ?? null,
         toUserId: tenant?.user_id ?? null,
         templateName: 'payment_received_confirmation',
-        variables: {
+        variables: buildPaymentReceivedConfirmationVariables({
           amount: String(result.amount ?? ''),
           propertyLabel,
           paymentPeriod: formatPaymentPeriod(report?.payment_date ?? new Date().toISOString()),
           dateConfirmed: new Date().toLocaleDateString('en-ZA'),
           accountLink: `${getAppUrl()}/my-payments`,
-        },
+        }),
         relatedEntityType: 'payment_report',
         relatedEntityId: id,
         actorUserId: user.id,

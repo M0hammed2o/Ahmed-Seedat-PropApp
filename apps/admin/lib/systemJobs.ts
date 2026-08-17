@@ -4,11 +4,16 @@ import { writeAuditEvent } from './audit';
 import { dispatchEmail } from './emailDispatch';
 import {
   dispatchWhatsApp,
-  resolveOrgWhatsAppBranding,
   resolvePropertyLabelForLease,
   resolvePropertyLabelForUnit,
   formatPaymentPeriod,
 } from './whatsappDispatch';
+import {
+  buildRentPaymentReminderVariables,
+  buildRentOverdueNoticeVariables,
+  buildLeaseExpiryReminderVariables,
+  buildOwnerMonthlyPropertySummaryVariables,
+} from './whatsappTemplateVariables';
 import { getAppUrl } from './appUrl';
 import {
   resolveEligibleSummaryOwners,
@@ -420,17 +425,23 @@ export async function runPaymentAndLeaseReminderJob(
   for (const row of (dueSoonResult.data ?? []) as RentScheduleRow[]) {
     try {
       const tenant = await resolvePrimaryTenantContact(serviceClient, row.lease_id);
-      const branding = await resolveOrgWhatsAppBranding(serviceClient, row.org_id);
+      const propertyLabel = await resolvePropertyLabelForLease(serviceClient, row.lease_id);
+      // Final Meta template reconciliation (WORKLOG.md 2026-08-17): the real approved body is
+      // "{{1}} is due for {{2}} on {{3}}" -- amount, THEN payment period (month), THEN the exact
+      // due date -- followed by property and a link. Corrects the earlier unverified 3-var guess
+      // (organizationName, amount, dueDate), which Mohammed confirmed was wrong.
       await dispatchWhatsApp(serviceClient, {
         orgId: row.org_id,
         toPhone: tenant?.phone ?? null,
         toUserId: tenant?.userId ?? null,
         templateName: 'rent_payment_reminder',
-        variables: {
-          organizationName: branding.organizationName,
+        variables: buildRentPaymentReminderVariables({
           amount: String(row.amount),
-          dueDate: row.due_date,
-        },
+          paymentPeriod: formatPaymentPeriod(row.due_date),
+          dueDate: new Date(row.due_date).toLocaleDateString('en-ZA'),
+          propertyLabel,
+          accountLink: `${getAppUrl()}/my-payments`,
+        }),
         relatedEntityType: 'rent_schedule:reminder',
         relatedEntityId: row.id,
         actorUserId: null,
@@ -457,13 +468,13 @@ export async function runPaymentAndLeaseReminderJob(
         toPhone: tenant?.phone ?? null,
         toUserId: tenant?.userId ?? null,
         templateName: 'rent_overdue_notice',
-        variables: {
+        variables: buildRentOverdueNoticeVariables({
           outstandingAmount: String(row.amount),
           tenantName: tenant?.fullName ?? 'Tenant',
           propertyLabel,
           paymentPeriod: formatPaymentPeriod(row.due_date),
           accountLink: `${getAppUrl()}/my-payments`,
-        },
+        }),
         relatedEntityType: 'rent_schedule:overdue',
         relatedEntityId: row.id,
         actorUserId: null,
@@ -490,12 +501,12 @@ export async function runPaymentAndLeaseReminderJob(
         toPhone: tenant?.phone ?? null,
         toUserId: tenant?.userId ?? null,
         templateName: 'lease_expiry_reminder',
-        variables: {
+        variables: buildLeaseExpiryReminderVariables({
           tenantName: tenant?.fullName ?? 'Tenant',
           propertyLabel,
           expiryDate: row.end_date,
           leaseLink: `${getAppUrl()}/my-lease`,
-        },
+        }),
         relatedEntityType: 'lease:expiry_reminder',
         relatedEntityId: row.id,
         actorUserId: null,
@@ -586,7 +597,7 @@ export async function runOwnerMonthlySummaryJob(
         toPhone: owner.phone,
         toUserId: owner.ownerUserId,
         templateName: 'owner_monthly_property_summary',
-        variables: {
+        variables: buildOwnerMonthlyPropertySummaryVariables({
           month: formatSummaryMonthLabel(periodStart),
           propertyCount: String(summary.propertyCount),
           expectedRent: summary.expectedRent.toFixed(2),
@@ -596,7 +607,7 @@ export async function runOwnerMonthlySummaryJob(
           openMaintenance: String(summary.openMaintenanceCount),
           upcomingLeaseExpiries: String(summary.upcomingLeaseExpiryCount),
           reportUrl,
-        },
+        }),
         relatedEntityType: 'owner_property_summary',
         relatedEntityId: summary.id,
         actorUserId: null,

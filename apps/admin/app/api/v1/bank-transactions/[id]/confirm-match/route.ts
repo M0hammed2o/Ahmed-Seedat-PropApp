@@ -8,6 +8,7 @@ import {
   resolvePropertyLabelForLease,
   formatPaymentPeriod,
 } from '@/lib/whatsappDispatch';
+import { buildPaymentReceivedConfirmationVariables } from '@/lib/whatsappTemplateVariables';
 import { getAppUrl } from '@/lib/appUrl';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -117,13 +118,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         // Final pre-production pass (WORKLOG.md 2026-08-17): real approved structure confirmed by
         // Mohammed -- amount, propertyLabel, paymentPeriod, dateConfirmed, accountLink (5 vars).
         templateName: 'payment_received_confirmation',
-        variables: {
+        variables: buildPaymentReceivedConfirmationVariables({
           amount: String(Math.abs(data.amount)),
           propertyLabel,
           paymentPeriod: formatPaymentPeriod(schedule.due_date),
           dateConfirmed: new Date().toLocaleDateString('en-ZA'),
           accountLink: `${getAppUrl()}/my-payments`,
-        },
+        }),
         relatedEntityType: 'bank_transaction',
         relatedEntityId: data.id,
         actorUserId: user.id,
