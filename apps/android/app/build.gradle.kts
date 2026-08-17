@@ -36,11 +36,17 @@ val apiBaseUrl: String = localProperties.getProperty("API_BASE_URL", "http://10.
 val useMockData: Boolean = localProperties.getProperty("USE_MOCK_DATA", "false").toBoolean()
 
 android {
-    namespace = "com.propertyvault.app"
+    // Android V1 final gap-closure pass (WORKLOG.md this date), Phase 1: renamed from
+    // com.propertyvault.app -- the product is Proplyst, and this had never been published to
+    // Google Play (versionCode 1, no real installs), so there is no post-publish
+    // applicationId-permanence constraint blocking the change. za.co.proplyst.app follows the
+    // reverse-domain convention for a South African product (za.co.<company>.<app>), matching
+    // proplyst.co.za's own real domain.
+    namespace = "za.co.proplyst.app"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.propertyvault.app"
+        applicationId = "za.co.proplyst.app"
         minSdk = 26
         targetSdk = 34
         versionCode = 1

@@ -25,7 +25,7 @@ describe('GET /.well-known/assetlinks.json', () => {
     const response = await GET();
     const body = await response.json();
     expect(body).toHaveLength(1);
-    expect(body[0].target.package_name).toBe('com.proplyst.app');
+    expect(body[0].target.package_name).toBe('za.co.proplyst.app');
     expect(body[0].target.sha256_cert_fingerprints).toEqual(['AA:BB:CC', 'DD:EE:FF']);
     expect(body[0].relation).toEqual(['delegate_permission/common.handle_all_urls']);
   });

@@ -4,5 +4,5 @@
          (ui/theme/Theme.kt), not XML, per DESIGN_SYSTEM.md/NATIVE_ANDROID_SPEC.md section 5's
          "static ColorScheme generated from packages/ui tokens, dynamic colour explicitly
          disabled" rule. -->
-    <style name="Theme.PropertyVault" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.Proplyst" parent="android:Theme.Material.Light.NoActionBar" />
 </resources>

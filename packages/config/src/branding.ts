@@ -13,8 +13,14 @@
 export const branding = {
   productName: 'Proplyst',
   tagline: 'Property Intelligence. Simplified.',
-  iosBundleIdentifier: 'com.proplyst.app', // TO_BE_CONFIRMED before store submission
-  androidPackageName: 'com.proplyst.app', // TO_BE_CONFIRMED before store submission
+  iosBundleIdentifier: 'com.proplyst.app', // TO_BE_CONFIRMED before store submission -- iOS not started (Android V1 final gap-closure pass, WORKLOG.md this date)
+  // CONFIRMED (Android V1 final gap-closure pass, WORKLOG.md this date, Phase 1): the real
+  // apps/android applicationId, changed from the never-published com.propertyvault.app.
+  // za.co.<company>.<app> matches proplyst.co.za's own real domain. Consumed by
+  // apps/admin/app/.well-known/assetlinks.json/route.ts for Android App Links verification --
+  // apps/mobile/app.config.ts does NOT read this constant (it has its own separate, unrelated,
+  // pre-existing local branding object; apps/mobile is a distinct, out-of-scope Expo app).
+  androidPackageName: 'za.co.proplyst.app',
   // V1 communications productionisation (WORKLOG.md this date): supportEmail is still a
   // TO_BE_CONFIRMED placeholder -- no real support mailbox exists anywhere in this codebase
   // (confirmed by grep before this pass), so it is deliberately never rendered in a customer-
