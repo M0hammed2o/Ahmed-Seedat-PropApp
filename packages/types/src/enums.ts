@@ -200,6 +200,14 @@ export const RENT_SCHEDULE_STATUSES = [
 ] as const;
 export type RentScheduleStatus = (typeof RENT_SCHEDULE_STATUSES)[number];
 
+// WhatsApp V1 final pre-production pass (WORKLOG.md this date) -- payment_reports (migration
+// 20260101000106), a claim layer above rent_schedules/cash_receipts, never a replacement for them.
+export const PAYMENT_REPORT_STATUSES = ['reported', 'confirmed', 'rejected'] as const;
+export type PaymentReportStatus = (typeof PAYMENT_REPORT_STATUSES)[number];
+
+export const PAYMENT_REPORT_METHODS = ['eft', 'cash', 'other'] as const;
+export type PaymentReportMethod = (typeof PAYMENT_REPORT_METHODS)[number];
+
 export const MAINTENANCE_PRIORITIES = ['low', 'medium', 'high', 'urgent'] as const;
 export type MaintenancePriority = (typeof MAINTENANCE_PRIORITIES)[number];
 

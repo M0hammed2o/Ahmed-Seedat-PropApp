@@ -139,6 +139,11 @@ export default async function AccountingOverviewPage() {
                 <Download className="mr-1.5 h-4 w-4" aria-hidden="true" /> Owner statements
               </Button>
             </Link>
+            <Link href="/accounting/payment-reports">
+              <Button variant="secondary" size="sm">
+                <ReceiptIcon className="mr-1.5 h-4 w-4" aria-hidden="true" /> Payment reports
+              </Button>
+            </Link>
             {/* Lovable's "New invoice" opens an ad hoc creation form; PropertyVault has no such
                 flow -- an invoice is only ever created by issuing a pending rent schedule
                 (invoice_rent_schedule() RPC, wired into Rent Due and the Lease detail page). This

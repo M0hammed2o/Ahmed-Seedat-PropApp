@@ -1,6 +1,14 @@
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
-import { LayoutDashboard, Building2, Banknote, FileText, Wrench, History } from 'lucide-react';
+import {
+  LayoutDashboard,
+  Building2,
+  Banknote,
+  CreditCard,
+  FileText,
+  Wrench,
+  History,
+} from 'lucide-react';
 import { branding } from '@propvault/config';
 import { resolveOwnerSession, type OwnerSession } from '@/lib/ownerSession';
 import { requireCustomerMfaIfEnrolled } from '@/lib/mfaGate';
@@ -27,6 +35,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { href: '/owner-portal', label: 'Home', icon: navIcon(LayoutDashboard) },
       { href: '/owner-portal/properties', label: 'My Properties', icon: navIcon(Building2) },
+      { href: '/owner-portal/payments', label: 'Payments', icon: navIcon(CreditCard) },
       { href: '/owner-portal/distributions', label: 'Distributions', icon: navIcon(Banknote) },
       { href: '/owner-portal/documents', label: 'Documents', icon: navIcon(FileText) },
       { href: '/owner-portal/maintenance', label: 'Maintenance', icon: navIcon(Wrench) },

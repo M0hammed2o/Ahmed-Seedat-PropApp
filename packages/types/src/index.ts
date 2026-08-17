@@ -17,3 +17,4 @@ export * from './superAdmin';
 export * from './billing';
 export * from './malwareScan';
 export * from './compliance';
+export * from './paymentReports';

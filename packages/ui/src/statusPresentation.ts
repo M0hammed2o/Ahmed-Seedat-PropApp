@@ -14,6 +14,7 @@ import type {
   MaintenanceStatus,
   OrganizationStatus,
   OwnerStatementStatus,
+  PaymentReportStatus,
   PropertyStatus,
   PropertyType,
   RentScheduleStatus,
@@ -225,6 +226,14 @@ export const RENT_SCHEDULE_STATUS_PRESENTATION: Record<RentScheduleStatus, Statu
   paid: { label: 'Paid', icon: 'check', colorToken: 'statusPaid' },
   overdue: { label: 'Overdue', icon: 'alert-triangle', colorToken: 'statusOverdue' },
   partial: { label: 'Partial', icon: 'dot', colorToken: 'statusNeedsReview' },
+};
+
+// Final pre-production pass (WORKLOG.md this date) -- payment_reports (migration 20260101000106),
+// a tenant-reported-payment claim layer, never the ledger itself.
+export const PAYMENT_REPORT_STATUS_PRESENTATION: Record<PaymentReportStatus, StatusPresentation> = {
+  reported: { label: 'Awaiting confirmation', icon: 'eye', colorToken: 'statusNeedsReview' },
+  confirmed: { label: 'Confirmed', icon: 'check', colorToken: 'statusPaid' },
+  rejected: { label: 'Rejected', icon: 'alert-triangle', colorToken: 'statusOverdue' },
 };
 
 export const EXPENSE_STATUS_PRESENTATION: Record<ExpenseStatus, StatusPresentation> = {

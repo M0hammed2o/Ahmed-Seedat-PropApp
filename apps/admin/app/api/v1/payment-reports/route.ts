@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { mapPaymentReportRow } from '@/lib/paymentReports';
 
 /**
  * GET /api/v1/payment-reports -- WhatsApp V1 completion pass, Phase B (WORKLOG.md this date). The
@@ -29,7 +30,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from('payment_reports')
-    .select('*')
+    .select('*, tenants(full_name), properties(nickname)')
     .order('created_at', { ascending: false })
     .limit(50);
 
@@ -44,5 +45,15 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  return NextResponse.json({ paymentReports: data ?? [] });
+  // Row mapper output plus two display-only joined fields (never persisted, never round-tripped
+  // back into a write) -- the review UI needs a tenant name/property label, not just ids.
+  const paymentReports = (data ?? []).map((row) => ({
+    ...mapPaymentReportRow(row),
+    tenantName:
+      (row as unknown as { tenants: { full_name: string } | null }).tenants?.full_name ?? null,
+    propertyName:
+      (row as unknown as { properties: { nickname: string } | null }).properties?.nickname ?? null,
+  }));
+
+  return NextResponse.json({ paymentReports });
 }

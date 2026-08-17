@@ -24,6 +24,7 @@ const CATEGORY_LABELS: Record<NotificationCategory, string> = {
   announcements: 'Announcements',
   security: 'Security alerts',
   promotional: 'Promotional',
+  owner_summary: 'Monthly property summary',
 };
 
 interface CategorySetting {

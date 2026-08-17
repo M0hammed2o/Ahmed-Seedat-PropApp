@@ -1,6 +1,52 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { PaymentReport } from '@propvault/types';
 import { dispatchWhatsApp, resolveOrgWhatsAppBranding } from './whatsappDispatch';
+
+interface PaymentReportRow {
+  id: string;
+  org_id: string;
+  property_id: string;
+  lease_id: string;
+  rent_schedule_id: string | null;
+  tenant_id: string;
+  reported_by_tenant: boolean;
+  reported_by_user_id: string;
+  amount: number | string;
+  payment_method: string;
+  payment_date: string;
+  document_id: string | null;
+  status: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  rejection_reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Final pre-production pass, Phase 1/2: the one row mapper every payment-report UI/route uses. */
+export function mapPaymentReportRow(row: PaymentReportRow): PaymentReport {
+  return {
+    id: row.id,
+    orgId: row.org_id,
+    propertyId: row.property_id,
+    leaseId: row.lease_id,
+    rentScheduleId: row.rent_schedule_id,
+    tenantId: row.tenant_id,
+    reportedByTenant: row.reported_by_tenant,
+    reportedByUserId: row.reported_by_user_id,
+    amount: Number(row.amount),
+    paymentMethod: row.payment_method as PaymentReport['paymentMethod'],
+    paymentDate: row.payment_date,
+    documentId: row.document_id,
+    status: row.status as PaymentReport['status'],
+    reviewedBy: row.reviewed_by,
+    reviewedAt: row.reviewed_at,
+    rejectionReason: row.rejection_reason,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
 
 /**
  * WhatsApp V1 completion pass, Phase B (WORKLOG.md this date). Resolves who should be notified to
