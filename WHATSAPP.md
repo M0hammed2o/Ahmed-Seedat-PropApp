@@ -162,6 +162,45 @@ _Authentication_-category template (distinct from the 8 Utility templates §2 co
 exist and wasn't invented here. `organization_members` gained a `phone` column (it had none before
 this pass) so staff verification has something to verify in the first place.
 
+## 12. Owner monthly property summary + full template structure reference (final pre-production pass, WORKLOG.md 2026-08-17)
+
+`owner_monthly_property_summary` is the 8th and last of the 8 real Meta templates, and the one
+scheduled (not event-triggered) type in this system. `lib/ownerSummary.ts` aggregates it from
+authoritative data only — `rent_schedules.status = 'paid'` is confirmed, a `payment_reports`
+`'reported'` row is `awaitingConfirmation` and is NEVER folded into `confirmedPaid` or subtracted
+from `outstanding` (the two numbers can be read side by side without double-counting a single
+real-world payment). Scope is strictly the owner's own `property_owners` rows — never another
+owner's property even in the same org. A snapshot (`owner_property_summaries`, migration
+`20260101000107`) is computed once per `(owner_user_id, period_start)` and never recomputed —
+`runOwnerMonthlySummaryJob()` (`lib/systemJobs.ts`, wired into `POST /api/v1/system/daily-jobs`)
+creates it on the owner's own `notification_preferences.preferred_summary_day` (default: the 1st),
+then retries delivery on every subsequent run until sent, without ever changing the numbers
+generation-day computed. Its own dedicated `notification_preferences` category (`owner_summary`,
+independent of `rent`) lets an owner opt out of the digest without muting real-time rent alerts.
+The secure link Meta sends is a real, authenticated page: `/owner-portal/summary/:id`, gated by
+`owner_property_summaries_select_owner_self` RLS.
+
+**Full template structure reference** — every dispatchable template's name, recipient, real
+trigger, and this codebase's own best-effort variable order (`lib/whatsappTemplates.ts`'s
+`expectedVariableCount`). Every count/order below is marked UNVERIFIED in the registry itself and
+stays that way until Mohammed confirms the real approved template text in Meta Business Manager —
+this table documents what the CODE currently sends, not a claim about what Meta approved:
+
+| Template | Recipient | Real trigger | Variables (code's current order) | Category |
+|---|---|---|---|---|
+| `tenant_account_invitation` | Tenant | Staff clicks "Send invitation" | organizationName, acceptUrl, code, supportName | (none — transactional) |
+| `payment_received_confirmation` | Tenant | Staff/RPC confirms a payment report, or a cash receipt is confirmed | amount | `rent` |
+| `payment_confirmation_required` | Every linked, contactable owner (independently) | A tenant or staff member reports a new payment | organizationName, amount | `rent` |
+| `rent_payment_reminder` | Tenant | `rent_schedules_due_soon()` sweep, daily-jobs | organizationName, amount, dueDate | `rent` |
+| `rent_overdue_notice` | Tenant | `rent_schedules_overdue_unreminded()` sweep, daily-jobs | organizationName, amount, dueDate | `rent` |
+| `maintenance_request_update` | Tenant | A maintenance ticket's status changes | organizationName, summary, status, supportName | `maintenance` |
+| `lease_expiry_reminder` | Tenant | `leases_expiring_unreminded()` sweep, daily-jobs | organizationName, endDate | `lease` |
+| `owner_monthly_property_summary` | Every linked, contactable owner (independently) | `runOwnerMonthlySummaryJob()`, on the owner's preferred day, retried until sent | organizationName, month, propertyCount, expectedRent, confirmedPaid, outstanding, awaitingConfirmation, openMaintenance, upcomingLeaseExpiries, reportUrl | `owner_summary` |
+
+`owner_statement_available` is a 9th `WhatsAppNotificationType` value with a real call site but is
+NOT one of Mohammed's 8 named Meta templates — it predates this naming pass and has no known real
+Meta template behind it; do not assume it is dispatchable in production until that's resolved.
+
 ## 3. Personalization — templates, not generic text
 
 Because the number is shared platform-wide, every outbound message must make the sending org/property obvious in the first line — an unbranded "Your payment is overdue" from an unknown number is indistinguishable from a scam text. Every template is parameterized:
