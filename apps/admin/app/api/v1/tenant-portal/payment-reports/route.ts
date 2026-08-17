@@ -5,7 +5,7 @@ import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/se
 import { resolveTenantSession } from '@/lib/tenantSession';
 import { scanUploadOrRespond } from '@/lib/uploadScan';
 import { writeAuditEvent } from '@/lib/audit';
-import { notifyOwnersOfPaymentReport } from '@/lib/paymentReports';
+import { notifyOwnersOfPaymentReport, mapPaymentReportRow } from '@/lib/paymentReports';
 
 const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024; // matches /api/v1/documents' own limit
 
@@ -234,5 +234,9 @@ export async function POST(request: NextRequest) {
     paymentDate,
   });
 
-  return NextResponse.json({ paymentReport: report }, { status: 201 });
+  // Android V1 commercial-launch pass (WORKLOG.md this date): was the raw snake_case insert
+  // result -- the web form never read any field from it (just redirects on 2xx), but the native
+  // Android client does, and needs the same camelCase contract GET /api/v1/payment-reports
+  // already returns via mapPaymentReportRow(), not a second, inconsistent wire shape.
+  return NextResponse.json({ paymentReport: mapPaymentReportRow(report) }, { status: 201 });
 }
