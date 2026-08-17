@@ -19,6 +19,20 @@ import type { WhatsAppNotificationType } from '@propvault/types';
  * Every value below is `approved: false` until Mohammed explicitly confirms a template shows
  * Active/Approved in Meta Business Manager -- flipping one boolean is the entire "go live" action
  * for that specific event; no other code changes are required.
+ *
+ * **2026-08-17 update (final pre-production pass)**: Mohammed directly confirmed, in conversation,
+ * that all 8 templates now show Active/Approved in Meta Business Manager, and provided the real
+ * approved parameter structure (count + semantic order) for 7 of the 8 -- every `approved` flag
+ * below is now `true`. For those 7, every call site (`lib/paymentReports.ts`,
+ * `lib/systemJobs.ts`, `app/api/v1/tenants/[id]/invitations`, `app/api/v1/payment-reports/[id]/
+ * confirm`, `app/api/v1/cash-receipts/[id]/confirm-deposit`, `app/api/v1/bank-transactions/[id]/
+ * confirm-match`, `app/api/v1/maintenance-tickets/[id]`) was rewritten to send exactly that
+ * structure, in that order, and `variableCountVerified` is `true`. The 8th, `rent_payment_
+ * reminder`, was explicitly excluded from that structure hand-off ("verify against current
+ * implementation... do not guess if not already documented") -- its call site is UNCHANGED and
+ * `variableCountVerified` stays `false`: `approved` and `variableCountVerified` are independent
+ * facts, and Meta accepting the template doesn't mean this codebase's guess at its parameter order
+ * has been confirmed correct.
  */
 export interface WhatsAppTemplateDefinition {
   /** Must match the exact template name in Meta Business Manager -- `sendTemplateMessage()` sends
@@ -52,59 +66,57 @@ export const WHATSAPP_TEMPLATE_REGISTRY: Record<
 > = {
   tenant_account_invitation: {
     metaTemplateName: 'tenant_account_invitation',
-    approved: false,
-    expectedVariableCount: 4, // organizationName, acceptUrl, code, supportName -- UNVERIFIED
-    variableCountVerified: false,
+    approved: true,
+    expectedVariableCount: 3, // organizationName, acceptUrl, supportName -- confirmed by Mohammed 2026-08-17
+    variableCountVerified: true,
   },
   payment_received_confirmation: {
     metaTemplateName: 'payment_received_confirmation',
-    approved: false,
-    expectedVariableCount: 1, // amount -- UNVERIFIED
-    variableCountVerified: false,
+    approved: true,
+    expectedVariableCount: 5, // amount, propertyLabel, paymentPeriod, dateConfirmed, accountLink -- confirmed by Mohammed 2026-08-17
+    variableCountVerified: true,
   },
   maintenance_request_update: {
     metaTemplateName: 'maintenance_request_update',
-    approved: false,
-    expectedVariableCount: 4, // organizationName, summary, status, supportName -- UNVERIFIED
-    variableCountVerified: false,
+    approved: true,
+    expectedVariableCount: 5, // propertyLabel, summary, status, updateMessage, ticketLink -- confirmed by Mohammed 2026-08-17
+    variableCountVerified: true,
   },
   payment_confirmation_required: {
     metaTemplateName: 'payment_confirmation_required',
-    approved: false,
-    expectedVariableCount: 2, // organizationName, amount -- UNVERIFIED, this pass's own new call site
-    variableCountVerified: false,
+    approved: true,
+    expectedVariableCount: 6, // amount, propertyLabel, tenantName, paymentMethod, paymentPeriod, reviewLink -- confirmed by Mohammed 2026-08-17
+    variableCountVerified: true,
   },
+  // Explicitly excluded from Mohammed's 2026-08-17 structure hand-off ("verify against current
+  // implementation... do not guess if not already documented") -- approved (Meta status confirmed
+  // directly), but its variable structure is still this codebase's own unverified guess.
   rent_payment_reminder: {
     metaTemplateName: 'rent_payment_reminder',
-    approved: false,
-    expectedVariableCount: 3, // organizationName, amount, dueDate -- UNVERIFIED, this pass's own new call site
+    approved: true,
+    expectedVariableCount: 3, // organizationName, amount, dueDate -- UNVERIFIED, structure not provided
     variableCountVerified: false,
   },
   rent_overdue_notice: {
     metaTemplateName: 'rent_overdue_notice',
-    approved: false,
-    expectedVariableCount: 3, // organizationName, amount, dueDate -- UNVERIFIED, this pass's own new call site
-    variableCountVerified: false,
+    approved: true,
+    expectedVariableCount: 5, // outstandingAmount, tenantName, propertyLabel, paymentPeriod, accountLink -- confirmed by Mohammed 2026-08-17
+    variableCountVerified: true,
   },
   lease_expiry_reminder: {
     metaTemplateName: 'lease_expiry_reminder',
-    approved: false,
-    expectedVariableCount: 2, // organizationName, endDate -- UNVERIFIED, this pass's own new call site
-    variableCountVerified: false,
+    approved: true,
+    expectedVariableCount: 4, // tenantName, propertyLabel, expiryDate, leaseLink -- confirmed by Mohammed 2026-08-17
+    variableCountVerified: true,
   },
-  // Final pre-production pass, Phase 4/9: the 8th and last of Mohammed's real Meta templates,
-  // now with a real dispatch call site (runOwnerMonthlySummaryJob, lib/systemJobs.ts). Variable
-  // count/order below is this codebase's own best-effort description of the data it sends
-  // (reporting month, property count, expected rent, confirmed paid, outstanding, awaiting
-  // confirmation, open maintenance, upcoming lease expiries, secure link) -- explicitly NOT
-  // confirmed against the real approved template text in Meta Business Manager, same
-  // UNVERIFIED/provisional status as every other entry until Mohammed checks Meta directly and
-  // says so in so many words. `approved` stays false regardless of anything claimed elsewhere.
   owner_monthly_property_summary: {
     metaTemplateName: 'owner_monthly_property_summary',
-    approved: false,
-    expectedVariableCount: 9, // month, propertyCount, expectedRent, confirmedPaid, outstanding, awaitingConfirmation, openMaintenance, upcomingLeaseExpiries, reportUrl -- UNVERIFIED
-    variableCountVerified: false,
+    approved: true,
+    // month, propertyCount, expectedRent, confirmedPaid, outstanding, awaitingConfirmation,
+    // openMaintenance, upcomingLeaseExpiries, reportUrl -- confirmed by Mohammed 2026-08-17.
+    // NOTE: no organizationName variable -- the earlier draft prepended one that doesn't belong.
+    expectedVariableCount: 9,
+    variableCountVerified: true,
   },
 };
 

@@ -1,6 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
-import { dispatchWhatsApp, resolveOrgWhatsAppBranding } from '@/lib/whatsappDispatch';
+import {
+  dispatchWhatsApp,
+  resolvePropertyLabel,
+  formatPaymentPeriod,
+} from '@/lib/whatsappDispatch';
+import { getAppUrl } from '@/lib/appUrl';
 import { writeAuditEvent } from '@/lib/audit';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -74,21 +79,35 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
 
   if (result.org_id && result.tenant_id) {
     try {
-      const { data: tenant } = await serviceClient
-        .from('tenants')
-        .select('phone, user_id')
-        .eq('id', result.tenant_id)
-        .maybeSingle();
-      const branding = await resolveOrgWhatsAppBranding(serviceClient, result.org_id);
+      const [{ data: tenant }, { data: report }] = await Promise.all([
+        serviceClient
+          .from('tenants')
+          .select('phone, user_id')
+          .eq('id', result.tenant_id)
+          .maybeSingle(),
+        serviceClient
+          .from('payment_reports')
+          .select('property_id, payment_date')
+          .eq('id', id)
+          .maybeSingle(),
+      ]);
+      const propertyLabel = report?.property_id
+        ? await resolvePropertyLabel(serviceClient, report.property_id)
+        : 'your property';
 
+      // Final pre-production pass (WORKLOG.md 2026-08-17): real approved structure confirmed by
+      // Mohammed -- amount, propertyLabel, paymentPeriod, dateConfirmed, accountLink (5 vars).
       await dispatchWhatsApp(serviceClient, {
         orgId: result.org_id,
         toPhone: tenant?.phone ?? null,
         toUserId: tenant?.user_id ?? null,
         templateName: 'payment_received_confirmation',
         variables: {
-          organizationName: branding.organizationName,
           amount: String(result.amount ?? ''),
+          propertyLabel,
+          paymentPeriod: formatPaymentPeriod(report?.payment_date ?? new Date().toISOString()),
+          dateConfirmed: new Date().toLocaleDateString('en-ZA'),
+          accountLink: `${getAppUrl()}/my-payments`,
         },
         relatedEntityType: 'payment_report',
         relatedEntityId: id,

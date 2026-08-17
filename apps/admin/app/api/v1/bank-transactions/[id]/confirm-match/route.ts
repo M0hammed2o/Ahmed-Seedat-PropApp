@@ -3,7 +3,12 @@ import { bankTransactionConfirmMatchSchema } from '@propvault/validation';
 import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { mapBankTransactionRow } from '@/lib/accounting';
 import { dispatchEmail } from '@/lib/emailDispatch';
-import { dispatchWhatsApp } from '@/lib/whatsappDispatch';
+import {
+  dispatchWhatsApp,
+  resolvePropertyLabelForLease,
+  formatPaymentPeriod,
+} from '@/lib/whatsappDispatch';
+import { getAppUrl } from '@/lib/appUrl';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -81,7 +86,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const serviceClient = getServiceRoleClient();
     const { data: schedule } = await serviceClient
       .from('rent_schedules')
-      .select('org_id, amount, lease_id')
+      .select('org_id, amount, lease_id, due_date')
       .eq('id', parsed.data.rentScheduleId)
       .maybeSingle();
     if (schedule) {
@@ -104,15 +109,21 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         actorUserId: user.id,
       });
 
+      const propertyLabel = await resolvePropertyLabelForLease(serviceClient, schedule.lease_id);
+
       await dispatchWhatsApp(serviceClient, {
         orgId: schedule.org_id,
         toPhone: tenant?.phone ?? null,
-        // WhatsApp production readiness pass (WORKLOG.md this date): renamed from
-        // 'payment_accepted' to match the real Meta-approved template -- variable structure
-        // (single `amount`) carried over UNVERIFIED; see this route's own dispatch below and the
-        // session's readiness report for the same caveat.
+        // Final pre-production pass (WORKLOG.md 2026-08-17): real approved structure confirmed by
+        // Mohammed -- amount, propertyLabel, paymentPeriod, dateConfirmed, accountLink (5 vars).
         templateName: 'payment_received_confirmation',
-        variables: { amount: String(Math.abs(data.amount)) },
+        variables: {
+          amount: String(Math.abs(data.amount)),
+          propertyLabel,
+          paymentPeriod: formatPaymentPeriod(schedule.due_date),
+          dateConfirmed: new Date().toLocaleDateString('en-ZA'),
+          accountLink: `${getAppUrl()}/my-payments`,
+        },
         relatedEntityType: 'bank_transaction',
         relatedEntityId: data.id,
         actorUserId: user.id,

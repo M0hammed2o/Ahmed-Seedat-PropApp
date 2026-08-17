@@ -1,7 +1,8 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { PaymentReport } from '@propvault/types';
-import { dispatchWhatsApp, resolveOrgWhatsAppBranding } from './whatsappDispatch';
+import { dispatchWhatsApp, resolvePropertyLabel, formatPaymentPeriod } from './whatsappDispatch';
+import { getAppUrl } from './appUrl';
 
 interface PaymentReportRow {
   id: string;
@@ -88,18 +89,31 @@ export async function resolveEligibleOwnerRecipients(
  * Dispatches `payment_confirmation_required` to every eligible owner independently (never "the
  * org" as a whole -- WhatsApp V1 completion Phase B's explicit "do NOT simply notify every user in
  * an organisation" instruction). Best-effort per recipient: one owner's dispatch failure (or
- * preference opt-out) never blocks another's. Returns while the template is unapproved
- * (dispatchWhatsApp's own Phase K gate) -- this call site doesn't need to know or care about
- * approval status, it just always attempts the dispatch and lets the shared gate decide.
+ * preference opt-out) never blocks another's. Real approved structure confirmed by Mohammed
+ * 2026-08-17 (final pre-production pass): amount, propertyLabel, tenantName, paymentMethod,
+ * paymentPeriod, reviewLink -- 6 vars, in that exact order.
  */
 export async function notifyOwnersOfPaymentReport(
   serviceClient: SupabaseClient,
-  input: { orgId: string; propertyId: string; paymentReportId: string; amount: number },
+  input: {
+    orgId: string;
+    propertyId: string;
+    paymentReportId: string;
+    amount: number;
+    tenantId: string;
+    paymentMethod: string;
+    paymentDate: string;
+  },
 ): Promise<void> {
   const recipients = await resolveEligibleOwnerRecipients(serviceClient, input.propertyId);
   if (recipients.length === 0) return;
 
-  const branding = await resolveOrgWhatsAppBranding(serviceClient, input.orgId);
+  const [propertyLabel, tenantRow] = await Promise.all([
+    resolvePropertyLabel(serviceClient, input.propertyId),
+    serviceClient.from('tenants').select('full_name').eq('id', input.tenantId).maybeSingle(),
+  ]);
+  const tenantName = tenantRow.data?.full_name ?? 'a tenant';
+  const reviewLink = `${getAppUrl()}/owner-portal/payments`;
 
   for (const recipient of recipients) {
     try {
@@ -108,7 +122,14 @@ export async function notifyOwnersOfPaymentReport(
         toPhone: recipient.phone,
         toUserId: recipient.userId,
         templateName: 'payment_confirmation_required',
-        variables: { organizationName: branding.organizationName, amount: String(input.amount) },
+        variables: {
+          amount: String(input.amount),
+          propertyLabel,
+          tenantName,
+          paymentMethod: input.paymentMethod,
+          paymentPeriod: formatPaymentPeriod(input.paymentDate),
+          reviewLink,
+        },
         // Per-recipient idempotency key -- a property with 2 owners must notify BOTH, never let
         // the second owner's dispatch be silently swallowed by dispatchWhatsApp's own
         // (relatedEntityType, relatedEntityId, templateName) idempotency guard matching the first.

@@ -199,18 +199,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     await dispatchWhatsApp(serviceClient, {
       orgId: tenant.org_id,
       toPhone: tenant.phone,
-      // WhatsApp production readiness pass (WORKLOG.md this date): renamed from 'tenant_invitation'
-      // to match the real Meta-approved template Mohammed created -- the old template was deleted
-      // in Meta Business Manager and no longer exists. Variable order below (organizationName,
-      // acceptUrl, code, supportName) is carried over UNVERIFIED from the old template's structure
-      // -- Mohammed has not shared the new template's actual approved body text, so this is a
-      // best-effort placeholder, not a confirmed mapping. Do not send until he confirms the real
-      // parameter count/order (see the session's own readiness report).
+      // Final pre-production pass (WORKLOG.md 2026-08-17): real approved structure confirmed by
+      // Mohammed -- organizationName, acceptUrl, supportName (3 vars). The short code is NOT a
+      // separate template variable -- it's already embedded in acceptUrl's `?token=` query param,
+      // so a redundant 4th `code` variable (this call site's own pre-approval guess) is dropped.
       templateName: 'tenant_account_invitation',
       variables: {
         organizationName: branding.organizationName,
         acceptUrl,
-        code: created.short_code ?? '',
         supportName: branding.supportName,
       },
       relatedEntityType: 'tenant_invitations',

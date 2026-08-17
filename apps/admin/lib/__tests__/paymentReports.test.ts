@@ -176,6 +176,9 @@ describeIfSupabase(
         propertyId,
         paymentReportId,
         amount: 5000,
+        tenantId: crypto.randomUUID(),
+        paymentMethod: 'eft',
+        paymentDate: '2026-03-15',
       });
 
       // No real Meta credentials exist in this test environment, so dispatchWhatsApp's

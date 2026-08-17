@@ -4,7 +4,8 @@ import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/se
 import { requireOrgRole } from '@/lib/portfolio';
 import { mapMaintenanceTicketRow, isValidMaintenanceTransition } from '@/lib/operations';
 import { dispatchEmail } from '@/lib/emailDispatch';
-import { dispatchWhatsApp, resolveOrgWhatsAppBranding } from '@/lib/whatsappDispatch';
+import { dispatchWhatsApp, resolvePropertyLabel } from '@/lib/whatsappDispatch';
+import { getAppUrl } from '@/lib/appUrl';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -193,19 +194,26 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       // maintenance_update_critical) -- a routine To Do -> In Progress update on a normal-priority
       // ticket stays email-only, matching "WhatsApp should be limited to important events."
       if (data.priority === 'urgent') {
-        const branding = await resolveOrgWhatsAppBranding(serviceClient, data.org_id);
+        const propertyLabel = await resolvePropertyLabel(
+          serviceClient,
+          data.property_id,
+          data.unit_id,
+        );
+
+        // Final pre-production pass (WORKLOG.md 2026-08-17): real approved structure confirmed by
+        // Mohammed -- propertyLabel, summary, status, updateMessage, ticketLink (5 vars).
+        // updateMessage uses the ticket's own description when present, else a generic fallback --
+        // there is no separate free-text "what changed" note distinct from the ticket description.
         await dispatchWhatsApp(serviceClient, {
           orgId: data.org_id,
           toPhone: tenant?.phone ?? null,
-          // WhatsApp production readiness pass (WORKLOG.md this date): renamed from
-          // 'maintenance_update_critical' to match the real Meta-approved template -- variable
-          // order (organizationName, summary, status, supportName) carried over UNVERIFIED.
           templateName: 'maintenance_request_update',
           variables: {
-            organizationName: branding.organizationName,
+            propertyLabel,
             summary: data.summary,
             status: data.status,
-            supportName: branding.supportName,
+            updateMessage: data.description ?? 'Your maintenance request status has been updated.',
+            ticketLink: `${getAppUrl()}/my-maintenance`,
           },
           relatedEntityType: `maintenance_ticket:${data.status}`,
           relatedEntityId: data.id,

@@ -2,7 +2,13 @@ import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { writeAuditEvent } from './audit';
 import { dispatchEmail } from './emailDispatch';
-import { dispatchWhatsApp, resolveOrgWhatsAppBranding } from './whatsappDispatch';
+import {
+  dispatchWhatsApp,
+  resolveOrgWhatsAppBranding,
+  resolvePropertyLabelForLease,
+  resolvePropertyLabelForUnit,
+  formatPaymentPeriod,
+} from './whatsappDispatch';
 import { getAppUrl } from './appUrl';
 import {
   resolveEligibleSummaryOwners,
@@ -367,6 +373,7 @@ export interface PaymentAndLeaseReminderJobResult {
 interface PrimaryTenantContact {
   phone: string | null;
   userId: string | null;
+  fullName: string | null;
 }
 
 async function resolvePrimaryTenantContact(
@@ -375,12 +382,17 @@ async function resolvePrimaryTenantContact(
 ): Promise<PrimaryTenantContact | null> {
   const { data } = await serviceClient
     .from('lease_tenants')
-    .select('tenants(phone, user_id)')
+    .select('tenants(phone, user_id, full_name)')
     .eq('lease_id', leaseId)
     .eq('is_primary', true)
     .maybeSingle();
-  const tenant = (data as unknown as { tenants: PrimaryTenantContact | null } | null)?.tenants;
-  return tenant ?? null;
+  const tenant = (
+    data as unknown as {
+      tenants: { phone: string | null; user_id: string | null; full_name: string | null } | null;
+    } | null
+  )?.tenants;
+  if (!tenant) return null;
+  return { phone: tenant.phone, userId: tenant.user_id, fullName: tenant.full_name };
 }
 
 export async function runPaymentAndLeaseReminderJob(
@@ -437,16 +449,20 @@ export async function runPaymentAndLeaseReminderJob(
   for (const row of (overdueResult.data ?? []) as RentScheduleRow[]) {
     try {
       const tenant = await resolvePrimaryTenantContact(serviceClient, row.lease_id);
-      const branding = await resolveOrgWhatsAppBranding(serviceClient, row.org_id);
+      const propertyLabel = await resolvePropertyLabelForLease(serviceClient, row.lease_id);
+      // Final pre-production pass (WORKLOG.md 2026-08-17): real approved structure confirmed by
+      // Mohammed -- outstandingAmount, tenantName, propertyLabel, paymentPeriod, accountLink.
       await dispatchWhatsApp(serviceClient, {
         orgId: row.org_id,
         toPhone: tenant?.phone ?? null,
         toUserId: tenant?.userId ?? null,
         templateName: 'rent_overdue_notice',
         variables: {
-          organizationName: branding.organizationName,
-          amount: String(row.amount),
-          dueDate: row.due_date,
+          outstandingAmount: String(row.amount),
+          tenantName: tenant?.fullName ?? 'Tenant',
+          propertyLabel,
+          paymentPeriod: formatPaymentPeriod(row.due_date),
+          accountLink: `${getAppUrl()}/my-payments`,
         },
         relatedEntityType: 'rent_schedule:overdue',
         relatedEntityId: row.id,
@@ -466,13 +482,20 @@ export async function runPaymentAndLeaseReminderJob(
   for (const row of (expiringResult.data ?? []) as LeaseRow[]) {
     try {
       const tenant = await resolvePrimaryTenantContact(serviceClient, row.id);
-      const branding = await resolveOrgWhatsAppBranding(serviceClient, row.org_id);
+      const propertyLabel = await resolvePropertyLabelForUnit(serviceClient, row.unit_id);
+      // Final pre-production pass (WORKLOG.md 2026-08-17): real approved structure confirmed by
+      // Mohammed -- tenantName, propertyLabel, expiryDate, leaseLink.
       await dispatchWhatsApp(serviceClient, {
         orgId: row.org_id,
         toPhone: tenant?.phone ?? null,
         toUserId: tenant?.userId ?? null,
         templateName: 'lease_expiry_reminder',
-        variables: { organizationName: branding.organizationName, endDate: row.end_date },
+        variables: {
+          tenantName: tenant?.fullName ?? 'Tenant',
+          propertyLabel,
+          expiryDate: row.end_date,
+          leaseLink: `${getAppUrl()}/my-lease`,
+        },
         relatedEntityType: 'lease:expiry_reminder',
         relatedEntityId: row.id,
         actorUserId: null,
@@ -554,15 +577,16 @@ export async function runOwnerMonthlySummaryJob(
       });
       if (!existing) summariesGenerated += 1;
 
-      const branding = await resolveOrgWhatsAppBranding(serviceClient, owner.orgId);
       const reportUrl = `${getAppUrl()}/owner-portal/summary/${summary.id}`;
+      // Final pre-production pass (WORKLOG.md 2026-08-17): real approved structure confirmed by
+      // Mohammed -- 9 vars, no organizationName (the earlier draft's own guess wrongly prepended
+      // one that doesn't belong to this template).
       const result = await dispatchWhatsApp(serviceClient, {
         orgId: owner.orgId,
         toPhone: owner.phone,
         toUserId: owner.ownerUserId,
         templateName: 'owner_monthly_property_summary',
         variables: {
-          organizationName: branding.organizationName,
           month: formatSummaryMonthLabel(periodStart),
           propertyCount: String(summary.propertyCount),
           expectedRent: summary.expectedRent.toFixed(2),

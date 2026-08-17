@@ -49,6 +49,99 @@ export async function resolveOrgWhatsAppBranding(
   };
 }
 
+// Real Meta template structure reconciliation (WORKLOG.md this date, final pre-production pass):
+// Mohammed confirmed Meta template approval and provided the real approved parameter structure
+// for 7 of the 8 templates directly in this conversation -- every call site below that names a
+// property/unit needs a resolved label, which none of the pre-approval call sites (built before
+// the real structure was known) had wired up. Three small variants because the callers reach a
+// property via three different real join paths already present in the schema, not because the
+// underlying concept differs.
+
+/** Property (+ optional unit) label from a property_id the caller already has directly on hand
+ * (payment_reports, maintenance_tickets, cash_receipts all carry property_id themselves). */
+export async function resolvePropertyLabel(
+  serviceClient: SupabaseClient,
+  propertyId: string,
+  unitId?: string | null,
+): Promise<string> {
+  const { data: property } = await serviceClient
+    .from('properties')
+    .select('nickname')
+    .eq('id', propertyId)
+    .maybeSingle();
+  const nickname = property?.nickname ?? 'your property';
+  if (!unitId) return nickname;
+  const { data: unit } = await serviceClient
+    .from('units')
+    .select('unit_label')
+    .eq('id', unitId)
+    .maybeSingle();
+  return unit?.unit_label ? `${nickname} — ${unit.unit_label}` : nickname;
+}
+
+/** Property (+ unit) label reached via a lease_id (bank_transactions/rent_schedules callers only
+ * have the lease, not the property, on hand). */
+export async function resolvePropertyLabelForLease(
+  serviceClient: SupabaseClient,
+  leaseId: string,
+): Promise<string> {
+  const { data } = await serviceClient
+    .from('leases')
+    .select('units(id, unit_label, properties(nickname))')
+    .eq('id', leaseId)
+    .maybeSingle();
+  const unit = (
+    data as unknown as {
+      units: { unit_label: string; properties: { nickname: string } | null } | null;
+    } | null
+  )?.units;
+  const nickname = unit?.properties?.nickname ?? 'your property';
+  return unit?.unit_label ? `${nickname} — ${unit.unit_label}` : nickname;
+}
+
+/** Property (+ unit) label reached via a unit_id (leases_expiring_unreminded() rows only carry
+ * unit_id, not property_id, on the lease itself). */
+export async function resolvePropertyLabelForUnit(
+  serviceClient: SupabaseClient,
+  unitId: string,
+): Promise<string> {
+  const { data } = await serviceClient
+    .from('units')
+    .select('unit_label, properties(nickname)')
+    .eq('id', unitId)
+    .maybeSingle();
+  const nickname =
+    (data as unknown as { properties: { nickname: string } | null } | null)?.properties?.nickname ??
+    'your property';
+  return data?.unit_label ? `${nickname} — ${data.unit_label}` : nickname;
+}
+
+/** "2026-03-15" -> "March 2026" -- shared by every template that names a payment period, matching
+ * ownerSummary.ts's own formatSummaryMonthLabel() exactly (kept as a separate copy here rather
+ * than an import, since ownerSummary.ts is aggregation-domain and this is dispatch-domain --
+ * duplicated 12-line lookup table, not duplicated logic worth a shared module for). */
+const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+export function formatPaymentPeriod(dateStr: string): string {
+  // Accepts both a plain "YYYY-MM-DD" date and a full ISO timestamptz string (e.g. cash_receipts.
+  // received_at) -- parsed via Date/UTC fields rather than naive string-splitting, since a
+  // negative timezone offset ("...-05:00") would otherwise corrupt a split-on-'-' parse.
+  const date = new Date(dateStr);
+  return `${MONTH_NAMES[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
+}
+
 // Platform-owned single WhatsApp Business number (WHATSAPP.md §0) -- no real Meta/BSP account
 // exists yet (external-service blocker), so this is a clearly-labeled placeholder, same
 // TO_BE_CONFIRMED convention SUBSCRIPTIONS.md already uses for other real commercial values.

@@ -2,7 +2,12 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { cashReceiptConfirmDepositSchema } from '@propvault/validation';
 import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { mapCashReceiptRow } from '@/lib/accounting';
-import { dispatchWhatsApp } from '@/lib/whatsappDispatch';
+import {
+  dispatchWhatsApp,
+  resolvePropertyLabel,
+  formatPaymentPeriod,
+} from '@/lib/whatsappDispatch';
+import { getAppUrl } from '@/lib/appUrl';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -87,14 +92,21 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         .eq('is_primary', true)
         .maybeSingle();
       const tenant = (primaryTenant as { tenants?: { phone?: string } } | null)?.tenants;
+      const propertyLabel = await resolvePropertyLabel(serviceClient, data.property_id);
 
       await dispatchWhatsApp(serviceClient, {
         orgId: data.org_id,
         toPhone: tenant?.phone ?? null,
-        // Variable structure carried over UNVERIFIED from the old 'payment_accepted' template,
-        // same caveat as bank-transactions/confirm-match's identical dispatch call.
+        // Final pre-production pass (WORKLOG.md 2026-08-17): real approved structure confirmed by
+        // Mohammed -- amount, propertyLabel, paymentPeriod, dateConfirmed, accountLink (5 vars).
         templateName: 'payment_received_confirmation',
-        variables: { amount: String(data.deposited_amount ?? data.amount) },
+        variables: {
+          amount: String(data.deposited_amount ?? data.amount),
+          propertyLabel,
+          paymentPeriod: formatPaymentPeriod(data.received_at ?? new Date().toISOString()),
+          dateConfirmed: new Date().toLocaleDateString('en-ZA'),
+          accountLink: `${getAppUrl()}/my-payments`,
+        },
         relatedEntityType: 'cash_receipt',
         relatedEntityId: data.id,
         actorUserId: user.id,

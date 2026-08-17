@@ -229,6 +229,9 @@ export async function POST(request: NextRequest) {
     propertyId: session.propertyId,
     paymentReportId: report.id,
     amount,
+    tenantId: session.tenantId,
+    paymentMethod,
+    paymentDate,
   });
 
   return NextResponse.json({ paymentReport: report }, { status: 201 });
