@@ -3,6 +3,14 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { writeAuditEvent } from './audit';
 import { dispatchEmail } from './emailDispatch';
 import { dispatchWhatsApp, resolveOrgWhatsAppBranding } from './whatsappDispatch';
+import { getAppUrl } from './appUrl';
+import {
+  resolveEligibleSummaryOwners,
+  getOrCreateOwnerMonthlySummary,
+  markOwnerMonthlySummarySent,
+  resolveCalendarMonthPeriod,
+  formatSummaryMonthLabel,
+} from './ownerSummary';
 
 /**
  * Daily system-job consolidation (WORKLOG.md this date). The ONE place each scheduled job's real
@@ -480,4 +488,106 @@ export async function runPaymentAndLeaseReminderJob(
   }
 
   return { rentRemindersSent, rentOverdueNoticesSent, leaseExpiryRemindersSent };
+}
+
+// ============================================================
+// 5. Owner monthly property summary -- final pre-production pass, Phase 5 (WORKLOG.md this date).
+//    Idempotent across duplicate runs on two levels: (a) owner_property_summaries has a unique
+//    (owner_user_id, period_start) constraint, so the financial snapshot is computed at most once
+//    per owner per month regardless of how many times this job runs that month; (b) dispatchWhatsApp
+//    itself is idempotent on (relatedEntityType, relatedEntityId, templateName), so even a crash
+//    between markOwnerMonthlySummarySent() and the next run can never double-send. A new snapshot
+//    is only ever CREATED on the owner's own preferred day (default: 1st of the month, migration
+//    20260101000107's notification_preferences.preferred_summary_day) -- but once it exists, an
+//    unsent one (sent_at still null, e.g. because the template was unapproved that day) is retried
+//    on every subsequent run regardless of day-of-month, so a mid-month template approval doesn't
+//    force owners to wait for next month's cycle.
+// ============================================================
+export interface OwnerMonthlySummaryJobResult {
+  summariesGenerated: number;
+  summariesSent: number;
+}
+
+export async function runOwnerMonthlySummaryJob(
+  serviceClient: SupabaseClient,
+): Promise<OwnerMonthlySummaryJobResult> {
+  const today = new Date();
+  const { periodStart, periodEnd } = resolveCalendarMonthPeriod(today);
+  const dayOfMonth = today.getUTCDate();
+
+  const owners = await resolveEligibleSummaryOwners(serviceClient);
+
+  let summariesGenerated = 0;
+  let summariesSent = 0;
+
+  for (const owner of owners) {
+    try {
+      const { data: pref } = await serviceClient
+        .from('notification_preferences')
+        .select('whatsapp_enabled, preferred_summary_day')
+        .eq('user_id', owner.ownerUserId)
+        .eq('category', 'owner_summary')
+        .maybeSingle();
+      // Missing row = default enabled, matching dispatchWhatsApp's own convention. An explicit
+      // opt-out here means this owner isn't even sent a summary to review later -- there is no
+      // other delivery channel for this template today, so "disabled" genuinely means "skip".
+      if (pref && pref.whatsapp_enabled === false) continue;
+
+      const preferredDay = pref?.preferred_summary_day ?? 1;
+
+      const { data: existing } = await serviceClient
+        .from('owner_property_summaries')
+        .select('id, sent_at')
+        .eq('owner_user_id', owner.ownerUserId)
+        .eq('period_start', periodStart)
+        .maybeSingle();
+
+      if (!existing && dayOfMonth !== preferredDay) continue;
+      if (existing?.sent_at) continue;
+
+      const summary = await getOrCreateOwnerMonthlySummary(serviceClient, {
+        ownerId: owner.ownerId,
+        ownerUserId: owner.ownerUserId,
+        orgId: owner.orgId,
+        periodStart,
+        periodEnd,
+      });
+      if (!existing) summariesGenerated += 1;
+
+      const branding = await resolveOrgWhatsAppBranding(serviceClient, owner.orgId);
+      const reportUrl = `${getAppUrl()}/owner-portal/summary/${summary.id}`;
+      const result = await dispatchWhatsApp(serviceClient, {
+        orgId: owner.orgId,
+        toPhone: owner.phone,
+        toUserId: owner.ownerUserId,
+        templateName: 'owner_monthly_property_summary',
+        variables: {
+          organizationName: branding.organizationName,
+          month: formatSummaryMonthLabel(periodStart),
+          propertyCount: String(summary.propertyCount),
+          expectedRent: summary.expectedRent.toFixed(2),
+          confirmedPaid: summary.confirmedPaid.toFixed(2),
+          outstanding: summary.outstanding.toFixed(2),
+          awaitingConfirmation: summary.awaitingConfirmation.toFixed(2),
+          openMaintenance: String(summary.openMaintenanceCount),
+          upcomingLeaseExpiries: String(summary.upcomingLeaseExpiryCount),
+          reportUrl,
+        },
+        relatedEntityType: 'owner_property_summary',
+        relatedEntityId: summary.id,
+        actorUserId: null,
+      });
+      if (result.sent && result.whatsappMessageId) {
+        await markOwnerMonthlySummarySent(serviceClient, {
+          summaryId: summary.id,
+          whatsappMessageId: result.whatsappMessageId,
+        });
+        summariesSent += 1;
+      }
+    } catch (err) {
+      console.error('[whatsappDispatch] owner_monthly_property_summary dispatch failed', err);
+    }
+  }
+
+  return { summariesGenerated, summariesSent };
 }

@@ -42,6 +42,10 @@ vi.mock('@/lib/systemJobs', () => ({
     callOrder.push('paymentAndLeaseReminders');
     return { rentRemindersSent: 0, rentOverdueNoticesSent: 0, leaseExpiryRemindersSent: 0 };
   }),
+  runOwnerMonthlySummaryJob: vi.fn(async () => {
+    callOrder.push('ownerMonthlySummary');
+    return { summariesGenerated: 0, summariesSent: 0 };
+  }),
 }));
 
 vi.mock('@/lib/audit', () => ({
@@ -75,6 +79,7 @@ describe('POST /api/v1/system/daily-jobs (orchestration, mocked systemJobs)', ()
       'rentSchedules',
       'compliance',
       'paymentAndLeaseReminders',
+      'ownerMonthlySummary',
     ]);
   });
 
@@ -87,10 +92,12 @@ describe('POST /api/v1/system/daily-jobs (orchestration, mocked systemJobs)', ()
     expect(body.jobs.rentSchedules.success).toBe(true);
     expect(body.jobs.compliance.success).toBe(true);
     expect(body.jobs.paymentAndLeaseReminders.success).toBe(true);
+    expect(body.jobs.ownerMonthlySummary.success).toBe(true);
     expect(typeof body.jobs.subscriptions.durationMs).toBe('number');
     expect(typeof body.jobs.rentSchedules.durationMs).toBe('number');
     expect(typeof body.jobs.compliance.durationMs).toBe('number');
     expect(typeof body.jobs.paymentAndLeaseReminders.durationMs).toBe('number');
+    expect(typeof body.jobs.ownerMonthlySummary.durationMs).toBe('number');
   });
 
   it('a subscriptions-job failure does not stop rentSchedules/compliance/paymentAndLeaseReminders from running, and the overall response reports failure', async () => {
@@ -105,11 +112,13 @@ describe('POST /api/v1/system/daily-jobs (orchestration, mocked systemJobs)', ()
     expect(body.jobs.rentSchedules.success).toBe(true);
     expect(body.jobs.compliance.success).toBe(true);
     expect(body.jobs.paymentAndLeaseReminders.success).toBe(true);
+    expect(body.jobs.ownerMonthlySummary.success).toBe(true);
     expect(callOrder).toEqual([
       'subscriptions',
       'rentSchedules',
       'compliance',
       'paymentAndLeaseReminders',
+      'ownerMonthlySummary',
     ]);
   });
 
@@ -123,6 +132,7 @@ describe('POST /api/v1/system/daily-jobs (orchestration, mocked systemJobs)', ()
     expect(body.jobs.rentSchedules.success).toBe(false);
     expect(body.jobs.compliance.success).toBe(true);
     expect(body.jobs.paymentAndLeaseReminders.success).toBe(true);
+    expect(body.jobs.ownerMonthlySummary.success).toBe(true);
   });
 
   it('never returns HTTP 200 when any job failed', async () => {

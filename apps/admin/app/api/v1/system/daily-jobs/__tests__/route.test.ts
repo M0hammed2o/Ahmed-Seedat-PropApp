@@ -124,6 +124,7 @@ describeIfSupabase('POST /api/v1/system/daily-jobs (real local Supabase integrat
     expect(body.jobs).toHaveProperty('rentSchedules');
     expect(body.jobs).toHaveProperty('compliance');
     expect(body.jobs).toHaveProperty('paymentAndLeaseReminders');
+    expect(body.jobs).toHaveProperty('ownerMonthlySummary');
   });
 
   describe('idempotency across a real duplicate invocation', () => {
