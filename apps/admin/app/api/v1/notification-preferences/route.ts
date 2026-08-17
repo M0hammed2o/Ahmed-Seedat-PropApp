@@ -75,6 +75,8 @@ export async function PATCH(request: NextRequest) {
   if (parsed.data.pushEnabled !== undefined) patch.push_enabled = parsed.data.pushEnabled;
   if (parsed.data.whatsappEnabled !== undefined)
     patch.whatsapp_enabled = parsed.data.whatsappEnabled;
+  if (parsed.data.preferredSummaryDay !== undefined)
+    patch.preferred_summary_day = parsed.data.preferredSummaryDay;
 
   const { data, error } = await supabase
     .from('notification_preferences')

@@ -23,7 +23,7 @@ describe('WHATSAPP_TEMPLATE_REGISTRY', () => {
     }
   });
 
-  it('registers exactly the 7 templates with a real dispatch call site (all 8 Meta templates except owner_monthly_property_summary, which has none yet)', () => {
+  it('registers exactly the 8 Meta templates, all now with a real dispatch call site', () => {
     expect(Object.keys(WHATSAPP_TEMPLATE_REGISTRY).sort()).toEqual(
       [
         'maintenance_request_update',
@@ -33,6 +33,7 @@ describe('WHATSAPP_TEMPLATE_REGISTRY', () => {
         'rent_payment_reminder',
         'rent_overdue_notice',
         'lease_expiry_reminder',
+        'owner_monthly_property_summary',
       ].sort(),
     );
   });
@@ -59,6 +60,7 @@ describe('isWhatsAppTemplateApproved', () => {
     expect(isWhatsAppTemplateApproved('rent_payment_reminder')).toBe(false);
     expect(isWhatsAppTemplateApproved('rent_overdue_notice')).toBe(false);
     expect(isWhatsAppTemplateApproved('lease_expiry_reminder')).toBe(false);
+    expect(isWhatsAppTemplateApproved('owner_monthly_property_summary')).toBe(false);
   });
 
   it('fails safe (false), not open (true), for an unrecognized template name', () => {

@@ -60,7 +60,7 @@ const PLATFORM_WHATSAPP_NUMBER = '+27000000000'; // TO_BE_CONFIRMED
 // can't meaningfully "opt out" of the one message that grants them portal access in the first
 // place.
 const TEMPLATE_CATEGORY: Partial<
-  Record<DispatchableWhatsAppType, 'rent' | 'maintenance' | 'lease'>
+  Record<DispatchableWhatsAppType, 'rent' | 'maintenance' | 'lease' | 'owner_summary'>
 > = {
   owner_statement_available: 'rent',
   payment_received_confirmation: 'rent',
@@ -74,6 +74,10 @@ const TEMPLATE_CATEGORY: Partial<
   rent_payment_reminder: 'rent',
   rent_overdue_notice: 'rent',
   lease_expiry_reminder: 'lease',
+  // Final pre-production pass, Phase 3/4: its own dedicated category (migration 20260101000107) --
+  // deliberately NOT lumped into 'rent', so an owner can opt out of the monthly digest without
+  // also silently opting out of real-time rent/payment alerts, and vice versa.
+  owner_monthly_property_summary: 'owner_summary',
 };
 
 export type DispatchableWhatsAppType = Extract<
@@ -86,6 +90,7 @@ export type DispatchableWhatsAppType = Extract<
   | 'rent_overdue_notice'
   | 'lease_expiry_reminder'
   | 'payment_confirmation_required'
+  | 'owner_monthly_property_summary'
 >;
 
 function toE164(phone: string | null | undefined): string | null {

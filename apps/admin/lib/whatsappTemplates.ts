@@ -46,6 +46,7 @@ export const WHATSAPP_TEMPLATE_REGISTRY: Record<
     | 'rent_payment_reminder'
     | 'rent_overdue_notice'
     | 'lease_expiry_reminder'
+    | 'owner_monthly_property_summary'
   >,
   WhatsAppTemplateDefinition
 > = {
@@ -89,6 +90,20 @@ export const WHATSAPP_TEMPLATE_REGISTRY: Record<
     metaTemplateName: 'lease_expiry_reminder',
     approved: false,
     expectedVariableCount: 2, // organizationName, endDate -- UNVERIFIED, this pass's own new call site
+    variableCountVerified: false,
+  },
+  // Final pre-production pass, Phase 4/9: the 8th and last of Mohammed's real Meta templates,
+  // now with a real dispatch call site (runOwnerMonthlySummaryJob, lib/systemJobs.ts). Variable
+  // count/order below is this codebase's own best-effort description of the data it sends
+  // (reporting month, property count, expected rent, confirmed paid, outstanding, awaiting
+  // confirmation, open maintenance, upcoming lease expiries, secure link) -- explicitly NOT
+  // confirmed against the real approved template text in Meta Business Manager, same
+  // UNVERIFIED/provisional status as every other entry until Mohammed checks Meta directly and
+  // says so in so many words. `approved` stays false regardless of anything claimed elsewhere.
+  owner_monthly_property_summary: {
+    metaTemplateName: 'owner_monthly_property_summary',
+    approved: false,
+    expectedVariableCount: 9, // month, propertyCount, expectedRent, confirmedPaid, outstanding, awaitingConfirmation, openMaintenance, upcomingLeaseExpiries, reportUrl -- UNVERIFIED
     variableCountVerified: false,
   },
 };

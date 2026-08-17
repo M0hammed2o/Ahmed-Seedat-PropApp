@@ -67,6 +67,7 @@ interface NotificationPreferenceRow {
   email_enabled: boolean;
   push_enabled: boolean;
   whatsapp_enabled: boolean;
+  preferred_summary_day: number | null;
 }
 
 export function mapNotificationPreferenceRow(
@@ -78,6 +79,7 @@ export function mapNotificationPreferenceRow(
     emailEnabled: row.email_enabled,
     pushEnabled: row.push_enabled,
     whatsappEnabled: row.whatsapp_enabled,
+    preferredSummaryDay: row.preferred_summary_day,
   };
 }
 

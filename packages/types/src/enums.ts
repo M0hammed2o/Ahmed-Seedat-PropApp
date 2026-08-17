@@ -298,6 +298,10 @@ export const NOTIFICATION_CATEGORIES = [
   'announcements',
   'security',
   'promotional',
+  // Final pre-production pass (WORKLOG.md this date): owner_monthly_property_summary's own
+  // category (migration 20260101000107) -- kept separate from 'rent' so an owner can opt out of
+  // the monthly digest independently of real-time rent/payment alerts.
+  'owner_summary',
 ] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
 
@@ -371,6 +375,12 @@ export const WHATSAPP_NOTIFICATION_TYPES = [
   // synchronous trigger (staff clicks "Send invitation"), matching this list's existing
   // "already has a real trigger" discipline (WHATSAPP.md §2).
   'tenant_account_invitation',
+  // Final pre-production pass (WORKLOG.md this date): the 8th and last of Mohammed's real Meta
+  // templates gets a real trigger (runOwnerMonthlySummaryJob, lib/systemJobs.ts) -- the one
+  // scheduled (not event-triggered) type in this list, gated by its own notification_preferences
+  // category ('owner_summary', migration 20260101000107) and preferred-day column, not by any of
+  // the rent/maintenance/lease categories above.
+  'owner_monthly_property_summary',
 ] as const;
 export type WhatsAppNotificationType = (typeof WHATSAPP_NOTIFICATION_TYPES)[number];
 

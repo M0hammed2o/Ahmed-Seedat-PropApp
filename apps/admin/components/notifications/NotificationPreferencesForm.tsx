@@ -14,8 +14,30 @@ import { NOTIFICATION_CATEGORIES } from '@propvault/types';
 
 type ChannelKey = 'emailEnabled' | 'pushEnabled' | 'whatsappEnabled';
 
+// Final pre-production pass, Phase 8: human-readable labels, never a raw category/template name
+// rendered verbatim (this codebase's own category values already read fine capitalized, except
+// 'owner_summary' -- 'Owner_summary' isn't a real phrase, so every category gets an explicit,
+// considered label instead of leaving the fallback to guesswork per-category).
+const CATEGORY_LABELS: Record<NotificationCategory, string> = {
+  rent: 'Rent & payments',
+  maintenance: 'Maintenance',
+  lease: 'Lease',
+  inspections: 'Inspections',
+  announcements: 'Announcements',
+  security: 'Security',
+  promotional: 'Promotional',
+  owner_summary: 'Monthly property summary',
+};
+
 function defaultsFor(category: NotificationCategory): NotificationPreference {
-  return { userId: '', category, emailEnabled: true, pushEnabled: true, whatsappEnabled: true };
+  return {
+    userId: '',
+    category,
+    emailEnabled: true,
+    pushEnabled: true,
+    whatsappEnabled: true,
+    preferredSummaryDay: null,
+  };
 }
 
 export function NotificationPreferencesForm({
@@ -28,19 +50,18 @@ export function NotificationPreferencesForm({
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function toggle(category: NotificationCategory, channel: ChannelKey, next: boolean) {
-    const key = `${category}:${channel}`;
+  async function patch(category: NotificationCategory, key: string, body: Record<string, unknown>) {
     setBusy(key);
     setError(null);
     try {
       const response = await fetch('/api/v1/notification-preferences', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ category, [channel]: next }),
+        body: JSON.stringify({ category, ...body }),
       });
       if (!response.ok) {
-        const body = await response.json();
-        setError(body.error?.message ?? 'Failed to save preference.');
+        const responseBody = await response.json();
+        setError(responseBody.error?.message ?? 'Failed to save preference.');
         return;
       }
       router.refresh();
@@ -49,6 +70,14 @@ export function NotificationPreferencesForm({
     } finally {
       setBusy(null);
     }
+  }
+
+  async function toggle(category: NotificationCategory, channel: ChannelKey, next: boolean) {
+    await patch(category, `${category}:${channel}`, { [channel]: next });
+  }
+
+  async function setPreferredDay(category: NotificationCategory, day: number | null) {
+    await patch(category, `${category}:preferredSummaryDay`, { preferredSummaryDay: day });
   }
 
   return (
@@ -84,8 +113,34 @@ export function NotificationPreferencesForm({
                   key={category}
                   className="border-b border-light-border last:border-b-0 dark:border-dark-border"
                 >
-                  <td className="px-4 py-3 capitalize text-light-textPrimary dark:text-dark-textPrimary">
-                    {category}
+                  <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">
+                    <div>{CATEGORY_LABELS[category]}</div>
+                    {category === 'owner_summary' ? (
+                      <label className="mt-1 flex items-center gap-1.5 text-xs text-light-textMuted dark:text-dark-textMuted">
+                        Send on day
+                        <select
+                          className="rounded border border-light-border bg-transparent px-1 py-0.5 text-xs dark:border-dark-border"
+                          value={pref.preferredSummaryDay ?? ''}
+                          disabled={busy === `${category}:preferredSummaryDay`}
+                          onChange={(e) =>
+                            setPreferredDay(
+                              category,
+                              e.target.value === '' ? null : Number(e.target.value),
+                            )
+                          }
+                        >
+                          <option value="">1 (default)</option>
+                          {Array.from({ length: 28 }, (_, i) => i + 1)
+                            .filter((day) => day !== 1)
+                            .map((day) => (
+                              <option key={day} value={day}>
+                                {day}
+                              </option>
+                            ))}
+                        </select>
+                        of the month
+                      </label>
+                    ) : null}
                   </td>
                   {(['emailEnabled', 'pushEnabled', 'whatsappEnabled'] as ChannelKey[]).map(
                     (channel) => (

@@ -20,6 +20,9 @@ export interface NotificationPreference {
   emailEnabled: boolean;
   pushEnabled: boolean;
   whatsappEnabled: boolean;
+  /** 1-28, or null to use the platform default (day 1). Only meaningful for scheduled (not
+   * event-triggered) categories -- today, only 'owner_summary'. */
+  preferredSummaryDay: number | null;
 }
 
 export interface DevicePushToken {

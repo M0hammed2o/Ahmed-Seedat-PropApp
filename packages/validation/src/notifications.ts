@@ -20,6 +20,7 @@ export const notificationPreferenceUpdateSchema = z.object({
   emailEnabled: z.boolean().optional(),
   pushEnabled: z.boolean().optional(),
   whatsappEnabled: z.boolean().optional(),
+  preferredSummaryDay: z.number().int().min(1).max(28).nullable().optional(),
 });
 export type NotificationPreferenceUpdateInput = z.infer<typeof notificationPreferenceUpdateSchema>;
 
