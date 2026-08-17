@@ -31,23 +31,22 @@ class AnnouncementsViewModel @Inject constructor(
     private val _busyId = MutableStateFlow<String?>(null)
     val busyId: StateFlow<String?> = _busyId.asStateFlow()
 
-    /** No per-caller read-status join exists on the list endpoint (see AnnouncementsRepository's
-     * doc comment) -- this session-local set is the only record of "acknowledged," and resets on
-     * next load(). A real, disclosed limitation, not a bug. */
-    private val _acknowledgedIds = MutableStateFlow<Set<String>>(emptySet())
-    val acknowledgedIds: StateFlow<Set<String>> = _acknowledgedIds.asStateFlow()
-
     private val _actionError = MutableStateFlow<String?>(null)
     val actionError: StateFlow<String?> = _actionError.asStateFlow()
+
+    /** Marked true once a not-yet-read, non-required announcement has been silently
+     * mark-as-read this screen visit -- prevents re-firing the network call on every
+     * recomposition (Android V1 last local blocker pass, WORKLOG.md this date). */
+    private val autoMarkedThisLoad = mutableSetOf<String>()
 
     init {
         load()
     }
 
     fun load() {
+        autoMarkedThisLoad.clear()
         viewModelScope.launch {
             _uiState.value = AnnouncementsUiState.Loading
-            _acknowledgedIds.value = emptySet()
             _uiState.value = when (val result = repository.getMyAnnouncements()) {
                 is AnnouncementsResult.Loaded ->
                     if (result.announcements.isEmpty()) AnnouncementsUiState.Empty
@@ -57,15 +56,32 @@ class AnnouncementsViewModel @Inject constructor(
         }
     }
 
+    /** Explicit "Acknowledge" action, for announcements that require it -- reloads afterwards so
+     * the real persisted readAt/acknowledgedAt (from announcement_reads) replaces the stale
+     * in-memory copy, rather than guessing the new state client-side. */
     fun acknowledge(id: String) {
         _actionError.value = null
         _busyId.value = id
         viewModelScope.launch {
             when (val result = repository.acknowledge(id)) {
-                is AcknowledgeResult.Success -> _acknowledgedIds.value = _acknowledgedIds.value + id
+                is AcknowledgeResult.Success -> load()
                 is AcknowledgeResult.Error -> _actionError.value = result.message
             }
             _busyId.value = null
+        }
+    }
+
+    /** Silent read-receipt for an announcement that does NOT require acknowledgement -- same
+     * backend call as acknowledge() (there is only one), just triggered by viewing rather than a
+     * visible button, and without surfacing an error banner for a best-effort background action
+     * the tenant never explicitly asked for. Safe to call repeatedly: no-ops once already marked
+     * this load, and the backend upsert is itself idempotent either way. */
+    fun markReadIfUnread(announcement: Announcement) {
+        if (announcement.requiresAcknowledgement) return
+        if (announcement.readAt != null) return
+        if (!autoMarkedThisLoad.add(announcement.id)) return
+        viewModelScope.launch {
+            repository.acknowledge(announcement.id)
         }
     }
 }

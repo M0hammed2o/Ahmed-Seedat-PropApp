@@ -1,5 +1,6 @@
 package za.co.proplyst.app.data.network
 
+import za.co.proplyst.app.data.network.dto.AnnouncementReadDto
 import za.co.proplyst.app.data.network.dto.LeaseDto
 import za.co.proplyst.app.data.network.dto.MaintenanceTicketDto
 import za.co.proplyst.app.data.network.dto.NotificationDto
@@ -118,6 +119,14 @@ interface PostgrestApi {
         @Query("select") select: String = "*",
         @Query("order") order: String = "period_start.desc",
     ): Response<List<OwnerSummaryDto>>
+
+    // Announcement read receipts (Android V1 last local blocker pass, WORKLOG.md this date). RLS
+    // (announcement_reads_select_org_or_self) scopes this to the caller's own rows with no
+    // filter needed -- see Announcement.kt's doc comment.
+    @GET("rest/v1/announcement_reads")
+    suspend fun getMyAnnouncementReads(
+        @Query("select") select: String = "announcement_id,read_at,acknowledged_at",
+    ): Response<List<AnnouncementReadDto>>
 
     // In-app notifications (Phase 7). RLS: notifications_select_own/notifications_update_own.
     @GET("rest/v1/notifications")

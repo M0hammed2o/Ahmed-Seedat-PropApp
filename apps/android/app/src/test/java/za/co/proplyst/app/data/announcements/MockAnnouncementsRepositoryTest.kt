@@ -34,4 +34,15 @@ class MockAnnouncementsRepositoryTest {
 
         assertTrue(result is AcknowledgeResult.Error)
     }
+
+    @Test
+    fun `acknowledge persists readAt on the matching fixture`() = runTest {
+        val repository = MockAnnouncementsRepository()
+
+        repository.acknowledge("demo-announcement-2")
+
+        val updated = (repository.getMyAnnouncements() as AnnouncementsResult.Loaded).announcements
+            .first { it.id == "demo-announcement-2" }
+        assertEquals("2026-08-18T00:00:00Z", updated.readAt)
+    }
 }

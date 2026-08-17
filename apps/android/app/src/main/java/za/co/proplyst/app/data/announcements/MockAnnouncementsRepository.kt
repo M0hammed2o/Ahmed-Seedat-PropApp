@@ -16,6 +16,7 @@ class MockAnnouncementsRepository @Inject constructor() : AnnouncementsRepositor
             requiresAcknowledgement = false,
             publishedAt = "2026-08-14T08:00:00Z",
             expiresAt = "2026-08-22T00:00:00Z",
+            readAt = null,
         ),
         Announcement(
             id = "demo-announcement-2",
@@ -25,6 +26,7 @@ class MockAnnouncementsRepository @Inject constructor() : AnnouncementsRepositor
             requiresAcknowledgement = true,
             publishedAt = "2026-08-10T08:00:00Z",
             expiresAt = null,
+            readAt = null,
         ),
     )
 
@@ -35,7 +37,9 @@ class MockAnnouncementsRepository @Inject constructor() : AnnouncementsRepositor
 
     override suspend fun acknowledge(id: String): AcknowledgeResult {
         delay(200)
-        if (announcements.none { it.id == id }) return AcknowledgeResult.Error("Announcement not found.")
+        val index = announcements.indexOfFirst { it.id == id }
+        if (index < 0) return AcknowledgeResult.Error("Announcement not found.")
+        announcements[index] = announcements[index].copy(readAt = "2026-08-18T00:00:00Z")
         return AcknowledgeResult.Success
     }
 }

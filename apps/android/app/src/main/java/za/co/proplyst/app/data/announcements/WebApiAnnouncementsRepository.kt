@@ -1,5 +1,6 @@
 package za.co.proplyst.app.data.announcements
 
+import za.co.proplyst.app.data.network.PostgrestApi
 import za.co.proplyst.app.data.network.WebApi
 import za.co.proplyst.app.data.network.dto.AnnouncementDto
 import za.co.proplyst.app.data.network.dto.WebApiErrorBody
@@ -12,6 +13,7 @@ import javax.inject.Singleton
 @Singleton
 class WebApiAnnouncementsRepository @Inject constructor(
     private val webApi: WebApi,
+    private val postgrestApi: PostgrestApi,
 ) : AnnouncementsRepository {
 
     private val errorJson = Json { ignoreUnknownKeys = true }
@@ -22,7 +24,18 @@ class WebApiAnnouncementsRepository @Inject constructor(
             if (!response.isSuccessful) {
                 return AnnouncementsResult.Error(errorMessage(response) ?: "Failed to load announcements.")
             }
-            val announcements = response.body()?.announcements.orEmpty().map { it.toDomain() }
+            // Read receipts are a best-effort enrichment, not the primary load -- a failure here
+            // (network hiccup, RLS edge case) degrades to "every announcement shows unread"
+            // rather than failing the whole screen; the announcements themselves already loaded
+            // successfully above.
+            val readAtById = try {
+                postgrestApi.getMyAnnouncementReads().body().orEmpty()
+                    .associate { it.announcementId to (it.readAt ?: it.acknowledgedAt) }
+            } catch (_: Exception) {
+                emptyMap()
+            }
+            val announcements = response.body()?.announcements.orEmpty()
+                .map { it.toDomain(readAtById[it.id]) }
             AnnouncementsResult.Loaded(announcements)
         } catch (e: Exception) {
             AnnouncementsResult.Error(e.message ?: "Failed to load announcements — check your connection.")
@@ -50,7 +63,7 @@ class WebApiAnnouncementsRepository @Inject constructor(
         }
     }
 
-    private fun AnnouncementDto.toDomain() = Announcement(
+    private fun AnnouncementDto.toDomain(readAt: String?) = Announcement(
         id = id,
         title = title,
         body = body,
@@ -58,5 +71,6 @@ class WebApiAnnouncementsRepository @Inject constructor(
         requiresAcknowledgement = requiresAcknowledgement,
         publishedAt = publishedAt,
         expiresAt = expiresAt,
+        readAt = readAt,
     )
 }
