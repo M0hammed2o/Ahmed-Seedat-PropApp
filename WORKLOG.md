@@ -1,5 +1,92 @@
 # Worklog
 
+## 2026-08-18 — Android V1 last local blocker pass
+
+Continued directly from the final gap-closure pass below, scoped explicitly to the remaining
+locally-solvable gaps that materially affect first-launch quality. Do NOT push/publish/sign/deploy
+-- all preserved, nothing done this pass violates those.
+
+**Maintenance photo/file attachments**: investigated the existing document architecture first, per
+instruction, before touching schema. Found `documents.maintenance_ticket_id` already exists
+(migration `20260101000085`) -- no new column needed. Found neither `documents` nor
+`storage.objects` has a tenant-self INSERT policy (both staff-only), and discovered the ALREADY-
+ESTABLISHED pattern for exactly this situation: `/api/v1/tenant-portal/payment-reports`'s own file
+upload bypasses that gap via the SERVICE-ROLE client for the storage/table write, with the route's
+own server-side ownership check as the real authorization, not a new RLS policy. Followed the same
+pattern for maintenance attachments: new `POST /api/v1/tenant-portal/maintenance-tickets/:id/
+documents` (verifies ticket ownership via the caller's own session client first, so a wrong ticket
+id 404s without ever reaching the service-role write), and the created document's `lease_id` is set
+to the ticket's own lease -- the SAME existing mechanism `documents_select_tenant_self` already
+uses to grant tenant read access, so reading attachments back needs zero new RLS either. Extended
+`GET /api/v1/documents` with `filter[maintenance_ticket_id]` (one line, reused by both this and any
+future staff ticket-detail view). Zero new migrations. 7 real integration tests against local
+Supabase (ownership enforcement, 404-not-403 for a non-existent/other-tenant's ticket,
+unauthenticated/missing-file/unsupported-MIME rejection, round-trip read-back). Android: photo/file
+picker (`ActivityResultContracts.OpenDocument`), upload progress/error/retry, attachments list on
+the ticket detail screen, tap to view via the existing signed-URL flow. 13 new Android tests.
+
+**App Links routing, completed**: `AppLinkParser.kt` (pure function, no Android framework
+dependency, 17 unit tests) maps every real `apps/admin` web path this pass could find a native
+screen for (`/my-payments[/report]`, `/my-maintenance[/new|/{id}]`, `/my-documents`, `/notices[/
+{id}]`, `/owner-portal[/payments|/maintenance|/summary|/settings]`) to the correct nested-NavHost
+route. `PendingDeepLinkStore` (app-scoped singleton) holds a parsed target from `MainActivity`'s
+`onCreate()`/`onNewIntent()` until `RootNavGraph` is ready to act on it -- authenticated + role-
+matching resumes straight to the sub-screen (one extra `navController.navigate()` hop right after
+the nested NavHost's own graph builds, since `NavHost`'s `startDestination` can't be switched
+dynamically); unauthenticated retains the pending target through sign-in; role-mismatched or
+unrecognized (including `/activate`'s account-creation flow, which has no native equivalent, and
+`/my-lease`/`/leases/...`/several `/owner-portal/*` subpages with no native screen at all yet)
+silently falls back to the resolved role's own portal home -- never a crash, per the task's own
+"safe...fallback" requirement. 5 new test files.
+
+**Branding, real icon**: found the real logo (`apps/admin/branding/proplyst-logo.png`,
+already used for every PWA/favicon icon via `apps/admin/scripts/make-icons.mjs`'s own
+`sharp`-based crop) and confirmed `sharp` is actually available in this environment
+(`apps/admin`'s own node_modules) -- generated a real Android adaptive-icon foreground
+(`drawable-nodpi/ic_launcher_foreground.png`) using the SAME mark crop and safe-zone sizing
+`make-icons.mjs` already established, and updated the background to the same navy (`#000615`)
+sampled from the logo's own corner -- the mark's white/light elements needed a dark ground the
+old flat-teal placeholder was never designed for. Verified visually before and after compositing.
+
+**Notices read/unread, wired for real**: re-investigated after the prior pass's own "no per-caller
+read-status join exists" note and found that note was about the LIST endpoint specifically --
+`announcement_reads` (the actual read-state table) already has its own tenant-self SELECT policy
+(`announcement_reads_select_org_or_self`), readable via direct PostgREST with no filter needed
+(RLS alone scopes it to the caller's own rows). Wired it: `PostgrestApi.getMyAnnouncementReads()`
+merges into each `Announcement.readAt`. The one existing write endpoint
+(`POST .../acknowledge`) already sets `read_at`/`acknowledged_at` together regardless of
+`requiresAcknowledgement` -- so a non-required announcement is now marked read by calling that
+SAME endpoint on tap (silent, no "Acknowledge" button shown for it), while a required one keeps
+its explicit button. Zero new migration, zero new persistence model -- exactly "wire the existing
+mechanism," not invent one.
+
+**Push notifications**: audited only, per explicit instruction not to build this or create a
+Firebase project. Confirmed zero FCM/Firebase Android SDK scaffolding exists anywhere in
+`apps/android` (no `google-services.json`, no Firebase Gradle plugin, no
+`FirebaseMessagingService`). Found real, usable, provider-agnostic groundwork already exists
+server-side though: `device_push_tokens` table + `POST/DELETE /api/v1/device-push-tokens`
+(RLS-scoped to the caller), from an earlier pass -- nothing currently sends a push notification
+through it. Documented as `POST-V1 / MANUAL FIREBASE SETUP` in this pass's final report, not
+silently left unmentioned.
+
+**Release readiness, found and fixed a real gap**: reconfirming the release build's config
+surfaced that `API_BASE_URL` had NO release-specific value -- a release build produced without
+`local.properties` fully filled in would silently bake in `http://10.0.2.2:3000` (the emulator's
+own loopback alias) as the production API endpoint, failing every network call in a way that
+gives no hint the endpoint itself was ever misconfigured. Split `app/build.gradle.kts`'s
+`buildConfigField`s into real per-buildType blocks: release now reads `RELEASE_SUPABASE_URL`/
+`RELEASE_SUPABASE_ANON_KEY`/`RELEASE_API_BASE_URL` (new, empty-string default -- fails loudly on
+the first request instead of silently pointing at a fake local address) and force-sets
+`USE_MOCK_DATA=false` unconditionally, regardless of a developer's own debug-local.properties
+value -- a release build can no longer accidentally ship with mock data baked in either. Verified
+by inspecting the actually-generated `BuildConfig.java` for both build types after the change.
+
+**Verification**: real `gradlew clean compileDebugKotlin compileDebugUnitTestKotlin
+testDebugUnitTest lintDebug assembleDebug assembleRelease bundleRelease` run (see this pass's own
+final report for the exact pass/fail counts and artifact confirmation) plus 7 real local-Supabase
+integration tests for the new backend route and the full existing `apps/admin` vitest suite
+(598 tests) re-run to confirm zero regressions from the `GET /api/v1/documents` filter addition.
+
 ## 2026-08-17 (continued further) — Android V1 final gap-closure pass
 
 Continued directly from the commercial-launch completion pass below, per Mohammed's explicit

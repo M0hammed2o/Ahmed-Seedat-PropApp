@@ -98,12 +98,11 @@ untouched, reference-only.
   submission, the one write path`MOBILE_ARCHITECTURE_DECISION.md` §9 scopes for V1 offline
   support) — not built in this first vertical slice, which is read-only (Properties list/detail).
 
-## What's actually built (updated 2026-08-17, Android V1 final gap-closure pass)
+## What's actually built (updated 2026-08-18, Android V1 last local blocker pass)
 
 This section is rewritten each pass rather than appended to, so it never goes stale the way it
 did between 2026-08-01 and the commercial-launch pass. Current state, verified via real `gradlew`
-runs this pass (109 JVM unit tests, `compileDebugKotlin`, `lintDebug` — see `WORKLOG.md` for the
-full transcript):
+runs this pass — see `WORKLOG.md` for the full transcript and exact test counts:
 
 - **applicationId/package**: `za.co.proplyst.app` (this pass, Phase 1) — renamed from the
   never-published `com.propertyvault.app`. `za.co.<company>.<app>` matches `proplyst.co.za`'s own
@@ -128,35 +127,49 @@ full transcript):
   on-device), **In-app notifications + settings** (this pass, Phases 7/9 — `notifications` table,
   mark-read, per-category email/push/WhatsApp channel toggles against the same
   `notification_preferences` table every other channel already reads).
-- **Tenant portal** (bottom nav, 5 tabs): Payments (report a payment, same as the prior pass),
-  **Maintenance** (this pass, Phase 4 — list own tickets + submit a new one; no photo/file
-  attachment, since the backend's `tenantMaintenanceTicketCreateSchema` has no attachment field
-  yet — a disclosed gap, not an oversight), **Documents** (this pass, Phase 5 — tenancy documents
-  RLS explicitly tagged with the tenant's own lease, opened via the same signed-URL endpoint Phase
-  3 uses for proof-of-payment), **Notices** (this pass, Phase 6 — `announcements`, with
-  Acknowledge for ones that require it; read/unread tracking for non-required announcements is
-  NOT built — the shared list endpoint has no per-caller read-status join and no tenant-facing web
-  UI exists yet to establish one, a disclosed "where supported" simplification), Alerts (shared
-  in-app notification centre, same as owner).
-- **App Links** (partial, unchanged this pass): `autoVerify="true"` intent filter for
-  `https://proplyst.co.za`; verification won't succeed until Mohammed provides the real signing
-  SHA-256 (`ANDROID_APP_SHA256_FINGERPRINTS` in Render — see this pass's final report for the
-  exact upload-key-vs-Play-App-Signing distinction). Deep-link-to-specific-subscreen resume is
-  still not implemented (two independent `NavHost`s) — unchanged, disclosed gap.
-- **Branding**: `strings.xml`'s `app_name` ("Proplyst") was already correct, but `SplashScreen.kt`
-  and `SignInScreen.kt` were still hardcoding the literal text "PropertyVault" on-screen — a real,
-  live inconsistency a user would have seen on every cold start. Fixed to read
-  `R.string.app_name`. Launcher icon remains an honest flat-brand-color placeholder
-  (`ic_launcher_background.xml`) — a real logo exists
-  (`apps/admin/branding/proplyst-logo.png`) but no image-manipulation tooling was available in
-  this session to safely generate a properly safe-zoned adaptive icon from it; see the final
-  report for the exact manual step.
-- **Release readiness**: `isMinifyEnabled` stays `false` — this app's hand-rolled
-  `SerializationConverterFactory` resolves serializers via JVM reflection, and R8 correctness for
-  that path needs physical-device verification this session cannot perform. Standard
-  kotlinx.serialization keep rules were added to `proguard-rules.pro` as groundwork, not yet
-  exercised by any build. Debug-only cleartext exception (`app/src/debug/`), zero cleartext in
-  release, `allowBackup=false`, no hardcoded credentials, release logging fully disabled
-  (`HttpLoggingInterceptor.Level.NONE`) — all confirmed present, unchanged this pass.
+- **Tenant portal** (bottom nav, 5 tabs): Payments (report a payment), **Maintenance** (list own
+  tickets + submit a new one, **plus photo/file attachments this pass** — reuses the existing
+  `documents`/private-bucket infrastructure via a new tenant-scoped upload route, no new
+  migration; see below), **Documents** (tenancy documents RLS explicitly tagged with the tenant's
+  own lease, opened via the same signed-URL endpoint attachments/proof-of-payment use), **Notices**
+  (`announcements`, explicit Acknowledge for ones that require it; **real read/unread tracking for
+  every other announcement, this pass** — `announcement_reads` already had its own tenant-self RLS
+  policy, this pass just wires it, replacing the prior pass's session-local-only workaround),
+  Alerts (shared in-app notification centre, same as owner).
+- **Maintenance photo/file attachments** (new this pass): `POST /api/v1/tenant-portal/
+  maintenance-tickets/:id/documents` (ownership verified via the caller's own session client
+  before a service-role write, same pattern `/api/v1/tenant-portal/payment-reports`'s own upload
+  already established; the created document's `lease_id` is set to the ticket's own lease, so
+  `documents_select_tenant_self` already grants read-back access with zero new RLS). `GET
+  /api/v1/documents` extended with `filter[maintenance_ticket_id]`. Photo/file picker, upload
+  progress/error/retry, and an attachments list with tap-to-view on the ticket detail screen.
+- **App Links, now complete** (this pass): `AppLinkParser.kt` + `PendingDeepLinkStore` resume an
+  authenticated, role-matching link straight to its native sub-screen (`/my-payments`,
+  `/my-maintenance[/{id}]`, `/my-documents`, `/notices`, `/owner-portal/{payments,maintenance,
+  summary,settings}`, ...) across both nested `NavHost`s; unauthenticated retains the pending
+  target through sign-in; role-mismatched or genuinely unrecognized paths (including `/activate`'s
+  web-only account-creation flow, and several `/owner-portal/*`/`/leases/...` paths with no native
+  screen yet) safely fall back to the resolved role's own portal home. Verification itself still
+  won't succeed until Mohammed provides the real signing SHA-256
+  (`ANDROID_APP_SHA256_FINGERPRINTS` in Render — see the last two passes' final reports for the
+  exact upload-key-vs-Play-App-Signing distinction).
+- **Branding, real icon** (this pass): the real logo (`apps/admin/branding/proplyst-logo.png`,
+  already used for every PWA/favicon icon) turned out to be generatable for Android too — `sharp`
+  is available in this environment, so `drawable-nodpi/ic_launcher_foreground.png` is now the
+  real cropped mark (same crop/safe-zone sizing `apps/admin/scripts/make-icons.mjs` already uses),
+  on a matching navy background. No longer a placeholder.
+- **Release readiness**: `isMinifyEnabled` stays `false`, unchanged (still needs physical-device
+  verification of the reflection-based serializer this session cannot perform). **Found and fixed
+  a real gap this pass**: `API_BASE_URL`/`SUPABASE_URL` had no release-specific value, meaning a
+  release build without `local.properties` fully filled in would have silently baked in the
+  Android emulator's own loopback alias as the production endpoint. Release now reads separate
+  `RELEASE_*` properties (empty-string default, fails loudly instead of silently) and force-sets
+  `USE_MOCK_DATA=false` unconditionally. Debug-only cleartext exception, zero cleartext in
+  release, `allowBackup=false`, no hardcoded credentials, release logging fully disabled — all
+  otherwise confirmed present, unchanged.
+- **Push notifications**: audited only, per explicit instruction. Zero FCM/Firebase Android SDK
+  scaffolding exists. A real, provider-agnostic `device_push_tokens` table + registration endpoint
+  already exists server-side from an earlier pass, but nothing sends a push through it yet — POST-V1,
+  needs Mohammed to provision a real Firebase project first.
 
 Everything else in `NATIVE_ANDROID_SPEC.md` not listed above is specification only.
