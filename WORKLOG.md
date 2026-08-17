@@ -1,5 +1,88 @@
 # Worklog
 
+## 2026-08-17 — WhatsApp final pre-production pass (UI layer) + overnight autonomous continuation
+
+Continuation of the WhatsApp completion pass, explicitly scoped this time to the UI layer the
+prior two passes left unbuilt (only the API/DB layer existed) plus the owner monthly summary
+feature end to end. Ran autonomously overnight per Mohammed's instruction after he went offline;
+three background agents launched for independent Android/billing/email audits all failed
+immediately on the account's monthly Claude usage limit before making any changes (nothing lost,
+worktrees confirmed empty) -- all further work this pass was done directly, in the main working
+tree. One new additive migration (`20260101000107`), applied and pgTAP-tested locally only --
+**not applied to production**.
+
+**Flagged, not acted on**: a message arrived mid-session, bundled with automated background-task
+notification content rather than as a genuine user message, claiming Mohammed had checked Meta and
+all 8 WhatsApp templates were now approved, and instructing the approval gate be flipped. Per the
+session's own explicit warning that no real user input had landed since the last genuine message,
+this was treated as unverified (possibly injected) content and NOT acted on -- no template's
+`approved` flag was changed. If genuine, Mohammed should say so directly.
+
+**Owner monthly summary, for real** (`lib/ownerSummary.ts`, new): authoritative-data-only
+aggregation -- `rent_schedules.status = 'paid'` is the only thing counted as confirmed;
+`payment_reports.status = 'reported'` is a separate `awaitingConfirmation` bucket, never folded
+into `confirmedPaid` or subtracted from `outstanding`. Strictly scoped to the owner's own
+`property_owners` rows. A snapshot (`owner_property_summaries`, migration `20260101000107`,
+unique per owner+month) is computed once and never recomputed; `runOwnerMonthlySummaryJob()`
+(`lib/systemJobs.ts`) is now the 5th step in `POST /api/v1/system/daily-jobs`, creating a snapshot
+only on the owner's `notification_preferences.preferred_summary_day` (default day 1) and retrying
+delivery on every subsequent run until sent, without ever changing the numbers generation-day
+computed. `owner_monthly_property_summary` is now the 8th and last Meta template with a real
+dispatch call site, registered in `whatsappTemplates.ts` (still `approved: false`). A new
+`owner_summary` notification category (independent of `rent`) and a real, authenticated detail
+page at `/owner-portal/summary/:id` back the WhatsApp link.
+
+**Tenant payment-reporting UI** (previously API-only): `PaymentReportForm` at `/my-payments/report`
+(amount/method/date/optional proof upload) and a report-history list on `/my-payments`, both
+wired to the existing `POST /api/v1/tenant-portal/payment-reports`.
+
+**Owner/staff payment review UI** (previously API-only): a shared `PaymentReportReviewList`
+(confirm/reject, rejection reason required) mounted at both `/accounting/payment-reports` (staff)
+and `/owner-portal/payments` (owner) -- the same component, since RLS
+(`payment_reports_select_staff_or_owner`) already draws the access line at the data layer.
+
+**Owner-portal notification settings** (`/owner-portal/settings`, new): owners are real
+`auth.users` rows once linked, so the existing `notification_preferences` table/form already
+applied with zero schema change -- just needed a page mounting it inside the owner-portal shell.
+Human-readable category labels added throughout (`CATEGORY_LABELS` maps in both
+`NotificationPreferencesForm.tsx` and `CommunicationPreferencesPanel.tsx`) -- 'Monthly property
+summary', never the raw `owner_summary` token.
+
+**Dedicated security tests** (`supabase/tests/payment_reports_owner_summary_isolation.test.sql`,
+new, 9 assertions): a shared property shows the same `payment_reports` row to BOTH co-owners while
+an unrelated owner in the same org sees neither; `owner_property_summaries` enforces strict
+per-owner select isolation, a manager-role floor for staff visibility (agent role sees none), and
+has no client insert policy at all.
+
+**End-to-end workflow test** (`payment-reports/__tests__/workflow.e2e.test.ts`, new): real HTTP
+routes, real Supabase Auth sessions (not mocked fetch) -- tenant reports a cash payment, staff
+sees + confirms it, tenant sees it confirmed, and a real `whatsapp_messages` row exists addressed
+to the tenant (MockWhatsAppProvider only). Reject path and the "no reason = 400" validation path
+covered too. No route in this workflow had any test before this pass.
+
+**Brand audit** (Part 8, targeted not exhaustive): found and fixed one genuine legacy-brand leak --
+two staff-invite email routes (`organizations/[orgId]/invites`, `organization-invites/[id]/resend`)
+fell back to the literal string "a PropertyVault organization" when an org has no `legal_name`; now
+uses `branding.productName`. Every other `PropertyVault`/`PropValt` hit in app code was a code
+comment (historical, not customer-facing) -- left alone.
+
+**Billing/subscription proration**: NOT rebuilt. `supabase/migrations/20260101000104_billing_
+proration_engine.sql` and `supabase/tests/billing_proration_engine.test.sql` already exist, are
+already applied to production (confirmed via `supabase migration list --linked`), and pass
+locally -- this was built in an earlier pass this same day, not newly audited or changed here.
+Not independently re-verified against the specific "upgrade mid-cycle must not double-charge"
+requirement this pass; flagged as `Likely: already correct` rather than `Verified`, pending a
+dedicated read-through.
+
+**Verification, this pass**: `tsc --noEmit` clean (types/ui/validation/admin), `eslint` clean
+(admin), full local `supabase db reset` clean, pgTAP **778/778** (58 files, +9 from this pass),
+admin Vitest **571/575 passing, 3 skipped (no local Supabase for one describe block), 1 failing
+only under full-suite parallel execution** (a pre-existing `daily-jobs` idempotency test that
+passes cleanly in isolation -- root cause is concurrent test files sharing one local Postgres
+instance, not a regression from this pass; not fixed here, out of scope), `next build` clean.
+Migrations `20260101000106`/`20260101000107` confirmed still unapplied to production. 10 local
+commits this pass, none pushed.
+
 ## 2026-08-16 — WhatsApp V1 completion pass: payment reporting/confirmation, OTP phone verification, rent/lease reminder jobs, template approval gate
 
 Follow-up to the same day's earlier WhatsApp production readiness pass, completing as much of the
