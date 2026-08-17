@@ -3,6 +3,7 @@ import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/se
 import { requireOrgRole } from '@/lib/portfolio';
 import { dispatchEmail } from '@/lib/emailDispatch';
 import { getAppUrl } from '@/lib/appUrl';
+import { branding } from '@propvault/config';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -106,7 +107,7 @@ async function handlePOST(_request: NextRequest, { params }: RouteParams) {
     toUserId: null,
     templateName: 'member_invited',
     templateVars: {
-      orgName: org?.legal_name ?? 'a PropertyVault organization',
+      orgName: org?.legal_name ?? `a ${branding.productName} organization`,
       role: invite.role,
       acceptUrl: `${getAppUrl()}/invitations/accept?token=${invite.token}`,
       inviterName: inviterProfile?.display_name ?? null,

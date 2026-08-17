@@ -5,6 +5,7 @@ import { requireOrgRole } from '@/lib/portfolio';
 import { getOrgSeatSummary, canInviteStaff } from '@/lib/subscriptionEntitlements';
 import { dispatchEmail } from '@/lib/emailDispatch';
 import { getAppUrl } from '@/lib/appUrl';
+import { branding } from '@propvault/config';
 
 type RouteParams = { params: Promise<{ orgId: string }> };
 
@@ -273,7 +274,7 @@ async function handlePOST(request: NextRequest, { params }: RouteParams) {
       toUserId: null,
       templateName: 'member_invited',
       templateVars: {
-        orgName: org?.legal_name ?? 'a PropertyVault organization',
+        orgName: org?.legal_name ?? `a ${branding.productName} organization`,
         role: data.role,
         acceptUrl: `${getAppUrl()}/invitations/accept?token=${data.token}`,
         inviterName: inviterProfile?.display_name ?? null,
