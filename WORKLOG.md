@@ -1,5 +1,178 @@
 # Worklog
 
+## 2026-08-18 (continued) — Proplyst final pre-UAT engineering completion pass
+
+The last engineering pass before Mohammed begins hands-on UAT: deploy, test web/PWA, test
+Android, test Google Document AI OCR with real documents, test email, test WhatsApp, use the
+product naturally for several days, identify UX/business changes before commercial launch. Did
+not push, did not deploy, did not create production UAT data, did not perform real payments, did
+not publish Android, did not start a new feature beyond this pass's own explicit list. Full
+findings/dashboard in this pass's own final report; this entry is the engineering summary.
+
+**Part 1 — repository state recovered first.** Working tree clean, 35 commits ahead of
+`origin/main` / 0 behind before starting. All 12 stale `.claude/worktrees/agent-*` inspected
+before any action: 11 sit at zero-diff from the pre-session base with a clean status; the one with
+real commits (a WhatsApp OTP/payment-reporting work stream) was confirmed, via
+`git merge-base --is-ancestor`, to have every commit already an ancestor of `main` — fully merged,
+nothing lost, nothing to recover.
+
+**Part 2 — Google Document AI re-audited, one real precedence risk documented (not silently
+fixed), two real gaps closed.** Confirmed live: `getDocumentIntelligenceProvider()` still checks
+AWS Textract before Google Document AI — if any AWS credential is present in production, even a
+stale leftover, AWS silently wins despite Google being Mohammed's actual intended provider. Not
+reordered (a real behaviour change without more explicit direction, not an infrastructure fix,
+matching the code's own prior disclosure) — instead: (a) a new non-secret warning log fires
+whenever this precedence actually triggers, and (b) the platform-admin System page now shows the
+REAL active provider identity next to "Document intelligence provider" (previously hardcoded to
+"not connected" regardless of config). Also fixed: `provider_name` wasn't being recorded on the
+lease `upload-and-parse` route's `extraction_jobs`/`extraction_results` rows, unlike the other two
+extraction routes — now consistent across all three.
+
+**Part 3 — OCR test readiness audited live, one real UX bug fixed.** Full per-document-type audit
+(not assumed): bills reach real Google Document AI extraction but have NO field-correction UI
+(only a read-only display + "Confirm reviewed"); receipts are correctly blocked from extraction
+entirely (`extraction_not_supported`, by design); levy statements have the one genuine
+edit-then-save correction workflow; leases have a working backend route but zero UI ever calls it.
+Fixed: `LevyStatementsPanel.tsx`'s extraction call used to fire via `.catch(() => {})` — a Document
+AI failure left the statement silently back in "Uploaded" status with nothing on screen telling
+staff extraction failed. Now surfaces a dismissible warning with a real Retry button. Full honest
+checklist in `UAT_TEST_PLAN.md` §2; the two UI gaps (bill correction, lease upload) tracked as new
+TD-51, deliberately not built this pass (real new UI work, out of scope).
+
+**Part 4 — Portfolio Intelligence wired into the daily-jobs sweep, a real gap closed.**
+`reconcilePortfolioInsights()` had existed, fully implemented, since an earlier pass but was NEVER
+invoked by any production code path — confirmed by exhaustive grep before touching anything, not
+assumed (also independently corroborated by the pre-existing TD-20 entry). Now runs as
+`runPortfolioIntelligenceJob()`, the 6th and final job in the existing consolidated
+`POST /api/v1/system/daily-jobs` endpoint (no second Render Cron Job created, per this pass's own
+explicit instruction) — run last so insights reflect the day's already-settled state from the 5
+jobs before it. A real performance issue was found live, not assumed: a naive fully-sequential
+per-org loop took ~9s against this environment's own accumulated 266+ test orgs, long enough to
+threaten an HTTP-request-scoped cron endpoint's own timeout as real org count grows. Fixed with
+genuine bounded processing: concurrent batches of 10 orgs, hard-capped at 500 orgs/run (excess
+deferred to the next run, reported back as `orgsSkippedOverCap`, never silently dropped) — cut the
+same 266-org sweep to ~2.5s. Verified live: 5 new integration tests
+(`lib/__tests__/portfolioIntelligence.test.ts` — real rule-firing with a real `data_source`
+evidence trail, idempotent re-run, real auto-resolve once a condition stops triggering, cross-org
+isolation) plus 2 new daily-jobs orchestration tests proving a Portfolio Intelligence failure
+never blocks or corrupts the 5 financial jobs before it.
+
+**Part 5 — Portfolio Intelligence UI, both platforms.** Web: the dashboard's old single-line "most
+recent insight" banner (fabricated-number-free already, but minimal) replaced with a real panel —
+severity pill, short reason, when-generated, a "View X" link to the relevant existing page, and a
+real Dismiss action wired to the pre-existing `POST /api/v1/insights/:id/dismiss` route. Android:
+`DashboardScreen`'s old "not yet built" placeholder replaced with the real feed via a new
+`WebApiPortfolioInsightsRepository`/`DashboardViewModel.insightsUiState`, following this
+codebase's own established `WebApiAnnouncementsRepository`/`AnnouncementsViewModel` pattern
+exactly (new `WebApi.getPortfolioInsights()`, `InsightDto`, Mock+real repository pair wired via
+the existing `RepositoryModule.kt` `USE_MOCK_DATA` convention). A real bug was found and fixed
+while writing the ViewModel's own tests: the first draft awaited a future `Authenticated` auth
+state via `.first()`, which would hang forever for a caller who never authenticates — fixed to
+read the current `StateFlow.value` synchronously instead (`DashboardScreen` only ever renders
+post-auth in real usage, so this is also the more correct semantics, not just a safer one).
+
+**Part 6-14 — the read-only V1 AI Assistant, built on top of an existing, larger, mid-fidelity
+implementation, not from scratch.** Auditing first (as instructed, before adding anything) found
+that `ai_conversations`/`ai_messages`, a full `LLMProvider`/`MockLLMProvider` abstraction, and 3
+real working routes (`POST /api/v1/ai/conversations`, `.../messages`, `POST .../confirm`) already
+existed from an earlier pass — including a genuine write-staging/confirm capability (a "record an
+expense" intent that produced a `stagedChange`, later applied via the confirm route re-entering
+the real typed endpoint). This pass's own hard requirement was an explicit, enumerated
+prohibition on the Assistant proposing or applying ANY write in V1. Rather than leave that
+informal, it's now enforced twice, independently: `MockLLMProvider` no longer emits a
+`stagedChange` for any intent, AND `POST /api/v1/ai/messages/:id/confirm` unconditionally 403s
+(`ai_writes_disabled`) regardless of what any future provider might return — the second check
+exists specifically so a future real-LLM-provider swap can't silently re-enable writes just by
+returning one.
+
+Both owner/staff AND tenant users are now supported (the existing schema/RLS assumed org-staff
+only) — `ai_conversations_all_own`'s RLS policy widened (migration `20260101000109`) to also
+accept a caller with an active tenancy in the conversation's org, mirroring the existing
+`payment_reports_select_tenant_self` shape. The approved read-only tool registry is now a real,
+named set of context fields: owner side gained `pendingPaymentReports`, `portfolioInsights` (reads
+the rules-engine feed from Part 4, summarised only, never re-derived), `recentPayments`,
+`occupancySummary`; a new tenant-side context (`outstandingBalance`, `recentPaymentReports`,
+`rentSchedule`, `lease`, `maintenanceTickets`, `notices`) was built from scratch, reusing existing
+helpers (`calculateOutstandingRentTotal`, `resolveTenantSession`) rather than re-deriving tenant
+scoping logic. New safeguards: `rateLimitOrRespond()` now gates both conversation creation
+(20/hour) and messages (30/5min) — previously unguarded by anything but the token-usage cap;
+conversation history passed into a turn is now bounded to the most recent 20 messages (previously
+unbounded). A minimal web/PWA chat UI (`AssistantDrawer.tsx`) was built and mounted via a new
+`AppShell` `assistant` slot in both the owner dashboard and tenant portal layouts — floating
+trigger, suggested questions, loading/error states, no confirm/apply affordance anywhere (nothing
+for it to render). Android: not built, web/PWA is sufficient for V1 per this pass's own scope.
+
+Verified live: 11 `MockLLMProvider` unit tests (owner + tenant intents, grounded-only answers,
+never a stagedChange), 8 new pgTAP assertions for the tenant-access RLS widening (org staff can
+still only see their own conversation; a tenant can now create/read their own; an outsider with
+neither relationship gets nothing), and 4 new real route-level integration tests proving an org
+staff member gets a grounded overdue-rent answer, a tenant gets a grounded balance answer via the
+SAME endpoint (context branches correctly), an outsider is rejected, and the confirm route refuses
+regardless of caller.
+
+**Part 15 — email final audit, two real gaps closed, everything else confirmed already correct.**
+`welcome_email` was the one template bypassing the shared branded HTML system entirely (plain text
+only, sent directly, never through `dispatchEmail()`/`renderEmailLayout()`) — fixed, it now also
+sends a real branded `bodyHtml`. Two invitation routes (tenant + owner) inlined their own duplicate
+`NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'` fallback instead of calling the shared
+`getAppUrl()` helper — a real risk that a production activation link could silently render as a
+localhost URL if that env var were ever unset — fixed to call the shared helper. Every other real
+template (invitations, invoice/payment/statement, maintenance, all 7 subscription-lifecycle
+templates, compliance workflow, phone verification) was confirmed to already use the shared
+branded system, contain no leftover "PropertyVault"/"PropVault"/"NextGen" text, escape every
+dynamic field, and construct every CTA from a trusted base — no redesign attempted or needed.
+
+**Part 16 — email visual QA.** No preview mechanism existed anywhere (confirmed by search) — a new
+platform-admin-only page, `/platform-admin/email-preview`, renders the real
+`renderEmailTemplate()` output (subject + HTML in an isolated iframe + plain-text fallback) for 5
+representative templates with obviously-synthetic sample data. Calls no `EmailProvider` at all —
+there is no code path in this page that can ever dispatch a real email.
+
+**Part 17 — communication channel consistency, reviewed, no gaps found requiring a fix.** Rent
+reminder/overdue and the monthly owner summary are WhatsApp-only (no email template exists for
+either) — confirmed this is a deliberate, sensible channel split already in place (time-sensitive
+→ WhatsApp; formal/routine → email), not an oversight, per `EMAIL.md`'s new §10. Preferences are
+respected (`notification_preferences` gates `maintenance_update` email and the `owner_summary`
+WhatsApp category independently). Multi-owner recipient selection is real and already
+live-tested (`resolveEligibleOwnerRecipients()`/`notifyOwnersOfPaymentReport()` — dispatches one
+independent message per eligible owner, never "the org" as a single recipient, per its own
+pre-existing test). Tenant isolation holds throughout via the same RLS pattern verified repeatedly
+this session. No duplicate dispatch on repeated daily-jobs runs — proven live by the pre-existing
+and this pass's own idempotency tests (zero additional rent-schedule rows / zero duplicate
+reminders / zero duplicate insights on a real second invocation).
+
+**Part 18 — daily jobs, final list and order** (see the `daily-jobs/route.ts` doc comment for the
+authoritative version): subscriptions → rentSchedules → compliance → paymentAndLeaseReminders →
+ownerMonthlySummary → portfolioIntelligence (new, Part 4). Each independently caught; overall
+response is 200 only if every job succeeded. Idempotency across a real duplicate invocation
+verified live for rentSchedules/compliance (pre-existing) and now portfolioIntelligence (new).
+
+**Parts 19-22 — `UAT_TEST_PLAN.md` written**: exact UAT organisation/property/unit/owner/tenant/
+lease/maintenance/document fixtures to create post-deployment (never real customer data); the
+full deterministic owner + tenant + communication + Android end-to-end sequence; every
+physical/external item this environment cannot verify (Android release signing + physical device +
+Play Console, real WhatsApp outbound send + delivery/read status, real Google Document AI document
+comparison, real email client rendering, PayFast — unchanged, still externally blocked). Migration
+inventory (4 local-only migrations not yet on `origin/main`: `20260101000106`-`20260101000109`) in
+this pass's own final report.
+
+**Part 23 — full regression.** `pnpm format:check`/`typecheck`/`eslint .` all clean after fixing
+this pass's own files (10 files needed a `prettier --write` pass; unrelated pre-existing
+formatting debt in 7 other files, none touched this pass, left alone). Full pgTAP: 841/841 across
+62 files (833 prior + 8 new tenant-access-RLS assertions). Full Vitest: 622-625/628 depending on
+concurrent system load — 3 timeouts observed in one full-suite run under this session's own
+cumulative load (one in a file never touched this pass), all 3 confirmed passing cleanly and
+reliably when re-run in isolation; not logic regressions. `next build` succeeds. Android:
+`compileDebugKotlin`, `testDebugUnitTest`, `lintDebug`, `assembleDebug` all pass (see this pass's
+own final report for the exact re-run evidence).
+
+**Part 24 — this entry, plus**: `AI_ARCHITECTURE.md` (new "V1 status" section — read-only,
+tenant support, tool registry, safeguards, UI, Portfolio Intelligence invocation),
+`DOCUMENT_INTELLIGENCE.md` (AWS-precedence risk spelled out explicitly, the two Part 2 fixes, the
+correction-step claim corrected from aspirational to what's actually true per Part 3's live audit),
+`EMAIL.md` (new §10, Part 15/16/17 findings), `TECHNICAL_DEBT_REGISTER.md` (TD-20 Portfolio
+Intelligence half resolved; new TD-51 for the two OCR UI gaps), `UAT_TEST_PLAN.md` (new).
+
 ## 2026-08-18 (continued) — V1 billing final gap-closure pass
 
 Continued directly from the V1 billing/subscription/PayFast commercial-close pass immediately

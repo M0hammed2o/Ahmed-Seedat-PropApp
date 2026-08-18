@@ -7,6 +7,66 @@ PropertyVault has **two architecturally distinct AI surfaces**, evidenced in the
 
 Building the two on shared infrastructure (e.g. routing both through the same typed API, the same `audit_events` trail) is fine and expected. Building them as one module that "sometimes uses an LLM and sometimes doesn't" is not — a maintainer or an auditor must be able to look at either surface and know, unconditionally, whether an LLM touched the output.
 
+## V1 status (final pre-UAT engineering pass, WORKLOG.md this date)
+
+**Both surfaces are now live, not just designed.** What actually shipped this pass, and what
+remains deliberately deferred:
+
+- **Conversational Assistant is READ-ONLY in V1.** §1.5/§1.6 below describe the full staged-write/
+  confirm architecture as the intended eventual design — that plumbing already existed
+  (`ai_conversations`/`ai_messages`, the 3 routes, `StagedChange`) from an earlier pass, but this
+  pass's own hard requirement was an explicit, enumerated prohibition on the Assistant proposing or
+  applying ANY write (payments, leases, accounting, subscriptions, messages, arbitrary org
+  access — see this pass's own task description). Rather than leave that prohibition merely
+  informal, it's enforced twice: `MockLLMProvider` (`apps/admin/lib/providers/llm.ts`) never
+  populates `stagedChange` for any intent, AND `POST /api/v1/ai/messages/:id/confirm`
+  unconditionally 403s (`ai_writes_disabled`) regardless of what any future provider might return —
+  defense in depth, not reliance on the mock's behaviour alone. Re-enabling writes is a future,
+  deliberately-scoped pass's decision, not an accidental side effect of a provider swap.
+- **Both owner/staff AND tenant users are now supported** (§1.2's data model originally assumed
+  org-staff only — `ai_conversations_all_own`'s RLS policy, migration `20260101000109`, was
+  widened to also accept a caller with an active tenancy in that org, mirroring the existing
+  `payment_reports_select_tenant_self` tenant-self predicate shape). `AssembledOrgContext`
+  (owner/staff) and the new `AssembledTenantContext` (tenant) are a discriminated union
+  (`AssembledAssistantContext`); `POST /api/v1/ai/conversations/:id/messages` resolves which one
+  to assemble from the caller's OWN real relationship to the conversation's `org_id` (org role,
+  else tenancy, else 403) — never a client-supplied flag.
+- **The approved read-only tool registry (§1.4) is now a real, named set of fields**, not just
+  "whatever queries happen to be assembled": owner side —
+  `rentOverdue`/`rentDueSoon`/`recentExpenses`/`openMaintenanceTickets`/`leasesExpiringSoon`
+  (pre-existing) plus new this pass — `pendingPaymentReports`, `portfolioInsights` (reads the
+  Portfolio Intelligence feed §2, summarised only, never re-derived or re-judged),
+  `recentPayments`, `occupancySummary`. Tenant side (new) — `outstandingBalance`,
+  `recentPaymentReports`, `rentSchedule`, `lease`, `maintenanceTickets`, `notices`. All fetched
+  together per turn (no real LLM vendor exists yet to make lazy/dynamic tool-selection meaningful —
+  §3, still an open decision) — a disclosed simplification, not a gap.
+- **New V1 safeguards** (§4's cost/rate-limiting section already covered usage capping):
+  `rateLimitOrRespond()` now gates both `POST /api/v1/ai/conversations` (20/hour/user) and
+  `POST /api/v1/ai/conversations/:id/messages` (30/5min/user) — previously unguarded by anything
+  but the usage cap. Conversation history passed into a turn is now bounded to the most recent 20
+  messages (previously unbounded — a real, found-not-assumed gap, since nothing capped how large a
+  long-lived conversation's context could grow).
+- **A minimal web/PWA chat UI now exists** (`components/assistant/AssistantDrawer.tsx`) — a
+  floating trigger + drawer, mounted via `AppShell`'s new `assistant` slot in both the owner
+  dashboard and tenant portal layouts. Suggested questions, loading/error states, conversation
+  history, clearly labelled "Proplyst Assistant." No confirm/apply affordance anywhere in it (there
+  is nothing for it to render — the backend never returns a stagedChange in V1). Android: not
+  built this pass — web/PWA is sufficient for V1 per this pass's own scope, not a gap.
+- **Portfolio Intelligence (§2) is now actually invoked**, closing a real, previously-disclosed gap
+  (`TECHNICAL_DEBT_REGISTER.md` TD-20): `reconcilePortfolioInsights()` existed, fully implemented,
+  since an earlier pass but had zero callers anywhere in the codebase (confirmed by exhaustive grep
+  before this pass — not even a test file). Now wired into the existing consolidated daily-jobs
+  sweep (`runPortfolioIntelligenceJob()`, `apps/admin/lib/systemJobs.ts`) as its 6th and final job,
+  run last so insights reflect the day's already-settled state. Bounded processing (a real
+  performance issue found live, not assumed): concurrent batches of 10 orgs at a time, hard-capped
+  at 500 orgs per run, any excess deferred to the next run rather than either blocking indefinitely
+  or silently dropping orgs. Verified live: 5 new integration tests
+  (`lib/__tests__/portfolioIntelligence.test.ts` — real rule-firing, idempotency, auto-resolve,
+  cross-org isolation) plus 2 new daily-jobs orchestration tests (isolation from the 5 jobs above
+  it). Surfaced in the web dashboard (a real panel — severity, reason, when-generated, navigation,
+  dismiss — replacing the old single-line "most recent insight" banner) and, new this pass, in the
+  Android owner Dashboard tab (previously a static "not yet built" placeholder).
+
 ---
 
 ## 1. Conversational Assistant

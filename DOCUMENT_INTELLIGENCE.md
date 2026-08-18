@@ -44,6 +44,29 @@ No real AWS or Google account exists in this development environment — never f
 successful extraction result when neither is configured; the Mock provider's output is always
 clearly labelled as such.
 
+**Final pre-UAT engineering pass (WORKLOG.md this date) — Google Document AI is Proplyst's actual
+intended production provider, confirmed by Mohammed.** The precedence order above (AWS first) was
+NOT changed in this pass — it predates Google's integration ("whichever was checked first" in the
+original implementation, never a deliberate product decision) and reordering it without more
+explicit direction would be a real behaviour change, not an infrastructure fix. **This means: if
+any `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/`AWS_TEXTRACT_REGION`/`AWS_REGION` value is present
+in the production environment — even a stale leftover from an earlier setup attempt — AWS Textract
+silently wins and Google Document AI never runs, despite looking fully configured.** Before any
+OCR UAT: confirm none of those AWS vars are set. Two new safety nets, this pass:
+
+- A non-secret warning (`console.warn`, no credential values) is now logged whenever
+  `getDocumentIntelligenceProvider()` resolves to AWS Textract while Google credentials are ALSO
+  present, so this misconfiguration is visible in server logs rather than only discoverable after
+  the fact via `extraction_results.provider_name`.
+- The platform-admin **System** page (`/platform-admin/system`) now shows the REAL active
+  provider identity (`google-document-ai` / `aws-textract` / not connected) next to "Document
+  intelligence provider" — previously hardcoded to `not_connected` regardless of actual
+  configuration. No credentials are ever shown, only the provider's own non-secret `providerName`.
+
+Also fixed this pass: `provider_name` is now recorded on `extraction_jobs`/`extraction_results`
+for the lease `upload-and-parse` route too (the other two extraction routes — documents, levy
+statements — already did this; lease was the one gap).
+
 ## Processing pipeline
 
 1. Upload creates a `documents` row + an `extraction_jobs` row (`status = queued`, `attempt = 1`).
@@ -51,7 +74,15 @@ clearly labelled as such.
 3. Idempotency: `extraction_jobs` has a unique `(document_id, attempt)` — a duplicated trigger for the same document/attempt is a no-op, not a duplicate job.
 4. Retry: capped at `MAX_EXTRACTION_RETRIES` (packages/config, default 3), with the job moving to `needs_review` (not silently failing) once exhausted.
 5. Result: `extraction_results` stores raw provider output (jsonb, for diagnostics only) plus per-field values are written to the typed columns on `bills`/`payments` with a `extraction_confidence` per record.
-6. The customer always sees extracted fields in an editable confirmation screen before they're treated as final — the spec's explicit V1 rule. Nothing is "auto-saved as truth."
+6. **Correction step — audited live this pass, corrected from the aspirational claim this section
+   previously made**: only the **levy statement** flow actually has an editable correction step
+   before values are treated as final (a real line-item table, "Save corrections", "Mark
+   reviewed"). The **bill/Documents module** flow has NO field-editing UI at all — only a
+   read-only field display and a "Confirm reviewed" button; `packages/validation`'s
+   `billCorrectionSchema` exists but is never wired to any route. **Receipts** are not supported
+   for extraction at all (`extraction_not_supported`, by design — never guessed at). **Leases**
+   have a working backend route (`upload-and-parse`) but no UI anywhere calls it. See
+   `UAT_TEST_PLAN.md` §2 for the exact, honest per-document-type checklist this produced.
 
 ## Status tracking
 

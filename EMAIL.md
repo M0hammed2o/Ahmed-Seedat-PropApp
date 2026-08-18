@@ -114,3 +114,41 @@ queued → sent → delivered
 - Provider selection (SendGrid/Postmark/SES/Resend) — deferred to whenever a real account is provisioned; not blocking template/schema/audit design, which is provider-agnostic by construction (§2).
 - Exact per-vendor webhook signature scheme (§8) is written generically here since it depends on the vendor chosen; implementation must confirm the specific verification mechanism for whichever provider is selected before wiring the webhook handler.
 - ~~Suppression-list storage not yet in `DATABASE.md`~~ — **resolved, architecture review 2026-07-30**: `email_suppressions` now defined in `DATABASE.md` §7.
+
+## 10. Final pre-UAT audit findings (WORKLOG.md this date)
+
+A full audit of every real template against the shared branded HTML system, plus two real gaps
+found and closed:
+
+- **`welcome_email` was the one template bypassing the shared branded system entirely** (plain
+  text only, sent directly via `provider.send()` in `lib/lifecycleEmail.ts`, never through
+  `dispatchEmail()`/`renderEmailLayout()`). Fixed — it now also sends a real `bodyHtml` built from
+  the same `renderEmailLayout()` every other template uses.
+- **Two invitation routes (`tenants/:id/invitations`, `owners/:id/invitations`) inlined their own
+  duplicate `NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'` fallback** instead of calling the
+  shared `getAppUrl()` helper — a real risk that a production activation link could silently
+  render as `http://localhost:3000/...` if that env var were ever unset. Fixed to call the shared
+  helper.
+- **No email preview mechanism existed anywhere** — closed with a new platform-admin-only page,
+  `/platform-admin/email-preview`, rendering the real `renderEmailTemplate()` output (subject +
+  HTML + plain-text) for 5 representative templates with synthetic sample data. Calls no
+  `EmailProvider` — cannot dispatch a real email even by mistake.
+- **Confirmed, not a gap**: rent reminder/overdue notices, lease-expiry reminders, and the monthly
+  owner summary are WhatsApp-only — no `EmailTemplateName` exists for any of them
+  (`systemJobs.ts`'s `runPaymentAndLeaseReminderJob`/`runOwnerMonthlySummaryJob` dispatch via
+  `dispatchWhatsApp()` exclusively). This is a deliberate, sensible channel split (time-sensitive
+  → WhatsApp; formal/routine → email), not an oversight — see `WORKLOG.md` this date's
+  communication-channel-consistency note for the full reasoning.
+- Every other real template (invitations, invoice/payment/statement, maintenance update, all 7
+  subscription-lifecycle templates, compliance workflow, phone verification) was confirmed to
+  already use the shared branded system, contain no leftover "PropertyVault"/"PropVault"/"NextGen"
+  text, and construct every CTA URL from a trusted base (`getAppUrl()`) plus a fixed path or a
+  server-minted token — never a user-controlled value. `escapeHtml()`/`escapeUrlForHtmlAttribute()`
+  (§ template system) are applied to every dynamic field, confirmed live via
+  `lib/email/__tests__/layout.test.ts`'s own injection-attempt assertions.
+- Supabase Auth's own GoTrue templates (`supabase/templates/*.html` — confirmation, recovery,
+  invite, email_change, reauthentication) are a separate, parallel branded system (not routed
+  through `renderEmailLayout()` — GoTrue renders its own static files) with a visually distinct
+  palette from the main app's brand blue. Both say "Proplyst," neither leaks the old product name —
+  a cosmetic sub-brand inconsistency, not a functional or security issue, not touched this pass
+  (redesigning it was explicitly out of scope: "do NOT redesign the email system").
