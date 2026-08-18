@@ -8,6 +8,7 @@ import { dispatchWhatsApp, resolveOrgWhatsAppBranding } from '@/lib/whatsappDisp
 import { buildTenantAccountInvitationVariables } from '@/lib/whatsappTemplateVariables';
 import { rateLimitOrRespond } from '@/lib/rateLimit';
 import { writeAuditEvent } from '@/lib/audit';
+import { getAppUrl } from '@/lib/appUrl';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -171,7 +172,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   });
 
   const branding = await resolveOrgWhatsAppBranding(serviceClient, tenant.org_id);
-  const acceptUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/activate?token=${created.token}`;
+  // Final pre-UAT engineering pass (WORKLOG.md this date), Part 15: was inlining
+  // NEXT_PUBLIC_APP_URL with its own duplicate 'http://localhost:3000' fallback instead of
+  // calling getAppUrl() -- a real risk (this is the tenant activation email's CTA link) if that
+  // env var were ever unset in production, now closed by using the single shared helper.
+  const acceptUrl = `${getAppUrl()}/activate?token=${created.token}`;
 
   // Overnight platform pass (WORKLOG.md this date): relatedEntityId was previously
   // `${created.invitation_id}:0` -- a string -- but both email_messages.related_entity_id and

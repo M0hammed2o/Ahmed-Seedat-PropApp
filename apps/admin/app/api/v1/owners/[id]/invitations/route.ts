@@ -6,6 +6,7 @@ import { canUseOwnerPortal } from '@/lib/subscriptionEntitlements';
 import { mapOwnerInvitationRow, maskDestination } from '@/lib/ownerInvitations';
 import { dispatchEmail } from '@/lib/emailDispatch';
 import { rateLimitOrRespond } from '@/lib/rateLimit';
+import { getAppUrl } from '@/lib/appUrl';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -189,7 +190,10 @@ async function handlePOST(request: NextRequest, { params }: RouteParams) {
     .select('legal_name')
     .eq('id', owner.org_id)
     .maybeSingle();
-  const acceptUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/owner-invitations/accept?token=${created.token}`;
+  // Final pre-UAT engineering pass (WORKLOG.md this date), Part 15: same fix as the tenant
+  // invitation route -- calls the single shared getAppUrl() helper instead of duplicating its
+  // fallback logic inline.
+  const acceptUrl = `${getAppUrl()}/owner-invitations/accept?token=${created.token}`;
 
   // WhatsApp delivery is not implemented for owner invitations yet -- doing so requires a
   // pre-approved WhatsApp Business template this codebase has no equivalent for (unlike

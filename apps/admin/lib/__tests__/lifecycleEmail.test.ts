@@ -74,6 +74,11 @@ describe('sendWelcomeEmailOnce', () => {
     expect(sentInput.toAddress).toBe('u@example.com');
     expect(sentInput.subject).toContain('Welcome to');
     expect(sentInput.bodyText).toContain('Jane');
+    // Final pre-UAT engineering pass (WORKLOG.md this date), Part 15: welcome_email now goes
+    // through the shared branded HTML system, closing a real gap (this was the one template that
+    // was previously plain-text-only).
+    expect(typeof sentInput.bodyHtml).toBe('string');
+    expect(sentInput.bodyHtml).toContain('Jane');
     expect(updateCalls.some((c) => (c as { status?: string }).status === 'sent')).toBe(true);
   });
 

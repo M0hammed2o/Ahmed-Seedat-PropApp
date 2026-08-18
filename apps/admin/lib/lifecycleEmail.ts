@@ -2,6 +2,7 @@ import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { branding } from '@propvault/config';
 import { getEmailProvider } from './providers/email';
+import { renderEmailLayout } from './email/layout';
 
 /**
  * Production signup/onboarding (WORKLOG.md this date). Welcome email for a genuinely new,
@@ -84,6 +85,19 @@ export async function sendWelcomeEmailOnce(
     `-- The ${branding.productName} team`,
   ].join('\n');
 
+  // Final pre-UAT engineering pass (WORKLOG.md this date), Part 15: welcome_email was the one
+  // template that bypassed the shared branded HTML system entirely (plain text only) -- a real,
+  // disclosed gap found in this pass's own email audit, closed here rather than left as another
+  // one-off. Same shared renderEmailLayout() every other template already goes through.
+  const bodyHtml = renderEmailLayout({
+    heading: `Welcome to ${branding.productName}, ${greetingName}!`,
+    intro: `Thanks for joining ${branding.productName} -- your account is ready to go.`,
+    paragraphs: [
+      "Here's what you can do next: create or join an organisation to start managing your properties, add your first property, unit, and tenant, and invite your team or property owners so everyone stays in sync.",
+    ],
+    cta: { label: `Open ${branding.productName}`, url: branding.websiteUrl },
+  });
+
   try {
     const provider = getEmailProvider();
     const result = await provider.send({
@@ -93,6 +107,7 @@ export async function sendWelcomeEmailOnce(
       templateVars: { firstName: greetingName },
       subject,
       bodyText,
+      bodyHtml,
     });
     await serviceClient
       .from('user_lifecycle_events')
