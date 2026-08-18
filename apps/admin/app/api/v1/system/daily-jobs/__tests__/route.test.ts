@@ -125,7 +125,8 @@ describeIfSupabase('POST /api/v1/system/daily-jobs (real local Supabase integrat
     expect(body.jobs).toHaveProperty('compliance');
     expect(body.jobs).toHaveProperty('paymentAndLeaseReminders');
     expect(body.jobs).toHaveProperty('ownerMonthlySummary');
-  });
+    expect(body.jobs).toHaveProperty('portfolioIntelligence');
+  }, 20000);
 
   describe('idempotency across a real duplicate invocation', () => {
     let orgId: string;
@@ -292,6 +293,13 @@ describeIfSupabase('POST /api/v1/system/daily-jobs (real local Supabase integrat
       });
     });
 
+    // Final pre-UAT engineering pass (WORKLOG.md this date): this test calls the full route TWICE,
+    // and the route now includes the portfolioIntelligence job (Part 4), which sweeps every
+    // non-archived org in whatever database this runs against -- this session's own long-lived
+    // local dev DB has accumulated 266+ orgs from months of test runs, a real but non-representative
+    // amount that pushes two sequential real invocations past the 5s default. 20s comfortably
+    // covers that without masking a genuine regression (the job itself is bounded -- see
+    // PORTFOLIO_INTELLIGENCE_CONCURRENCY/MAX_ORGS_PER_RUN in lib/systemJobs.ts).
     it('a second, duplicate run creates zero additional rent schedule rows and sends zero duplicate compliance reminders', async () => {
       const cronAuthHeader = `Bearer ${process.env.CRON_JOB_SECRET}`;
       const first = await POST(postRequest(cronAuthHeader));
@@ -303,6 +311,6 @@ describeIfSupabase('POST /api/v1/system/daily-jobs (real local Supabase integrat
       const secondBody = await second.json();
       expect(secondBody.jobs.rentSchedules.result.totalCreated).toBe(0);
       expect(secondBody.jobs.compliance.result.dueSoonRemindersSent).toBe(0);
-    });
+    }, 20000);
   });
 });

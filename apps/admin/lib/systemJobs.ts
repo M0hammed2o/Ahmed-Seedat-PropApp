@@ -22,6 +22,7 @@ import {
   resolveCalendarMonthPeriod,
   formatSummaryMonthLabel,
 } from './ownerSummary';
+import { reconcilePortfolioInsights } from './portfolioIntelligence';
 
 /**
  * Daily system-job consolidation (WORKLOG.md this date). The ONE place each scheduled job's real
@@ -625,4 +626,114 @@ export async function runOwnerMonthlySummaryJob(
   }
 
   return { summariesGenerated, summariesSent };
+}
+
+// ============================================================
+// 6. Portfolio Intelligence -- reconciles the deterministic rules-engine feed (AI_ARCHITECTURE.md
+//    §2) for every org. Final pre-UAT engineering pass (WORKLOG.md this date): reconcilePortfolioInsights()
+//    (lib/portfolioIntelligence.ts) has existed, fully implemented and per-org, since an earlier
+//    pass but was NEVER invoked by any production code path -- confirmed by a repo-wide grep
+//    finding zero call sites anywhere, not even a test file (TECHNICAL_DEBT_REGISTER.md TD-20).
+//    This wires it into the existing consolidated daily-jobs sweep, per this pass's own explicit
+//    instruction NOT to create a second Render Cron Job.
+// ============================================================
+export interface PortfolioIntelligenceJobResult {
+  orgsProcessed: number;
+  orgsFailed: number;
+  orgsSkippedOverCap: number;
+  totalInserted: number;
+  totalUpdated: number;
+  totalAutoResolved: number;
+}
+
+// Bounded processing (this pass's own explicit requirement): a naive fully-sequential per-org
+// loop was found live to take ~9s against 266 orgs in this environment's own long-lived local dev
+// database -- long enough to threaten an HTTP-request-scoped cron endpoint's own timeout as org
+// count grows. Two independent bounds, not one: CONCURRENCY runs a small batch of orgs' own
+// independent queries in parallel rather than one at a time (the real fix -- Postgres/Supabase has
+// no problem serving 10 concurrent orgs' worth of read queries at once); MAX_ORGS_PER_RUN is a
+// hard ceiling so a single run can never process an unbounded number of orgs regardless of org
+// count -- any excess orgs are simply picked up by the next scheduled run (a delayed insight
+// refresh, never a silently-dropped one), reported back as `orgsSkippedOverCap` rather than
+// pretending the sweep was complete.
+const PORTFOLIO_INTELLIGENCE_CONCURRENCY = 10;
+const PORTFOLIO_INTELLIGENCE_MAX_ORGS_PER_RUN = 500;
+
+/**
+ * Runs last in the daily-jobs order (after subscriptions/rent schedules/compliance/reminders/
+ * owner summaries) -- Portfolio Intelligence insights are meant to reflect the DAY'S already-
+ * settled state (a rent schedule the compliance/reminder jobs just flipped to overdue, a
+ * compliance requirement the compliance job just marked overdue), not a stale pre-sweep snapshot.
+ * Per-org try/catch (matching runPaymentAndLeaseReminderJob's own per-row isolation, extended to
+ * per-org here): one org's failure -- a malformed row, a transient query error -- is logged and
+ * skipped, never allowed to abort the batch or corrupt/block any other job in the same daily-jobs
+ * run (this pass's own explicit "failure in intelligence must not corrupt financial jobs"
+ * requirement -- this job runs strictly after every financial job has already completed its own
+ * independent try/catch in the route, so a Portfolio Intelligence failure literally cannot affect
+ * them). Excludes archived orgs only (removed from active billing/usage, per DATABASE.md) --
+ * trial/active/overdue/suspended/cancelled orgs all still get insights, matching the grace-period
+ * access policy that suspended/cancelled orgs retain read access.
+ */
+export async function runPortfolioIntelligenceJob(
+  serviceClient: SupabaseClient,
+): Promise<PortfolioIntelligenceJobResult> {
+  const { data: orgs, error } = await serviceClient
+    .from('organizations')
+    .select('id')
+    .neq('status', 'archived')
+    .order('id', { ascending: true })
+    .limit(PORTFOLIO_INTELLIGENCE_MAX_ORGS_PER_RUN + 1);
+  if (error) throw new Error(error.message);
+
+  const allOrgs = orgs ?? [];
+  const orgsOverCap = allOrgs.length > PORTFOLIO_INTELLIGENCE_MAX_ORGS_PER_RUN;
+  const orgsToProcess = orgsOverCap
+    ? allOrgs.slice(0, PORTFOLIO_INTELLIGENCE_MAX_ORGS_PER_RUN)
+    : allOrgs;
+
+  let orgsProcessed = 0;
+  let orgsFailed = 0;
+  let totalInserted = 0;
+  let totalUpdated = 0;
+  let totalAutoResolved = 0;
+
+  for (let i = 0; i < orgsToProcess.length; i += PORTFOLIO_INTELLIGENCE_CONCURRENCY) {
+    const batch = orgsToProcess.slice(i, i + PORTFOLIO_INTELLIGENCE_CONCURRENCY);
+    const results = await Promise.allSettled(
+      batch.map((org) => reconcilePortfolioInsights(serviceClient, org.id as string)),
+    );
+    for (let j = 0; j < results.length; j += 1) {
+      const outcome = results[j]!;
+      if (outcome.status === 'fulfilled') {
+        orgsProcessed += 1;
+        totalInserted += outcome.value.inserted;
+        totalUpdated += outcome.value.updated;
+        totalAutoResolved += outcome.value.autoResolved;
+      } else {
+        orgsFailed += 1;
+        console.error(
+          '[portfolioIntelligence] reconcile failed for org',
+          batch[j]!.id,
+          outcome.reason,
+        );
+      }
+    }
+  }
+
+  const orgsSkippedOverCap = orgsOverCap
+    ? allOrgs.length - PORTFOLIO_INTELLIGENCE_MAX_ORGS_PER_RUN
+    : 0;
+  if (orgsSkippedOverCap > 0) {
+    console.warn(
+      `[portfolioIntelligence] ${orgsSkippedOverCap} org(s) exceeded PORTFOLIO_INTELLIGENCE_MAX_ORGS_PER_RUN (${PORTFOLIO_INTELLIGENCE_MAX_ORGS_PER_RUN}) and were deferred to the next run`,
+    );
+  }
+  return {
+    orgsProcessed,
+    orgsFailed,
+    orgsSkippedOverCap,
+    totalInserted,
+    totalUpdated,
+    totalAutoResolved,
+  };
 }

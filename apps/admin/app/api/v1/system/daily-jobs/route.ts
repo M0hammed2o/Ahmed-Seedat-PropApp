@@ -8,6 +8,7 @@ import {
   runComplianceReminderJob,
   runPaymentAndLeaseReminderJob,
   runOwnerMonthlySummaryJob,
+  runPortfolioIntelligenceJob,
 } from '@/lib/systemJobs';
 
 /**
@@ -27,14 +28,21 @@ import {
  *    reads it.
  * 2. rentSchedules -- so upcoming rent obligations exist before any notification/reporting logic
  *    that might depend on them.
- * 3. compliance -- reminder sweep, run last; has no dependency on the two jobs above.
+ * 3. compliance -- reminder sweep.
+ * 4. paymentAndLeaseReminders -- rent payment reminder / overdue notice / lease expiry reminder,
+ *    run after rent-schedule generation so a schedule created earlier in this same run is
+ *    reminder-eligible immediately.
+ * 5. ownerMonthlySummary -- reads rent_schedules/payment_reports/maintenance_tickets/leases as
+ *    they stand at the end of this run.
+ * 6. portfolioIntelligence (final pre-UAT engineering pass, Part 4) -- reconciles the deterministic
+ *    rules-engine feed (portfolio_insights) for every org, run LAST so it reflects the day's
+ *    already-settled state rather than a pre-sweep snapshot.
  *
- * Each job is caught independently: a failure in one does not stop the others (all three are
- * genuinely independent -- compliance reminders don't read rent-schedule data, rent-schedule
- * generation doesn't read subscription status -- so skipping the remaining jobs after one failure
- * would only delay unrelated, unaffected work). The overall HTTP response is 200 only if every
- * job succeeded; any failure returns 500 with a structured per-job breakdown, never a 200 that
- * silently hides a partial failure.
+ * Each job is caught independently: a failure in one does not stop the others (each is genuinely
+ * independent of the others' own success/failure -- so skipping the remaining jobs after one
+ * failure would only delay unrelated, unaffected work). The overall HTTP response is 200 only if
+ * every job succeeded; any failure returns 500 with a structured per-job breakdown, never a 200
+ * that silently hides a partial failure.
  */
 export async function POST(request: NextRequest) {
   const env = getAdminServerEnv();
@@ -61,7 +69,8 @@ export async function POST(request: NextRequest) {
     | 'rentSchedules'
     | 'compliance'
     | 'paymentAndLeaseReminders'
-    | 'ownerMonthlySummary',
+    | 'ownerMonthlySummary'
+    | 'portfolioIntelligence',
     { success: boolean; durationMs: number; result?: unknown; error?: string }
   > = {
     subscriptions: { success: false, durationMs: 0 },
@@ -69,6 +78,7 @@ export async function POST(request: NextRequest) {
     compliance: { success: false, durationMs: 0 },
     paymentAndLeaseReminders: { success: false, durationMs: 0 },
     ownerMonthlySummary: { success: false, durationMs: 0 },
+    portfolioIntelligence: { success: false, durationMs: 0 },
   };
 
   // 1. Subscription lifecycle + scheduled plan-change application.
@@ -169,12 +179,36 @@ export async function POST(request: NextRequest) {
     durationMs: jobs.ownerMonthlySummary.durationMs,
   });
 
+  // 6. Final pre-UAT engineering pass, Part 4: Portfolio Intelligence reconciliation. Run LAST --
+  //    reflects the day's already-settled state from every job above (a rent schedule job 2/3 just
+  //    flipped to overdue, a compliance requirement job 3 just marked overdue), not a stale
+  //    pre-sweep snapshot. Fully independent of every job above (writes only to portfolio_insights,
+  //    never a financial table), so a failure here can never corrupt or block them -- and by
+  //    running last, the reverse is also already true: every job it might read from has already
+  //    either succeeded or independently failed by the time this runs.
+  const insightsStart = Date.now();
+  try {
+    const result = await runPortfolioIntelligenceJob(serviceClient);
+    jobs.portfolioIntelligence = { success: true, durationMs: Date.now() - insightsStart, result };
+  } catch (err) {
+    jobs.portfolioIntelligence = {
+      success: false,
+      durationMs: Date.now() - insightsStart,
+      error: err instanceof Error ? err.message : 'Unknown error',
+    };
+  }
+  console.warn('[daily-jobs] portfolioIntelligence job complete', {
+    success: jobs.portfolioIntelligence.success,
+    durationMs: jobs.portfolioIntelligence.durationMs,
+  });
+
   const overallSuccess =
     jobs.subscriptions.success &&
     jobs.rentSchedules.success &&
     jobs.compliance.success &&
     jobs.paymentAndLeaseReminders.success &&
-    jobs.ownerMonthlySummary.success;
+    jobs.ownerMonthlySummary.success &&
+    jobs.portfolioIntelligence.success;
   const totalDurationMs = Date.now() - runStartedAt;
 
   console.warn('[daily-jobs] run complete', {
@@ -217,6 +251,10 @@ export async function POST(request: NextRequest) {
       ownerMonthlySummary: {
         success: jobs.ownerMonthlySummary.success,
         durationMs: jobs.ownerMonthlySummary.durationMs,
+      },
+      portfolioIntelligence: {
+        success: jobs.portfolioIntelligence.success,
+        durationMs: jobs.portfolioIntelligence.durationMs,
       },
     },
   });

@@ -11,7 +11,6 @@ import {
   Users,
   Wrench,
 } from 'lucide-react';
-import { Avatar } from '@/components/ui/Avatar';
 import { Delta } from '@/components/ui/Delta';
 import { Meter } from '@/components/ui/Meter';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -23,6 +22,7 @@ import { MoneyFlowChart } from '@/components/dashboard/MoneyFlowChart';
 import { CollectionsMixChart } from '@/components/dashboard/CollectionsMixChart';
 import { PropertyMap, type MappableProperty } from '@/components/dashboard/PropertyMap';
 import { RecentActivityFeed, type ActivityItem } from '@/components/dashboard/RecentActivityFeed';
+import { PortfolioInsightsPanel } from '@/components/dashboard/PortfolioInsightsPanel';
 
 // Owner Dashboard, rebuilt against reference/lovable-ui-reference's routes/index.tsx literal
 // structure (2026-08-04 Lovable-adoption batch, UI_INTEGRATION_PLAN.md) -- same KPI set, same
@@ -73,8 +73,16 @@ interface DashboardData {
   topProperties: TopProperty[];
   mappableProperties: MappableProperty[];
   recentPayments: RecentPayment[];
-  insight: string | null;
+  insights: DashboardInsight[];
   displayFirstName?: string;
+}
+
+interface DashboardInsight {
+  id: string;
+  message: string;
+  severity: 'info' | 'warning' | 'urgent';
+  insightType: string;
+  generatedAt: string;
 }
 
 const DEMO_DATA: DashboardData = {
@@ -149,7 +157,15 @@ const DEMO_DATA: DashboardData = {
       status: 'paid',
     },
   ],
-  insight: null,
+  insights: [
+    {
+      id: 'demo-insight-1',
+      message: 'Rent of R12,500 is 5 days overdue (due 2026-08-13).',
+      severity: 'warning',
+      insightType: 'rent_overdue',
+      generatedAt: new Date().toISOString(),
+    },
+  ],
 };
 
 function greeting(): string {
@@ -567,23 +583,11 @@ export default async function DashboardPage() {
 
       {/* Lovable's "Vault Intelligence" banner shows a fabricated AI insight with an invented
           rand figure. PropertyVault has a real portfolio_insights table (AI_ARCHITECTURE.md
-          §2.5) -- populated only once a scheduled evaluation actually runs for this org, which no
-          production scheduler triggers automatically yet (TECHNICAL_DEBT_REGISTER.md TD-20).
-          Shows the org's real most recent insight when one exists; a truthful "no insights yet"
-          state otherwise -- never an invented number. */}
-      <div className="flex items-center gap-3 rounded-2xl border border-border bg-surface px-5 py-4">
-        <Avatar initials="AI" />
-        <p className="min-w-0 flex-1 text-[13px] text-muted-foreground">
-          {data.insight ? (
-            <>
-              <span className="font-semibold text-foreground">Portfolio insight:</span>{' '}
-              {data.insight}
-            </>
-          ) : (
-            'No portfolio insights available yet.'
-          )}
-        </p>
-      </div>
+          §2.5), now actually populated by the daily-jobs sweep (final pre-UAT engineering pass,
+          Part 4 -- runPortfolioIntelligenceJob). Shows severity, a short reason, when generated,
+          navigation to the relevant page, and a real dismiss action -- never an invented number,
+          and a truthful "no insights yet" empty state when the feed is genuinely empty. */}
+      <PortfolioInsightsPanel insights={data.insights} />
     </>
   );
 }
@@ -630,11 +634,11 @@ async function loadData(): Promise<DashboardData> {
     supabase.from('leases').select('id, unit_id, rent_amount, status, end_date'),
     supabase
       .from('portfolio_insights')
-      .select('message')
+      .select('id, message, severity, insight_type, generated_at')
       .is('dismissed_at', null)
+      .order('severity', { ascending: false })
       .order('generated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+      .limit(5),
     (async () => {
       const {
         data: { user },
@@ -815,7 +819,13 @@ async function loadData(): Promise<DashboardData> {
     topProperties,
     mappableProperties,
     recentPayments,
-    insight: insightResult.data?.message ?? null,
+    insights: (insightResult.data ?? []).map((row) => ({
+      id: row.id as string,
+      message: row.message as string,
+      severity: row.severity as DashboardInsight['severity'],
+      insightType: row.insight_type as string,
+      generatedAt: row.generated_at as string,
+    })),
     displayFirstName: profileResult.data?.display_name?.split(' ')[0] || undefined,
   };
 }

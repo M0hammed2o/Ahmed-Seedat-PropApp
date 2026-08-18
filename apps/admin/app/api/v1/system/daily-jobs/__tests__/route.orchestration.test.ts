@@ -16,6 +16,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY =
 let callOrder: string[] = [];
 let subscriptionsShouldFail = false;
 let rentSchedulesShouldFail = false;
+let portfolioIntelligenceShouldFail = false;
 
 vi.mock('@/lib/systemJobs', () => ({
   runSubscriptionLifecycleJob: vi.fn(async () => {
@@ -46,6 +47,18 @@ vi.mock('@/lib/systemJobs', () => ({
     callOrder.push('ownerMonthlySummary');
     return { summariesGenerated: 0, summariesSent: 0 };
   }),
+  runPortfolioIntelligenceJob: vi.fn(async () => {
+    callOrder.push('portfolioIntelligence');
+    if (portfolioIntelligenceShouldFail) throw new Error('simulated portfolioIntelligence failure');
+    return {
+      orgsProcessed: 0,
+      orgsFailed: 0,
+      orgsSkippedOverCap: 0,
+      totalInserted: 0,
+      totalUpdated: 0,
+      totalAutoResolved: 0,
+    };
+  }),
 }));
 
 vi.mock('@/lib/audit', () => ({
@@ -67,12 +80,13 @@ describe('POST /api/v1/system/daily-jobs (orchestration, mocked systemJobs)', ()
     callOrder = [];
     subscriptionsShouldFail = false;
     rentSchedulesShouldFail = false;
+    portfolioIntelligenceShouldFail = false;
   });
   afterEach(() => {
     vi.clearAllMocks();
   });
 
-  it('runs subscriptions, then rentSchedules, then compliance, then paymentAndLeaseReminders, in that exact deterministic order', async () => {
+  it('runs subscriptions, then rentSchedules, then compliance, then paymentAndLeaseReminders, then ownerMonthlySummary, then portfolioIntelligence, in that exact deterministic order', async () => {
     await POST(cronRequest());
     expect(callOrder).toEqual([
       'subscriptions',
@@ -80,6 +94,7 @@ describe('POST /api/v1/system/daily-jobs (orchestration, mocked systemJobs)', ()
       'compliance',
       'paymentAndLeaseReminders',
       'ownerMonthlySummary',
+      'portfolioIntelligence',
     ]);
   });
 
@@ -93,14 +108,16 @@ describe('POST /api/v1/system/daily-jobs (orchestration, mocked systemJobs)', ()
     expect(body.jobs.compliance.success).toBe(true);
     expect(body.jobs.paymentAndLeaseReminders.success).toBe(true);
     expect(body.jobs.ownerMonthlySummary.success).toBe(true);
+    expect(body.jobs.portfolioIntelligence.success).toBe(true);
     expect(typeof body.jobs.subscriptions.durationMs).toBe('number');
     expect(typeof body.jobs.rentSchedules.durationMs).toBe('number');
     expect(typeof body.jobs.compliance.durationMs).toBe('number');
     expect(typeof body.jobs.paymentAndLeaseReminders.durationMs).toBe('number');
     expect(typeof body.jobs.ownerMonthlySummary.durationMs).toBe('number');
+    expect(typeof body.jobs.portfolioIntelligence.durationMs).toBe('number');
   });
 
-  it('a subscriptions-job failure does not stop rentSchedules/compliance/paymentAndLeaseReminders from running, and the overall response reports failure', async () => {
+  it('a subscriptions-job failure does not stop rentSchedules/compliance/paymentAndLeaseReminders/ownerMonthlySummary/portfolioIntelligence from running, and the overall response reports failure', async () => {
     subscriptionsShouldFail = true;
     const response = await POST(cronRequest());
     expect(response.status).toBe(500);
@@ -113,16 +130,18 @@ describe('POST /api/v1/system/daily-jobs (orchestration, mocked systemJobs)', ()
     expect(body.jobs.compliance.success).toBe(true);
     expect(body.jobs.paymentAndLeaseReminders.success).toBe(true);
     expect(body.jobs.ownerMonthlySummary.success).toBe(true);
+    expect(body.jobs.portfolioIntelligence.success).toBe(true);
     expect(callOrder).toEqual([
       'subscriptions',
       'rentSchedules',
       'compliance',
       'paymentAndLeaseReminders',
       'ownerMonthlySummary',
+      'portfolioIntelligence',
     ]);
   });
 
-  it('a rentSchedules-job failure is isolated -- subscriptions still reports success, compliance/paymentAndLeaseReminders still run, overall response reports failure', async () => {
+  it('a rentSchedules-job failure is isolated -- subscriptions still reports success, compliance/paymentAndLeaseReminders/ownerMonthlySummary/portfolioIntelligence still run, overall response reports failure', async () => {
     rentSchedulesShouldFail = true;
     const response = await POST(cronRequest());
     expect(response.status).toBe(500);
@@ -133,6 +152,22 @@ describe('POST /api/v1/system/daily-jobs (orchestration, mocked systemJobs)', ()
     expect(body.jobs.compliance.success).toBe(true);
     expect(body.jobs.paymentAndLeaseReminders.success).toBe(true);
     expect(body.jobs.ownerMonthlySummary.success).toBe(true);
+    expect(body.jobs.portfolioIntelligence.success).toBe(true);
+  });
+
+  it('a portfolioIntelligence-job failure is isolated -- every financial job above it still reports success, and it never blocks or corrupts them (it runs last, after they have already completed)', async () => {
+    portfolioIntelligenceShouldFail = true;
+    const response = await POST(cronRequest());
+    expect(response.status).toBe(500);
+    const body = await response.json();
+    expect(body.success).toBe(false);
+    expect(body.jobs.subscriptions.success).toBe(true);
+    expect(body.jobs.rentSchedules.success).toBe(true);
+    expect(body.jobs.compliance.success).toBe(true);
+    expect(body.jobs.paymentAndLeaseReminders.success).toBe(true);
+    expect(body.jobs.ownerMonthlySummary.success).toBe(true);
+    expect(body.jobs.portfolioIntelligence.success).toBe(false);
+    expect(typeof body.jobs.portfolioIntelligence.error).toBe('string');
   });
 
   it('never returns HTTP 200 when any job failed', async () => {

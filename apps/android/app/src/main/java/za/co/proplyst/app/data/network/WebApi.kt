@@ -4,6 +4,7 @@ import za.co.proplyst.app.data.network.dto.AnnouncementListResponse
 import za.co.proplyst.app.data.network.dto.CreateTenantMaintenanceTicketRequest
 import za.co.proplyst.app.data.network.dto.DocumentDetailResponse
 import za.co.proplyst.app.data.network.dto.DocumentListResponse
+import za.co.proplyst.app.data.network.dto.InsightListResponse
 import za.co.proplyst.app.data.network.dto.MaintenanceDocumentUploadResponse
 import za.co.proplyst.app.data.network.dto.MaintenanceTicketCreateResponse
 import za.co.proplyst.app.data.network.dto.PaymentReportCreateResponse
@@ -106,4 +107,13 @@ interface WebApi {
     suspend fun getMaintenanceTicketDocuments(
         @Query("filter[maintenance_ticket_id]") ticketId: String,
     ): Response<DocumentListResponse>
+
+    /** Portfolio Intelligence feed (final pre-UAT engineering pass, WORKLOG.md this date, Part 5)
+     * -- the deterministic rules-engine insights (AI_ARCHITECTURE.md §2), never an LLM. Owner/
+     * staff-only (portfolio_insights has no tenant-self RLS path); `orgId` is the caller's own
+     * OrgMembership.orgId, never client-invented. */
+    @GET("api/v1/insights")
+    suspend fun getPortfolioInsights(
+        @Query("filter[org_id]") orgId: String,
+    ): Response<InsightListResponse>
 }
