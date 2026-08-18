@@ -473,9 +473,30 @@ export async function processBillingWebhookEvent(
           .eq('id', payment.billing_plan_change_id)
           .maybeSingle();
         if (pendingChange && pendingChange.status === 'awaiting_payment') {
+          const subscriptionUpdateForChange: Record<string, unknown> = {
+            plan_id: pendingChange.new_plan_id,
+          };
+          // V1 billing invoice pass (WORKLOG.md this date), Phase 11 (reactivation lifecycle audit):
+          // a reactivation has no "currently paid period" to preserve (compute_plan_change_quote()'s
+          // own comment) -- the org's period may have sat expired for days/weeks while
+          // suspended/cancelled. Found LIVE, via a real test (billing.test.ts's reactivation
+          // lifecycle test), not by inspection: without this, current_period_end/next_payment_date
+          // stayed at their stale pre-suspension values, an already-ended period silently carried
+          // forward into the reactivated subscription. Same flat-30-day convention this file already
+          // uses everywhere else a fresh period is opened (startSubscriptionCheckout/
+          // startPlanChangeCheckout's own new-row branch above).
+          if (pendingChange.change_type === 'reactivation') {
+            const periodStart = new Date().toISOString().slice(0, 10);
+            const periodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+              .toISOString()
+              .slice(0, 10);
+            subscriptionUpdateForChange.current_period_start = periodStart;
+            subscriptionUpdateForChange.current_period_end = periodEnd;
+            subscriptionUpdateForChange.next_payment_date = periodEnd;
+          }
           await serviceClient
             .from('organization_subscriptions')
-            .update({ plan_id: pendingChange.new_plan_id })
+            .update(subscriptionUpdateForChange)
             .eq('id', payment.subscription_id);
           await serviceClient
             .from('billing_plan_changes')
@@ -527,6 +548,28 @@ export async function processBillingWebhookEvent(
             console.error('[emailDispatch] subscription lifecycle email dispatch failed', err);
           }
         }
+      }
+
+      // V1 billing invoice pass (WORKLOG.md this date): records the Proplyst subscription
+      // invoice/receipt for this confirmed payment -- run LAST in this branch, after
+      // organization_subscriptions/billing_plan_changes have already been flipped above, so an
+      // upgrade's invoice reflects the ALREADY-APPLIED target plan/period, not a stale pre-flip
+      // snapshot. create_subscription_invoice_for_payment() (migration 20260101000108) is itself
+      // idempotent (unique(subscription_payment_id)) -- logged, not thrown, on failure: the
+      // payment/entitlement state above has already been correctly applied by this point, and
+      // failing the whole webhook response here would misreport that core success as a failure
+      // to the gateway. A missing invoice is a real, visible-in-logs problem to investigate, not
+      // silently swallowed.
+      try {
+        await serviceClient.rpc('create_subscription_invoice_for_payment', {
+          p_payment_id: payment.id,
+        });
+      } catch (err) {
+        console.error('[billing] subscription invoice creation failed', {
+          paymentId: payment.id,
+          orgId,
+          err,
+        });
       }
     } else if (event.type === 'payment_failed' && payment.billing_plan_change_id) {
       // RELEASE A: a failed UPGRADE/REACTIVATION payment is a materially different situation than
@@ -725,4 +768,16 @@ export async function refundSubscriptionPayment(
     .from('subscription_payments')
     .update({ status: 'refunded' })
     .eq('id', input.subscriptionPaymentId);
+
+  // V1 billing invoice pass (WORKLOG.md this date): the original invoice is retained, never
+  // deleted or overwritten in its amounts/invoice_number -- only its status changes, so financial
+  // history stays intact and a refunded charge is still visible as exactly what was originally
+  // invoiced, now marked refunded. A payment predating this pass (or one that never successfully
+  // reached create_subscription_invoice_for_payment(), e.g. the logged-not-thrown failure path in
+  // processBillingWebhookEvent) may have no linked invoice at all -- updating zero rows here is a
+  // correct, silent no-op, not an error.
+  await serviceClient
+    .from('subscription_invoices')
+    .update({ status: 'refunded' })
+    .eq('subscription_payment_id', input.subscriptionPaymentId);
 }

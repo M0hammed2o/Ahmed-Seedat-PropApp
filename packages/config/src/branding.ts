@@ -34,3 +34,23 @@ export const branding = {
 } as const;
 
 export type Branding = typeof branding;
+
+/**
+ * Proplyst's OWN legal/billing entity details -- V1 billing invoice pass (WORKLOG.md this date).
+ * Distinct from `organizations.vat_no`/`cipc_reg_no`/etc. (packages/config has no equivalent for
+ * that table on purpose) -- THOSE are a CUSTOMER org's own legal details for THEIR landlord/tenant
+ * accounting; this is Proplyst's own details as the entity ISSUING a subscription invoice to that
+ * customer. All null until Mohammed confirms real values -- never fabricated, matching the same
+ * "TO_BE_CONFIRMED, never invented" rule `supportEmail` above already establishes. Every renderer
+ * (PDF, billing UI) must treat a null field here as "omit this line," never substitute a
+ * placeholder string -- see lib/subscriptionInvoicePdf.ts's own header comment for the VAT-specific
+ * consequence (never label a document "Tax Invoice" unless vatNumber is actually set).
+ */
+export const platformBillingEntity = {
+  legalEntityName: null as string | null,
+  vatNumber: null as string | null,
+  companyRegistrationNumber: null as string | null,
+  registeredAddress: null as string | null,
+} as const;
+
+export type PlatformBillingEntity = typeof platformBillingEntity;

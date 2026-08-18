@@ -4,6 +4,7 @@ import { PermissionDenied } from '@/components/ui/PermissionDenied';
 import {
   OrganizationBillingView,
   type SubscriptionPaymentSummary,
+  type SubscriptionInvoiceSummary,
 } from '@/components/organizations/OrganizationBillingView';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapOrganizationRow } from '@/lib/organizations';
@@ -98,6 +99,7 @@ export default async function OrganizationBillingPage() {
           plans={DEMO_PLANS}
           subscription={null}
           payments={[]}
+          invoices={[]}
         />
       </div>
     );
@@ -129,6 +131,7 @@ export default async function OrganizationBillingPage() {
     { data: planRows, error: plansError },
     { data: subRows, error: subError },
     { data: paymentRows, error: paymentsError },
+    { data: invoiceRows, error: invoicesError },
   ] = await Promise.all([
     supabase.from('organizations').select('*').eq('id', activeOrg.orgId).single(),
     supabase
@@ -148,6 +151,12 @@ export default async function OrganizationBillingPage() {
       .eq('org_id', activeOrg.orgId)
       .order('created_at', { ascending: false })
       .limit(50),
+    supabase
+      .from('subscription_invoices')
+      .select('*, plans!subscription_invoices_plan_id_fkey(name)')
+      .eq('org_id', activeOrg.orgId)
+      .order('issued_at', { ascending: false })
+      .limit(50),
   ]);
 
   if (orgError || !orgRow)
@@ -155,6 +164,7 @@ export default async function OrganizationBillingPage() {
   if (plansError) throw new Error(`Failed to load plans: ${plansError.message}`);
   if (subError) throw new Error(`Failed to load subscription: ${subError.message}`);
   if (paymentsError) throw new Error(`Failed to load payment history: ${paymentsError.message}`);
+  if (invoicesError) throw new Error(`Failed to load invoices: ${invoicesError.message}`);
 
   const plans: Plan[] = (planRows ?? []).map((row) => ({
     id: row.id,
@@ -196,6 +206,17 @@ export default async function OrganizationBillingPage() {
     createdAt: row.created_at,
   }));
 
+  const invoices: SubscriptionInvoiceSummary[] = (invoiceRows ?? []).map((row) => ({
+    id: row.id,
+    invoiceNumber: row.invoice_number,
+    invoiceType: row.invoice_type,
+    planName: (row.plans as { name: string } | null)?.name ?? null,
+    total: Number(row.total),
+    currency: row.currency,
+    status: row.status,
+    issuedAt: row.issued_at,
+  }));
+
   return (
     <div className="space-y-5 animate-rise">
       <PageHeader
@@ -207,6 +228,7 @@ export default async function OrganizationBillingPage() {
         plans={plans}
         subscription={subscription}
         payments={payments}
+        invoices={invoices}
       />
     </div>
   );

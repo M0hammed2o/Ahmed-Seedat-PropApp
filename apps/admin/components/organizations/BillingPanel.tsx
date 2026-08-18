@@ -22,6 +22,17 @@ interface SubscriptionPayment {
   createdAt: string;
 }
 
+interface SubscriptionInvoice {
+  id: string;
+  invoiceNumber: string;
+  invoiceType: string;
+  planName: string | null;
+  total: number;
+  currency: string;
+  status: string;
+  issuedAt: string;
+}
+
 // "Super Admin visibility of payment state" -- shows subscription_payments history and lets
 // super_admin trigger the mock BillingGatewayProvider's checkout/cancel actions. Never activates
 // real billing (apps/admin/lib/providers/billing.ts is mock-only until a real gateway account
@@ -38,6 +49,7 @@ export function BillingPanel({
 
   const [plans, setPlans] = useState<Plan[]>([]);
   const [payments, setPayments] = useState<SubscriptionPayment[]>([]);
+  const [invoices, setInvoices] = useState<SubscriptionInvoice[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +67,11 @@ export function BillingPanel({
       .then((r) => r.json())
       .then((body) => setPayments(body.subscriptionPayments ?? []))
       .catch(() => setPayments([]));
+
+    fetch(`/api/v1/admin/organizations/${orgId}/billing/invoices`)
+      .then((r) => r.json())
+      .then((body) => setInvoices(body.invoices ?? []))
+      .catch(() => setInvoices([]));
   }, [orgId]);
 
   async function startCheckout() {
@@ -185,6 +202,66 @@ export function BillingPanel({
                 </td>
                 <td className="py-1.5 text-light-textMuted dark:text-dark-textMuted">
                   {p.providerReference ?? '—'}
+                </td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+
+      <p className="mt-5 text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+        Invoices
+      </p>
+      <table className="mt-2 w-full text-xs">
+        <thead>
+          <tr className="border-b border-light-border text-left text-light-textSecondary dark:border-dark-border dark:text-dark-textSecondary">
+            <th className="py-1.5 font-medium">Invoice</th>
+            <th className="py-1.5 font-medium">Date</th>
+            <th className="py-1.5 font-medium">Plan</th>
+            <th className="py-1.5 font-medium">Amount</th>
+            <th className="py-1.5 font-medium">Status</th>
+            <th className="py-1.5 font-medium">
+              <span className="sr-only">Download</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {invoices.length === 0 ? (
+            <tr>
+              <td
+                colSpan={6}
+                className="py-3 text-center text-light-textMuted dark:text-dark-textMuted"
+              >
+                No invoices yet.
+              </td>
+            </tr>
+          ) : (
+            invoices.map((invoice) => (
+              <tr key={invoice.id} className="border-b border-light-border dark:border-dark-border">
+                <td className="py-1.5 font-mono text-light-textPrimary dark:text-dark-textPrimary">
+                  {invoice.invoiceNumber}
+                </td>
+                <td className="py-1.5 text-light-textPrimary dark:text-dark-textPrimary">
+                  {new Date(invoice.issuedAt).toLocaleDateString('en-ZA')}
+                </td>
+                <td className="py-1.5 text-light-textSecondary dark:text-dark-textSecondary">
+                  {invoice.planName ?? '—'}
+                </td>
+                <td className="py-1.5 text-light-textPrimary dark:text-dark-textPrimary">
+                  {invoice.currency} {invoice.total.toLocaleString('en-ZA')}
+                </td>
+                <td className="py-1.5 capitalize text-light-textSecondary dark:text-dark-textSecondary">
+                  {invoice.status}
+                </td>
+                <td className="py-1.5">
+                  <a
+                    href={`/api/v1/admin/organizations/${orgId}/billing/invoices/${invoice.id}/pdf`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-light-accent hover:underline dark:text-dark-accent"
+                  >
+                    PDF
+                  </a>
                 </td>
               </tr>
             ))

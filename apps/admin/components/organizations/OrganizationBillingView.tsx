@@ -16,11 +16,23 @@ export interface SubscriptionPaymentSummary {
   createdAt: string;
 }
 
+export interface SubscriptionInvoiceSummary {
+  id: string;
+  invoiceNumber: string;
+  invoiceType: 'new_subscription' | 'renewal' | 'upgrade' | 'reactivation';
+  planName: string | null;
+  total: number;
+  currency: string;
+  status: 'paid' | 'refunded';
+  issuedAt: string;
+}
+
 interface Props {
   organization: Organization;
   plans: Plan[];
   subscription: OrganizationSubscription | null;
   payments: SubscriptionPaymentSummary[];
+  invoices: SubscriptionInvoiceSummary[];
 }
 
 interface PlanChangeQuote {
@@ -55,7 +67,20 @@ function daysUntil(iso: string): number {
 // of jumping straight to a generic checkout -- the customer always sees "Due today" and "From
 // [renewal date]" BEFORE anything is charged. Every mutation is re-checked server-side
 // (requireBillingPrincipalAccess) -- this component itself enforces nothing.
-export function OrganizationBillingView({ organization, plans, subscription, payments }: Props) {
+const INVOICE_TYPE_LABELS: Record<SubscriptionInvoiceSummary['invoiceType'], string> = {
+  new_subscription: 'New subscription',
+  renewal: 'Renewal',
+  upgrade: 'Upgrade',
+  reactivation: 'Reactivation',
+};
+
+export function OrganizationBillingView({
+  organization,
+  plans,
+  subscription,
+  payments,
+  invoices,
+}: Props) {
   const router = useRouter();
   const [quoting, setQuoting] = useState<string | null>(null);
   const [quote, setQuote] = useState<PlanChangeQuote | null>(null);
@@ -432,6 +457,88 @@ export function OrganizationBillingView({ organization, plans, subscription, pay
                     </td>
                     <td className="px-4 py-3">
                       <Pill tone={statusTone(payment.status)}>{payment.status}</Pill>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Panel>
+
+      <Panel bodyClassName="p-0">
+        <h3 className="px-4 pt-4 text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+          Invoices
+        </h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="border-b border-light-border bg-light-surfaceStrong dark:border-dark-border dark:bg-dark-surfaceStrong">
+              <tr>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Invoice
+                </th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Date
+                </th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Plan
+                </th>
+                <th className="px-4 py-3 text-right font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Amount
+                </th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Status
+                </th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  <span className="sr-only">Download</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {invoices.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={6}
+                    className="px-4 py-6 text-center text-light-textMuted dark:text-dark-textMuted"
+                  >
+                    No invoices yet.
+                  </td>
+                </tr>
+              ) : (
+                invoices.map((invoice) => (
+                  <tr
+                    key={invoice.id}
+                    className="border-b border-light-border last:border-b-0 dark:border-dark-border"
+                  >
+                    <td className="px-4 py-3 font-mono text-xs text-light-textPrimary dark:text-dark-textPrimary">
+                      {invoice.invoiceNumber}
+                    </td>
+                    <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">
+                      {new Date(invoice.issuedAt).toLocaleDateString('en-ZA')}
+                    </td>
+                    <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">
+                      {invoice.planName ?? '—'}{' '}
+                      <span className="text-xs text-light-textMuted dark:text-dark-textMuted">
+                        ({INVOICE_TYPE_LABELS[invoice.invoiceType]})
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right text-light-textPrimary dark:text-dark-textPrimary">
+                      {formatMoney(invoice.total, invoice.currency)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Pill tone={invoice.status === 'paid' ? 'success' : 'warning'}>
+                        {invoice.status}
+                      </Pill>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <a
+                        href={`/api/v1/organizations/${organization.id}/billing/invoices/${invoice.id}/pdf`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs font-medium text-light-accent hover:underline dark:text-dark-accent"
+                      >
+                        Download PDF
+                      </a>
                     </td>
                   </tr>
                 ))
