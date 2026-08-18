@@ -20,11 +20,11 @@ the live system reads or writes it.
 
 ### Plan catalogue (`public.plans`, seeded in migration `20260101000075`)
 
-| Code | Name | Price (ZAR/mo) | maxProperties | maxStaff | ocrEnabled | ownerPortalEnabled | advancedReporting | bulkCommunications | apiAccess | prioritySupport |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `starter` | Starter | 299.00 | 5 | 1 | false | false | false | false | — | — |
-| `professional` | Professional | 699.00 | 25 | unlimited | true | true | true | true | — | — |
-| `business` | Business | 1499.00 | unlimited | unlimited | true | true | true | true | true | true |
+| Code           | Name         | Price (ZAR/mo) | maxProperties | maxStaff  | ocrEnabled | ownerPortalEnabled | advancedReporting | bulkCommunications | apiAccess | prioritySupport |
+| -------------- | ------------ | -------------- | ------------- | --------- | ---------- | ------------------ | ----------------- | ------------------ | --------- | --------------- |
+| `starter`      | Starter      | 299.00         | 5             | 1         | false      | false              | false             | false              | —         | —               |
+| `professional` | Professional | 699.00         | 25            | unlimited | true       | true               | true              | true               | —         | —               |
+| `business`     | Business     | 1499.00        | unlimited     | unlimited | true       | true               | true              | true               | true      | true            |
 
 Not hardcoded — `plans` is a real table (`code, name, billing_cycle, base_price, currency,
 feature_limits jsonb, is_active, version`), versioned so a price change creates a NEW version
@@ -47,9 +47,9 @@ compute, never recomputes or trusts a client-supplied amount:
   Classifies the change (`new_subscription` / `upgrade` / `downgrade` / `reactivation` /
   `no_change`) and prices it:
   - **Upgrade** (`target_effective_price >= current_effective_price`): `amount_due_now =
-    round((target_effective_price - current_effective_price) * remaining_fraction, 2)`, where
+round((target_effective_price - current_effective_price) * remaining_fraction, 2)`, where
     `remaining_fraction = (current_period_end - current_date) / (current_period_end -
-    current_period_start)`, clamped to `[0, 1]`. `current_period_end` is preserved (not reset);
+current_period_start)`, clamped to `[0, 1]`. `current_period_end` is preserved (not reset);
     the next renewal charges the full new-plan price.
   - **Downgrade**: `amount_due_now = 0`, `effective_at = current_period_end` — scheduled, not
     immediate.
@@ -81,7 +81,7 @@ compute, never recomputes or trusts a client-supplied amount:
 - **`apply_due_scheduled_plan_changes()`** — service-role-only, called from the subscription
   lifecycle daily job. Applies every scheduled downgrade whose `effective_at` has arrived, flips
   `plan_id`, marks the row `completed`. Idempotent by construction — a row leaves `status =
-  'scheduled'` the moment it's applied, so re-running is always safe. Never touches
+'scheduled'` the moment it's applied, so re-running is always safe. Never touches
   properties/units/leases/tenants — a downgraded org simply can't CREATE more than its new plan
   allows (see Entitlements below); nothing is deleted or archived.
 
@@ -172,21 +172,97 @@ not a stub oversight."
   gateway call or audit row), resolves the gateway's own recurring-billing token from
   `organization_subscriptions.provider_subscription_token` (captured from the first successful
   ITN) rather than the caller handling a raw gateway token.
-- **Grace-period access**: not re-audited in depth this pass — `organizations.status` transitions
-  (`trial → active → overdue → suspended/cancelled`) are the authoritative gate every RLS policy
-  and entitlement check already reads; no separate access-mode config layer exists for this in the
-  live system (the old `restrictedMode`/`grace_period` config described in the previous version of
-  this document belonged to the now-dead RevenueCat model).
+- **Grace-period access — fully live-tested this pass** (V1 billing final gap-closure pass,
+  upgraded from the prior pass's own "not re-audited in depth" disclosure to `Verified`):
+  `organizations.status` transitions (`trial → active → overdue → suspended/cancelled`) remain the
+  single authoritative gate every RLS policy and entitlement check reads (`has_org_role()`,
+  migration `20260101000055`/`20260101000057`) — no separate access-mode config layer exists (the
+  old `restrictedMode`/`grace_period` config described in a much earlier version of this document
+  belonged to the now-dead RevenueCat model). The full matrix, run live against a real local
+  Supabase instance, not inferred from migration comments (`supabase/tests/
+grace_period_access_matrix.test.sql`, 16 assertions, plus the pre-existing `multi_tenant_
+isolation.test.sql` coverage for `suspended`/`archived`):
+  - **trial / active / overdue**: full read+write access, unchanged — `overdue` (the grace period
+    itself) is NOT a restricted state; a real INSERT/UPDATE against `properties` succeeds for the
+    org's own principal in all three states. This is the deliberate commercial policy: a
+    grace-period customer keeps normal business access while they sort out payment.
+  - **suspended / cancelled**: read-only — `viewer`-level access passes (the org can still view its
+    own data and reach billing to pay/reactivate), `agent`-level (write) access fails; proven with
+    a real UPDATE attempt against `properties` that runs without a permission error but genuinely
+    changes zero rows (RLS with no write policy for the failing case, not an exception — verified
+    by re-reading the row afterward, not merely by the predicate function's return value).
+  - **archived**: zero access at any level (pre-existing `multi_tenant_isolation.test.sql`
+    coverage, unchanged this pass).
+  - No status transition ever deletes or archives business data — suspension/cancellation only
+    ever changes `organizations.status` (and the RLS gate that reads it); every table's rows remain
+    intact and readable at `viewer` level throughout.
+- **Reactivation lifecycle — a real bug found and fixed this pass, not merely tested**: a
+  reactivation (suspended/cancelled → paid → active again) always prices at the FULL target plan
+  price via `compute_plan_change_quote()`'s own `reactivation` branch (there is no "currently paid
+  period" to prorate against for a suspended org) and completes through the same deferred-payment
+  webhook path as a paid upgrade. A live end-to-end test (`billing.test.ts`'s new "reactivation
+  lifecycle (grace-period audit)" describe block) caught that `processBillingWebhookEvent`'s
+  plan-change-completion branch was flipping `plan_id`/org status back to `active` but **not**
+  refreshing `organization_subscriptions.current_period_start`/`current_period_end`/
+  `next_payment_date` — a subscription reactivated after sitting suspended for weeks would silently
+  keep an already-ended period, not a fresh one. Fixed in `apps/admin/lib/billing.ts`: when the
+  completed change's `change_type` is `reactivation`, the subscription now gets the same
+  fresh-30-day period every other new-period code path in this file already opens. Re-verified live
+  for BOTH starting states (overdue→suspended→paid→active, and self-cancelled→reactivated→paid→
+  active): exactly one subscription row throughout (no duplicate), the stale pre-suspension period
+  dates are never reused, entitlements (plan_id) restore correctly, a real invoice is recorded for
+  the reactivation charge.
 
-## Invoices — a real, disclosed gap
+## Subscription invoices/receipts
 
-There is **no formal invoice system** for Proplyst's own subscription billing: no invoice
-numbering scheme, no PDF generation, no tax/VAT line-item breakdown. `subscription_payments`
-(`amount, currency, status, paid_at, provider_reference`) is a payment-history table, RLS-scoped
-to the org's own members, surfaced as a "Payment history" list in the billing UI — functionally a
-receipt list, not a numbered invoice. Do not claim tax/VAT compliance or formal invoicing exists
-until this is actually built; it is real, locally-solvable future work, not attempted this pass
-(a full invoice/PDF subsystem is materially larger scope than the gaps this pass closed).
+A formal invoice/receipt system now exists for Proplyst's own SaaS subscription charges
+(`public.subscription_invoices`, migration `20260101000108`, V1 billing final gap-closure pass) —
+explicitly distinct from the unrelated landlord/tenant accounting invoice system
+(`public.invoices`, `apps/admin/lib/accounting.ts`), which this table is deliberately named to
+never be confused with.
+
+- **Numbering**: `PLY-YYYY-NNNNNN`, server-generated from a Postgres sequence
+  (`generate_subscription_invoice_number()`) — race-safe under real concurrent webhook delivery by
+  construction, never a client-supplied or random string.
+- **Lifecycle**: exactly one invoice row per successfully-collected charge, created by
+  `create_subscription_invoice_for_payment(payment_id)` (`security definer`, service-role only)
+  from `processBillingWebhookEvent`'s `payment_succeeded` branch, run AFTER the existing plan-flip/
+  status logic so an upgrade's invoice reflects the already-applied target plan. Classified
+  server-side, never from a client hint: a payment linked to a `billing_plan_changes` row inherits
+  that row's `change_type` (upgrade/reactivation) as `invoice_type`; an unlinked payment is
+  `new_subscription` if the org has no prior invoice at all, otherwise `renewal`. A downgrade never
+  produces an invoice (no money moves, structurally — no payment row exists to invoice). An unpaid/
+  pending/failed payment is refused (`raise exception`), never invoiced. A refund
+  (`refundSubscriptionPayment`) flips the linked invoice's `status` to `refunded` without altering
+  its `invoice_number`/`total` — financial history is retained, never erased or renumbered.
+- **Amount correctness**: the invoice `total` is always the payment's own already-charged `amount`
+  — for an upgrade, that is the server-computed PRORATED difference, never the target plan's full
+  base price (the exact anti-requirement this system was built to satisfy: an upgrade invoice must
+  not falsely claim the entire new monthly price was paid today).
+- **Idempotency**: `unique(subscription_payment_id)` makes a duplicate invoice for the same payment
+  structurally impossible (a second call throws a unique-violation), on top of — not instead of —
+  `billing_events`' own `(provider_name, provider_event_id)` idempotency guard, which already
+  prevents the whole `payment_succeeded` branch from running twice for the same real gateway event.
+- **PDF**: generated live per authenticated request (`apps/admin/lib/subscriptionInvoicePdf.ts`,
+  `pdfkit`) — never stored behind a signed URL, so there is nothing to expire or leak; every
+  request re-authenticates and re-checks org access from scratch. Titled "Payment Receipt" by
+  default; only becomes "Tax Invoice" if `platformBillingEntity.vatNumber`
+  (`packages/config/src/branding.ts`, all fields `null` today) is actually configured — never
+  fabricated. Served at `GET /api/v1/organizations/:orgId/billing/invoices/:invoiceId/pdf`
+  (customer, `requireBillingPrincipalAccess`-gated) and the matching `/api/v1/admin/organizations/
+:orgId/billing/invoices/:invoiceId/pdf` (platform staff, `read_only_admin`+).
+- **UI**: `/organization/billing`'s new Invoices panel (number/date/plan/amount/status/download);
+  platform-admin's `BillingPanel.tsx` gets the matching read-only table — no separate accounting
+  suite was built.
+- **Security**: `subscription_invoices` has only a `select` RLS policy, scoped to the caller's own
+  active org membership — no client INSERT/UPDATE/DELETE policy exists at all; every write goes
+  through the service-role-only RPC or the service-role refund path. Verified live: 22/22 pgTAP
+  assertions (`supabase/tests/subscription_invoices.test.sql` — classification, exact-amount,
+  idempotency, cross-org isolation, no-client-write) plus 5/5 real route-level tests
+  (`app/api/v1/organizations/[orgId]/billing/invoices/__tests__/route.access.test.ts`, a real
+  Next.js route handler invoked against a real local Supabase instance, not mocked) proving Org B's
+  principal is forbidden from both listing and downloading Org A's invoices even when supplying Org
+  A's own `orgId` in the URL, and that an unauthenticated caller is rejected outright.
 
 ## Billing UX
 
@@ -198,12 +274,45 @@ until this is actually built; it is real, locally-solvable future work, not atte
   cancel action, and the payment-history table. Every mutation re-checked server-side
   (`requireBillingPrincipalAccess`/`has_billing_principal_access()`) — the component itself
   enforces nothing.
-- **Android**: no billing/subscription code exists at all, not even a "manage subscription on
-  web" link. Subscriptions are purchased and managed on the web; Android correctly has no
-  duplicate in-app billing implementation (no Google Play Billing SDK, nothing invented this
-  pass) — but the "how does an Android user even find the web billing page" gap is real and
-  currently unaddressed, flagged as a disclosed P2 item, not built in this pass (would be new
-  Android scope with no shared-backend regression to justify touching it here).
+- **Android** (V1 billing invoice pass, WORKLOG.md this date, closes TD-50): `DashboardScreen`
+  (`apps/android/.../ui/dashboard/DashboardScreen.kt`) now has a "Manage subscription" action in
+  its top app bar, gated to org principals only (`DashboardViewModel.isPrincipal`, mirroring the
+  web billing page's own `role !== 'principal'` gate exactly) — a tenant-portal user never reaches
+  this screen at all (`DashboardScreen` only renders inside `OwnerRootScreen`), and a non-principal
+  owner-portal member (viewer/accountant/manager) does not see the action either. Tapping it opens
+  `https://proplyst.co.za/organization/billing` via a plain `ACTION_VIEW` HTTPS Intent in the
+  device browser — the same unauthenticated-link pattern already used elsewhere in the app
+  (document/payment-proof links); there is no native→web session handoff (no token passed), so a
+  user not already logged into the web app in their browser signs in there separately. Still
+  deliberately **no Google Play Billing SDK, no in-app purchase flow** — Android continues to only
+  ever open the existing web billing surface, never duplicate it. See the Google Play policy note
+  immediately below for what remains a manual, non-code action before any Play Store submission.
+
+### Google Play billing policy — manual review required before Play Store submission
+
+**Not resolved by this pass, and not resolvable by guessing at Google Play policy text.** Flagged
+here as an explicit, disclosed manual action for Mohammed (or whoever runs the Play Console
+submission), not attempted in code:
+
+- Proplyst Android (V1) provides property-management functionality (properties, tenants, leases,
+  payments, maintenance, documents, compliance) to organizations that already have an active
+  Proplyst subscription. It does **not** sell or upsell that subscription in-app — subscription
+  purchase and management happen exclusively on the Proplyst web app, and the app's only
+  in-app reference to it is the "Manage subscription" link above, which opens a browser tab.
+- Google Play's policy on "payments" (real-money transactions for digital content/services
+  consumed inside the app) has specific, and periodically revised, requirements about whether an
+  app that gates its core functionality behind an external subscription must use Google Play's
+  billing system, and what an app is allowed to say/link to about managing that subscription
+  in-app. Whether Proplyst's specific case (a B2B property-management SaaS, not consumer digital
+  content) is in-scope for those requirements, and whether a plain browser link like the one built
+  here is acceptable as-is, requires an actual read of Google's current Payments policy (and
+  ideally Play Console's own pre-submission policy checker) at submission time — not an assumption
+  made in this pass.
+- **Action required before Play Store submission**: review Google Play's current Payments policy
+  and User Choice Billing requirements against Proplyst's actual model, using the Play Console's
+  own policy status/pre-launch report tooling. If that review concludes Google Play Billing
+  integration is required, that is new, not-yet-scoped Android work — do not build it speculatively
+  before the review happens.
 
 ## Security
 

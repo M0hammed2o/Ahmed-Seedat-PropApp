@@ -1,5 +1,101 @@
 # Worklog
 
+## 2026-08-18 (continued) — V1 billing final gap-closure pass
+
+Continued directly from the V1 billing/subscription/PayFast commercial-close pass immediately
+below, closing its three remaining locally-solvable gaps: no formal subscription invoice system,
+an insufficiently-audited grace-period access policy, and no Android billing entry point. Did not
+push, deploy, perform a real PayFast transaction, or touch PayFast production configuration.
+
+**Built the Proplyst SaaS subscription invoice/receipt system** (migration
+`20260101000108_subscription_invoices.sql`) — explicitly separate from the unrelated landlord/
+tenant accounting invoice system, named to never be confused with it. Server-generated, race-safe
+invoice numbering (`PLY-YYYY-NNNNNN`, a Postgres sequence); one row per confirmed-paid charge
+(new_subscription/renewal/upgrade/reactivation), never for a downgrade or an unpaid/failed
+payment; idempotent by construction (`unique(subscription_payment_id)`) on top of `billing_events`'
+own event-level idempotency; a refund flips status to `refunded` without erasing the original
+amount/number. `total` is always the payment's own already-charged amount — an upgrade invoice
+shows the prorated difference actually collected, never the target plan's full price. Wired from
+`processBillingWebhookEvent`'s `payment_succeeded` branch and `refundSubscriptionPayment`, both in
+`apps/admin/lib/billing.ts`. A first migration attempt reused `billing_plan_change_type` for the
+new `invoice_type` column and failed to apply live (`ERROR: invalid input value for enum
+billing_plan_change_type: "renewal"` — that enum has no `renewal` value) — fixed with a dedicated
+`subscription_invoice_type` enum instead.
+
+**Built the PDF renderer** (`apps/admin/lib/subscriptionInvoicePdf.ts`, `pdfkit` — no PDF library
+existed anywhere in the codebase before this pass, confirmed by an exhaustive `package.json`/
+`pnpm-lock.yaml` search). Generated live per authenticated request, never stored behind a signed
+URL, so there is nothing to expire or leak. Titled "Payment Receipt" by default; only ever "Tax
+Invoice" if `platformBillingEntity.vatNumber` (`packages/config/src/branding.ts`, a new config
+object, all fields `null` today) is actually configured — never fabricated VAT registration.
+Served at `GET /api/v1/organizations/:orgId/billing/invoices/:invoiceId/pdf` (customer,
+`requireBillingPrincipalAccess`-gated) and the matching `/api/v1/admin/organizations/:orgId/
+billing/invoices/:invoiceId/pdf` (platform staff, `read_only_admin`+). Customer-facing
+`/organization/billing` gets a new Invoices panel (number/date/plan/amount/status/download);
+`BillingPanel.tsx` (platform-admin) gets the matching read-only table.
+
+**Verified live, not just read**: 22/22 new pgTAP assertions
+(`supabase/tests/subscription_invoices.test.sql` — classification, exact-prorated-amount,
+idempotency, cross-org isolation, no client write path at all) plus 5/5 new real route-level tests
+(`app/api/v1/organizations/[orgId]/billing/invoices/__tests__/route.access.test.ts`, real Next.js
+route handlers invoked against a real local Supabase instance, same pattern as the existing
+document-access route test) proving Org B's principal is forbidden from listing OR downloading Org
+A's invoices even when supplying Org A's own `orgId` in the URL, and that an unauthenticated
+caller is rejected outright. `billing.test.ts` extended: the existing upgrade-webhook test now also
+asserts the resulting invoice records exactly the R400 prorated charge (never the target plan's
+R999 base price); a new test proves a refund flips the linked invoice's status without altering
+its number/total.
+
+**Grace-period access matrix — upgraded from "Likely" to fully live-tested.** The prior pass's own
+final report rated this "Likely," not sufficient for commercial launch. New
+`supabase/tests/grace_period_access_matrix.test.sql` (16 assertions) exercises all five
+`organizations.status` values against BOTH `has_org_role()` directly and a real INSERT/UPDATE/
+SELECT round trip against `properties` (not the predicate function in isolation): trial/active/
+overdue all get full read+write access (overdue — the grace period itself — is explicitly NOT a
+restricted state, the deliberate commercial policy); suspended/cancelled get read-only (a real
+UPDATE attempt runs without a permission error but genuinely changes zero rows, verified by
+re-reading the row afterward); archived gets zero access (pre-existing coverage, confirmed
+unchanged). No status transition ever deletes business data — only the RLS gate changes.
+
+**Found and fixed a real reactivation bug, not merely tested for one.** Live testing (Phase 11)
+caught that `processBillingWebhookEvent`'s deferred-plan-change completion branch flipped
+`plan_id`/org status back to `active` on a successful reactivation payment but never refreshed
+`organization_subscriptions.current_period_start`/`current_period_end`/`next_payment_date` — a
+subscription reactivated after sitting suspended for weeks silently kept an already-ended period.
+First run of the new test failed exactly this way (`expected 1786147200000 to be greater than
+1787069195781` — the "future" period end was still in the past). Fixed in `apps/admin/lib/
+billing.ts`: a completed `reactivation` change now opens the same fresh-30-day period every other
+new-period code path in this file already uses. Re-verified for both starting states (overdue→
+suspended→paid→active, and self-cancelled→reactivated→paid→active): exactly one subscription row
+throughout, stale pre-suspension period dates never reused, entitlements restore correctly, a real
+invoice is recorded for the charge.
+
+**Android "Manage subscription" entry point** (closes TD-50). Android has no Settings/Account
+screen at all yet (confirmed by research — nothing to extend), so the entry point was added to the
+existing Dashboard tab's new `TopAppBar` instead: a "Manage subscription" icon, shown only when
+`DashboardViewModel.isPrincipal` is true (mirrors the web billing page's own `role !== 'principal'`
+gate exactly), opening `https://proplyst.co.za/organization/billing` via a plain `ACTION_VIEW`
+HTTPS Intent — the same unauthenticated-browser-link pattern already used elsewhere in the app for
+document/payment-proof links, no native→web session handoff. Still deliberately no Google Play
+Billing SDK. Verified: `compileDebugKotlin`, `testDebugUnitTest` (4 new `DashboardViewModelTest`
+cases), `lintDebug`, `assembleDebug` all pass. A Google Play billing-policy manual-review note was
+added to `SUBSCRIPTIONS.md` — not resolved by guessing at Play policy text, flagged as an explicit
+pre-submission action for whoever runs the Play Console submission.
+
+**Full verification, this pass's own changes plus a full regression pass**: `apps/admin`
+`tsc --noEmit` clean, `eslint .` clean (zero warnings), `prettier --check` clean after formatting
+fixes, full `vitest run` 608/611 passed (3 pre-existing skips, zero failures, 94 files), full
+pgTAP suite across all 61 files 833/833 assertions passed (up from the prior pass's 795 — the 22
+new invoice assertions + 16 new grace-period assertions, exactly accounted for), `next build`
+compiled successfully. Android: `compileDebugKotlin`, `testDebugUnitTest`, `lintDebug`,
+`assembleDebug` all pass.
+
+TD-49 (no formal invoice system) and TD-50 (no Android billing entry point) marked resolved in
+`TECHNICAL_DEBT_REGISTER.md` with the evidence above. `SUBSCRIPTIONS.md` rewritten to describe the
+invoice system, the now-fully-tested grace-period matrix, the reactivation fix, and the Android
+entry point, replacing the prior "not built"/"not re-audited" disclosures. Did not push. Did not
+begin the general email audit. Did not start iOS.
+
 ## 2026-08-18 (continued) — V1 billing/subscription/PayFast commercial-close pass
 
 Audited the ACTUAL current billing/subscription/PayFast architecture against the repository (not
@@ -278,7 +374,7 @@ tapped link doesn't stack a second Activity instance.
 **App Links, partial**: `autoVerify="true"` intent-filter for `https://proplyst.co.za` added.
 Verification will not actually succeed until Mohammed provides the real signing SHA-256 for
 `ANDROID_APP_SHA256_FINGERPRINTS` (the web route already reads that env var, currently empty by
-design). Resuming to a *specific* deep-linked sub-screen (not just the correct portal's start
+design). Resuming to a _specific_ deep-linked sub-screen (not just the correct portal's start
 screen) is NOT implemented -- the app's two independent `NavHost`s (Root auth shell + each
 portal's own nested one) would need either a single flattened nav graph or manual intent-URI
 plumbing through both; disclosed as a real remaining gap, not attempted half-built.
