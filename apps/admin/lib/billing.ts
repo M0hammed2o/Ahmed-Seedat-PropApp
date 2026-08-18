@@ -382,6 +382,36 @@ export async function processBillingWebhookEvent(
   }
 
   if (payment) {
+    // RELEASE A: defense-in-depth amount check, distinct from (and in addition to)
+    // verifyWebhookSignature() above. The signature proves the ITN genuinely came from the
+    // gateway unmodified in transit; it does NOT prove the amount the gateway is confirming
+    // matches what THIS payment record actually expects to collect. Never skip straight to
+    // marking paid/flipping entitlement on a signed-but-wrong-amount event -- that would grant
+    // a paid-tier entitlement for less than the org actually owes, a real revenue-integrity gap,
+    // not just a data-quality one. Only checked for payment_succeeded (the one event type that
+    // ever grants entitlement) and only when the provider actually reported an amount (PayFast's
+    // real ITN always does; the mock provider's test fixtures may omit it, in which case there is
+    // nothing to cross-check against and the existing trust-the-signature posture applies).
+    if (event.type === 'payment_succeeded' && event.amount !== null) {
+      const expectedAmount = Number(payment.amount);
+      const receivedAmount = Number(event.amount);
+      if (Math.abs(expectedAmount - receivedAmount) > 0.01) {
+        console.error(
+          '[billing] webhook amount mismatch -- refusing to mark paid or grant entitlement',
+          {
+            paymentId: payment.id,
+            orgId,
+            expectedAmount,
+            receivedAmount,
+            providerEventId: event.providerEventId,
+          },
+        );
+        throw new Error(
+          `billing_amount_mismatch: payment ${payment.id} expected ${expectedAmount}, gateway reported ${receivedAmount}`,
+        );
+      }
+    }
+
     const paymentStatus =
       event.type === 'payment_succeeded'
         ? 'paid'

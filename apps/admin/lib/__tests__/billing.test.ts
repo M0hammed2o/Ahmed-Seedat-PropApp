@@ -122,6 +122,52 @@ describeIfSupabase('billing service (real local Supabase integration)', () => {
     expect(org!.status).toBe('active');
   });
 
+  it('a payment_succeeded webhook reporting the WRONG amount is rejected -- never marks paid or activates the org', async () => {
+    const checkout = await startSubscriptionCheckout(serviceClient, {
+      orgId,
+      planId,
+      idempotencyKey: `test-${orgId}`,
+    });
+
+    // plan.base_price is 499 -- the gateway reporting 1 (a signed, genuine ITN for the wrong
+    // amount, e.g. an integration bug or a tampered checkout) must not be trusted just because
+    // the signature itself checked out.
+    const rawBody = JSON.stringify({
+      providerEventId: `evt-amount-mismatch-${orgId}`,
+      type: 'payment_succeeded',
+      providerReference: checkout.providerSubscriptionId,
+      orgId,
+      amount: 1,
+      currency: 'ZAR',
+    });
+
+    await expect(
+      processBillingWebhookEvent(serviceClient, { rawBody, signatureHeader: 'test-signature' }),
+    ).rejects.toThrow(/billing_amount_mismatch/);
+
+    const { data: payment } = await serviceClient
+      .from('subscription_payments')
+      .select('status')
+      .eq('id', checkout.subscriptionPaymentId)
+      .single();
+    expect(payment!.status).toBe('pending');
+
+    const { data: org } = await serviceClient
+      .from('organizations')
+      .select('status')
+      .eq('id', orgId)
+      .single();
+    expect(org!.status).toBe('trial');
+
+    // The audit trail still captures the event -- rejecting the state transition is not the same
+    // as pretending the webhook never arrived.
+    const { count } = await serviceClient
+      .from('billing_events')
+      .select('id', { count: 'exact', head: true })
+      .eq('provider_event_id', `evt-amount-mismatch-${orgId}`);
+    expect(count).toBe(1);
+  });
+
   it('a replayed webhook (same providerEventId) is a no-op, not a double-processed payment', async () => {
     const checkout = await startSubscriptionCheckout(serviceClient, {
       orgId,
