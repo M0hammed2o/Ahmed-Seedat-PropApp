@@ -4,6 +4,10 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { getAdminSessionWithoutMfaCheck } from '@/lib/auth';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 import { DEMO_FEATURE_FLAGS, DEMO_SYSTEM_HEALTH } from '@/lib/demo/adminMockData';
+import {
+  getDocumentIntelligenceProvider,
+  isRealDocumentIntelligenceProviderConfigured,
+} from '@/lib/providers/documentIntelligence';
 
 export default async function SystemPage() {
   // Identity/AAL2 already enforced by the (super-admin) layout's own gate -- this only reads the
@@ -14,6 +18,15 @@ export default async function SystemPage() {
   // time this page renders -- this branch is unreachable in practice.
   const session = await getAdminSessionWithoutMfaCheck();
   if (!session) notFound();
+
+  // Final pre-UAT engineering pass (WORKLOG.md this date): real, not hardcoded -- so Mohammed can
+  // confirm "DOCUMENT OCR PROVIDER: google-document-ai" is actually active in production without
+  // seeing credentials or reading server logs. `providerName` is non-secret identity metadata every
+  // DocumentIntelligenceProvider implementation exposes; never a credential value.
+  const ocrProviderConfigured = isRealDocumentIntelligenceProviderConfigured();
+  const ocrProviderName = ocrProviderConfigured
+    ? getDocumentIntelligenceProvider().providerName
+    : undefined;
 
   return (
     <div>
@@ -41,7 +54,14 @@ export default async function SystemPage() {
           />
           <HealthStatusIndicator
             label="Document intelligence provider"
-            status={ADMIN_DEMO_MODE ? DEMO_SYSTEM_HEALTH.ocrProvider : 'not_connected'}
+            status={
+              ADMIN_DEMO_MODE
+                ? DEMO_SYSTEM_HEALTH.ocrProvider
+                : ocrProviderConfigured
+                  ? 'connected'
+                  : 'not_connected'
+            }
+            detail={ADMIN_DEMO_MODE ? undefined : ocrProviderName}
           />
           <HealthStatusIndicator
             label="Push notification service"

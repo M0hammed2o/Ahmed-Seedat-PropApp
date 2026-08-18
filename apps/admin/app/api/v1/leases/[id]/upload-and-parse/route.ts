@@ -197,9 +197,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       org_id: lease.org_id,
       raw_provider_output: extraction,
       overall_confidence: extraction.overallConfidence,
+      provider_name: provider.providerName,
     });
 
-    await serviceRole.from('extraction_jobs').update({ status: 'succeeded' }).eq('id', job.id);
+    await serviceRole
+      .from('extraction_jobs')
+      .update({ status: 'succeeded', provider_name: provider.providerName })
+      .eq('id', job.id);
 
     return NextResponse.json({ extraction, extractionJobId: job.id });
   } catch (err) {
@@ -208,6 +212,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       .update({
         status: 'failed',
         error_message: err instanceof Error ? err.message : 'Unknown error',
+        provider_name: provider.providerName,
       })
       .eq('id', job.id);
 

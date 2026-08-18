@@ -65,6 +65,10 @@ export function LevyStatementsPanel({
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [extractionWarning, setExtractionWarning] = useState<{
+    statementId: string;
+    message: string;
+  } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -120,12 +124,7 @@ export function LevyStatementsPanel({
         return;
       }
       const statementBody = await statementRes.json();
-
-      // Kick off extraction immediately -- best-effort; if it fails, the statement still exists
-      // and a line item can be added manually during review.
-      await fetch(`/api/v1/levy-statements/${statementBody.statement.id}/extract`, {
-        method: 'POST',
-      }).catch(() => {});
+      await runExtraction(statementBody.statement.id);
 
       await load();
       setExpandedId(statementBody.statement.id);
@@ -133,6 +132,33 @@ export function LevyStatementsPanel({
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
+  }
+
+  // OCR real-world test readiness pass (WORKLOG.md this date): extraction used to be fired via
+  // `.catch(() => {})` with no visible result -- if Document AI threw/timed out, the statement
+  // silently ended up back in "Uploaded" status with zero line items and NOTHING on screen told
+  // staff extraction failed. Now surfaced as a dismissible warning with a real retry action,
+  // matching the failure/retry UX the Documents module's own OcrPanel.tsx already has.
+  async function runExtraction(statementId: string) {
+    setExtractionWarning(null);
+    const fallbackMessage =
+      'Automatic extraction failed for this statement -- you can add line items manually below, or retry.';
+    try {
+      const res = await fetch(`/api/v1/levy-statements/${statementId}/extract`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setExtractionWarning({ statementId, message: body.error?.message ?? fallbackMessage });
+      }
+    } catch {
+      setExtractionWarning({ statementId, message: fallbackMessage });
+    }
+  }
+
+  async function retryExtraction(statementId: string) {
+    await runExtraction(statementId);
+    await load();
   }
 
   if (!loaded) {
@@ -175,6 +201,19 @@ export function LevyStatementsPanel({
         <p className="rounded-md border border-light-danger bg-light-danger/10 px-3 py-2 text-xs text-light-danger dark:border-dark-danger dark:bg-dark-danger/10 dark:text-dark-danger">
           {error}
         </p>
+      ) : null}
+
+      {extractionWarning ? (
+        <div className="flex items-center justify-between gap-3 rounded-md border border-light-warning bg-light-warning/10 px-3 py-2 text-xs text-light-warning dark:border-dark-warning dark:bg-dark-warning/10 dark:text-dark-warning">
+          <span>{extractionWarning.message}</span>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => retryExtraction(extractionWarning.statementId)}
+          >
+            Retry
+          </Button>
+        </div>
       ) : null}
 
       {statements.length === 0 ? (

@@ -749,6 +749,19 @@ export class GoogleDocumentAIProvider implements DocumentIntelligenceProvider {
 export function getDocumentIntelligenceProvider(): DocumentIntelligenceProvider {
   const textractConfig = getTextractConfig();
   if (textractConfig) {
+    // Final pre-UAT engineering pass (WORKLOG.md this date): Google Document AI is the intended
+    // production provider (SUBSCRIPTIONS.md-adjacent decision, confirmed by Mohammed). If AWS
+    // Textract env vars are ALSO present -- even stale leftovers from an earlier setup attempt --
+    // this branch silently wins per the precedence comment above, which would mean Google looks
+    // configured but never actually runs. No credential VALUES are logged here, only the fact that
+    // both are present, so Mohammed can catch this from server logs rather than discovering it only
+    // via extraction_results.provider_name after documents have already been processed by the
+    // wrong vendor.
+    if (getGoogleDocumentAIConfig() !== null) {
+      console.warn(
+        '[documentIntelligence] Both AWS Textract and Google Document AI credentials are configured -- AWS Textract is taking precedence (see the PRECEDENCE comment above getDocumentIntelligenceProvider()). If Google Document AI is intended as the active provider, remove the AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY/AWS_TEXTRACT_REGION/AWS_REGION environment variables.',
+      );
+    }
     return new AWSTextractDocumentIntelligenceProvider(textractConfig);
   }
   const googleConfig = getGoogleDocumentAIConfig();
