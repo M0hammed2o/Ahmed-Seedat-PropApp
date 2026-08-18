@@ -1,5 +1,81 @@
 # Worklog
 
+## 2026-08-18 (continued) — V1 billing/subscription/PayFast commercial-close pass
+
+Audited the ACTUAL current billing/subscription/PayFast architecture against the repository (not
+assumed from a migration existing) per Mohammed's instruction, centred on the critical commercial
+rule: an existing customer upgrading mid-period must never be charged the full new-plan price
+again. Did not push, deploy, perform a real PayFast transaction, or touch PayFast production
+configuration.
+
+**Finding: the proration engine already exists and is correct.** `compute_plan_change_quote()`/
+`confirm_plan_change()` (migration `20260101000104_billing_proration_engine.sql`) implement
+exactly the required rule: `amount_due_now = (target_effective_price - current_effective_price) *
+remaining_period_fraction`, day-based, Postgres `numeric` throughout (never floating point).
+Upgrade preserves `current_period_end`; downgrade schedules for next renewal with zero mid-cycle
+refund and no immediate entitlement loss; reactivation (suspended/cancelled org) is priced as a
+fresh full-price subscription, correctly excluded from proration; entitlement (the actual
+`organization_subscriptions.plan_id` flip) only happens on CONFIRMED payment
+(`processBillingWebhookEvent`), never before. Didn't just read this and trust it: installed
+`pgtap` into the live local Supabase instance and ran the dedicated 34-assertion pgTAP suite
+(`supabase/tests/billing_proration_engine.test.sql`) live -- 34/34 pass, including the exact
+"R299→R599 upgrade halfway through a 30-day period charges R200.00, never R599 again" scenario.
+
+**Found and fixed a real gap**: `processBillingWebhookEvent` verified the PayFast ITN's
+signature (proving the event genuinely came from PayFast, unmodified in transit) but never
+cross-checked the ITN's reported `amount_gross` against the `subscription_payments.amount` it was
+about to mark paid before flipping entitlement -- a signed-but-wrong-amount event would have been
+trusted. Added a defense-in-depth amount check (payment_succeeded events only, tolerant of a
+missing amount from the mock provider's own test fixtures): a mismatch now throws before any
+state changes, leaving the payment `pending` and the org untouched, with the `billing_events`
+audit row already written regardless. New test proves it (`billing.test.ts`, all 11 cases in that
+file re-verified passing).
+
+**Found and closed a real test-coverage gap**: `billing_events_isolation.test.sql` already proved
+cross-org isolation for `billing_events` specifically; the four other core billing tables
+(`organization_subscriptions`, `subscription_payments`, `billing_plan_changes`,
+`billing_change_quotes`) had no equivalent dedicated test. New
+`supabase/tests/billing_cross_org_isolation.test.sql` (17 assertions, all passing live): Org B's
+principal cannot see or confirm Org A's billing rows; a non-principal member of Org A cannot
+request or cancel a billing change for their own org; no authenticated-role client can write
+directly to any of the four tables at all (every write goes through a SECURITY DEFINER RPC or the
+service-role client) -- "customer cannot forge payment status" holds structurally, not just by
+UI convention.
+
+**Verified, not just read**: new subscription checkout (trial row created, webhook-only
+activation), downgrade scheduling (`apply_due_scheduled_plan_changes()` applies exactly once, a
+second run applies zero), failed-payment handling (marks `overdue`, sets `overdue_since` only on
+the FIRST failure so retries don't push the grace-period clock forward), cancellation
+(idempotent, no duplicate audit row), daily-jobs subscription processing (11/11 tests, one job's
+failure doesn't block the others), and server-side entitlement enforcement (`mayCreateProperty()`
+etc. called from the actual API routes, not just the UI, with a database-level backstop too).
+
+**Real, disclosed gaps found (not silently skipped)**: (1) no formal invoice system exists for
+Proplyst's own subscription billing -- `subscription_payments` is a payment-history table
+(RLS-scoped, shown in the billing UI), not a numbered/PDF-downloadable invoice; SUBSCRIPTIONS.md
+was rewritten to state this honestly rather than imply otherwise. (2)
+`canUseBulkCommunications()`/`canUseApiAccess()` always return `true` regardless of plan -- an
+existing, already-disclosed audit finding (the test asserting this is itself named "audit
+finding, not a stub oversight"), not something this pass introduced. (3) Android has zero
+billing/subscription code at all -- not even a "Manage subscription on web" link -- correctly NOT
+built this pass (would be starting new Android work without a shared-backend regression to
+justify it, per this pass's own scope instruction); flagged as a real, disclosed P2 gap instead.
+(4) PayFast itself has never completed a live round trip (no real merchant account exists in this
+environment, unchanged from TD-36) -- every algorithm is cross-checked against documentation and
+independent sources, not tested against the real gateway.
+
+**Verification**: `apps/admin` TypeScript typecheck clean, ESLint clean on every touched file,
+Prettier clean (one file auto-fixed), full `apps/admin` vitest suite (598 passed, 3 skipped, 1
+timeout-flaky test in the UNRELATED payment-reports e2e suite -- confirmed via 2 extra isolated
+re-runs to be a pre-existing load-sensitive flake, not a regression: it passes 3/3 cleanly with
+`--no-file-parallelism`), the ENTIRE pgTAP suite across all 60+ files (795/795, zero regressions),
+and a real `next build` production build (succeeded, full route manifest including
+`/organization/billing`/`/owner-portal/*`/`/platform-admin/subscriptions`).
+
+SUBSCRIPTIONS.md rewritten -- the previous version was severely stale (still described the old
+RevenueCat mobile-only V1 model and said "no org self-serve checkout UI in V1," both long
+superseded by the real 3-tier PayFast/proration system this pass audited).
+
 ## 2026-08-18 — Android V1 last local blocker pass
 
 Continued directly from the final gap-closure pass below, scoped explicitly to the remaining
