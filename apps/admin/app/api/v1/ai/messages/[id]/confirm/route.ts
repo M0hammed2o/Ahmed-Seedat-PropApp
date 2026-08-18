@@ -4,11 +4,20 @@ import { isValidStagedEndpoint, mapAiMessageRow } from '@/lib/ai';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
+// Final pre-UAT engineering pass (WORKLOG.md this date), Part 6/7: V1 is READ-ONLY. This route's
+// write-staging capability (AI_ARCHITECTURE.md §1.6) is explicitly disabled -- not merely
+// unreachable because MockLLMProvider no longer emits a stagedChange (lib/providers/llm.ts),
+// but refused HERE too, as defense in depth: a future real LLM provider swap must not silently
+// re-enable AI-driven writes just by returning a stagedChange, and this pass's own hard
+// requirement is an explicit, auditable "no" regardless of what any provider produces.
+const AI_WRITES_ENABLED = false;
+
 /**
- * POST /api/v1/ai/messages/:id/confirm (API_SPEC.md §9, AI_ARCHITECTURE.md §1.6). Applies a
- * staged change by re-entering the exact typed endpoint it staged, as the acting user's own
- * session -- never a privileged shortcut. "Re-enter in-process" is realized here as a same-origin
- * fetch forwarding the caller's own session cookie, so the target route resolves the identical
+ * POST /api/v1/ai/messages/:id/confirm (API_SPEC.md §9, AI_ARCHITECTURE.md §1.6). When
+ * AI_WRITES_ENABLED flips true in a future, deliberately-scoped pass, this applies a staged
+ * change by re-entering the exact typed endpoint it staged, as the acting user's own session --
+ * never a privileged shortcut. "Re-enter in-process" is realized here as a same-origin fetch
+ * forwarding the caller's own session cookie, so the target route resolves the identical
  * `auth.uid()`/role via its own `getServerSupabaseClient()` call and enforces the exact same Zod
  * validation and PERMISSIONS.md role check a human hitting that endpoint directly would face
  * (§1.6's "no shortcut path" requirement) -- a viewer-role user's staged write still 403s here
@@ -24,6 +33,19 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json(
       { error: { code: 'unauthenticated', message: 'Sign in required.' } },
       { status: 401 },
+    );
+  }
+
+  if (!AI_WRITES_ENABLED) {
+    return NextResponse.json(
+      {
+        error: {
+          code: 'ai_writes_disabled',
+          message:
+            'The Proplyst Assistant cannot make changes on your behalf in this release -- it can only answer questions.',
+        },
+      },
+      { status: 403 },
     );
   }
 

@@ -16,6 +16,7 @@ import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 import { AppShell, type NavSection } from '@/components/shell/AppShell';
 import { navIcon } from '@/components/shell/navIcon';
 import { TenancySwitcher } from '@/components/tenant-portal/TenancySwitcher';
+import { AssistantDrawer } from '@/components/assistant/AssistantDrawer';
 
 // Tenant-facing route group (V1 scope correction, 2026-08-01 — DECISIONS.md/PERMISSIONS.md §4).
 // A third, independent identity system alongside `(dashboard)` (org staff) and `(super-admin)`
@@ -105,6 +106,9 @@ export default async function TenantPortalLayout({ children }: { children: React
         session.tenancies.length > 1 ? (
           <TenancySwitcher tenancies={session.tenancies} activeTenantId={session.tenantId} />
         ) : undefined
+      }
+      assistant={
+        ADMIN_DEMO_MODE ? undefined : <AssistantDrawer orgId={session.orgId} variant="tenant" />
       }
     >
       {children}

@@ -85,6 +85,11 @@ export interface AppShellProps {
    *  static "Collection health 94.2%"). Omit to render nothing there, matching the no-fabricated-
    *  widget rule for portals that don't have a real equivalent yet. */
   sidebarFooterWidget?: ReactNode;
+  /** Final pre-UAT engineering pass (WORKLOG.md this date), Part 13: the Proplyst Assistant's
+   *  floating trigger + drawer (components/assistant/AssistantDrawer.tsx). Omit for portals that
+   *  don't get the assistant (Super Admin, demo mode) -- rendered as a fixed-position overlay so
+   *  it's reachable from every page within a portal without touching per-page layout. */
+  assistant?: ReactNode;
   children: React.ReactNode;
 }
 
@@ -119,6 +124,7 @@ export function AppShell({
   homeHref = '/dashboard',
   sidebarSubtitle,
   sidebarFooterWidget,
+  assistant,
   children,
 }: AppShellProps) {
   const pathname = usePathname();
@@ -400,6 +406,8 @@ export function AppShell({
           {children}
         </main>
       </div>
+
+      {assistant ? <div className="print:hidden">{assistant}</div> : null}
     </div>
   );
 }

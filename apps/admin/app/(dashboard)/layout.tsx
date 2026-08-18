@@ -34,6 +34,7 @@ import { AppShell, type HeaderNotification, type NavSection } from '@/components
 import { navIcon } from '@/components/shell/navIcon';
 import { SupportModeBanner } from '@/components/organizations/SupportModeBanner';
 import { CollectionHealthWidget } from '@/components/shell/CollectionHealthWidget';
+import { AssistantDrawer } from '@/components/assistant/AssistantDrawer';
 
 // Client-org-facing route group, matching ARCHITECTURE.md's "Why one web app, not two" naming
 // exactly (`app/(dashboard)/**` for client orgs, `app/(super-admin)/**` for platform staff).
@@ -230,6 +231,9 @@ export default async function PortalLayout({ children }: { children: React.React
         activeSupportSession ? (
           <SupportModeBanner session={activeSupportSession} orgName={supportSessionOrgName} />
         ) : undefined
+      }
+      assistant={
+        ADMIN_DEMO_MODE ? undefined : <AssistantDrawer orgId={activeOrg.orgId} variant="owner" />
       }
     >
       {children}

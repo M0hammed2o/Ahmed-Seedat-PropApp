@@ -4,11 +4,13 @@ import type {
   AiConversation,
   AiMessage,
   AssembledOrgContext,
+  AssembledTenantContext,
   PortfolioInsight,
   StagedChange,
   UsageEvent,
   UsageSnapshot,
 } from '@propvault/types';
+import { calculateOutstandingRentTotal } from './leasing';
 
 // AI-domain row mapping + context assembly (apps/admin/app/api/v1/{ai,insights} --
 // AI_ARCHITECTURE.md §1, TASKS.md M18).
@@ -165,47 +167,82 @@ export async function assembleOrgContext(
   const weekOut = addDays(now, 7);
   const leaseLookaheadOut = addDays(now, 60);
 
-  const [overdueResult, dueSoonResult, expensesResult, ticketsResult, expiringLeasesResult] =
-    await Promise.all([
-      supabase
-        .from('rent_schedules')
-        .select('lease_id, amount, due_date')
-        .eq('org_id', orgId)
-        .eq('status', 'overdue')
-        .order('due_date', { ascending: true })
-        .limit(10),
-      supabase
-        .from('rent_schedules')
-        .select('lease_id, amount, due_date')
-        .eq('org_id', orgId)
-        .eq('status', 'pending')
-        .gte('due_date', today)
-        .lte('due_date', weekOut)
-        .order('due_date', { ascending: true })
-        .limit(10),
-      supabase
-        .from('expenses')
-        .select('id, category, amount, created_at')
-        .eq('org_id', orgId)
-        .order('created_at', { ascending: false })
-        .limit(10),
-      supabase
-        .from('maintenance_tickets')
-        .select('id, summary, priority, status')
-        .eq('org_id', orgId)
-        .in('status', ['to_do', 'in_progress', 'pending_approval'])
-        .order('created_at', { ascending: false })
-        .limit(10),
-      supabase
-        .from('leases')
-        .select('id, end_date')
-        .eq('org_id', orgId)
-        .eq('status', 'active')
-        .not('end_date', 'is', null)
-        .lte('end_date', leaseLookaheadOut)
-        .order('end_date', { ascending: true })
-        .limit(10),
-    ]);
+  const [
+    overdueResult,
+    dueSoonResult,
+    expensesResult,
+    ticketsResult,
+    expiringLeasesResult,
+    pendingReportsResult,
+    insightsResult,
+    recentPaymentsResult,
+    unitsResult,
+  ] = await Promise.all([
+    supabase
+      .from('rent_schedules')
+      .select('lease_id, amount, due_date')
+      .eq('org_id', orgId)
+      .eq('status', 'overdue')
+      .order('due_date', { ascending: true })
+      .limit(10),
+    supabase
+      .from('rent_schedules')
+      .select('lease_id, amount, due_date')
+      .eq('org_id', orgId)
+      .eq('status', 'pending')
+      .gte('due_date', today)
+      .lte('due_date', weekOut)
+      .order('due_date', { ascending: true })
+      .limit(10),
+    supabase
+      .from('expenses')
+      .select('id, category, amount, created_at')
+      .eq('org_id', orgId)
+      .order('created_at', { ascending: false })
+      .limit(10),
+    supabase
+      .from('maintenance_tickets')
+      .select('id, summary, priority, status')
+      .eq('org_id', orgId)
+      .in('status', ['to_do', 'in_progress', 'pending_approval'])
+      .order('created_at', { ascending: false })
+      .limit(10),
+    supabase
+      .from('leases')
+      .select('id, end_date')
+      .eq('org_id', orgId)
+      .eq('status', 'active')
+      .not('end_date', 'is', null)
+      .lte('end_date', leaseLookaheadOut)
+      .order('end_date', { ascending: true })
+      .limit(10),
+    // getPendingPaymentReports
+    supabase
+      .from('payment_reports')
+      .select('id, tenant_id, amount, payment_date')
+      .eq('org_id', orgId)
+      .eq('status', 'reported')
+      .order('payment_date', { ascending: false })
+      .limit(10),
+    // getPortfolioInsights -- the existing rules-engine feed, read-only, never re-derived here.
+    supabase
+      .from('portfolio_insights')
+      .select('id, insight_type, message, severity')
+      .eq('org_id', orgId)
+      .is('dismissed_at', null)
+      .order('generated_at', { ascending: false })
+      .limit(10),
+    // getRecentPayments -- confirmed/paid rent, most recent first.
+    supabase
+      .from('rent_schedules')
+      .select('lease_id, amount, due_date')
+      .eq('org_id', orgId)
+      .eq('status', 'paid')
+      .order('due_date', { ascending: false })
+      .limit(10),
+    // getOccupancySummary
+    supabase.from('units').select('status').eq('org_id', orgId),
+  ]);
 
   for (const result of [
     overdueResult,
@@ -213,6 +250,10 @@ export async function assembleOrgContext(
     expensesResult,
     ticketsResult,
     expiringLeasesResult,
+    pendingReportsResult,
+    insightsResult,
+    recentPaymentsResult,
+    unitsResult,
   ]) {
     if (result.error) throw new Error(`Context assembly query failed: ${result.error.message}`);
   }
@@ -220,14 +261,30 @@ export async function assembleOrgContext(
   const overdueRows = overdueResult.data ?? [];
   const dueSoonRows = dueSoonResult.data ?? [];
   const expiringLeaseRows = expiringLeasesResult.data ?? [];
+  const recentPaymentRows = recentPaymentsResult.data ?? [];
+  const pendingReportRows = pendingReportsResult.data ?? [];
 
   const tenantNames = await getPrimaryTenantNames(supabase, [
     ...overdueRows.map((r) => r.lease_id as string),
     ...dueSoonRows.map((r) => r.lease_id as string),
     ...expiringLeaseRows.map((r) => r.id as string),
+    ...recentPaymentRows.map((r) => r.lease_id as string),
   ]);
+  const reportTenantNames = await getTenantNamesByTenantId(
+    supabase,
+    pendingReportRows.map((r) => r.tenant_id as string),
+  );
+
+  const unitRows = unitsResult.data ?? [];
+  const occupancySummary = {
+    occupied: unitRows.filter((u) => u.status === 'occupied').length,
+    vacant: unitRows.filter((u) => u.status === 'vacant').length,
+    maintenance: unitRows.filter((u) => u.status === 'maintenance').length,
+    total: unitRows.length,
+  };
 
   return {
+    kind: 'owner',
     orgId,
     generatedAt: now.toISOString(),
     rentOverdue: overdueRows.map((r) => ({
@@ -258,6 +315,169 @@ export async function assembleOrgContext(
       leaseId: r.id as string,
       tenantName: tenantNames[r.id as string] ?? 'Unknown tenant',
       endDate: r.end_date as string,
+    })),
+    pendingPaymentReports: pendingReportRows.map((r) => ({
+      reportId: r.id as string,
+      tenantName: reportTenantNames[r.tenant_id as string] ?? 'Unknown tenant',
+      amount: r.amount as number,
+      paymentDate: r.payment_date as string,
+    })),
+    portfolioInsights: (insightsResult.data ?? []).map((r) => ({
+      insightId: r.id as string,
+      insightType: r.insight_type as string,
+      message: r.message as string,
+      severity: r.severity as string,
+    })),
+    recentPayments: recentPaymentRows.map((r) => ({
+      leaseId: r.lease_id as string,
+      tenantName: tenantNames[r.lease_id as string] ?? 'Unknown tenant',
+      amount: r.amount as number,
+      paidDate: r.due_date as string,
+    })),
+    occupancySummary,
+  };
+}
+
+/** Batched tenant-name lookup keyed by tenants.id directly (vs. getPrimaryTenantNames, which is
+ *  keyed by lease_id) -- payment_reports.tenant_id already IS the tenant id, no lease join needed. */
+async function getTenantNamesByTenantId(
+  supabase: SupabaseClient,
+  tenantIds: string[],
+): Promise<Record<string, string>> {
+  const uniqueIds = [...new Set(tenantIds)];
+  if (uniqueIds.length === 0) return {};
+  const { data, error } = await supabase
+    .from('tenants')
+    .select('id, full_name')
+    .in('id', uniqueIds);
+  if (error) throw new Error(`Failed to resolve tenant names: ${error.message}`);
+  const names: Record<string, string> = {};
+  for (const row of data ?? []) names[row.id as string] = row.full_name as string;
+  return names;
+}
+
+/**
+ * Tenant-side context assembly, mirroring assembleOrgContext's own hard requirement: `supabase`
+ * MUST be the acting user's own session-bound client, and every field here is exactly one named
+ * tool from Part 8's tenant registry (getTenantBalance, getTenantPaymentStatus,
+ * getTenantRentSchedule, getTenantLeaseSummary, getTenantMaintenanceStatus, getTenantNotices).
+ * `tenantId`/`orgId`/`leaseId` are resolved server-side by the caller (resolveTenantSession()),
+ * never client-supplied -- a tenant can only ever see their own tenancy's data.
+ */
+export async function assembleTenantContext(
+  supabase: SupabaseClient,
+  input: {
+    tenantId: string;
+    orgId: string;
+    leaseId: string | null;
+    propertyLabel: string | null;
+    unitLabel: string | null;
+  },
+): Promise<AssembledTenantContext> {
+  const now = new Date();
+
+  const [rentScheduleResult, paymentReportsResult, leaseResult, ticketsResult, noticesResult] =
+    await Promise.all([
+      input.leaseId
+        ? supabase
+            .from('rent_schedules')
+            .select('due_date, amount, status')
+            .eq('lease_id', input.leaseId)
+            .order('due_date', { ascending: true })
+            .limit(24)
+        : Promise.resolve({ data: [], error: null }),
+      supabase
+        .from('payment_reports')
+        .select('id, amount, status, payment_date')
+        .eq('tenant_id', input.tenantId)
+        .order('payment_date', { ascending: false })
+        .limit(10),
+      input.leaseId
+        ? supabase
+            .from('leases')
+            .select('id, rent_amount, start_date, end_date, status')
+            .eq('id', input.leaseId)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+      supabase
+        .from('maintenance_tickets')
+        .select('id, summary, status, priority')
+        .eq('tenant_id', input.tenantId)
+        .order('created_at', { ascending: false })
+        .limit(10),
+      supabase
+        .from('announcements')
+        .select('id, title, published_at')
+        .eq('org_id', input.orgId)
+        .order('published_at', { ascending: false })
+        .limit(10),
+    ]);
+
+  for (const result of [
+    rentScheduleResult,
+    paymentReportsResult,
+    leaseResult,
+    ticketsResult,
+    noticesResult,
+  ]) {
+    if (result.error)
+      throw new Error(`Tenant context assembly query failed: ${result.error.message}`);
+  }
+
+  const rentScheduleRows = (rentScheduleResult.data ?? []) as Array<{
+    due_date: string;
+    amount: number;
+    status: string;
+  }>;
+  const leaseRow = leaseResult.data as {
+    id: string;
+    rent_amount: number;
+    start_date: string;
+    end_date: string | null;
+    status: string;
+  } | null;
+
+  return {
+    kind: 'tenant',
+    tenantId: input.tenantId,
+    orgId: input.orgId,
+    generatedAt: now.toISOString(),
+    outstandingBalance: calculateOutstandingRentTotal(
+      rentScheduleRows as unknown as Array<{
+        status: 'overdue' | 'pending' | 'paid' | 'invoiced' | 'partial';
+        amount: number;
+      }>,
+    ),
+    recentPaymentReports: (paymentReportsResult.data ?? []).map((r) => ({
+      reportId: r.id as string,
+      amount: r.amount as number,
+      status: r.status as string,
+      paymentDate: r.payment_date as string,
+    })),
+    rentSchedule: rentScheduleRows
+      .filter((r) => r.status !== 'paid')
+      .map((r) => ({ dueDate: r.due_date, amount: r.amount, status: r.status })),
+    lease: leaseRow
+      ? {
+          leaseId: leaseRow.id,
+          propertyLabel: input.propertyLabel ?? 'your property',
+          unitLabel: input.unitLabel,
+          rentAmount: leaseRow.rent_amount,
+          startDate: leaseRow.start_date,
+          endDate: leaseRow.end_date,
+          status: leaseRow.status,
+        }
+      : null,
+    maintenanceTickets: (ticketsResult.data ?? []).map((r) => ({
+      ticketId: r.id as string,
+      title: r.summary as string,
+      status: r.status as string,
+      priority: r.priority as string,
+    })),
+    notices: (noticesResult.data ?? []).map((r) => ({
+      noticeId: r.id as string,
+      title: r.title as string,
+      publishedAt: r.published_at as string,
     })),
   };
 }
