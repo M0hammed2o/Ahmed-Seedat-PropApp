@@ -6,6 +6,10 @@ import { MiniBarChart } from '@/components/ui/MiniBarChart';
 import { getServiceRoleClient } from '@/lib/supabase/server';
 import { computePlatformMetrics } from '@/lib/superAdmin';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
+import {
+  getDocumentIntelligenceProvider,
+  isRealDocumentIntelligenceProviderConfigured,
+} from '@/lib/providers/documentIntelligence';
 // Authorization: enforced by the (super-admin) layout's own gate, not re-checked here -- see that
 // layout's comment and lib/auth.ts's resolveAdminGate() comment for the real, live-caught bug a
 // page-level requireRole() throw used to cause (raced the layout's redirect, since both are
@@ -162,6 +166,13 @@ export default async function OverviewPage() {
   }
 
   const metrics = await computePlatformMetrics(getServiceRoleClient());
+  // Same real check the System page uses (Platform Admin honesty pass, WORKLOG.md this date) --
+  // this panel previously hardcoded 'not_connected' regardless of actual configuration, silently
+  // disagreeing with the System page's own (correct) answer to the exact same question.
+  const ocrProviderConfigured = isRealDocumentIntelligenceProviderConfigured();
+  const ocrProviderName = ocrProviderConfigured
+    ? getDocumentIntelligenceProvider().providerName
+    : undefined;
 
   return (
     <div>
@@ -217,10 +228,18 @@ export default async function OverviewPage() {
           System health
         </h2>
         <div className="mt-2">
+          {/* Postgres is provably reachable -- computePlatformMetrics() above just ran a real
+              query against it; if it weren't healthy, this page would not have rendered. */}
           <HealthStatusIndicator label="Supabase (Postgres)" status="connected" />
-          <HealthStatusIndicator label="Supabase Storage" status="connected" />
+          {/* Nothing on this page (or anywhere in Platform Admin) actually checks Storage --
+              'unknown' is the honest claim, not an assumed 'connected'. */}
+          <HealthStatusIndicator label="Supabase Storage" status="unknown" />
           <HealthStatusIndicator label="RevenueCat webhook" status="not_connected" />
-          <HealthStatusIndicator label="Document intelligence provider" status="not_connected" />
+          <HealthStatusIndicator
+            label="Document intelligence provider"
+            status={ocrProviderConfigured ? 'connected' : 'not_connected'}
+            detail={ocrProviderName}
+          />
           <HealthStatusIndicator label="Push notification delivery" status="not_connected" />
         </div>
       </div>

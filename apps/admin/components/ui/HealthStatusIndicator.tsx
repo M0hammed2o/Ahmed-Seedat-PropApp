@@ -1,13 +1,21 @@
-export type HealthStatus = 'connected' | 'not_connected' | 'degraded';
+// Platform Admin honesty pass (WORKLOG.md this date): four states, not a connected/not-connected
+// binary -- "not configured" (we know for certain there's no real integration wired up) and
+// "unknown" (we haven't actually run a check) are different claims, and conflating them is exactly
+// how a status indicator ends up implying more confidence than the page actually has.
+export type HealthStatus = 'connected' | 'not_connected' | 'degraded' | 'unknown';
 
 const PRESENTATION: Record<HealthStatus, { label: string; dotClass: string }> = {
-  connected: { label: 'Connected', dotClass: 'bg-light-statusPaid dark:bg-dark-statusPaid' },
+  connected: { label: 'Healthy', dotClass: 'bg-light-statusPaid dark:bg-dark-statusPaid' },
   degraded: {
     label: 'Degraded',
     dotClass: 'bg-light-statusNeedsReview dark:bg-dark-statusNeedsReview',
   },
   not_connected: {
-    label: 'Not yet connected',
+    label: 'Not configured',
+    dotClass: 'bg-light-textMuted dark:bg-dark-textMuted',
+  },
+  unknown: {
+    label: 'Unknown / not checked',
     dotClass: 'bg-light-textMuted dark:bg-dark-textMuted',
   },
 };

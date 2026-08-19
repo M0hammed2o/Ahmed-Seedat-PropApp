@@ -74,31 +74,44 @@ export default async function SystemPage() {
         <h2 className="pt-4 text-sm font-medium text-light-textPrimary dark:text-dark-textPrimary">
           Feature flags
         </h2>
-        <div className="mt-2">
-          {DEMO_FEATURE_FLAGS.map((flag, i) => (
-            <div
-              key={flag.key}
-              className={`flex items-center justify-between py-3 ${i === DEMO_FEATURE_FLAGS.length - 1 ? '' : 'border-b border-light-border dark:border-dark-border'}`}
-            >
-              <div>
-                <p className="text-sm text-light-textPrimary dark:text-dark-textPrimary">
-                  {flag.label}
-                </p>
-                <p className="text-xs text-light-textMuted dark:text-dark-textMuted">
-                  {flag.description}
-                </p>
-              </div>
-              <span
-                className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                  flag.enabled
-                    ? 'bg-light-statusPaid/10 text-light-statusPaid dark:bg-dark-statusPaid/10 dark:text-dark-statusPaid'
-                    : 'bg-light-border/60 text-light-textMuted dark:bg-dark-border/60 dark:text-dark-textMuted'
-                }`}
+        <div className="mt-2 pb-4">
+          {ADMIN_DEMO_MODE ? (
+            DEMO_FEATURE_FLAGS.map((flag, i) => (
+              <div
+                key={flag.key}
+                className={`flex items-center justify-between py-3 ${i === DEMO_FEATURE_FLAGS.length - 1 ? '' : 'border-b border-light-border dark:border-dark-border'}`}
               >
-                {flag.enabled ? 'Enabled' : 'Disabled'}
-              </span>
-            </div>
-          ))}
+                <div>
+                  <p className="text-sm text-light-textPrimary dark:text-dark-textPrimary">
+                    {flag.label}
+                  </p>
+                  <p className="text-xs text-light-textMuted dark:text-dark-textMuted">
+                    {flag.description}
+                  </p>
+                </div>
+                <span
+                  className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                    flag.enabled
+                      ? 'bg-light-statusPaid/10 text-light-statusPaid dark:bg-dark-statusPaid/10 dark:text-dark-statusPaid'
+                      : 'bg-light-border/60 text-light-textMuted dark:bg-dark-border/60 dark:text-dark-textMuted'
+                  }`}
+                >
+                  {flag.enabled ? 'Enabled' : 'Disabled'}
+                </span>
+              </div>
+            ))
+          ) : (
+            // Platform Admin honesty pass (WORKLOG.md this date): this section used to render
+            // DEMO_FEATURE_FLAGS unconditionally, including in real production -- fabricated
+            // toggle states with no backend behind them at all. There is no feature_flags table;
+            // packages/config's FeatureFlags remain static, code-level defaults (DEPLOYMENT.md
+            // §7), not a runtime-readable/writable store. Stated plainly rather than hidden, so a
+            // real absence reads as "not built yet," not as a blank space that looks broken.
+            <p className="py-3 text-sm text-light-textMuted dark:text-dark-textMuted">
+              Not configured — no feature-flag backend exists yet. Flags are currently static
+              code-level defaults, not runtime-toggleable from here.
+            </p>
+          )}
         </div>
       </div>
 
