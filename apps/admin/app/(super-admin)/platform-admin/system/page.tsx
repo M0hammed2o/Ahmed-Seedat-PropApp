@@ -8,6 +8,7 @@ import {
   getDocumentIntelligenceProvider,
   isRealDocumentIntelligenceProviderConfigured,
 } from '@/lib/providers/documentIntelligence';
+import { getPayFastConfig } from '@/lib/providers/payfast';
 
 export default async function SystemPage() {
   // Identity/AAL2 already enforced by the (super-admin) layout's own gate -- this only reads the
@@ -27,6 +28,12 @@ export default async function SystemPage() {
   const ocrProviderName = ocrProviderConfigured
     ? getDocumentIntelligenceProvider().providerName
     : undefined;
+
+  // PayFast production-connection pass (WORKLOG.md this date): presence-only, matching the OCR
+  // row above -- getPayFastConfig() returns null unless all three real credentials are set, never
+  // exposes their values. `detail` shows only the non-secret mode ('sandbox'/'live'), specifically
+  // so an accidental sandbox-credentials-in-production misconfiguration is visible at a glance.
+  const payFastConfig = getPayFastConfig();
 
   return (
     <div>
@@ -62,6 +69,17 @@ export default async function SystemPage() {
                   : 'not_connected'
             }
             detail={ADMIN_DEMO_MODE ? undefined : ocrProviderName}
+          />
+          <HealthStatusIndicator
+            label="PayFast"
+            status={
+              ADMIN_DEMO_MODE
+                ? DEMO_SYSTEM_HEALTH.payfast
+                : payFastConfig
+                  ? 'connected'
+                  : 'not_connected'
+            }
+            detail={ADMIN_DEMO_MODE ? undefined : payFastConfig?.mode}
           />
           <HealthStatusIndicator
             label="Push notification service"

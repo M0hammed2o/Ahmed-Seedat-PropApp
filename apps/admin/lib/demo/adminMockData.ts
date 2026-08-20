@@ -324,6 +324,7 @@ export const DEMO_SYSTEM_HEALTH = {
   supabaseStorage: 'connected' as const,
   revenueCatWebhook: 'not_connected' as const,
   ocrProvider: 'not_connected' as const,
+  payfast: 'not_connected' as const,
   notificationService: 'not_connected' as const,
   apiLatencyMs: 118,
   errorRatePercent: 0.4,
