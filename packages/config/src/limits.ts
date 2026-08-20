@@ -23,6 +23,11 @@ export const RATE_LIMITS = {
   // (see CheckEmailScreen.tsx) is the primary friction a real user actually experiences.
   resendVerificationAttemptsPerMinute: 3,
   mfaVerifyAttemptsPerMinute: 10,
+  // Email-confirmation cross-device-safe rewrite (WORKLOG.md this date): the explicit "Confirm
+  // email address" button on /auth/confirm, POST /api/v1/auth/confirm. Same floor as MFA verify --
+  // a real user needs at most a couple of clicks (the UI already disables the button after one),
+  // this is the anti-abuse ceiling against a token being brute-forced.
+  emailConfirmAttemptsPerMinute: 10,
   uploadRequestsPerMinute: 20,
   webhookRequestsPerMinute: 120,
   // A signed-in caller guessing invite tokens for other orgs (POST .../invites/accept) -- tokens
