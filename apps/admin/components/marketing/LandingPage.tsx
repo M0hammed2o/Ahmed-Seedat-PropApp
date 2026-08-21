@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Building2, ScanText, Wallet, Wrench, MessageSquare, ShieldCheck } from 'lucide-react';
 import { branding } from '@propvault/config';
 import { Button } from '@/components/ui/Button';
+import { PricingSection } from './PricingSection';
 
 // Public marketing/landing page (root-domain routing fix, WORKLOG.md this date) -- rendered by
 // app/page.tsx only for a genuinely unauthenticated visitor; every authenticated caller is routed
@@ -10,10 +11,11 @@ import { Button } from '@/components/ui/Button';
 // LoginForm.tsx/RegisterForm.tsx) rather than introducing a separate visual system -- this is a
 // new page, not a redesign of the application.
 //
-// Feature/pricing copy is sourced from real, already-shipped product state, not invented:
-// PRODUCT_SPEC.md §3 (modules) and the three real PayFast-billed tiers seeded by
-// supabase/migrations/20260101000075_commercial_billing_foundation.sql -- keep both in sync if
-// pricing/features change there.
+// Feature copy is sourced from real, already-shipped product state (PRODUCT_SPEC.md §3). Pricing
+// itself lives in the extracted PricingSection.tsx (a client component -- the monthly/annual
+// toggle, commercial plan restructure this pass, needs interactivity this server component
+// doesn't otherwise require) -- source of truth is
+// supabase/migrations/20260101000111_commercial_plan_restructure.sql.
 
 const FEATURES = [
   {
@@ -45,42 +47,6 @@ const FEATURES = [
     icon: ShieldCheck,
     title: 'Real ownership, real permissions',
     body: 'Shared property ownership with a proper owner portal, property-level access control, and a full audit trail — not an afterthought.',
-  },
-] as const;
-
-const TIERS = [
-  {
-    id: 'starter',
-    name: 'Starter',
-    price: 299,
-    blurb: 'For a single landlord managing a small portfolio.',
-    features: ['Up to 5 properties', '1 staff seat', 'Core accounting & leasing'],
-  },
-  {
-    id: 'professional',
-    name: 'Professional',
-    price: 699,
-    blurb: 'For growing portfolios and small agencies.',
-    features: [
-      'Up to 25 properties',
-      'Unlimited staff seats',
-      'Document intelligence (OCR)',
-      'Owner portal',
-      'Advanced reporting & bulk communications',
-    ],
-    highlighted: true,
-  },
-  {
-    id: 'business',
-    name: 'Business',
-    price: 1499,
-    blurb: 'For agencies managing large, multi-owner portfolios.',
-    features: [
-      'Unlimited properties & staff',
-      'Everything in Professional',
-      'API access',
-      'Priority support',
-    ],
   },
 ] as const;
 
@@ -172,65 +138,7 @@ export function LandingPage() {
           </div>
         </section>
 
-        <section id="pricing" className="px-6 py-16 sm:py-20">
-          <div className="mx-auto max-w-6xl">
-            <h2 className="text-center font-display text-2xl font-bold text-light-textPrimary dark:text-dark-textPrimary">
-              Simple, transparent pricing
-            </h2>
-            <p className="mx-auto mt-2 max-w-xl text-center text-sm text-light-textSecondary dark:text-dark-textSecondary">
-              Every plan starts with a 30-day free trial. Prices in South African Rand, billed
-              monthly.
-            </p>
-            <div className="mt-10 grid grid-cols-1 gap-6 lg:grid-cols-3">
-              {TIERS.map((tier) => (
-                <div
-                  key={tier.id}
-                  className={`rounded-card border p-6 ${
-                    'highlighted' in tier && tier.highlighted
-                      ? 'border-light-accent shadow-glow dark:border-dark-accent'
-                      : 'border-light-border dark:border-dark-border'
-                  } bg-light-surfaceRaised dark:bg-dark-surfaceRaised`}
-                >
-                  <h3 className="font-display text-lg font-bold text-light-textPrimary dark:text-dark-textPrimary">
-                    {tier.name}
-                  </h3>
-                  <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
-                    {tier.blurb}
-                  </p>
-                  <p className="mt-4">
-                    <span className="font-display text-3xl font-bold text-light-textPrimary dark:text-dark-textPrimary">
-                      R{tier.price}
-                    </span>
-                    <span className="text-sm text-light-textMuted dark:text-dark-textMuted">
-                      {' '}
-                      / month
-                    </span>
-                  </p>
-                  <ul className="mt-5 space-y-2 text-sm text-light-textSecondary dark:text-dark-textSecondary">
-                    {tier.features.map((feature) => (
-                      <li key={feature} className="flex items-start gap-2">
-                        <ShieldCheck
-                          size={16}
-                          className="mt-0.5 shrink-0 text-light-accent dark:text-dark-accent"
-                          aria-hidden="true"
-                        />
-                        {feature}
-                      </li>
-                    ))}
-                  </ul>
-                  <Link href="/register" className="mt-6 block">
-                    <Button
-                      variant={'highlighted' in tier && tier.highlighted ? 'primary' : 'secondary'}
-                      className="w-full"
-                    >
-                      Start free trial
-                    </Button>
-                  </Link>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
+        <PricingSection />
       </main>
 
       <footer className="border-t border-light-border px-6 py-8 dark:border-dark-border">
