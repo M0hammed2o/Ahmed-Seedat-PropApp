@@ -21,6 +21,18 @@ export const billingRefundSchema = z.object({
 });
 export type BillingRefundInput = z.infer<typeof billingRefundSchema>;
 
+// Commercial plan restructure -- trial-activation checkout (POST
+// /api/v1/organizations/:orgId/billing/trial-activation). Deliberately NOT planId/amount: the
+// client selects a tier + interval only, the server resolves the exact active plan row and its
+// price itself (never trusts a client-supplied plan id or price) -- see
+// startTrialActivationCheckout() in apps/admin/lib/billing.ts.
+export const trialActivationCheckoutSchema = z.object({
+  planTier: z.enum(['starter', 'professional', 'business']),
+  interval: z.enum(['monthly', 'annual']),
+  idempotencyKey: z.string().min(1, 'idempotencyKey is required').max(200),
+});
+export type TrialActivationCheckoutInput = z.infer<typeof trialActivationCheckoutSchema>;
+
 // RELEASE A: provider-independent billing-change engine (SUBSCRIPTIONS.md, migration
 // 20260101000104, apps/admin/lib/billing.ts).
 export const billingPlanChangeQuoteSchema = z.object({

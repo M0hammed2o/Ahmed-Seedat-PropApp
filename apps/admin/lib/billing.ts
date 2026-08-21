@@ -1,6 +1,6 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { BillingGatewayProvider } from '@propvault/types';
+import type { BillingGatewayProvider, BillingWebhookEvent } from '@propvault/types';
 import { getBillingGatewayProvider } from './providers/billing';
 import { dispatchEmail, type EmailTemplateName } from './emailDispatch';
 
@@ -211,6 +211,301 @@ export async function startSubscriptionCheckout(
   };
 }
 
+export interface StartTrialActivationCheckoutResult {
+  checkoutUrl: string;
+  providerSubscriptionId: string;
+  subscriptionPaymentId: string;
+}
+
+/**
+ * Commercial plan restructure -- the one entry point for a brand-new, not-yet-set-up
+ * organization's principal to select a plan tier + billing interval and hand off to PayFast to
+ * register a real, verifiable payment method. Charges nothing now (createSubscription's
+ * initialAmount: 0, billingDate 30 days out defers the real first recurring charge) -- and never
+ * starts the trial itself: activate_trial_after_payment() only ever runs from
+ * processBillingWebhookEvent's trial-activation branch below, once PayFast's own verified ITN
+ * confirms the payment method actually works. Matches this file's own established principle
+ * ("never trust the checkout-initiation response as proof of payment") applied to trial
+ * activation, not just paid activation.
+ *
+ * Deliberately does not accept a planId or amount from the caller (Phase 6, server-authoritative
+ * pricing) -- planTier + interval resolve to the exact active `plans` row and its price here,
+ * the only place that lookup happens; a client cannot influence what gets charged.
+ */
+export async function startTrialActivationCheckout(
+  serviceClient: SupabaseClient,
+  input: {
+    orgId: string;
+    principalUserId: string;
+    planTier: 'starter' | 'professional' | 'business';
+    interval: 'monthly' | 'annual';
+    idempotencyKey: string;
+  },
+): Promise<StartTrialActivationCheckoutResult> {
+  const provider = getBillingGatewayProvider();
+  assertRealPaymentGatewayAvailable(provider);
+
+  const { data: org, error: orgError } = await serviceClient
+    .from('organizations')
+    .select('id, legal_name, commercial_setup_completed_at')
+    .eq('id', input.orgId)
+    .single();
+  if (orgError || !org) throw new Error(orgError?.message ?? 'Organization not found');
+  if (org.commercial_setup_completed_at) {
+    throw new Error(
+      'commercial_setup_already_complete: this organization has already completed payment-method setup.',
+    );
+  }
+
+  // Server-authoritative plan resolution -- `code` follows this codebase's own convention
+  // (20260101000111): `${tier}_${interval}`, e.g. "professional_annual".
+  const planCode = `${input.planTier}_${input.interval}`;
+  const { data: plan, error: planError } = await serviceClient
+    .from('plans')
+    .select('*')
+    .eq('code', planCode)
+    .eq('is_active', true)
+    .single();
+  if (planError || !plan)
+    throw new Error(planError?.message ?? `Plan not found or inactive: ${planCode}`);
+
+  // Trial eligibility, checked here as an early, honest rejection before sending the customer to
+  // PayFast at all -- re-checked again, more completely, at actual activation time below (the
+  // real payment_provider_reference only exists once PayFast responds), so this first check is
+  // never the sole gate, only a faster no for an already-known-ineligible principal.
+  const { data: alreadyUsed } = await serviceClient.rpc('has_used_trial_before', {
+    p_principal_user_id: input.principalUserId,
+  });
+  if (alreadyUsed) {
+    throw new Error('trial_not_eligible: a free trial has already been used by this account.');
+  }
+
+  const customer = await provider.createCustomer({
+    orgId: org.id,
+    legalName: org.legal_name,
+    email: `billing+${org.id}@proplyst.example`,
+  });
+
+  const billingDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const subscription = await provider.createSubscription({
+    orgId: org.id,
+    providerCustomerId: customer.providerCustomerId,
+    planCode: plan.code,
+    amount: Number(plan.base_price),
+    initialAmount: 0,
+    billingDate,
+    currency: plan.currency,
+    billingCycle: plan.billing_cycle,
+    idempotencyKey: input.idempotencyKey,
+  });
+
+  const periodStart = new Date().toISOString().slice(0, 10);
+  const periodEnd = billingDate;
+
+  const { data: orgSubscription, error: subInsertError } = await serviceClient
+    .from('organization_subscriptions')
+    .insert({
+      org_id: org.id,
+      plan_id: plan.id,
+      billing_cycle: plan.billing_cycle,
+      current_period_start: periodStart,
+      current_period_end: periodEnd,
+      next_payment_date: periodEnd,
+      status: 'trial',
+    })
+    .select('id')
+    .single();
+  if (subInsertError || !orgSubscription)
+    throw new Error(subInsertError?.message ?? 'Failed to create subscription');
+
+  const { data: payment, error: paymentInsertError } = await serviceClient
+    .from('subscription_payments')
+    .insert({
+      org_id: org.id,
+      subscription_id: orgSubscription.id,
+      amount: 0,
+      currency: plan.currency,
+      status: 'pending',
+      provider_reference: subscription.providerSubscriptionId,
+      purpose: 'trial_activation',
+    })
+    .select('id')
+    .single();
+  if (paymentInsertError || !payment)
+    throw new Error(paymentInsertError?.message ?? 'Failed to create pending payment');
+
+  return {
+    checkoutUrl: subscription.checkoutUrl,
+    providerSubscriptionId: subscription.providerSubscriptionId,
+    subscriptionPaymentId: payment.id,
+  };
+}
+
+/**
+ * Commercial plan restructure -- records (or replaces) an org's verified payment method from a
+ * real gateway confirmation. Never stores raw card data (PAN/CVV): only the provider-safe
+ * metadata a gateway's own webhook/API actually exposes. PayFast's subscription ITN payload does
+ * not carry card brand/last4/expiry (confirmed against parseWebhookEvent's own field list) --
+ * those columns are left null rather than fabricated. Exported so a future dedicated
+ * card-replacement route can call it directly: marks any existing active method 'replaced' first,
+ * inserts the new one as active/default, and never touches organizations/trial state -- a later
+ * card update is safe to run through this same function without resetting the trial clock or
+ * restarting commercial setup.
+ */
+export async function persistPaymentMethod(
+  serviceClient: SupabaseClient,
+  input: { orgId: string; provider: string; providerReference: string | null },
+): Promise<void> {
+  await serviceClient
+    .from('payment_methods')
+    .update({ status: 'replaced', is_default: false })
+    .eq('org_id', input.orgId)
+    .eq('status', 'active');
+
+  await serviceClient.from('payment_methods').insert({
+    org_id: input.orgId,
+    provider: input.provider,
+    provider_reference: input.providerReference,
+    status: 'active',
+    is_default: true,
+  });
+}
+
+/**
+ * Commercial plan restructure -- handles a webhook event for a trial-activation-purpose payment
+ * row BEFORE the organization has completed commercial setup (processBillingWebhookEvent checks
+ * organizations.commercial_setup_completed_at before ever calling this, so a later real recurring
+ * charge on the same row -- once setup has completed -- never reaches this function; it falls
+ * through to the existing payment_succeeded handling unchanged).
+ */
+async function handleTrialActivationWebhookEvent(
+  serviceClient: SupabaseClient,
+  input: {
+    orgId: string;
+    payment: { id: string; subscription_id: string };
+    event: BillingWebhookEvent;
+  },
+): Promise<ProcessWebhookResult> {
+  const { orgId, payment, event } = input;
+
+  if (event.type === 'payment_failed' || event.type === 'subscription_cancelled') {
+    // Payment-method setup failed or was cancelled -- leave the org in "setup required" (no
+    // trial starts, commercial_setup_completed_at stays null), mark the attempt failed so the
+    // setup UI can offer a clean retry. No fake success is ever synthesized from browser return
+    // state -- this is the only thing that can mark a setup attempt failed.
+    await serviceClient
+      .from('subscription_payments')
+      .update({ status: 'failed' })
+      .eq('id', payment.id);
+    return { alreadyProcessed: false, eventType: event.type };
+  }
+
+  if (event.type !== 'payment_succeeded') {
+    return { alreadyProcessed: false, eventType: event.type };
+  }
+
+  const { data: principalRows } = await serviceClient
+    .from('organization_members')
+    .select('user_id')
+    .eq('org_id', orgId)
+    .eq('role', 'principal')
+    .eq('status', 'active')
+    .limit(1);
+  const principalUserId = principalRows?.[0]?.user_id as string | undefined;
+
+  // Defense-in-depth re-check of trial eligibility, immediately before activation -- the
+  // checkout-initiation check (startTrialActivationCheckout) already ran once with less
+  // information; this is the actual, server-verified moment a trial is granted, now including
+  // the real payment_provider_reference PayFast has confirmed.
+  if (principalUserId) {
+    const { data: alreadyUsed } = await serviceClient.rpc('has_used_trial_before', {
+      p_principal_user_id: principalUserId,
+      p_payment_provider_reference: event.providerReference,
+    });
+    if (alreadyUsed) {
+      console.error(
+        '[billing] trial-activation webhook: eligibility re-check failed at activation time -- refusing to start trial',
+        { orgId, principalUserId },
+      );
+      await serviceClient
+        .from('subscription_payments')
+        .update({ status: 'failed' })
+        .eq('id', payment.id);
+      return { alreadyProcessed: false, eventType: event.type };
+    }
+  }
+
+  await persistPaymentMethod(serviceClient, {
+    orgId,
+    provider: 'payfast',
+    providerReference: event.providerSubscriptionToken ?? event.providerReference,
+  });
+
+  await serviceClient.rpc('activate_trial_after_payment', { p_org_id: orgId });
+
+  if (principalUserId) {
+    await serviceClient.rpc('record_trial_usage', {
+      p_org_id: orgId,
+      p_principal_user_id: principalUserId,
+      p_payment_provider_reference: event.providerReference,
+    });
+  }
+
+  if (event.providerSubscriptionToken) {
+    await serviceClient
+      .from('organization_subscriptions')
+      .update({ provider_subscription_token: event.providerSubscriptionToken })
+      .eq('id', payment.subscription_id);
+  }
+
+  // This row is reused for the REAL recurring charge PayFast collects on billing_date -- the
+  // amount-mismatch defense-in-depth check further up this function (RELEASE A) compares that
+  // future event's amount against THIS row's stored `amount`, which is 0 (this was a trial-
+  // activation checkout). Update it to the plan's real recurring price now, so that future check
+  // correctly matches instead of rejecting every legitimate day-30 charge as a "mismatch." Found
+  // by this session's own test (a fake day-30 ITN correctly rejected as a mismatch until this
+  // was added), not by inspection.
+  const { data: sub } = await serviceClient
+    .from('organization_subscriptions')
+    .select('plan_id')
+    .eq('id', payment.subscription_id)
+    .maybeSingle();
+  const { data: plan } = sub
+    ? await serviceClient.from('plans').select('base_price').eq('id', sub.plan_id).maybeSingle()
+    : { data: null };
+
+  await serviceClient
+    .from('subscription_payments')
+    .update({
+      status: 'paid',
+      paid_at: new Date().toISOString(),
+      ...(plan ? { amount: plan.base_price } : {}),
+    })
+    .eq('id', payment.id);
+
+  try {
+    const toEmail = await resolveOrgPrincipalEmail(serviceClient, orgId);
+    const { data: orgRow } = await serviceClient
+      .from('organizations')
+      .select('legal_name, trial_ends_at')
+      .eq('id', orgId)
+      .single();
+    await dispatchEmail(serviceClient, {
+      orgId,
+      toAddress: toEmail,
+      templateName: 'subscription_activated',
+      templateVars: { legalName: orgRow?.legal_name, trialEndsAt: orgRow?.trial_ends_at },
+      relatedEntityType: `billing_event:${event.providerEventId}`,
+      relatedEntityId: orgId,
+      actorUserId: null,
+    });
+  } catch (err) {
+    console.error('[emailDispatch] trial-activation lifecycle email dispatch failed', err);
+  }
+
+  return { alreadyProcessed: false, eventType: event.type };
+}
+
 export interface StartPlanChangeCheckoutResult {
   checkoutUrl: string;
   providerSubscriptionId: string;
@@ -357,7 +652,7 @@ export async function processBillingWebhookEvent(
 
   const { data: payment } = await serviceClient
     .from('subscription_payments')
-    .select('id, org_id, subscription_id, billing_plan_change_id, amount')
+    .select('id, org_id, subscription_id, billing_plan_change_id, amount, purpose')
     .eq('provider_reference', event.providerReference)
     .maybeSingle();
 
@@ -382,6 +677,23 @@ export async function processBillingWebhookEvent(
   }
 
   if (payment) {
+    // Commercial plan restructure: a trial-activation checkout's R0 setup event is handled by a
+    // completely separate path from a real charge. Checked against
+    // organizations.commercial_setup_completed_at (not the payment's own `purpose` column alone)
+    // because the SAME row is reused for the real day-30 recurring charge once billing_date
+    // arrives -- once setup has genuinely completed, that later event must fall through to the
+    // unchanged logic below, never be treated as a second activation attempt.
+    if (payment.purpose === 'trial_activation') {
+      const { data: orgSetupState } = await serviceClient
+        .from('organizations')
+        .select('commercial_setup_completed_at')
+        .eq('id', orgId)
+        .single();
+      if (!orgSetupState?.commercial_setup_completed_at) {
+        return handleTrialActivationWebhookEvent(serviceClient, { orgId, payment, event });
+      }
+    }
+
     // RELEASE A: defense-in-depth amount check, distinct from (and in addition to)
     // verifyWebhookSignature() above. The signature proves the ITN genuinely came from the
     // gateway unmodified in transit; it does NOT prove the amount the gateway is confirming

@@ -38,6 +38,8 @@ export class MockBillingGatewayProvider implements BillingGatewayProvider {
       orgId: input.orgId,
       planCode: input.planCode,
       amount: input.amount,
+      initialAmount: input.initialAmount,
+      billingDate: input.billingDate,
     });
     const providerSubscriptionId = `mock-sub-${input.idempotencyKey}`;
     return {

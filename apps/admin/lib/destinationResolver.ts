@@ -1,16 +1,18 @@
 import 'server-only';
 import { getAdminGateStatus } from './auth';
-import { resolvePortalSession } from './orgSession';
+import { resolvePortalSession, type OrgMembership } from './orgSession';
 import { resolveTenantSession } from './tenantSession';
 import { resolveOwnerSession } from './ownerSession';
 import { hasAcceptedCurrentLegalTerms } from './legalConsent';
 import { isProfileComplete } from './profileCompletion';
+import { getServerSupabaseClient } from './supabase/server';
 
 export interface AuthenticatedDestination {
   kind:
     | 'platform-admin'
     | 'legal-consent'
     | 'profile-incomplete'
+    | 'commercial-setup'
     | 'org-dashboard'
     | 'org-restricted'
     | 'tenant-portal'
@@ -99,7 +101,7 @@ export async function resolveAuthenticatedDestination(): Promise<AuthenticatedDe
     );
     if (!hasUsableOrg) return { kind: 'org-restricted', path: '/access-restricted' };
 
-    const customerGate = await resolveCustomerOnboardingGate();
+    const customerGate = await resolveCustomerOnboardingGate(activeMemberships);
     if (customerGate) return customerGate;
     return { kind: 'org-dashboard', path: '/dashboard' };
   }
@@ -111,7 +113,7 @@ export async function resolveAuthenticatedDestination(): Promise<AuthenticatedDe
   if (ownerSession) return { kind: 'owner-portal', path: '/owner-portal' };
 
   if (portalSession) {
-    const customerGate = await resolveCustomerOnboardingGate();
+    const customerGate = await resolveCustomerOnboardingGate(portalSession.organizations);
     if (customerGate) return customerGate;
     return { kind: 'onboarding', path: '/onboarding/create-organization' };
   }
@@ -119,12 +121,44 @@ export async function resolveAuthenticatedDestination(): Promise<AuthenticatedDe
   return null;
 }
 
-async function resolveCustomerOnboardingGate(): Promise<AuthenticatedDestination | null> {
+/**
+ * Commercial plan restructure -- adds a third, org-scoped gate step (after consent and profile
+ * completion, before dashboard/onboarding): a principal of an organization that has not yet
+ * completed payment-method setup (organizations.commercial_setup_completed_at is null) is routed
+ * to billing setup instead of the dashboard. Scoped to PRINCIPAL memberships only -- an invited
+ * staff member or owner is never blocked by an org they don't own the billing for; in practice
+ * that can't happen yet anyway, since staff invitations aren't offered until after commercial
+ * setup completes, but this stays correct even so. Every pre-existing organization was backfilled
+ * to a non-null commercial_setup_completed_at (20260101000114), so this is a no-op for all of
+ * them -- it only ever applies to an org created after that migration whose principal has not yet
+ * finished setup. This is the application-level enforcement point; see migration
+ * 20260101000116's own comment for why the equivalent RLS-level restriction was attempted and
+ * reverted this session (broke ~40 unrelated pgTAP fixtures) -- disclosed, not silent.
+ */
+async function hasIncompleteCommercialSetup(principalOrgIds: string[]): Promise<boolean> {
+  if (principalOrgIds.length === 0) return false;
+  const supabase = await getServerSupabaseClient();
+  const { data } = await supabase
+    .from('organizations')
+    .select('id')
+    .in('id', principalOrgIds)
+    .is('commercial_setup_completed_at', null)
+    .limit(1);
+  return (data?.length ?? 0) > 0;
+}
+
+async function resolveCustomerOnboardingGate(
+  memberships: OrgMembership[] = [],
+): Promise<AuthenticatedDestination | null> {
   if (!(await hasAcceptedCurrentLegalTerms())) {
     return { kind: 'legal-consent', path: '/legal-consent' };
   }
   if (!(await isProfileComplete())) {
     return { kind: 'profile-incomplete', path: '/complete-account' };
+  }
+  const principalOrgIds = memberships.filter((m) => m.role === 'principal').map((m) => m.orgId);
+  if (await hasIncompleteCommercialSetup(principalOrgIds)) {
+    return { kind: 'commercial-setup', path: '/organization/billing/setup' };
   }
   return null;
 }

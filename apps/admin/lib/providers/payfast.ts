@@ -149,6 +149,13 @@ export class PayFastBillingGatewayProvider implements BillingGatewayProvider {
     // provider_reference this way for the mock; PayFast's own pf_payment_id is only assigned
     // once the payment completes, too late to have been the identifier used to start it).
     const mPaymentId = input.idempotencyKey;
+    // `amount` (the field PayFast charges immediately at checkout completion) is normally the
+    // same as the recurring amount -- startTrialActivationCheckout() is the one caller that
+    // passes initialAmount=0 so the checkout only verifies a payment method, deferring the first
+    // real charge to billingDate. UNVERIFIED against a live PayFast round trip (see this file's
+    // header comment) -- cross-checked against PayFast's documented subscription/trial fields,
+    // not invented, but never exercised against the real gateway.
+    const chargeNowAmount = input.initialAmount ?? input.amount;
 
     const fields = new Map<string, string>([
       ['merchant_id', this.config.merchantId],
@@ -157,7 +164,7 @@ export class PayFastBillingGatewayProvider implements BillingGatewayProvider {
       ['cancel_url', `${appUrl}/organization/billing?status=cancelled`],
       ['notify_url', `${appUrl}/api/v1/billing/webhook`],
       ['m_payment_id', mPaymentId],
-      ['amount', input.amount.toFixed(2)],
+      ['amount', chargeNowAmount.toFixed(2)],
       ['item_name', `${branding.productName} subscription (${input.planCode})`],
       // Recurring billing (subscription_type=1) -- frequency 3=Monthly, 6=Annually (PayFast's own
       // numeric codes, cross-checked against multiple sources), cycles=0 means "until cancelled,"
@@ -167,6 +174,13 @@ export class PayFastBillingGatewayProvider implements BillingGatewayProvider {
       ['recurring_amount', input.amount.toFixed(2)],
       ['frequency', input.billingCycle === 'annual' ? '6' : '3'],
       ['cycles', '0'],
+      // billing_date: PayFast's documented field for the date the RECURRING amount is first
+      // collected, distinct from `amount` above (the once-off amount due at checkout itself) --
+      // set only for a trial-activation checkout (chargeNowAmount=0), never for an immediate-pay
+      // checkout, where PayFast's own default (bill on the cycle starting now) is exactly what
+      // startSubscriptionCheckout/startPlanChangeCheckout already relied on before this field
+      // existed.
+      ...(input.billingDate ? ([['billing_date', input.billingDate]] as [string, string][]) : []),
     ]);
 
     const signature = generateFormSignature(fields, this.config.passphrase);

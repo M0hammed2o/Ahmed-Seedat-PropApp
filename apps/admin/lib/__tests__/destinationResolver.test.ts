@@ -7,6 +7,24 @@ import { hasAcceptedCurrentLegalTerms } from '../legalConsent';
 import { isProfileComplete } from '../profileCompletion';
 import { resolveAuthenticatedDestination } from '../destinationResolver';
 
+// Commercial plan restructure: mocks the one Supabase query resolveCustomerOnboardingGate's own
+// hasIncompleteCommercialSetup() makes (organizations.commercial_setup_completed_at is null for
+// any of the caller's principal org ids). Defaults to "nothing incomplete" (mockSetupQuery
+// resolves to an empty array) so every pre-existing test above keeps testing exactly what it
+// always tested, matching this file's own established convention for the consent/profile mocks.
+const mockSetupQuery = vi.fn();
+vi.mock('../supabase/server', () => ({
+  getServerSupabaseClient: () => ({
+    from: () => ({
+      select: () => ({
+        in: () => ({
+          is: () => ({ limit: mockSetupQuery }),
+        }),
+      }),
+    }),
+  }),
+}));
+
 // Root-domain routing fix (WORKLOG.md this date): pins the centralized priority order every
 // authenticated caller is routed by -- platform admin > active org (legal-consent/profile-
 // completion gates, then dashboard, or access-restricted if every active org is
@@ -40,6 +58,7 @@ beforeEach(() => {
   // orthogonal gates. The gates get their own dedicated test cases further down.
   mockHasAcceptedCurrentLegalTerms.mockResolvedValue(true);
   mockIsProfileComplete.mockResolvedValue(true);
+  mockSetupQuery.mockResolvedValue({ data: [] });
 });
 
 describe('resolveAuthenticatedDestination', () => {
@@ -372,6 +391,93 @@ describe('resolveAuthenticatedDestination', () => {
         kind: 'org-restricted',
         path: '/access-restricted',
       });
+    });
+  });
+
+  describe('commercial-setup gate (commercial plan restructure -- indefinite-trial blocker fix)', () => {
+    it('gates a principal of a not-yet-set-up org to /organization/billing/setup, ahead of /dashboard', async () => {
+      mockResolvePortalSession.mockResolvedValue({
+        userId: 'user-1',
+        organizations: [
+          { orgId: 'org-1', role: 'principal', status: 'active', orgStatus: 'active' },
+        ],
+        ownerIdentities: [],
+        isPlatformAdmin: false,
+        supportSessions: [],
+      });
+      mockSetupQuery.mockResolvedValue({ data: [{ id: 'org-1' }] });
+
+      expect(await resolveAuthenticatedDestination()).toEqual({
+        kind: 'commercial-setup',
+        path: '/organization/billing/setup',
+      });
+    });
+
+    it('does NOT gate a non-principal (staff/agent) member on an org still mid-setup', async () => {
+      mockResolvePortalSession.mockResolvedValue({
+        userId: 'user-1',
+        organizations: [{ orgId: 'org-1', role: 'agent', status: 'active', orgStatus: 'active' }],
+        ownerIdentities: [],
+        isPlatformAdmin: false,
+        supportSessions: [],
+      });
+      // The query is scoped to principal org ids only -- an agent membership never queries at
+      // all (principalOrgIds is empty), matching hasIncompleteCommercialSetup's own early return.
+
+      expect(await resolveAuthenticatedDestination()).toEqual({
+        kind: 'org-dashboard',
+        path: '/dashboard',
+      });
+      expect(mockSetupQuery).not.toHaveBeenCalled();
+    });
+
+    it('does not gate a principal whose org has already completed commercial setup', async () => {
+      mockResolvePortalSession.mockResolvedValue({
+        userId: 'user-1',
+        organizations: [
+          { orgId: 'org-1', role: 'principal', status: 'active', orgStatus: 'active' },
+        ],
+        ownerIdentities: [],
+        isPlatformAdmin: false,
+        supportSessions: [],
+      });
+      mockSetupQuery.mockResolvedValue({ data: [] });
+
+      expect(await resolveAuthenticatedDestination()).toEqual({
+        kind: 'org-dashboard',
+        path: '/dashboard',
+      });
+    });
+
+    it('checks commercial setup AFTER consent and profile completion, not before', async () => {
+      mockResolvePortalSession.mockResolvedValue({
+        userId: 'user-1',
+        organizations: [
+          { orgId: 'org-1', role: 'principal', status: 'active', orgStatus: 'active' },
+        ],
+        ownerIdentities: [],
+        isPlatformAdmin: false,
+        supportSessions: [],
+      });
+      mockHasAcceptedCurrentLegalTerms.mockResolvedValue(false);
+      mockSetupQuery.mockResolvedValue({ data: [{ id: 'org-1' }] });
+
+      expect(await resolveAuthenticatedDestination()).toEqual({
+        kind: 'legal-consent',
+        path: '/legal-consent',
+      });
+      expect(mockSetupQuery).not.toHaveBeenCalled();
+    });
+
+    it('never gates platform admin, tenant, or owner identities on commercial setup', async () => {
+      mockResolveOwnerSession.mockResolvedValue({ userId: 'user-1', ownerId: 'o-1', orgId: 'org-1' });
+      mockSetupQuery.mockResolvedValue({ data: [{ id: 'org-1' }] });
+
+      expect(await resolveAuthenticatedDestination()).toEqual({
+        kind: 'owner-portal',
+        path: '/owner-portal',
+      });
+      expect(mockSetupQuery).not.toHaveBeenCalled();
     });
   });
 });

@@ -21,10 +21,21 @@ export interface CreateSubscriptionInput {
   orgId: string;
   providerCustomerId: string;
   planCode: string;
+  /** The recurring amount charged every billing cycle from now on. */
   amount: number;
   currency: string;
   billingCycle: 'monthly' | 'annual';
   idempotencyKey: string;
+  /** Commercial plan restructure: trial-activation checkout (startTrialActivationCheckout()) sets
+   * this to 0 so the checkout collects only a valid, verifiable payment method -- never a real
+   * charge -- while `amount` above still carries the real recurring price for every cycle after
+   * the trial. Omitted (defaults to `amount`) by every other caller, preserving their existing
+   * "charge the full amount immediately" behaviour unchanged. */
+  initialAmount?: number;
+  /** Paired with initialAmount: the date (YYYY-MM-DD) PayFast should first collect `amount` --
+   * 30 days out for a trial-activation checkout. Omitted by every other caller (PayFast defaults
+   * to billing immediately), preserving existing behaviour unchanged. */
+  billingDate?: string;
 }
 
 export interface CreateSubscriptionResult {

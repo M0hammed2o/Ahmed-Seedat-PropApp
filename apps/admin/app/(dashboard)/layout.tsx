@@ -170,6 +170,26 @@ export default async function PortalLayout({ children }: { children: React.React
     redirect('/access-restricted');
   }
 
+  // Commercial plan restructure: the same defense-in-depth posture as the two gates above --
+  // destinationResolver.ts decides where `/` sends a caller whose principal org hasn't completed
+  // payment-method setup, but THIS is the actual enforcement point for anyone who bookmarks or
+  // deep-links straight into /dashboard (or any nested route) instead. Scoped to principal
+  // memberships only, matching resolveCustomerOnboardingGate()'s own scoping -- an invited staff
+  // member or owner is never blocked by an org they don't own the billing for. Every
+  // pre-existing organization was backfilled to a non-null commercial_setup_completed_at
+  // (20260101000114), so this never fires for any of them.
+  if (!ADMIN_DEMO_MODE && activeOrg.role === 'principal' && currentPath !== '/organization/billing/setup') {
+    const supabase = await getServerSupabaseClient();
+    const { data: orgRow } = await supabase
+      .from('organizations')
+      .select('commercial_setup_completed_at')
+      .eq('id', activeOrg.orgId)
+      .single();
+    if (!orgRow?.commercial_setup_completed_at) {
+      redirect('/organization/billing/setup');
+    }
+  }
+
   const notifications: HeaderNotification[] = ADMIN_DEMO_MODE
     ? []
     : await loadHeaderNotifications();

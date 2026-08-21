@@ -1,0 +1,387 @@
+import { randomUUID } from 'node:crypto';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { startTrialActivationCheckout, processBillingWebhookEvent } from '../billing';
+
+// Real integration test against the local Supabase instance, same pattern as billing.test.ts --
+// covers the indefinite-trial blocker fix: a new org's trial_ends_at/commercial_setup_completed_at
+// must stay null until a verified PayFast callback lands, activate_trial_after_payment() must be
+// idempotent under a retried/duplicate callback, and eligibility must be enforced.
+
+const SUPABASE_URL = 'http://127.0.0.1:54321';
+const SERVICE_ROLE_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU';
+
+let supabaseReachable = false;
+try {
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/health`);
+  supabaseReachable = res.ok;
+} catch {
+  supabaseReachable = false;
+}
+const describeIfSupabase = supabaseReachable ? describe : describe.skip;
+
+describeIfSupabase('trial-activation checkout (real local Supabase integration)', () => {
+  const serviceClient: SupabaseClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+
+  let orgId: string;
+  let principalUserId: string;
+
+  beforeEach(async () => {
+    principalUserId = randomUUID();
+    const { error: userError } = await serviceClient.auth.admin.createUser({
+      user_metadata: {},
+      email: `trial-activation-${principalUserId}@test.propertyvault.example`,
+      email_confirm: true,
+      id: principalUserId,
+    } as never);
+    if (userError) throw userError;
+
+    const orgName = `Trial Activation Vitest Org ${Date.now()}`;
+    const { data: org, error: orgError } = await serviceClient
+      .from('organizations')
+      .insert({ legal_name: orgName, org_type: 'agency', status: 'trial' })
+      .select('id')
+      .single();
+    if (orgError) throw orgError;
+    orgId = org.id;
+
+    const { error: memberError } = await serviceClient.from('organization_members').insert({
+      org_id: orgId,
+      user_id: principalUserId,
+      role: 'principal',
+      status: 'active',
+      joined_at: new Date().toISOString(),
+    });
+    if (memberError) throw memberError;
+  });
+
+  afterEach(async () => {
+    await serviceClient.from('trial_usage_records').delete().eq('org_id', orgId);
+    await serviceClient.from('payment_methods').delete().eq('org_id', orgId);
+    await serviceClient.from('billing_events').delete().eq('org_id', orgId);
+    await serviceClient.from('subscription_invoices').delete().eq('org_id', orgId);
+    await serviceClient.from('subscription_payments').delete().eq('org_id', orgId);
+    await serviceClient.from('organization_members').delete().eq('org_id', orgId);
+    await serviceClient.from('organization_subscriptions').delete().eq('org_id', orgId);
+    await serviceClient.from('organizations').delete().eq('id', orgId);
+    await serviceClient.auth.admin.deleteUser(principalUserId);
+  });
+
+  it('a newly created org has trial_ends_at and commercial_setup_completed_at both null', async () => {
+    const { data: org } = await serviceClient
+      .from('organizations')
+      .select('trial_ends_at, commercial_setup_completed_at')
+      .eq('id', orgId)
+      .single();
+    expect(org!.trial_ends_at).toBeNull();
+    expect(org!.commercial_setup_completed_at).toBeNull();
+  });
+
+  it('startTrialActivationCheckout creates a R0 pending payment and does not itself start the trial', async () => {
+    const result = await startTrialActivationCheckout(serviceClient, {
+      orgId,
+      principalUserId,
+      planTier: 'starter',
+      interval: 'monthly',
+      idempotencyKey: `test-trial-${orgId}`,
+    });
+    expect(result.checkoutUrl).toContain('mock-gateway.invalid');
+
+    const { data: payment } = await serviceClient
+      .from('subscription_payments')
+      .select('*')
+      .eq('id', result.subscriptionPaymentId)
+      .single();
+    expect(payment!.status).toBe('pending');
+    expect(payment!.purpose).toBe('trial_activation');
+    expect(Number(payment!.amount)).toBe(0);
+
+    const { data: org } = await serviceClient
+      .from('organizations')
+      .select('trial_ends_at, commercial_setup_completed_at')
+      .eq('id', orgId)
+      .single();
+    expect(org!.trial_ends_at).toBeNull();
+    expect(org!.commercial_setup_completed_at).toBeNull();
+  });
+
+  it('an unverified/malformed callback does not activate the trial', async () => {
+    const checkout = await startTrialActivationCheckout(serviceClient, {
+      orgId,
+      principalUserId,
+      planTier: 'starter',
+      interval: 'monthly',
+      idempotencyKey: `test-trial-${orgId}`,
+    });
+
+    await expect(
+      processBillingWebhookEvent(serviceClient, {
+        rawBody: JSON.stringify({ malformed: true }),
+        signatureHeader: 'test-signature',
+      }),
+    ).rejects.toThrow();
+
+    const { data: org } = await serviceClient
+      .from('organizations')
+      .select('trial_ends_at, commercial_setup_completed_at')
+      .eq('id', orgId)
+      .single();
+    expect(org!.trial_ends_at).toBeNull();
+    expect(org!.commercial_setup_completed_at).toBeNull();
+
+    const { data: payment } = await serviceClient
+      .from('subscription_payments')
+      .select('status')
+      .eq('id', checkout.subscriptionPaymentId)
+      .single();
+    expect(payment!.status).toBe('pending');
+  });
+
+  it('a verified R0 payment_succeeded callback activates the trial, sets commercial_setup_completed_at, and persists a payment method', async () => {
+    const checkout = await startTrialActivationCheckout(serviceClient, {
+      orgId,
+      principalUserId,
+      planTier: 'starter',
+      interval: 'monthly',
+      idempotencyKey: `test-trial-${orgId}`,
+    });
+
+    const rawBody = JSON.stringify({
+      providerEventId: `evt-${orgId}`,
+      type: 'payment_succeeded',
+      providerReference: checkout.providerSubscriptionId,
+      orgId,
+      amount: 0,
+      currency: 'ZAR',
+      providerSubscriptionToken: `token-${orgId}`,
+    });
+
+    const result = await processBillingWebhookEvent(serviceClient, {
+      rawBody,
+      signatureHeader: 'test-signature',
+    });
+    expect(result.alreadyProcessed).toBe(false);
+
+    const { data: org } = await serviceClient
+      .from('organizations')
+      .select('status, trial_ends_at, commercial_setup_completed_at')
+      .eq('id', orgId)
+      .single();
+    expect(org!.commercial_setup_completed_at).not.toBeNull();
+    expect(org!.trial_ends_at).not.toBeNull();
+    // Real charges/entitlement are unaffected by trial activation -- the org stays in 'trial'
+    // status (never flips to 'active') until the REAL day-30 recurring charge succeeds, exactly
+    // the same as a brand-new org's default status.
+    expect(org!.status).toBe('trial');
+
+    const trialEndsAt = new Date(org!.trial_ends_at!).getTime();
+    const expected = Date.now() + 30 * 24 * 60 * 60 * 1000;
+    expect(Math.abs(trialEndsAt - expected)).toBeLessThan(60 * 1000);
+
+    const { data: payment } = await serviceClient
+      .from('subscription_payments')
+      .select('status, paid_at')
+      .eq('id', checkout.subscriptionPaymentId)
+      .single();
+    expect(payment!.status).toBe('paid');
+    expect(payment!.paid_at).not.toBeNull();
+
+    const { data: paymentMethods } = await serviceClient
+      .from('payment_methods')
+      .select('*')
+      .eq('org_id', orgId);
+    expect(paymentMethods).toHaveLength(1);
+    expect(paymentMethods![0].status).toBe('active');
+    expect(paymentMethods![0].is_default).toBe(true);
+    expect(paymentMethods![0].card_last4).toBeNull();
+
+    const { data: trialUsage } = await serviceClient
+      .from('trial_usage_records')
+      .select('*')
+      .eq('org_id', orgId);
+    expect(trialUsage).toHaveLength(1);
+    expect(trialUsage![0].principal_user_id).toBe(principalUserId);
+  });
+
+  it('a duplicate/retried R0 callback does not reset or extend the trial clock', async () => {
+    const checkout = await startTrialActivationCheckout(serviceClient, {
+      orgId,
+      principalUserId,
+      planTier: 'starter',
+      interval: 'monthly',
+      idempotencyKey: `test-trial-${orgId}`,
+    });
+
+    const rawBody = JSON.stringify({
+      providerEventId: `evt-${orgId}`,
+      type: 'payment_succeeded',
+      providerReference: checkout.providerSubscriptionId,
+      orgId,
+      amount: 0,
+      currency: 'ZAR',
+    });
+
+    await processBillingWebhookEvent(serviceClient, { rawBody, signatureHeader: 'test-signature' });
+    const { data: firstOrg } = await serviceClient
+      .from('organizations')
+      .select('trial_ends_at')
+      .eq('id', orgId)
+      .single();
+    const firstTrialEndsAt = firstOrg!.trial_ends_at;
+
+    // Same providerEventId -- a genuine gateway retry -- caught by billing_events' own unique
+    // constraint before it ever reaches the trial-activation branch a second time.
+    const retryResult = await processBillingWebhookEvent(serviceClient, {
+      rawBody,
+      signatureHeader: 'test-signature',
+    });
+    expect(retryResult.alreadyProcessed).toBe(true);
+
+    const { data: secondOrg } = await serviceClient
+      .from('organizations')
+      .select('trial_ends_at')
+      .eq('id', orgId)
+      .single();
+    expect(secondOrg!.trial_ends_at).toBe(firstTrialEndsAt);
+
+    const { data: trialUsage } = await serviceClient
+      .from('trial_usage_records')
+      .select('id')
+      .eq('org_id', orgId);
+    expect(trialUsage).toHaveLength(1);
+  });
+
+  it('the real day-30 recurring charge on the same provider_reference activates the org normally, after setup has completed', async () => {
+    const checkout = await startTrialActivationCheckout(serviceClient, {
+      orgId,
+      principalUserId,
+      planTier: 'starter',
+      interval: 'monthly',
+      idempotencyKey: `test-trial-${orgId}`,
+    });
+
+    await processBillingWebhookEvent(serviceClient, {
+      rawBody: JSON.stringify({
+        providerEventId: `evt-setup-${orgId}`,
+        type: 'payment_succeeded',
+        providerReference: checkout.providerSubscriptionId,
+        orgId,
+        amount: 0,
+        currency: 'ZAR',
+      }),
+      signatureHeader: 'test-signature',
+    });
+
+    // The real recurring charge, 30 days later, on the SAME provider_reference/m_payment_id --
+    // PayFast echoes it unchanged for the life of the subscription. Must fall through to the
+    // EXISTING payment_succeeded handling (flips org to 'active'), not be mistaken for a second
+    // trial-activation event.
+    const result = await processBillingWebhookEvent(serviceClient, {
+      rawBody: JSON.stringify({
+        providerEventId: `evt-real-charge-${orgId}`,
+        type: 'payment_succeeded',
+        providerReference: checkout.providerSubscriptionId,
+        orgId,
+        amount: 299,
+        currency: 'ZAR',
+      }),
+      signatureHeader: 'test-signature',
+    });
+    expect(result.alreadyProcessed).toBe(false);
+
+    const { data: org } = await serviceClient
+      .from('organizations')
+      .select('status')
+      .eq('id', orgId)
+      .single();
+    expect(org!.status).toBe('active');
+  });
+
+  it('a principal who has already used a trial is refused a second one at checkout time', async () => {
+    await serviceClient.rpc('record_trial_usage', {
+      p_org_id: orgId,
+      p_principal_user_id: principalUserId,
+    });
+
+    await expect(
+      startTrialActivationCheckout(serviceClient, {
+        orgId,
+        principalUserId,
+        planTier: 'starter',
+        interval: 'monthly',
+        idempotencyKey: `test-trial-${orgId}`,
+      }),
+    ).rejects.toThrow(/trial_not_eligible/);
+
+    const { data: org } = await serviceClient
+      .from('organizations')
+      .select('trial_ends_at')
+      .eq('id', orgId)
+      .single();
+    expect(org!.trial_ends_at).toBeNull();
+  });
+
+  it('startTrialActivationCheckout refuses to run again once commercial setup has already completed', async () => {
+    await serviceClient.rpc('activate_trial_after_payment', { p_org_id: orgId });
+
+    await expect(
+      startTrialActivationCheckout(serviceClient, {
+        orgId,
+        principalUserId,
+        planTier: 'professional',
+        interval: 'monthly',
+        idempotencyKey: `test-trial-2-${orgId}`,
+      }),
+    ).rejects.toThrow(/commercial_setup_already_complete/);
+  });
+
+  it('a failed payment-method setup callback leaves the org in setup-required state for a clean retry', async () => {
+    const checkout = await startTrialActivationCheckout(serviceClient, {
+      orgId,
+      principalUserId,
+      planTier: 'starter',
+      interval: 'monthly',
+      idempotencyKey: `test-trial-${orgId}`,
+    });
+
+    await processBillingWebhookEvent(serviceClient, {
+      rawBody: JSON.stringify({
+        providerEventId: `evt-fail-${orgId}`,
+        type: 'payment_failed',
+        providerReference: checkout.providerSubscriptionId,
+        orgId,
+        amount: 0,
+        currency: 'ZAR',
+      }),
+      signatureHeader: 'test-signature',
+    });
+
+    const { data: org } = await serviceClient
+      .from('organizations')
+      .select('trial_ends_at, commercial_setup_completed_at')
+      .eq('id', orgId)
+      .single();
+    expect(org!.trial_ends_at).toBeNull();
+    expect(org!.commercial_setup_completed_at).toBeNull();
+
+    const { data: payment } = await serviceClient
+      .from('subscription_payments')
+      .select('status')
+      .eq('id', checkout.subscriptionPaymentId)
+      .single();
+    expect(payment!.status).toBe('failed');
+
+    // A fresh startTrialActivationCheckout call is still allowed -- the org is still unset-up.
+    const retry = await startTrialActivationCheckout(serviceClient, {
+      orgId,
+      principalUserId,
+      planTier: 'starter',
+      interval: 'monthly',
+      idempotencyKey: `test-trial-retry-${orgId}`,
+    });
+    expect(retry.checkoutUrl).toContain('mock-gateway.invalid');
+  });
+});
