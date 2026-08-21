@@ -341,6 +341,111 @@ export async function startTrialActivationCheckout(
   };
 }
 
+export interface StartPaymentMethodUpdateCheckoutResult {
+  checkoutUrl: string;
+  providerSubscriptionId: string;
+  subscriptionPaymentId: string;
+}
+
+/**
+ * V1 commercial onboarding pass, Phase 18 -- lets an org that has ALREADY completed commercial
+ * setup add/replace its payment method (a failed/expired card, or a customer just wants to switch
+ * cards). Deliberately a separate function from startTrialActivationCheckout(), which explicitly
+ * refuses to run again once commercial_setup_completed_at is set -- this one requires the exact
+ * opposite precondition, and its webhook branch (processBillingWebhookEvent, purpose ===
+ * 'payment_method_update') never calls activate_trial_after_payment() or record_trial_usage():
+ * a card update must not restart, extend, or re-grant a trial.
+ */
+export async function startPaymentMethodUpdateCheckout(
+  serviceClient: SupabaseClient,
+  input: { orgId: string; idempotencyKey: string },
+): Promise<StartPaymentMethodUpdateCheckoutResult> {
+  const provider = getBillingGatewayProvider();
+  assertRealPaymentGatewayAvailable(provider);
+
+  const { data: org, error: orgError } = await serviceClient
+    .from('organizations')
+    .select('id, legal_name, commercial_setup_completed_at')
+    .eq('id', input.orgId)
+    .single();
+  if (orgError || !org) throw new Error(orgError?.message ?? 'Organization not found');
+  if (!org.commercial_setup_completed_at) {
+    throw new Error(
+      'commercial_setup_not_complete: complete initial payment-method setup before updating your payment method.',
+    );
+  }
+
+  const { data: subscription, error: subError } = await serviceClient
+    .from('organization_subscriptions')
+    .select('id, plan_id, billing_cycle')
+    .eq('org_id', input.orgId)
+    .order('current_period_start', { ascending: false })
+    .limit(1)
+    .single();
+  if (subError || !subscription)
+    throw new Error(subError?.message ?? 'This organization has no subscription on record.');
+
+  const { data: plan, error: planError } = await serviceClient
+    .from('plans')
+    .select('code, base_price, currency')
+    .eq('id', subscription.plan_id)
+    .single();
+  if (planError || !plan) throw new Error(planError?.message ?? 'Plan not found');
+
+  const customer = await provider.createCustomer({
+    orgId: org.id,
+    legalName: org.legal_name,
+    email: `billing+${org.id}@proplyst.example`,
+  });
+
+  // Same R0-plus-billing_date shape as the original trial-activation checkout (the ONLY
+  // real-gateway-verified way this codebase has to confirm a card actually works) -- but
+  // billing_date here is intentionally the org's OWN next_payment_date, not a fresh +30 days:
+  // this is a card replacement, not a new trial, so it must not imply a new billing cycle either.
+  const { data: subDates } = await serviceClient
+    .from('organization_subscriptions')
+    .select('next_payment_date')
+    .eq('id', subscription.id)
+    .single();
+  const billingDate =
+    subDates?.next_payment_date ??
+    new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+  const gatewaySubscription = await provider.createSubscription({
+    orgId: org.id,
+    providerCustomerId: customer.providerCustomerId,
+    planCode: plan.code,
+    amount: Number(plan.base_price),
+    initialAmount: 0,
+    billingDate,
+    currency: plan.currency,
+    billingCycle: subscription.billing_cycle,
+    idempotencyKey: input.idempotencyKey,
+  });
+
+  const { data: payment, error: paymentInsertError } = await serviceClient
+    .from('subscription_payments')
+    .insert({
+      org_id: org.id,
+      subscription_id: subscription.id,
+      amount: 0,
+      currency: plan.currency,
+      status: 'pending',
+      provider_reference: gatewaySubscription.providerSubscriptionId,
+      purpose: 'payment_method_update',
+    })
+    .select('id')
+    .single();
+  if (paymentInsertError || !payment)
+    throw new Error(paymentInsertError?.message ?? 'Failed to create pending payment');
+
+  return {
+    checkoutUrl: gatewaySubscription.checkoutUrl,
+    providerSubscriptionId: gatewaySubscription.providerSubscriptionId,
+    subscriptionPaymentId: payment.id,
+  };
+}
+
 /**
  * Commercial plan restructure -- records (or replaces) an org's verified payment method from a
  * real gateway confirmation. Never stores raw card data (PAN/CVV): only the provider-safe
@@ -505,6 +610,95 @@ async function handleTrialActivationWebhookEvent(
     });
   } catch (err) {
     console.error('[emailDispatch] trial-activation lifecycle email dispatch failed', err);
+  }
+
+  return { alreadyProcessed: false, eventType: event.type };
+}
+
+/**
+ * V1 commercial onboarding pass, Phase 18 -- handles a payment-method-update checkout's R0 ITN.
+ * Persists the new payment method and, critically, cancels the OLD PayFast subscription/token
+ * before adopting the new one: provider.createSubscription() always creates a genuinely NEW
+ * gateway subscription (a fresh m_payment_id/token), so without an explicit cancel the org would
+ * end up with TWO live recurring-billing arrangements at PayFast -- a real double-billing risk,
+ * not a cosmetic one. cancelSubscription() is this codebase's least-verified PayFast method (its
+ * own header comment: never exercised against a live round trip) -- failure here is logged
+ * loudly, not silently swallowed, since an unconfirmed cancellation is a genuine operational risk
+ * that needs a human to check PayFast's own dashboard, not just a retry.
+ */
+async function handlePaymentMethodUpdateWebhookEvent(
+  serviceClient: SupabaseClient,
+  input: {
+    orgId: string;
+    payment: { id: string; subscription_id: string };
+    event: BillingWebhookEvent;
+  },
+): Promise<ProcessWebhookResult> {
+  const { orgId, payment, event } = input;
+
+  if (event.type === 'payment_failed' || event.type === 'subscription_cancelled') {
+    await serviceClient
+      .from('subscription_payments')
+      .update({ status: 'failed' })
+      .eq('id', payment.id);
+    return { alreadyProcessed: false, eventType: event.type };
+  }
+  if (event.type !== 'payment_succeeded') {
+    return { alreadyProcessed: false, eventType: event.type };
+  }
+
+  const { data: sub } = await serviceClient
+    .from('organization_subscriptions')
+    .select('provider_subscription_token')
+    .eq('id', payment.subscription_id)
+    .maybeSingle();
+  const oldToken = sub?.provider_subscription_token;
+
+  if (oldToken && oldToken !== event.providerSubscriptionToken) {
+    try {
+      const provider = getBillingGatewayProvider();
+      await provider.cancelSubscription(oldToken);
+    } catch (err) {
+      console.error(
+        '[billing] failed to cancel the SUPERSEDED PayFast subscription after a payment-method ' +
+          'update -- possible double-billing risk, needs manual verification in the PayFast ' +
+          'dashboard',
+        { orgId, oldToken, err },
+      );
+    }
+  }
+
+  await persistPaymentMethod(serviceClient, {
+    orgId,
+    provider: 'payfast',
+    providerReference: event.providerSubscriptionToken ?? event.providerReference,
+  });
+
+  if (event.providerSubscriptionToken) {
+    await serviceClient
+      .from('organization_subscriptions')
+      .update({ provider_subscription_token: event.providerSubscriptionToken })
+      .eq('id', payment.subscription_id);
+  }
+
+  await serviceClient
+    .from('subscription_payments')
+    .update({ status: 'paid', paid_at: new Date().toISOString() })
+    .eq('id', payment.id);
+
+  try {
+    const toEmail = await resolveOrgPrincipalEmail(serviceClient, orgId);
+    await dispatchEmail(serviceClient, {
+      orgId,
+      toAddress: toEmail,
+      templateName: 'subscription_reactivated',
+      templateVars: {},
+      relatedEntityType: `billing_event:${event.providerEventId}`,
+      relatedEntityId: orgId,
+      actorUserId: null,
+    });
+  } catch (err) {
+    console.error('[emailDispatch] payment-method-update confirmation email dispatch failed', err);
   }
 
   return { alreadyProcessed: false, eventType: event.type };
@@ -760,6 +954,16 @@ export async function processBillingWebhookEvent(
       if (!orgSetupState?.commercial_setup_completed_at) {
         return handleTrialActivationWebhookEvent(serviceClient, { orgId, payment, event });
       }
+    }
+
+    // V1 commercial onboarding pass, Phase 18: a payment-method-update checkout's R0 event is
+    // ALWAYS handled here, never falls through to the ordinary recurring-charge logic below --
+    // unlike a trial-activation row, this row is never reused for a later real charge (the plan's
+    // actual next recurring charge stays anchored to whichever provider_reference the org's
+    // subscription already had), so there is no "later legitimate event on the same row" case to
+    // preserve a fallthrough for.
+    if (payment.purpose === 'payment_method_update') {
+      return handlePaymentMethodUpdateWebhookEvent(serviceClient, { orgId, payment, event });
     }
 
     // RELEASE A: defense-in-depth amount check, distinct from (and in addition to)

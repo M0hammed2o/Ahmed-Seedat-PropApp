@@ -5,6 +5,7 @@ import {
   OrganizationBillingView,
   type SubscriptionPaymentSummary,
   type SubscriptionInvoiceSummary,
+  type PaymentMethodSummary,
 } from '@/components/organizations/OrganizationBillingView';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapOrganizationRow } from '@/lib/organizations';
@@ -100,6 +101,7 @@ export default async function OrganizationBillingPage() {
           subscription={null}
           payments={[]}
           invoices={[]}
+          paymentMethod={null}
         />
       </div>
     );
@@ -132,6 +134,7 @@ export default async function OrganizationBillingPage() {
     { data: subRows, error: subError },
     { data: paymentRows, error: paymentsError },
     { data: invoiceRows, error: invoicesError },
+    { data: paymentMethodRows, error: paymentMethodError },
   ] = await Promise.all([
     supabase.from('organizations').select('*').eq('id', activeOrg.orgId).single(),
     supabase
@@ -157,6 +160,12 @@ export default async function OrganizationBillingPage() {
       .eq('org_id', activeOrg.orgId)
       .order('issued_at', { ascending: false })
       .limit(50),
+    supabase
+      .from('payment_methods')
+      .select('id, provider, status, updated_at')
+      .eq('org_id', activeOrg.orgId)
+      .eq('status', 'active')
+      .maybeSingle(),
   ]);
 
   if (orgError || !orgRow)
@@ -165,6 +174,8 @@ export default async function OrganizationBillingPage() {
   if (subError) throw new Error(`Failed to load subscription: ${subError.message}`);
   if (paymentsError) throw new Error(`Failed to load payment history: ${paymentsError.message}`);
   if (invoicesError) throw new Error(`Failed to load invoices: ${invoicesError.message}`);
+  if (paymentMethodError)
+    throw new Error(`Failed to load payment method: ${paymentMethodError.message}`);
 
   const plans: Plan[] = (planRows ?? []).map((row) => ({
     id: row.id,
@@ -217,6 +228,14 @@ export default async function OrganizationBillingPage() {
     issuedAt: row.issued_at,
   }));
 
+  const paymentMethod: PaymentMethodSummary | null = paymentMethodRows
+    ? {
+        id: paymentMethodRows.id,
+        provider: paymentMethodRows.provider,
+        updatedAt: paymentMethodRows.updated_at,
+      }
+    : null;
+
   return (
     <div className="space-y-5 animate-rise">
       <PageHeader
@@ -229,6 +248,7 @@ export default async function OrganizationBillingPage() {
         subscription={subscription}
         payments={payments}
         invoices={invoices}
+        paymentMethod={paymentMethod}
       />
     </div>
   );

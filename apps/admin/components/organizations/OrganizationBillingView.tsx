@@ -27,12 +27,19 @@ export interface SubscriptionInvoiceSummary {
   issuedAt: string;
 }
 
+export interface PaymentMethodSummary {
+  id: string;
+  provider: string;
+  updatedAt: string;
+}
+
 interface Props {
   organization: Organization;
   plans: Plan[];
   subscription: OrganizationSubscription | null;
   payments: SubscriptionPaymentSummary[];
   invoices: SubscriptionInvoiceSummary[];
+  paymentMethod: PaymentMethodSummary | null;
 }
 
 interface PlanChangeQuote {
@@ -80,6 +87,7 @@ export function OrganizationBillingView({
   subscription,
   payments,
   invoices,
+  paymentMethod,
 }: Props) {
   const router = useRouter();
   const [quoting, setQuoting] = useState<string | null>(null);
@@ -89,6 +97,7 @@ export function OrganizationBillingView({
   const [error, setError] = useState<string | null>(null);
   const [pendingDowngrade, setPendingDowngrade] = useState<PendingDowngrade | null>(null);
   const [cancellingDowngrade, setCancellingDowngrade] = useState(false);
+  const [updatingPaymentMethod, setUpdatingPaymentMethod] = useState(false);
 
   /** React #418 fix (WORKLOG.md this date): daysUntil() reads Date.now(), and organization is a
    *  server-fetched prop present on the very first render -- SSR and the client's hydration pass
@@ -209,6 +218,30 @@ export function OrganizationBillingView({
     }
   }
 
+  async function updatePaymentMethod() {
+    setError(null);
+    setUpdatingPaymentMethod(true);
+    try {
+      const response = await fetch(
+        `/api/v1/organizations/${organization.id}/billing/payment-method`,
+        { method: 'POST' },
+      );
+      const body = await response.json();
+      if (!response.ok) {
+        setError(body.error?.message ?? 'Could not start payment method update.');
+        return;
+      }
+      // Real gateway: a hosted R0 checkout page that verifies the new card. This intentionally
+      // never restarts or extends the trial -- see startPaymentMethodUpdateCheckout()'s own
+      // billing_date handling (uses the org's existing next_payment_date, never a fresh +30 days).
+      window.location.href = body.checkoutUrl;
+    } catch {
+      setError('Could not start payment method update -- check your connection and try again.');
+    } finally {
+      setUpdatingPaymentMethod(false);
+    }
+  }
+
   async function cancelPendingDowngrade() {
     setError(null);
     setCancellingDowngrade(true);
@@ -238,6 +271,14 @@ export function OrganizationBillingView({
       {error ? (
         <p className="rounded-md border border-light-danger bg-light-danger/10 px-3 py-2 text-xs text-light-danger dark:border-dark-danger dark:bg-dark-danger/10 dark:text-dark-danger">
           {error}
+        </p>
+      ) : null}
+
+      {organization.status === 'overdue' ? (
+        <p className="rounded-md border border-light-warning bg-light-warning/10 px-3 py-2 text-xs text-light-warning dark:border-dark-warning dark:bg-dark-warning/10 dark:text-dark-warning">
+          Your last payment didn&rsquo;t go through. Your account keeps full access during a
+          7-day grace period, but access will be restricted if it isn&rsquo;t resolved. Update
+          your payment method below to fix this.
         </p>
       ) : null}
 
@@ -285,6 +326,38 @@ export function OrganizationBillingView({
               onClick={cancelSubscription}
             >
               {cancelling ? 'Cancelling…' : 'Cancel subscription'}
+            </Button>
+          ) : null}
+        </div>
+      </Panel>
+
+      <Panel>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs text-light-textMuted dark:text-dark-textMuted">
+              Payment method
+            </p>
+            {paymentMethod ? (
+              <p className="mt-1 text-sm text-light-textPrimary dark:text-dark-textPrimary">
+                On file via {paymentMethod.provider === 'payfast' ? 'PayFast' : paymentMethod.provider}
+                {mounted
+                  ? ` — updated ${new Date(paymentMethod.updatedAt).toLocaleDateString('en-ZA')}`
+                  : ''}
+              </p>
+            ) : (
+              <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
+                No payment method on file yet.
+              </p>
+            )}
+          </div>
+          {paymentMethod ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={updatingPaymentMethod}
+              onClick={updatePaymentMethod}
+            >
+              {updatingPaymentMethod ? 'Redirecting…' : 'Update payment method'}
             </Button>
           ) : null}
         </div>

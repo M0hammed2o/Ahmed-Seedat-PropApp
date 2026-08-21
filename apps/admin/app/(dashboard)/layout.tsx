@@ -33,6 +33,7 @@ import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 import { AppShell, type HeaderNotification, type NavSection } from '@/components/shell/AppShell';
 import { navIcon } from '@/components/shell/navIcon';
 import { SupportModeBanner } from '@/components/organizations/SupportModeBanner';
+import { OverdueBillingBanner } from '@/components/organizations/OverdueBillingBanner';
 import { CollectionHealthWidget } from '@/components/shell/CollectionHealthWidget';
 import { AssistantDrawer } from '@/components/assistant/AssistantDrawer';
 
@@ -250,6 +251,8 @@ export default async function PortalLayout({ children }: { children: React.React
       banner={
         activeSupportSession ? (
           <SupportModeBanner session={activeSupportSession} orgName={supportSessionOrgName} />
+        ) : activeOrg.orgStatus === 'overdue' ? (
+          <OverdueBillingBanner canManageBilling={canManageBilling} />
         ) : undefined
       }
       assistant={
