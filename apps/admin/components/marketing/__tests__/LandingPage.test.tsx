@@ -29,7 +29,7 @@ describe('LandingPage', () => {
     expect(screen.getByText('Business')).toBeTruthy();
     expect(screen.getByText('R299')).toBeTruthy();
     expect(screen.getByText('R699')).toBeTruthy();
-    expect(screen.getByText('R1499')).toBeTruthy();
+    expect(screen.getByText('R1999')).toBeTruthy();
   });
 
   it('never renders internal admin/dashboard shell content', () => {
