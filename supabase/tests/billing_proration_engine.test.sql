@@ -9,9 +9,13 @@ select plan(34);
 insert into auth.users (id, email) values
   ('fd000000-0000-0000-0000-000000000001', 'prorate-principal@test.propertyvault.example');
 
-select set_config('pgtap.pr.starter_id', (select id::text from public.plans where code = 'starter'), false);
-select set_config('pgtap.pr.professional_id', (select id::text from public.plans where code = 'professional'), false);
-select set_config('pgtap.pr.business_id', (select id::text from public.plans where code = 'business'), false);
+-- Commercial plan restructure (WORKLOG.md this date): 'starter'/'professional'/'business' were
+-- deactivated in favour of the new *_monthly codes; Business's base_price also changed (1499 ->
+-- 1999) -- updated below, both the codes and the one hardcoded price assertion that depended on
+-- the old value (line ~171).
+select set_config('pgtap.pr.starter_id', (select id::text from public.plans where code = 'starter_monthly'), false);
+select set_config('pgtap.pr.professional_id', (select id::text from public.plans where code = 'professional_monthly'), false);
+select set_config('pgtap.pr.business_id', (select id::text from public.plans where code = 'business_monthly'), false);
 
 -- === Scenario A: no organization_subscriptions row at all -- new_subscription, full price ===
 insert into public.organizations (id, legal_name, org_type, status)
@@ -164,11 +168,11 @@ select is(
   849.10,
   'current_effective_price folds in price_override (999) * (1 - discount_pct 10%) - promotional_credit (50) = 849.10'
 );
--- Business is null (unlimited) maxProperties but its own base_price (1499.00) is still what''s
+-- Business's own base_price (1999.00, commercial plan restructure this pass) is still what''s
 -- compared against -- confirms target_effective_price never inherits the CURRENT row''s override.
 select is(
   ((select public.compute_plan_change_quote('fe000000-0000-0000-0000-000000000002'::uuid, current_setting('pgtap.pr.business_id')::uuid)).target_effective_price),
-  1499.00,
+  1999.00,
   'target_effective_price is always the target plan''s plain base_price -- override/discount does not carry forward to a new plan'
 );
 

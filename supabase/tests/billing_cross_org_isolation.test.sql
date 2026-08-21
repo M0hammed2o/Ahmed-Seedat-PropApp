@@ -24,8 +24,11 @@ insert into public.organization_members (org_id, user_id, role, status, joined_a
   ('bcbc0000-0000-0000-0000-000000000002', 'bc000000-0000-0000-0000-000000000002', 'principal', 'active', now()),
   ('bcbc0000-0000-0000-0000-000000000001', 'bc000000-0000-0000-0000-000000000003', 'manager', 'active', now());
 
-select set_config('pgtap.co.starter_id', (select id::text from public.plans where code = 'starter'), false);
-select set_config('pgtap.co.professional_id', (select id::text from public.plans where code = 'professional'), false);
+-- Commercial plan restructure (WORKLOG.md this date): 'starter'/'professional' were deactivated
+-- in favour of the new starter_monthly/professional_monthly codes -- updated here to match, not a
+-- behavior change to what this file actually tests (cross-org isolation).
+select set_config('pgtap.co.starter_id', (select id::text from public.plans where code = 'starter_monthly'), false);
+select set_config('pgtap.co.professional_id', (select id::text from public.plans where code = 'professional_monthly'), false);
 
 insert into public.organization_subscriptions (id, org_id, plan_id, billing_cycle, current_period_start, current_period_end, status)
 values (
