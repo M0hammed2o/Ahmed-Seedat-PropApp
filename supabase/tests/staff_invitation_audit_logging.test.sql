@@ -15,6 +15,10 @@ set local role authenticated;
 set local "request.jwt.claim.sub" = 'e5000000-0000-0000-0000-000000000001';
 
 select isnt((select public.create_organization('Staff Audit Test Org', 'agency')), null, 'org created');
+reset role;
+select public.activate_trial_after_payment((select id from public.organizations where legal_name = 'Staff Audit Test Org'));
+set local role authenticated;
+set local "request.jwt.claim.sub" = 'e5000000-0000-0000-0000-000000000001';
 select set_config('pgtap.sial.org_id', (select id::text from public.organizations where legal_name = 'Staff Audit Test Org'), false);
 
 insert into public.organization_invites (org_id, email, role, invited_by)

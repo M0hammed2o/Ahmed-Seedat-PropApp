@@ -13,6 +13,10 @@ set local role authenticated;
 set local "request.jwt.claim.sub" = 'f3000000-0000-0000-0000-000000000001';
 
 select isnt((select public.create_organization('Units Cutover Test Org', 'agency')), null, 'org created');
+reset role;
+select public.activate_trial_after_payment((select id from public.organizations where legal_name = 'Units Cutover Test Org'));
+set local role authenticated;
+set local "request.jwt.claim.sub" = 'f3000000-0000-0000-0000-000000000001';
 
 select set_config(
   'pgtap.uac_test.property_id',

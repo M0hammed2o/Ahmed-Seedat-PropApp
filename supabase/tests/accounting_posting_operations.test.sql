@@ -27,6 +27,10 @@ select isnt(
   null,
   'org created (principal counts as accountant+ via has_org_role ranking)'
 );
+reset role;
+select public.activate_trial_after_payment((select id from public.organizations where legal_name = 'Posting Ops Test Org'));
+set local role authenticated;
+set local "request.jwt.claim.sub" = 'af000000-0000-0000-0000-000000000001';
 
 -- Second member: agent-only, to prove the PERMISSIONS.md role split holds for real. No client
 -- INSERT policy exists on organization_members by design (only create_organization()/

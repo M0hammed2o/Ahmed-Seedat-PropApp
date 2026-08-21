@@ -176,6 +176,22 @@ export async function POST(request: NextRequest) {
         { status: 403 },
       );
     }
+    // Commercial plan restructure (20260101000117): a genuinely new self-service org that hasn't
+    // completed payment-method setup can't reach this far under normal use -- the app-level
+    // commercial-setup gate (destinationResolver.ts) blocks the whole dashboard first -- so this
+    // only fires for a direct API call bypassing that gate, the same defense-in-depth reasoning
+    // as the property-limit branch above.
+    if (createError.message.startsWith('commercial_setup_required:')) {
+      return NextResponse.json(
+        {
+          error: {
+            code: 'commercial_setup_required',
+            message: 'Complete payment-method setup before adding properties.',
+          },
+        },
+        { status: 403 },
+      );
+    }
     return NextResponse.json(
       { error: { code: 'property_create_failed', message: createError.message } },
       { status: 500 },

@@ -19,6 +19,10 @@ set local role authenticated;
 set local "request.jwt.claim.sub" = 'b2000000-0000-0000-0000-000000000001';
 
 select isnt((select public.create_organization('Storage Scope Test Org', 'agency')), null, 'org created');
+reset role;
+select public.activate_trial_after_payment((select id from public.organizations where legal_name = 'Storage Scope Test Org'));
+set local role authenticated;
+set local "request.jwt.claim.sub" = 'b2000000-0000-0000-0000-000000000001';
 select set_config('pgtap.sps.org_id', (select id::text from public.organizations where legal_name = 'Storage Scope Test Org'), false);
 
 select set_config(
@@ -34,6 +38,10 @@ select set_config(
 
 set local "request.jwt.claim.sub" = 'b2000000-0000-0000-0000-000000000004';
 select isnt((select public.create_organization('Storage Scope Other Org', 'agency')), null, 'other org created');
+reset role;
+select public.activate_trial_after_payment((select id from public.organizations where legal_name = 'Storage Scope Other Org'));
+set local role authenticated;
+set local "request.jwt.claim.sub" = 'b2000000-0000-0000-0000-000000000004';
 select set_config('pgtap.sps.other_org_id', (select id::text from public.organizations where legal_name = 'Storage Scope Other Org'), false);
 select set_config(
   'pgtap.sps.property_c_id',

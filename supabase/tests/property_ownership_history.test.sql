@@ -13,6 +13,10 @@ set local role authenticated;
 set local "request.jwt.claim.sub" = 'e1000000-0000-0000-0000-000000000001';
 
 select isnt((select public.create_organization('Ownership History Test Org', 'owner_managed')), null, 'org created');
+reset role;
+select public.activate_trial_after_payment((select id from public.organizations where legal_name = 'Ownership History Test Org'));
+set local role authenticated;
+set local "request.jwt.claim.sub" = 'e1000000-0000-0000-0000-000000000001';
 
 insert into public.owners (org_id, name)
 select id, 'Owner A' from public.organizations where legal_name = 'Ownership History Test Org';

@@ -12,6 +12,10 @@ set local role authenticated;
 set local "request.jwt.claim.sub" = 'f7000000-0000-0000-0000-000000000001';
 
 select isnt((select public.create_organization('Application Dedup Test Org', 'agency')), null, 'org created');
+reset role;
+select public.activate_trial_after_payment((select id from public.organizations where legal_name = 'Application Dedup Test Org'));
+set local role authenticated;
+set local "request.jwt.claim.sub" = 'f7000000-0000-0000-0000-000000000001';
 
 select set_config(
   'pgtap.aatd.property_id',

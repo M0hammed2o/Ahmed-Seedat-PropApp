@@ -36,6 +36,10 @@ select isnt(
   null,
   'user1 can create an organization via create_organization()'
 );
+reset role;
+select public.activate_trial_after_payment((select id from public.organizations where legal_name = 'Foundation Test Org A'));
+set local role authenticated;
+set local "request.jwt.claim.sub" = 'a0000000-0000-0000-0000-000000000001';
 
 select is(
   (select role from public.organization_members om
@@ -152,6 +156,10 @@ select is(
 --        proving has_org_role() resolves per-org, not as one global role per user ===
 set local "request.jwt.claim.sub" = 'a0000000-0000-0000-0000-000000000003';
 select public.create_organization('Foundation Test Org B', 'owner_managed');
+reset role;
+select public.activate_trial_after_payment((select id from public.organizations where legal_name = 'Foundation Test Org B'));
+set local role authenticated;
+set local "request.jwt.claim.sub" = 'a0000000-0000-0000-0000-000000000003';
 
 -- Bug found by first running this test: the original version inserted this second membership row
 -- directly while still `set local role authenticated` -- but organization_members has no INSERT

@@ -22,6 +22,10 @@ select isnt(
   null,
   'create_organization() still succeeds after being extended to seed the chart of accounts'
 );
+reset role;
+select public.activate_trial_after_payment((select id from public.organizations where legal_name = 'Accounting Test Org'));
+set local role authenticated;
+set local "request.jwt.claim.sub" = 'ac000000-0000-0000-0000-000000000001';
 
 select is(
   (select count(*) from public.chart_of_accounts co

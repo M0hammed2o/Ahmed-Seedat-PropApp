@@ -19,6 +19,10 @@ set local role authenticated;
 set local "request.jwt.claim.sub" = 'd4000000-0000-0000-0000-000000000001';
 
 select isnt((select public.create_organization('Owner Self-Link Test Org', 'agency')), null, 'org created');
+reset role;
+select public.activate_trial_after_payment((select id from public.organizations where legal_name = 'Owner Self-Link Test Org'));
+set local role authenticated;
+set local "request.jwt.claim.sub" = 'd4000000-0000-0000-0000-000000000001';
 select set_config('pgtap.osl.org_id', (select id::text from public.organizations where legal_name = 'Owner Self-Link Test Org'), false);
 
 select set_config(

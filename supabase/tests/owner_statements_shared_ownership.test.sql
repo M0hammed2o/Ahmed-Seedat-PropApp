@@ -15,6 +15,10 @@ set local role authenticated;
 set local "request.jwt.claim.sub" = 'f9000000-0000-0000-0000-000000000001';
 
 select isnt((select public.create_organization('Shared Ownership Statement Test Org', 'owner_managed')), null, 'org created');
+reset role;
+select public.activate_trial_after_payment((select id from public.organizations where legal_name = 'Shared Ownership Statement Test Org'));
+set local role authenticated;
+set local "request.jwt.claim.sub" = 'f9000000-0000-0000-0000-000000000001';
 
 update public.organizations set management_fee_pct = 10.00, maintenance_reserve_pct = 5.00
 where legal_name = 'Shared Ownership Statement Test Org';
