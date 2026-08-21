@@ -75,7 +75,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
 
   const { data: confirmation, error: confirmError } = await supabase
-    .rpc('confirm_plan_change', { p_quote_id: parsed.data.quoteId })
+    .rpc('confirm_plan_change', {
+      p_quote_id: parsed.data.quoteId,
+      p_keep_property_ids: parsed.data.keepPropertyIds ?? null,
+      p_keep_owner_ids: parsed.data.keepOwnerIds ?? null,
+      p_keep_staff_member_ids: parsed.data.keepStaffMemberIds ?? null,
+    })
     .single();
   if (confirmError) {
     return NextResponse.json(

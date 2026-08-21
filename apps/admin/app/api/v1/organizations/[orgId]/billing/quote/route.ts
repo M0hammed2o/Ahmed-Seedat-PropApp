@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { billingPlanChangeQuoteSchema } from '@propvault/validation';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { requireBillingPrincipalAccess } from '@/lib/portfolio';
+import { computeDowngradeImpact } from '@/lib/downgradeImpact';
 
 type RouteParams = { params: Promise<{ orgId: string }> };
 
@@ -96,6 +97,15 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     expires_at: string;
   };
 
+  // V1 commercial UX pass: a downgrade quote also carries a full impact preview -- current usage
+  // vs. the target plan's real allowance, per resource type -- so the client can never present a
+  // misleading one-click "confirm" that hides what's about to be restricted. Computed read-only,
+  // from the same entitlement-limit source of truth reconcile_plan_limits() itself reads.
+  const downgradeImpact =
+    row.change_type === 'downgrade'
+      ? await computeDowngradeImpact(supabase, orgId, parsed.data.targetPlanId)
+      : null;
+
   // Safe fields only -- no internal secrets/provider tokens (never present on this row anyway,
   // but the response shape is spelled out explicitly rather than passing the raw row through).
   return NextResponse.json({
@@ -113,5 +123,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     currency: row.currency,
     effectiveAt: row.effective_at,
     expiresAt: row.expires_at,
+    downgradeImpact,
   });
 }

@@ -53,11 +53,28 @@ export const billingPlanChangeQuoteSchema = z.object({
 });
 export type BillingPlanChangeQuoteInput = z.infer<typeof billingPlanChangeQuoteSchema>;
 
+// V1 commercial UX pass: the three keep-list arrays are the customer's OPTIONAL explicit choice of
+// which resources stay active if this change is a downgrade that puts the org over its new plan's
+// allowance -- see confirm_plan_change()'s own extended comment (migration 20260101000121). Omitted
+// (or explicitly null) falls back to the deterministic default. Never validated against the actual
+// allowance/ownership here -- confirm_plan_change() itself (SECURITY DEFINER, org-scoped) is the
+// real authority, and reconcile_plan_limits() defensively caps an oversized selection anyway.
+const keepListSchema = z.array(z.string().uuid()).nullish();
 export const billingPlanChangeConfirmSchema = z.object({
   quoteId: z.string().uuid('quoteId must be a valid UUID'),
   idempotencyKey: z.string().min(1, 'idempotencyKey is required').max(200),
+  keepPropertyIds: keepListSchema,
+  keepOwnerIds: keepListSchema,
+  keepStaffMemberIds: keepListSchema,
 });
 export type BillingPlanChangeConfirmInput = z.infer<typeof billingPlanChangeConfirmSchema>;
+
+export const scheduledDowngradeSelectionSchema = z.object({
+  keepPropertyIds: keepListSchema,
+  keepOwnerIds: keepListSchema,
+  keepStaffMemberIds: keepListSchema,
+});
+export type ScheduledDowngradeSelectionInput = z.infer<typeof scheduledDowngradeSelectionSchema>;
 export type OrganizationPlanUpdateInput = z.infer<typeof organizationPlanUpdateSchema>;
 
 export const creditIssueSchema = z.object({
