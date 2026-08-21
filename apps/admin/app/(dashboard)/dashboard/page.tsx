@@ -23,6 +23,9 @@ import { CollectionsMixChart } from '@/components/dashboard/CollectionsMixChart'
 import { PropertyMap, type MappableProperty } from '@/components/dashboard/PropertyMap';
 import { RecentActivityFeed, type ActivityItem } from '@/components/dashboard/RecentActivityFeed';
 import { PortfolioInsightsPanel } from '@/components/dashboard/PortfolioInsightsPanel';
+import { GettingStartedChecklist } from '@/components/dashboard/GettingStartedChecklist';
+import { resolvePortalSession } from '@/lib/orgSession';
+import { resolveOnboardingProgress, type OnboardingProgress } from '@/lib/onboarding';
 
 // Owner Dashboard, rebuilt against reference/lovable-ui-reference's routes/index.tsx literal
 // structure (2026-08-04 Lovable-adoption batch, UI_INTEGRATION_PLAN.md) -- same KPI set, same
@@ -75,6 +78,8 @@ interface DashboardData {
   recentPayments: RecentPayment[];
   insights: DashboardInsight[];
   displayFirstName?: string;
+  orgId?: string;
+  onboardingProgress?: OnboardingProgress;
 }
 
 interface DashboardInsight {
@@ -191,6 +196,19 @@ export default async function DashboardPage() {
   // reads as broken rather than empty. A single welcome/CTA panel replaces that noise; nothing
   // about the populated dashboard below this block changes.
   if (data.totalProperties === 0) {
+    // V1 commercial onboarding pass, Phase 5/6: the first-login welcome screen. The hero CTA
+    // points at whatever resolveOnboardingProgress() says is genuinely the next step -- staff
+    // setup before property setup, per product requirement, achieved by sequencing (the
+    // checklist's own step order + this CTA), not a hard database-level block on property
+    // creation, which would risk the exact "breaks unrelated fixtures/existing orgs" failure
+    // mode already learned the hard way earlier in this build for a different gate.
+    const nextStep = data.onboardingProgress?.currentStep;
+    const heroHref = nextStep?.href ?? '/properties/new';
+    const heroLabel = nextStep
+      ? nextStep.id === 'invite_staff'
+        ? 'Invite your team'
+        : nextStep.label
+      : 'Add your first property';
     return (
       <>
         <PageHeader
@@ -203,15 +221,25 @@ export default async function DashboardPage() {
           </span>
           <h2 className="font-display text-xl font-bold text-foreground">Welcome to Proplyst</h2>
           <p className="max-w-sm text-sm text-muted-foreground">
-            Add your first property to start tracking your portfolio.
+            Let&apos;s set up your property portfolio -- organisation, team, properties, tenants,
+            and leases, one step at a time.
           </p>
           <Link
-            href="/properties/new"
+            href={heroHref}
             className="mt-2 flex h-10 items-center gap-1.5 rounded-xl bg-primary px-4 text-[13px] font-semibold text-primary-foreground shadow-glow transition-transform hover:-translate-y-px"
           >
-            <Plus className="h-4 w-4" aria-hidden="true" /> Add your first property
+            <Plus className="h-4 w-4" aria-hidden="true" /> {heroLabel}
           </Link>
         </div>
+        {data.orgId && data.onboardingProgress ? (
+          <div className="mt-5">
+            <GettingStartedChecklist
+              orgId={data.orgId}
+              progress={data.onboardingProgress}
+              defaultExpanded
+            />
+          </div>
+        ) : null}
       </>
     );
   }
@@ -302,6 +330,10 @@ export default async function DashboardPage() {
           </>
         }
       />
+
+      {data.orgId && data.onboardingProgress && !data.onboardingProgress.allDone ? (
+        <GettingStartedChecklist orgId={data.orgId} progress={data.onboardingProgress} />
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {stats.map((s) => (
@@ -607,6 +639,16 @@ async function loadData(): Promise<DashboardData> {
   const in45Days = new Date(now.getTime() + 45 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const todayIso = now.toISOString().slice(0, 10);
 
+  // V1 commercial onboarding pass: resolved independently of the RLS-scoped queries below (which
+  // never needed an explicit org id at all) purely to drive the getting-started checklist -- a
+  // second, cheap session lookup, same as (dashboard)/layout.tsx's own independent resolution for
+  // its own gates.
+  const session = await resolvePortalSession();
+  const activeOrgId = session?.organizations.find((m) => m.status === 'active')?.orgId;
+  const onboardingProgress = activeOrgId
+    ? await resolveOnboardingProgress(supabase, activeOrgId)
+    : undefined;
+
   const [
     propertiesResult,
     unitsResult,
@@ -827,6 +869,8 @@ async function loadData(): Promise<DashboardData> {
       generatedAt: row.generated_at as string,
     })),
     displayFirstName: profileResult.data?.display_name?.split(' ')[0] || undefined,
+    orgId: activeOrgId,
+    onboardingProgress,
   };
 }
 
