@@ -152,6 +152,52 @@ describe('PayFastBillingGatewayProvider', () => {
       return params.toString();
     }
 
+    it('accepts a real-shaped ITN with empty-string fields (a genuine PayFast ITN always includes item_name, name_first, custom_str1-5, etc., empty whenever unused)', async () => {
+      // Regression test for a real bug found via a live PayFast sandbox ITN round trip (WORKLOG.md
+      // this date): PayFast's OWN signature computation includes every field it sends, even ones
+      // with an empty string value -- generateFormSignature (used for the outbound checkout, where
+      // "skip empty" is correct) was being reused here too, silently dropping those fields and
+      // never matching a real ITN's signature. buildItnBody() above only ever includes 4 non-empty
+      // fields, which is why the existing tests never caught this -- "skip empty" and "include
+      // empty" produce identical output when there's nothing empty to differ on. This test
+      // deliberately includes empty-string fields, matching real ITN shape, and signs them the way
+      // PayFast itself does (nothing skipped).
+      global.fetch = vi
+        .fn()
+        .mockResolvedValue({ text: async () => 'VALID' }) as unknown as typeof fetch;
+      const provider = new PayFastBillingGatewayProvider(CONFIG);
+
+      const fields: [string, string][] = [
+        ['m_payment_id', 'checkout-org-1-trial'],
+        ['pf_payment_id', '3339654'],
+        ['payment_status', 'COMPLETE'],
+        ['item_name', ''],
+        ['item_description', ''],
+        ['amount_gross', '0.00'],
+        ['amount_fee', '0.00'],
+        ['amount_net', '0.00'],
+        ['name_first', ''],
+        ['name_last', ''],
+        ['email_address', ''],
+        ['merchant_id', CONFIG.merchantId],
+        ['token', 'a-real-looking-token'],
+        ['billing_date', '2026-09-20'],
+      ];
+      // Signs EVERY field, including the empty-string ones -- matching PayFast's own algorithm,
+      // deliberately NOT independentFormSignature's "skip empty" behaviour above.
+      const parts = fields.map(([k, v]) => `${k}=${v}`);
+      const signature = crypto
+        .createHash('md5')
+        .update(`${parts.join('&')}&passphrase=${CONFIG.passphrase}`)
+        .digest('hex');
+      const params = new URLSearchParams();
+      for (const [k, v] of fields) params.set(k, v);
+      params.set('signature', signature);
+
+      const result = await provider.verifyWebhookSignature(params.toString(), null);
+      expect(result).toBe(true);
+    });
+
     it('accepts a genuinely valid ITN (correct signature + PayFast confirms VALID)', async () => {
       global.fetch = vi
         .fn()

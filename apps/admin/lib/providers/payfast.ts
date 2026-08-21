@@ -82,13 +82,39 @@ function baseUrl(config: PayFastConfig): string {
   return config.mode === 'live' ? 'https://www.payfast.co.za' : 'https://sandbox.payfast.co.za';
 }
 
-// Checkout/ITN signature: fields in the exact order provided (a Map preserves insertion order;
-// an ITN's recomputation must iterate the fields in the order PayFast itself sent them, never
-// re-sorted -- see verifyWebhookSignature below).
+// Outbound checkout signature: fields in the exact order provided (a Map preserves insertion
+// order). Skips empty/undefined/null values -- correct HERE specifically because this codebase
+// only ever inserts a field into the Map when it has a real value to send (e.g. billing_date is
+// conditionally spread in, never inserted as an empty string) -- so "skip empty" is equivalent to
+// "the field was genuinely omitted from this checkout," which is what we want signed.
 function generateFormSignature(fields: Map<string, string>, passphrase: string): string {
   const parts: string[] = [];
   for (const [key, value] of fields) {
     if (value === '' || value === undefined || value === null) continue;
+    parts.push(`${key}=${phpUrlEncode(String(value).trim())}`);
+  }
+  let pfOutput = parts.join('&');
+  if (passphrase) {
+    pfOutput += `&passphrase=${phpUrlEncode(passphrase.trim())}`;
+  }
+  return crypto.createHash('md5').update(pfOutput).digest('hex');
+}
+
+// Inbound ITN signature: a DELIBERATELY DIFFERENT rule from generateFormSignature above, confirmed
+// by a real sandbox ITN round trip (WORKLOG.md this date) -- PayFast's own ITN signature includes
+// EVERY field it sends, even ones with an empty string value (item_name, name_first, custom_str1-5,
+// etc. are always present in a real ITN, empty whenever unused by that checkout). Using
+// generateFormSignature's "skip empty" rule here silently drops those fields from the
+// recomputation and NEVER matches PayFast's real signature -- verified live: recomputing with
+// every field (including empties) produced an exact byte-for-byte match against a genuine ITN's
+// signature; the shipped "skip empty" version did not. This would have caused every real payment
+// confirmation ITN this codebase ever received to be rejected as an invalid signature, in
+// production, silently -- caught only by an actual live round trip, not by this file's own mocked
+// unit tests (which independently reimplement the same "skip empty" assumption and were therefore
+// blind to the mismatch).
+function generateItnSignature(fields: Map<string, string>, passphrase: string): string {
+  const parts: string[] = [];
+  for (const [key, value] of fields) {
     parts.push(`${key}=${phpUrlEncode(String(value).trim())}`);
   }
   let pfOutput = parts.join('&');
@@ -286,7 +312,7 @@ export class PayFastBillingGatewayProvider implements BillingGatewayProvider {
       if (key === 'signature') continue;
       fieldsForSignature.set(key, value);
     }
-    const recomputed = generateFormSignature(fieldsForSignature, this.config.passphrase);
+    const recomputed = generateItnSignature(fieldsForSignature, this.config.passphrase);
     if (recomputed !== receivedSignature) return false;
 
     try {
