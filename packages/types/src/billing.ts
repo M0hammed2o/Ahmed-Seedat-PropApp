@@ -56,6 +56,17 @@ export interface CancelSubscriptionResult {
   status: 'cancelled';
 }
 
+/** V1 commercial UX pass -- amending an EXISTING subscription's future recurring amount (add-on
+ * purchase/removal) rather than creating a second, competing subscription. A synchronous,
+ * authenticated server-to-server call (same trust model as cancelSubscription/refundPayment, not
+ * an async ITN-confirmed flow -- PayFast's own Subscriptions Management API has no webhook for a
+ * pure administrative amend, only for actual payment events) -- callers must only grant new
+ * capacity after this call itself returns success, never on browser return alone. */
+export interface UpdateSubscriptionAmountResult {
+  providerSubscriptionId: string;
+  status: 'updated';
+}
+
 export interface RefundPaymentInput {
   providerPaymentReference: string;
   amount?: number;
@@ -91,6 +102,10 @@ export interface BillingGatewayProvider {
   createSubscription(input: CreateSubscriptionInput): Promise<CreateSubscriptionResult>;
   getPaymentStatus(providerReference: string): Promise<PaymentStatusResult>;
   cancelSubscription(providerSubscriptionId: string): Promise<CancelSubscriptionResult>;
+  updateSubscriptionAmount(
+    providerSubscriptionId: string,
+    input: { amount: number; idempotencyKey: string },
+  ): Promise<UpdateSubscriptionAmountResult>;
   refundPayment(input: RefundPaymentInput): Promise<RefundResult>;
   /** Verifies an inbound webhook is genuinely from the gateway, before parseWebhookEvent() is
    * ever trusted -- must run first. Async: a real gateway's recommended verification (PayFast:

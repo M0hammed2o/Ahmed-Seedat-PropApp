@@ -11,6 +11,7 @@ import type {
   PaymentStatusResult,
   RefundPaymentInput,
   RefundResult,
+  UpdateSubscriptionAmountResult,
 } from '@propvault/types';
 import { branding } from '@propvault/config';
 import { getAppUrl } from '@/lib/appUrl';
@@ -267,6 +268,41 @@ export class PayFastBillingGatewayProvider implements BillingGatewayProvider {
     }
 
     return { providerSubscriptionId: token, status: 'cancelled' };
+  }
+
+  // Same Management API/confidence caveat as cancelSubscription -- PayFast's documented "Update
+  // Subscription" endpoint (PUT /subscriptions/{token}/update), never exercised against a live
+  // round trip (PayFast UAT is paused for this whole pass, per explicit instruction). Amends the
+  // FUTURE recurring amount on the org's existing subscription token -- deliberately never creates
+  // a second subscription -- matching "prefer one coherent recurring obligation per organisation."
+  // idempotencyKey is accepted for signature/interface symmetry with the rest of this file but this
+  // specific PayFast endpoint has no idempotency-key concept of its own; the CALLER (addons.ts) is
+  // what makes an add-on change idempotent, by writing the resulting absolute capacity value via a
+  // security-definer RPC rather than an incrementing delta -- a retried call converges to the same
+  // end state rather than double-applying.
+  async updateSubscriptionAmount(
+    providerSubscriptionId: string,
+    input: { amount: number; idempotencyKey: string },
+  ): Promise<UpdateSubscriptionAmountResult> {
+    const token = providerSubscriptionId;
+    const testingParam = this.config.mode === 'sandbox' ? '?testing=true' : '';
+    const url = `https://api.payfast.co.za/subscriptions/${encodeURIComponent(token)}/update${testingParam}`;
+    const bodyObject: Record<string, string> = { amount: Math.round(input.amount * 100).toString() };
+    const headers = managementApiHeaders(this.config, bodyObject);
+
+    const response = await fetch(url, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(bodyObject),
+    });
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      throw new Error(
+        `PayFast subscription update failed (${response.status}): ${body || response.statusText}`,
+      );
+    }
+
+    return { providerSubscriptionId: token, status: 'updated' };
   }
 
   // Same Management API, same confidence caveat as cancelSubscription. providerPaymentReference

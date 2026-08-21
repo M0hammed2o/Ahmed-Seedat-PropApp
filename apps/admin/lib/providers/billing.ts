@@ -10,6 +10,7 @@ import type {
   PaymentStatusResult,
   RefundPaymentInput,
   RefundResult,
+  UpdateSubscriptionAmountResult,
 } from '@propvault/types';
 import { PayFastBillingGatewayProvider, getPayFastConfig } from './payfast';
 
@@ -58,6 +59,17 @@ export class MockBillingGatewayProvider implements BillingGatewayProvider {
       providerSubscriptionId,
     });
     return { providerSubscriptionId, status: 'cancelled' };
+  }
+
+  async updateSubscriptionAmount(
+    providerSubscriptionId: string,
+    input: { amount: number; idempotencyKey: string },
+  ): Promise<UpdateSubscriptionAmountResult> {
+    console.warn('[MockBillingGatewayProvider] would update subscription amount', {
+      providerSubscriptionId,
+      amount: input.amount,
+    });
+    return { providerSubscriptionId, status: 'updated' };
   }
 
   async refundPayment(input: RefundPaymentInput): Promise<RefundResult> {

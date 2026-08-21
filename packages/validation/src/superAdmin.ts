@@ -75,6 +75,17 @@ export const scheduledDowngradeSelectionSchema = z.object({
   keepStaffMemberIds: keepListSchema,
 });
 export type ScheduledDowngradeSelectionInput = z.infer<typeof scheduledDowngradeSelectionSchema>;
+
+// V1 commercial UX pass -- add-on purchasing (POST /api/v1/organizations/:orgId/billing/addons).
+// Deliberately NOT unitPrice/amount: the server derives both from the org's current plan
+// (lib/addons.ts) -- never trusts a client-supplied price or resulting total.
+export const addonCapacityChangeSchema = z.object({
+  resourceType: z.enum(['property', 'owner']),
+  targetQuantity: z.number().int().min(0).max(1000),
+  keepIds: z.array(z.string().uuid()).nullish(),
+  idempotencyKey: z.string().min(1, 'idempotencyKey is required').max(200),
+});
+export type AddonCapacityChangeInput = z.infer<typeof addonCapacityChangeSchema>;
 export type OrganizationPlanUpdateInput = z.infer<typeof organizationPlanUpdateSchema>;
 
 export const creditIssueSchema = z.object({
