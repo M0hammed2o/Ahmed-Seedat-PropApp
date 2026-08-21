@@ -6,6 +6,12 @@ import type { Organization, OrganizationSubscription, Plan } from '@propvault/ty
 import { Button } from '@/components/ui/Button';
 import { Panel } from '@/components/ui/Panel';
 import { Pill, statusTone } from '@/components/ui/Pill';
+import {
+  DowngradeImpactPicker,
+  defaultDowngradeSelection,
+  type DowngradeImpact,
+  type DowngradeSelection,
+} from './DowngradeImpactPicker';
 
 export interface SubscriptionPaymentSummary {
   id: string;
@@ -33,6 +39,13 @@ export interface PaymentMethodSummary {
   updatedAt: string;
 }
 
+export interface CapacitySummary {
+  /** The plan's own base allowance, EXCLUDING purchased add-ons, is `included`. Null = unlimited. */
+  properties: { included: number | null; purchased: number; used: number; restricted: number; unitPrice: number | null };
+  owners: { included: number | null; purchased: number; used: number; restricted: number; unitPrice: number | null };
+  staff: { included: number | null; used: number; suspended: number };
+}
+
 interface Props {
   organization: Organization;
   plans: Plan[];
@@ -40,6 +53,7 @@ interface Props {
   payments: SubscriptionPaymentSummary[];
   invoices: SubscriptionInvoiceSummary[];
   paymentMethod: PaymentMethodSummary | null;
+  capacitySummary: CapacitySummary;
 }
 
 interface PlanChangeQuote {
@@ -51,6 +65,7 @@ interface PlanChangeQuote {
   currency: string;
   effectiveAt: string;
   expiresAt: string;
+  downgradeImpact: DowngradeImpact | null;
 }
 
 interface PendingDowngrade {
@@ -88,6 +103,7 @@ export function OrganizationBillingView({
   payments,
   invoices,
   paymentMethod,
+  capacitySummary,
 }: Props) {
   const router = useRouter();
   const [quoting, setQuoting] = useState<string | null>(null);
@@ -98,6 +114,10 @@ export function OrganizationBillingView({
   const [pendingDowngrade, setPendingDowngrade] = useState<PendingDowngrade | null>(null);
   const [cancellingDowngrade, setCancellingDowngrade] = useState(false);
   const [updatingPaymentMethod, setUpdatingPaymentMethod] = useState(false);
+  const [downgradeSelection, setDowngradeSelection] = useState<DowngradeSelection | null>(null);
+  const [restoring, setRestoring] = useState(false);
+  const [restoreNotice, setRestoreNotice] = useState<string | null>(null);
+  const [addonBusy, setAddonBusy] = useState<'property' | 'owner' | null>(null);
 
   /** React #418 fix (WORKLOG.md this date): daysUntil() reads Date.now(), and organization is a
    *  server-fetched prop present on the very first render -- SSR and the client's hydration pass
@@ -132,6 +152,8 @@ export function OrganizationBillingView({
     : null;
   const canCancel =
     subscription && (subscription.status === 'active' || subscription.status === 'overdue');
+  const restrictedTotal =
+    capacitySummary.properties.restricted + capacitySummary.owners.restricted + capacitySummary.staff.suspended;
 
   async function requestQuote(planId: string) {
     setError(null);
@@ -149,6 +171,9 @@ export function OrganizationBillingView({
         return;
       }
       setQuote(body);
+      setDowngradeSelection(
+        body.downgradeImpact?.requiresSelection ? defaultDowngradeSelection(body.downgradeImpact) : null,
+      );
     } catch {
       setError('Could not price this plan change -- check your connection and try again.');
     } finally {
@@ -166,7 +191,21 @@ export function OrganizationBillingView({
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ quoteId: quote.quoteId, idempotencyKey: crypto.randomUUID() }),
+          body: JSON.stringify({
+            quoteId: quote.quoteId,
+            idempotencyKey: crypto.randomUUID(),
+            // Explicit selection, shown to and implicitly confirmed by the customer via the
+            // picker, when this downgrade puts them over any resource allowance -- never a
+            // silent server-side guess. Omitted entirely (server falls back to the deterministic
+            // default) when no selection was ever required.
+            ...(downgradeSelection
+              ? {
+                  keepPropertyIds: downgradeSelection.propertyIds,
+                  keepOwnerIds: downgradeSelection.ownerIds,
+                  keepStaffMemberIds: downgradeSelection.staffMemberIds,
+                }
+              : {}),
+          }),
         },
       );
       const body = await response.json();
@@ -182,6 +221,7 @@ export function OrganizationBillingView({
         return;
       }
       setQuote(null);
+      setDowngradeSelection(null);
       router.refresh();
       void loadPendingDowngrade();
     } catch {
@@ -243,6 +283,88 @@ export function OrganizationBillingView({
       setError('Could not start payment method update -- check your connection and try again.');
     } finally {
       setUpdatingPaymentMethod(false);
+    }
+  }
+
+  async function restoreAccess() {
+    setError(null);
+    setRestoreNotice(null);
+    setRestoring(true);
+    try {
+      const response = await fetch(
+        `/api/v1/organizations/${organization.id}/billing/reconcile-access`,
+        { method: 'POST' },
+      );
+      const body = await response.json();
+      if (!response.ok) {
+        setError(body.error?.message ?? 'Could not restore access.');
+        return;
+      }
+      const stillRestricted =
+        (body.restrictedProperties ?? 0) + (body.restrictedOwners ?? 0) + (body.suspendedStaff ?? 0);
+      setRestoreNotice(
+        stillRestricted === 0
+          ? 'All resources restored.'
+          : 'Access re-checked -- some resources are still over your plan’s allowance.',
+      );
+      router.refresh();
+    } catch {
+      setError('Could not restore access -- check your connection and try again.');
+    } finally {
+      setRestoring(false);
+    }
+  }
+
+  async function changeAddonCapacity(
+    resourceType: 'property' | 'owner',
+    direction: 'add' | 'remove',
+  ) {
+    const summary = resourceType === 'property' ? capacitySummary.properties : capacitySummary.owners;
+    if (summary.unitPrice === null) return;
+    const currentTotal = (summary.included ?? 0) + summary.purchased;
+    const targetQuantity = direction === 'add' ? summary.purchased + 1 : summary.purchased - 1;
+    if (targetQuantity < 0) return;
+    const newTotal = (summary.included ?? 0) + targetQuantity;
+    const monthlyUnitPrice =
+      subscription?.billingCycle === 'annual' ? summary.unitPrice * 12 : summary.unitPrice;
+    const cadence = subscription?.billingCycle === 'annual' ? 'year' : 'month';
+
+    const confirmed = window.confirm(
+      `${direction === 'add' ? 'Add' : 'Remove'} 1 extra ${resourceType} slot?\n\n` +
+        `Current capacity: ${currentTotal}\nNew capacity: ${newTotal}\n` +
+        `Add-on cost: ${formatMoney(monthlyUnitPrice, 'ZAR')}/${cadence} per slot\n\n` +
+        `This changes your recurring PayFast subscription amount.`,
+    );
+    if (!confirmed) return;
+
+    setError(null);
+    setAddonBusy(resourceType);
+    try {
+      const response = await fetch(`/api/v1/organizations/${organization.id}/billing/addons`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          resourceType,
+          targetQuantity,
+          idempotencyKey: crypto.randomUUID(),
+        }),
+      });
+      const body = await response.json();
+      if (!response.ok) {
+        if (body.error?.code === 'addon_removal_requires_selection') {
+          setError(
+            'Removing this slot would put you over capacity. Restrict resources first (see the Plan capacity panel above) before removing this add-on.',
+          );
+        } else {
+          setError(body.error?.message ?? 'Could not update add-on capacity.');
+        }
+        return;
+      }
+      router.refresh();
+    } catch {
+      setError('Could not update add-on capacity -- check your connection and try again.');
+    } finally {
+      setAddonBusy(null);
     }
   }
 
@@ -367,6 +489,63 @@ export function OrganizationBillingView({
         </div>
       </Panel>
 
+      <Panel>
+        <div className="flex items-start justify-between gap-4">
+          <h3 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+            Plan capacity
+          </h3>
+          {restrictedTotal > 0 ? (
+            <Button variant="secondary" size="sm" disabled={restoring} onClick={restoreAccess}>
+              {restoring ? 'Checking…' : 'Restore all'}
+            </Button>
+          ) : null}
+        </div>
+        {restoreNotice ? (
+          <p className="mt-2 text-xs text-light-textSecondary dark:text-dark-textSecondary">
+            {restoreNotice}
+          </p>
+        ) : null}
+        <dl className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <CapacityRow
+            label="Properties"
+            included={capacitySummary.properties.included}
+            purchased={capacitySummary.properties.purchased}
+            used={capacitySummary.properties.used}
+            restricted={capacitySummary.properties.restricted}
+            unitPrice={capacitySummary.properties.unitPrice}
+            busy={addonBusy === 'property'}
+            onAdd={() => changeAddonCapacity('property', 'add')}
+            onRemove={() => changeAddonCapacity('property', 'remove')}
+          />
+          <CapacityRow
+            label="Owners"
+            included={capacitySummary.owners.included}
+            purchased={capacitySummary.owners.purchased}
+            used={capacitySummary.owners.used}
+            restricted={capacitySummary.owners.restricted}
+            unitPrice={capacitySummary.owners.unitPrice}
+            busy={addonBusy === 'owner'}
+            onAdd={() => changeAddonCapacity('owner', 'add')}
+            onRemove={() => changeAddonCapacity('owner', 'remove')}
+          />
+          <CapacityRow
+            label="Staff"
+            included={capacitySummary.staff.included}
+            purchased={0}
+            used={capacitySummary.staff.used}
+            restricted={capacitySummary.staff.suspended}
+            unitPrice={null}
+          />
+        </dl>
+        {restrictedTotal > 0 ? (
+          <p className="mt-3 text-xs text-light-warning dark:text-dark-warning">
+            {restrictedTotal} resource{restrictedTotal === 1 ? ' is' : 's are'} currently locked by
+            your plan. Nothing was deleted — upgrade, add capacity, or free up a slot, then click
+            &ldquo;Restore all&rdquo;.
+          </p>
+        ) : null}
+      </Panel>
+
       {pendingDowngrade && pendingDowngradePlan ? (
         <Panel className="border-light-warning dark:border-dark-warning">
           <div className="flex items-start justify-between gap-4">
@@ -464,17 +643,30 @@ export function OrganizationBillingView({
               </>
             ) : null}
           </dl>
-          {quote.changeType === 'downgrade' ? (
+          {quote.changeType === 'downgrade' && new Date(quote.effectiveAt).getTime() > Date.now() ? (
             <p className="mt-3 text-xs text-light-textSecondary dark:text-dark-textSecondary">
               You keep your current plan&rsquo;s full access until{' '}
               {new Date(quote.effectiveAt).toLocaleDateString('en-ZA')} — no refund is issued for
               the remainder of this billing period.
+            </p>
+          ) : quote.changeType === 'downgrade' ? (
+            <p className="mt-3 text-xs text-light-textSecondary dark:text-dark-textSecondary">
+              This takes effect immediately — trial access is not charged, so there is no
+              remaining paid period to keep. Any resources above {quotedPlan.name}&rsquo;s
+              allowance are restricted (never deleted) right away.
             </p>
           ) : (
             <p className="mt-3 text-xs text-light-textSecondary dark:text-dark-textSecondary">
               Access to {quotedPlan.name} begins immediately once this is confirmed.
             </p>
           )}
+          {quote.downgradeImpact?.requiresSelection && downgradeSelection ? (
+            <DowngradeImpactPicker
+              impact={quote.downgradeImpact}
+              selection={downgradeSelection}
+              onChange={setDowngradeSelection}
+            />
+          ) : null}
           <div className="mt-4 flex gap-2">
             <Button size="sm" disabled={confirming} onClick={confirmQuote}>
               {confirming ? 'Confirming…' : 'Confirm'}
@@ -483,7 +675,10 @@ export function OrganizationBillingView({
               variant="secondary"
               size="sm"
               disabled={confirming}
-              onClick={() => setQuote(null)}
+              onClick={() => {
+                setQuote(null);
+                setDowngradeSelection(null);
+              }}
             >
               Cancel
             </Button>
@@ -624,6 +819,69 @@ export function OrganizationBillingView({
           </table>
         </div>
       </Panel>
+    </div>
+  );
+}
+
+function CapacityRow({
+  label,
+  included,
+  purchased,
+  used,
+  restricted,
+  unitPrice,
+  busy,
+  onAdd,
+  onRemove,
+}: {
+  label: string;
+  included: number | null;
+  purchased: number;
+  used: number;
+  restricted: number;
+  unitPrice: number | null;
+  busy?: boolean;
+  onAdd?: () => void;
+  onRemove?: () => void;
+}) {
+  const total = included === null ? null : included + purchased;
+  return (
+    <div className="rounded-card border border-light-border p-3 dark:border-dark-border">
+      <dt className="text-xs text-light-textMuted dark:text-dark-textMuted">{label}</dt>
+      <dd className="mt-1 text-sm text-light-textPrimary dark:text-dark-textPrimary">
+        <span className="font-semibold">{used}</span> used
+        {total !== null ? (
+          <>
+            {' '}
+            / <span className="font-semibold">{total}</span> capacity
+            {purchased > 0 ? (
+              <span className="text-light-textMuted dark:text-dark-textMuted">
+                {' '}
+                ({included} included + {purchased} purchased)
+              </span>
+            ) : null}
+          </>
+        ) : (
+          <span className="text-light-textMuted dark:text-dark-textMuted"> (unlimited)</span>
+        )}
+      </dd>
+      {restricted > 0 ? (
+        <dd className="mt-1 text-xs text-light-warning dark:text-dark-warning">
+          {restricted} restricted by plan
+        </dd>
+      ) : null}
+      {unitPrice !== null && onAdd && onRemove ? (
+        <div className="mt-2 flex items-center gap-2">
+          <Button variant="secondary" size="sm" disabled={busy} onClick={onAdd}>
+            + Add ({formatMoney(unitPrice, 'ZAR')}/mo)
+          </Button>
+          {purchased > 0 ? (
+            <Button variant="secondary" size="sm" disabled={busy} onClick={onRemove}>
+              − Remove
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

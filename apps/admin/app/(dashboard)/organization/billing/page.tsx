@@ -6,11 +6,13 @@ import {
   type SubscriptionPaymentSummary,
   type SubscriptionInvoiceSummary,
   type PaymentMethodSummary,
+  type CapacitySummary,
 } from '@/components/organizations/OrganizationBillingView';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapOrganizationRow } from '@/lib/organizations';
 import { resolvePortalSession } from '@/lib/orgSession';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
+import { getOrganizationEntitlements, getOrgSeatSummary } from '@/lib/subscriptionEntitlements';
 
 const DEMO_ORGANIZATION: Organization = {
   id: 'demo-org-1',
@@ -34,6 +36,12 @@ const DEMO_ORGANIZATION: Organization = {
   trialEndsAt: new Date(Date.now() + 20 * 24 * 60 * 60 * 1000).toISOString(),
   createdAt: '2026-01-01T00:00:00Z',
   updatedAt: '2026-01-01T00:00:00Z',
+};
+
+const DEMO_CAPACITY_SUMMARY: CapacitySummary = {
+  properties: { included: 5, purchased: 0, used: 2, restricted: 0, unitPrice: null },
+  owners: { included: 0, purchased: 0, used: 0, restricted: 0, unitPrice: null },
+  staff: { included: 1, used: 0, suspended: 0 },
 };
 
 const DEMO_PLANS: Plan[] = [
@@ -102,6 +110,7 @@ export default async function OrganizationBillingPage() {
           payments={[]}
           invoices={[]}
           paymentMethod={null}
+          capacitySummary={DEMO_CAPACITY_SUMMARY}
         />
       </div>
     );
@@ -135,6 +144,9 @@ export default async function OrganizationBillingPage() {
     { data: paymentRows, error: paymentsError },
     { data: invoiceRows, error: invoicesError },
     { data: paymentMethodRows, error: paymentMethodError },
+    { count: restrictedPropertiesCount },
+    { count: restrictedOwnersCount },
+    { count: suspendedStaffCount },
   ] = await Promise.all([
     supabase.from('organizations').select('*').eq('id', activeOrg.orgId).single(),
     supabase
@@ -166,6 +178,21 @@ export default async function OrganizationBillingPage() {
       .eq('org_id', activeOrg.orgId)
       .eq('status', 'active')
       .maybeSingle(),
+    supabase
+      .from('properties')
+      .select('id', { count: 'exact', head: true })
+      .eq('org_id', activeOrg.orgId)
+      .eq('restricted_by_plan', true),
+    supabase
+      .from('owners')
+      .select('id', { count: 'exact', head: true })
+      .eq('org_id', activeOrg.orgId)
+      .eq('restricted_by_plan', true),
+    supabase
+      .from('organization_members')
+      .select('id', { count: 'exact', head: true })
+      .eq('org_id', activeOrg.orgId)
+      .eq('suspended_by_plan', true),
   ]);
 
   if (orgError || !orgRow)
@@ -176,6 +203,11 @@ export default async function OrganizationBillingPage() {
   if (invoicesError) throw new Error(`Failed to load invoices: ${invoicesError.message}`);
   if (paymentMethodError)
     throw new Error(`Failed to load payment method: ${paymentMethodError.message}`);
+
+  const [entitlements, seatSummary] = await Promise.all([
+    getOrganizationEntitlements(supabase, activeOrg.orgId),
+    getOrgSeatSummary(supabase, activeOrg.orgId),
+  ]);
 
   const plans: Plan[] = (planRows ?? []).map((row) => ({
     id: row.id,
@@ -236,6 +268,48 @@ export default async function OrganizationBillingPage() {
       }
     : null;
 
+  const currentPlanRow = subRow ? (planRows ?? []).find((p) => p.id === subRow.plan_id) : null;
+  const currentFeatureLimits = (currentPlanRow?.feature_limits ?? {}) as Record<
+    string,
+    number | boolean | null
+  >;
+  const extraPropertyPrice =
+    typeof currentFeatureLimits.extraPropertyPrice === 'number'
+      ? currentFeatureLimits.extraPropertyPrice
+      : null;
+  const extraOwnerPrice =
+    typeof currentFeatureLimits.extraOwnerPrice === 'number'
+      ? currentFeatureLimits.extraOwnerPrice
+      : null;
+
+  const capacitySummary: CapacitySummary = {
+    properties: {
+      included:
+        entitlements.propertyLimit === null
+          ? null
+          : entitlements.propertyLimit - (subRow?.purchased_extra_properties ?? 0),
+      purchased: subRow?.purchased_extra_properties ?? 0,
+      used: entitlements.activePropertyCount,
+      restricted: restrictedPropertiesCount ?? 0,
+      unitPrice: extraPropertyPrice,
+    },
+    owners: {
+      included:
+        entitlements.ownerLimit === null
+          ? null
+          : entitlements.ownerLimit - (subRow?.purchased_extra_owner_slots ?? 0),
+      purchased: subRow?.purchased_extra_owner_slots ?? 0,
+      used: entitlements.activeOwnerCount,
+      restricted: restrictedOwnersCount ?? 0,
+      unitPrice: extraOwnerPrice,
+    },
+    staff: {
+      included: seatSummary.seatLimit,
+      used: seatSummary.activeBillableStaffCount,
+      suspended: suspendedStaffCount ?? 0,
+    },
+  };
+
   return (
     <div className="space-y-5 animate-rise">
       <PageHeader
@@ -249,6 +323,7 @@ export default async function OrganizationBillingPage() {
         payments={payments}
         invoices={invoices}
         paymentMethod={paymentMethod}
+        capacitySummary={capacitySummary}
       />
     </div>
   );
