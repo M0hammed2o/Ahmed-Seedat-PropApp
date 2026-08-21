@@ -33,6 +33,19 @@ export const trialActivationCheckoutSchema = z.object({
 });
 export type TrialActivationCheckoutInput = z.infer<typeof trialActivationCheckoutSchema>;
 
+// V1 commercial onboarding pass, Phase 18 -- payment-method-update checkout (POST
+// /api/v1/organizations/:orgId/billing/payment-method). No plan/amount input at all: the org's
+// CURRENT plan and next_payment_date are resolved server-side (see
+// startPaymentMethodUpdateCheckout()) -- this is a card replacement, never a plan change.
+// idempotencyKey is client-supplied (not server-generated per request), matching
+// trialActivationCheckoutSchema/billingCheckoutSchema's own pattern: a browser retry of the SAME
+// user action must reuse the SAME PayFast m_payment_id, or a network-level retry would mint a
+// second live gateway subscription before the first ITN ever lands.
+export const paymentMethodUpdateCheckoutSchema = z.object({
+  idempotencyKey: z.string().min(1, 'idempotencyKey is required').max(200),
+});
+export type PaymentMethodUpdateCheckoutInput = z.infer<typeof paymentMethodUpdateCheckoutSchema>;
+
 // RELEASE A: provider-independent billing-change engine (SUBSCRIPTIONS.md, migration
 // 20260101000104, apps/admin/lib/billing.ts).
 export const billingPlanChangeQuoteSchema = z.object({

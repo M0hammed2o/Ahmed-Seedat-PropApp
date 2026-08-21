@@ -224,7 +224,11 @@ export function OrganizationBillingView({
     try {
       const response = await fetch(
         `/api/v1/organizations/${organization.id}/billing/payment-method`,
-        { method: 'POST' },
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ idempotencyKey: crypto.randomUUID() }),
+        },
       );
       const body = await response.json();
       if (!response.ok) {

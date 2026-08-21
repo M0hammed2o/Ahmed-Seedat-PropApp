@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { randomUUID } from 'node:crypto';
+import { paymentMethodUpdateCheckoutSchema } from '@propvault/validation';
 import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { requireBillingPrincipalAccess } from '@/lib/portfolio';
 import { startPaymentMethodUpdateCheckout } from '@/lib/billing';
@@ -13,7 +13,7 @@ type RouteParams = { params: Promise<{ orgId: string }> };
  * mutation route in this codebase -- reachable even for a suspended/overdue org, since updating
  * the payment method is exactly how a restricted org recovers).
  */
-export async function POST(_request: NextRequest, { params }: RouteParams) {
+export async function POST(request: NextRequest, { params }: RouteParams) {
   const { orgId } = await params;
   const supabase = await getServerSupabaseClient();
   const {
@@ -39,12 +39,36 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     );
   }
 
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json(
+      { error: { code: 'invalid_json', message: 'Request body must be valid JSON.' } },
+      { status: 400 },
+    );
+  }
+
+  const parsed = paymentMethodUpdateCheckoutSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      {
+        error: {
+          code: 'validation_failed',
+          message: 'Check the highlighted fields.',
+          field_errors: parsed.error.flatten().fieldErrors,
+        },
+      },
+      { status: 400 },
+    );
+  }
+
   const serviceClient = getServiceRoleClient();
 
   try {
     const result = await startPaymentMethodUpdateCheckout(serviceClient, {
       orgId,
-      idempotencyKey: `payment-method-update-${orgId}-${randomUUID()}`,
+      idempotencyKey: parsed.data.idempotencyKey,
     });
 
     await writeAuditEvent(serviceClient, {
