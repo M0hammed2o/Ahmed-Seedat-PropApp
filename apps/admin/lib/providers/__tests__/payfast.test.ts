@@ -80,6 +80,42 @@ describe('PayFastBillingGatewayProvider', () => {
       expect(params.get('recurring_amount')).toBe('699.00');
     });
 
+    it('places billing_date between subscription_type and recurring_amount -- field order is load-bearing, not client-arbitrary', async () => {
+      // Regression test for a real bug found via a live PayFast sandbox round trip (WORKLOG.md
+      // this date, real merchant credentials, real HTTP requests): PayFast's signature
+      // verification for the subscription fields does NOT tolerate "whatever order the client
+      // submitted" the way this file's own header comment originally (incorrectly, pre-live-
+      // testing) assumed -- billing_date appended after cycles reproducibly failed with "signature
+      // does not match" against the real gateway; moving it to this exact position (right after
+      // subscription_type, before recurring_amount) reproducibly succeeded (HTTP 302 to a real
+      // PayFast hosted payment page). This test can't itself hit the real gateway, so it pins the
+      // known-correct field ORDER directly -- if this ever silently regresses, this test catches
+      // it before a live round trip would be needed to notice again.
+      const provider = new PayFastBillingGatewayProvider(CONFIG);
+      const result = await provider.createSubscription({
+        orgId: 'org-1',
+        providerCustomerId: 'cust-1',
+        planCode: 'starter_monthly',
+        amount: 299,
+        initialAmount: 0,
+        billingDate: '2026-09-20',
+        currency: 'ZAR',
+        billingCycle: 'monthly',
+        idempotencyKey: 'checkout-org-1-trial',
+      });
+      const url = new URL(result.checkoutUrl);
+      const keysInOrder = [...url.searchParams.keys()];
+      const subscriptionTypeIdx = keysInOrder.indexOf('subscription_type');
+      const billingDateIdx = keysInOrder.indexOf('billing_date');
+      const recurringAmountIdx = keysInOrder.indexOf('recurring_amount');
+      expect(subscriptionTypeIdx).toBeGreaterThanOrEqual(0);
+      expect(billingDateIdx).toBeGreaterThanOrEqual(0);
+      expect(recurringAmountIdx).toBeGreaterThanOrEqual(0);
+      expect(subscriptionTypeIdx).toBeLessThan(billingDateIdx);
+      expect(billingDateIdx).toBeLessThan(recurringAmountIdx);
+      expect(url.searchParams.get('amount')).toBe('0.00');
+    });
+
     it('maps an annual billing cycle to PayFast frequency code 6', async () => {
       const provider = new PayFastBillingGatewayProvider(CONFIG);
       const result = await provider.createSubscription({

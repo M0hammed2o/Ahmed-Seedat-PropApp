@@ -17,21 +17,27 @@ import { getAppUrl } from '@/lib/appUrl';
 
 // Real PayFast integration (Stage 4, commercial-launch execution plan, WORKLOG.md this date).
 //
-// IMPORTANT, disclosed rather than silently assumed (same posture as AUTHENTICATION.md's Google/
-// Apple OAuth code, TECHNICAL_DEBT_REGISTER.md TD-29): no real PayFast merchant account exists in
-// this environment, so this has never completed a live round trip against PayFast's own sandbox
-// or production servers. Every algorithm below was cross-checked against PayFast's own developer
-// documentation and multiple independent working implementations (PHP/Node SDKs, community
-// write-ups) during this session, not invented -- but "cross-checked against secondary sources"
-// is not the same evidentiary weight as "tested against the real gateway," and this file should
-// not be treated as verified until it has been. The `cancelSubscription`/`refundPayment` methods
-// specifically (the Subscriptions/Refunds Management API, a *different* signature scheme from
-// checkout/ITN) carry the least confidence of the three -- see their own comments.
+// UPDATE (WORKLOG.md, follow-up session): createSubscription()'s checkout/ITN signature path
+// (case 1 below) HAS now been verified against a real live round trip -- Mohammed's real sandbox
+// merchant_id/merchant_key/passphrase, real requests against sandbox.payfast.co.za, a genuine
+// R0.00 subscription checkout reaching PayFast's own hosted payment page (HTTP 302, not a
+// signature-rejection 400). This live testing DISPROVED part of the field-order assumption below
+// for the subscription-specific fields specifically -- see createSubscription()'s own comment for
+// exactly what was found and fixed (billing_date's position). The pre-existing
+// startSubscriptionCheckout/startPlanChangeCheckout field order (no billing_date) was
+// independently confirmed to have been correct all along. `cancelSubscription`/`refundPayment`
+// (the Management API, a different signature scheme, case 2 below) remain UNVERIFIED -- carry the
+// least confidence of the three, see their own comments -- and getPaymentStatus() is simply not
+// implemented (see its own comment). Every algorithm below was originally cross-checked against
+// PayFast's own developer documentation and multiple independent working implementations
+// (PHP/Node SDKs, community write-ups), not invented.
 //
 // Two genuinely different signature algorithms are used by PayFast, confirmed from independent
 // sources, not a copy-paste of one applied to both:
-//   1. Checkout form + ITN webhook: fields in SUBMISSION order (never sorted), skip empty values,
-//      PHP-urlencode each value, join with '&', append '&passphrase=<encoded passphrase>', MD5 hex.
+//   1. Checkout form + ITN webhook: fields in SUBMISSION order (never sorted -- true in general,
+//      but the subscription-specific fields have a real positional requirement, see above), skip
+//      empty values, PHP-urlencode each value, join with '&', append
+//      '&passphrase=<encoded passphrase>', MD5 hex.
 //   2. Subscriptions/Refunds Management API (api.payfast.co.za): merchant-id/version/timestamp
 //      headers plus any body fields plus passphrase, ALL fields sorted ALPHABETICALLY by key,
 //      same encode+join+MD5 pattern.
@@ -170,17 +176,23 @@ export class PayFastBillingGatewayProvider implements BillingGatewayProvider {
       // numeric codes, cross-checked against multiple sources), cycles=0 means "until cancelled,"
       // matching "every organisation receives... no artificial feature restrictions" (no fixed
       // contract term).
+      //
+      // FIELD ORDER IS LOAD-BEARING, confirmed by a real sandbox round trip (WORKLOG.md this
+      // date): PayFast's signature verification does NOT simply recompute over "whatever order
+      // the client submitted" for the subscription fields, despite this file's own header
+      // comment's original (documentation-only, never live-tested) claim -- billing_date MUST sit
+      // between subscription_type and recurring_amount specifically. Verified empirically: this
+      // exact order (subscription_type, billing_date, recurring_amount, frequency, cycles)
+      // succeeds against the real sandbox with amount=0.00; appending billing_date after cycles
+      // (the original position) reproducibly fails with "signature does not match" even with
+      // correct real credentials. The pre-existing order without billing_date (used by
+      // startSubscriptionCheckout/startPlanChangeCheckout, neither of which ever sets it) was
+      // independently verified to still work unchanged.
       ['subscription_type', '1'],
+      ...(input.billingDate ? ([['billing_date', input.billingDate]] as [string, string][]) : []),
       ['recurring_amount', input.amount.toFixed(2)],
       ['frequency', input.billingCycle === 'annual' ? '6' : '3'],
       ['cycles', '0'],
-      // billing_date: PayFast's documented field for the date the RECURRING amount is first
-      // collected, distinct from `amount` above (the once-off amount due at checkout itself) --
-      // set only for a trial-activation checkout (chargeNowAmount=0), never for an immediate-pay
-      // checkout, where PayFast's own default (bill on the cycle starting now) is exactly what
-      // startSubscriptionCheckout/startPlanChangeCheckout already relied on before this field
-      // existed.
-      ...(input.billingDate ? ([['billing_date', input.billingDate]] as [string, string][]) : []),
     ]);
 
     const signature = generateFormSignature(fields, this.config.passphrase);
