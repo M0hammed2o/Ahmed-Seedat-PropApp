@@ -1,9 +1,11 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { AcceptInviteClient } from '@/components/invitations/AcceptInviteClient';
 import { Button } from '@/components/ui/Button';
 import { ProplystLogo } from '@/components/branding/ProplystLogo';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
+import { hasAcceptedCurrentLegalTerms } from '@/lib/legalConsent';
 
 export const dynamic = 'force-dynamic';
 
@@ -65,6 +67,19 @@ export default async function AcceptInvitePage({ searchParams }: SearchParams) {
         </div>
       </CenteredCard>
     );
+  }
+
+  // Security review finding (V1 commercial onboarding pass): this route sits outside
+  // resolveAuthenticatedDestination()'s consent gate entirely (invited-user continuation flows
+  // are deliberately excluded there, per that function's own comment) -- but an OAuth-authenticated
+  // caller lands HERE directly via `next=/invitations/accept?...`, never passing through `/` where
+  // the gate would otherwise apply. Confirmed live gap: a brand-new Google/Apple sign-in via an
+  // invite link could accept org/property access having never been asked to accept Terms/Privacy.
+  // Same recordLegalConsent()/user_terms_acceptances architecture as every other gate in this
+  // codebase -- reused, not duplicated -- with `next` carrying this exact invitation URL back.
+  if (!(await hasAcceptedCurrentLegalTerms())) {
+    const currentPath = `/invitations/accept?token=${encodeURIComponent(token)}`;
+    redirect(`/legal-consent?next=${encodeURIComponent(currentPath)}`);
   }
 
   return <AcceptInviteClient token={token} />;
