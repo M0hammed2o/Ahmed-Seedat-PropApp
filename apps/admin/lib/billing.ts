@@ -458,30 +458,34 @@ async function handleTrialActivationWebhookEvent(
       .eq('id', payment.subscription_id);
   }
 
-  // This row is reused for the REAL recurring charge PayFast collects on billing_date -- the
-  // amount-mismatch defense-in-depth check further up this function (RELEASE A) compares that
-  // future event's amount against THIS row's stored `amount`, which is 0 (this was a trial-
-  // activation checkout). Update it to the plan's real recurring price now, so that future check
-  // correctly matches instead of rejecting every legitimate day-30 charge as a "mismatch." Found
-  // by this session's own test (a fake day-30 ITN correctly rejected as a mismatch until this
-  // was added), not by inspection.
-  const { data: sub } = await serviceClient
-    .from('organization_subscriptions')
-    .select('plan_id')
-    .eq('id', payment.subscription_id)
-    .maybeSingle();
-  const { data: plan } = sub
-    ? await serviceClient.from('plans').select('base_price').eq('id', sub.plan_id).maybeSingle()
-    : { data: null };
-
+  // Payment amount semantics (V1 commercial onboarding pass): this row's `amount` permanently
+  // records what was ACTUALLY collected for THIS transaction -- R0 for a trial-activation
+  // checkout -- and is never mutated afterward. The REAL recurring charge PayFast collects on
+  // billing_date reuses the same provider_reference (PayFast's m_payment_id is stable for a
+  // subscription's whole lifetime) but is treated as a genuinely separate financial event: since
+  // this row's status is about to become 'paid' (not 'pending'), processBillingWebhookEvent's own
+  // "status is not pending" rule creates a BRAND NEW subscription_payments row for that later
+  // charge rather than overwriting this one -- see that function's own comment for why. A customer
+  // must never see "R299 paid" on the date they actually paid R0.
   await serviceClient
     .from('subscription_payments')
-    .update({
-      status: 'paid',
-      paid_at: new Date().toISOString(),
-      ...(plan ? { amount: plan.base_price } : {}),
-    })
+    .update({ status: 'paid', paid_at: new Date().toISOString() })
     .eq('id', payment.id);
+
+  // A real financial event (card verified, R0 collected) deserves a real invoice/receipt --
+  // create_subscription_invoice_for_payment() (migration 20260101000108) reads this row's own
+  // amount directly, which is correctly 0 now that it's never mutated; logged, not thrown, on
+  // failure, matching the identical try/catch posture the main payment_succeeded branch below
+  // already uses for the same call.
+  try {
+    await serviceClient.rpc('create_subscription_invoice_for_payment', { p_payment_id: payment.id });
+  } catch (err) {
+    console.error('[billing] trial-activation invoice creation failed', {
+      paymentId: payment.id,
+      orgId,
+      err,
+    });
+  }
 
   try {
     const toEmail = await resolveOrgPrincipalEmail(serviceClient, orgId);
@@ -650,13 +654,20 @@ export async function processBillingWebhookEvent(
 
   const event = provider.parseWebhookEvent(input.rawBody);
 
-  const { data: payment } = await serviceClient
+  // Payment amount semantics (V1 commercial onboarding pass): PayFast's m_payment_id/
+  // provider_reference is stable for a subscription's ENTIRE lifetime, so more than one
+  // subscription_payments row can now share it (one per actual financial event -- see below) --
+  // this is no longer guaranteed to match at most one row, hence order+limit(1) instead of
+  // maybeSingle() directly on an unfiltered query.
+  const { data: latestPayment } = await serviceClient
     .from('subscription_payments')
-    .select('id, org_id, subscription_id, billing_plan_change_id, amount, purpose')
+    .select('id, org_id, subscription_id, billing_plan_change_id, amount, purpose, status')
     .eq('provider_reference', event.providerReference)
+    .order('created_at', { ascending: false })
+    .limit(1)
     .maybeSingle();
 
-  const orgId = event.orgId ?? payment?.org_id;
+  const orgId = event.orgId ?? latestPayment?.org_id;
   if (!orgId) throw new Error(`Cannot resolve org_id for billing event ${event.providerEventId}`);
 
   const { error: insertError } = await serviceClient.from('billing_events').insert({
@@ -674,6 +685,63 @@ export async function processBillingWebhookEvent(
       return { alreadyProcessed: true };
     }
     throw new Error(insertError.message);
+  }
+
+  let payment = latestPayment;
+
+  // Payment amount semantics: the row found above is the MOST RECENT one for this
+  // provider_reference. If its status is still 'pending', THIS event is confirming the specific
+  // checkout Proplyst itself just initiated (trial activation, a first subscription, or a plan
+  // change) -- reuse it in place, exactly as before. If it's already 'paid'/'failed'/'refunded',
+  // there is no local record waiting for this event at all: this is a genuinely NEW financial
+  // event PayFast initiated on its own recurring-billing schedule (the real day-30 first charge,
+  // or any later month's renewal, or that renewal failing) -- create a BRAND NEW row for it
+  // instead of overwriting the historical record of the previous one. This is what stops a R0
+  // trial-activation row from ever being repurposed to claim R299 was collected: that row's
+  // status is already 'paid' by the time the real charge's ITN arrives, so this branch fires and
+  // a second, separate row is created for the real R299 event.
+  if (
+    payment &&
+    payment.status !== 'pending' &&
+    (event.type === 'payment_succeeded' || event.type === 'payment_failed')
+  ) {
+    const expected = await serviceClient.rpc('org_subscription_expected_amount', {
+      p_subscription_id: payment.subscription_id,
+    });
+    const expectedAmount = expected.data !== null ? Number(expected.data) : null;
+
+    if (event.type === 'payment_succeeded' && event.amount !== null && expectedAmount !== null) {
+      if (Math.abs(expectedAmount - Number(event.amount)) > 0.01) {
+        console.error(
+          '[billing] recurring-charge amount mismatch -- refusing to record or grant entitlement',
+          { orgId, subscriptionId: payment.subscription_id, expectedAmount, receivedAmount: event.amount },
+        );
+        throw new Error(
+          `billing_amount_mismatch: subscription ${payment.subscription_id} expected ${expectedAmount}, gateway reported ${event.amount}`,
+        );
+      }
+    }
+
+    const newAmount =
+      event.amount !== null ? Number(event.amount) : (expectedAmount ?? Number(payment.amount));
+
+    const { data: newRow, error: newRowError } = await serviceClient
+      .from('subscription_payments')
+      .insert({
+        org_id: orgId,
+        subscription_id: payment.subscription_id,
+        amount: newAmount,
+        currency: 'ZAR',
+        status: event.type === 'payment_succeeded' ? 'paid' : 'failed',
+        provider_reference: event.providerReference,
+        purpose: 'subscription_charge',
+        paid_at: event.type === 'payment_succeeded' ? new Date().toISOString() : null,
+      })
+      .select('id, org_id, subscription_id, billing_plan_change_id, amount, purpose, status')
+      .single();
+    if (newRowError || !newRow)
+      throw new Error(newRowError?.message ?? 'Failed to record recurring charge event');
+    payment = newRow;
   }
 
   if (payment) {

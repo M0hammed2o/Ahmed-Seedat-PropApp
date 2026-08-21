@@ -254,7 +254,7 @@ describeIfSupabase('trial-activation checkout (real local Supabase integration)'
     expect(trialUsage).toHaveLength(1);
   });
 
-  it('the real day-30 recurring charge on the same provider_reference activates the org normally, after setup has completed', async () => {
+  it('the real day-30 recurring charge on the same provider_reference activates the org normally, after setup has completed, and payment amount semantics stay correct throughout', async () => {
     const checkout = await startTrialActivationCheckout(serviceClient, {
       orgId,
       principalUserId,
@@ -275,10 +275,31 @@ describeIfSupabase('trial-activation checkout (real local Supabase integration)'
       signatureHeader: 'test-signature',
     });
 
+    // Payment amount semantics (V1 commercial onboarding pass): the trial-activation row must
+    // permanently show R0 -- never mutated to the plan price -- since R0 is genuinely all that
+    // was ever collected for it. A customer must never see "R299 paid" for the date they paid R0.
+    const { data: trialRow } = await serviceClient
+      .from('subscription_payments')
+      .select('amount, status, purpose')
+      .eq('id', checkout.subscriptionPaymentId)
+      .single();
+    expect(Number(trialRow!.amount)).toBe(0);
+    expect(trialRow!.status).toBe('paid');
+    expect(trialRow!.purpose).toBe('trial_activation');
+
+    // A real financial event (R0 collected) gets a real invoice too, not silently skipped.
+    const { data: trialInvoice } = await serviceClient
+      .from('subscription_invoices')
+      .select('total, subtotal')
+      .eq('subscription_payment_id', checkout.subscriptionPaymentId)
+      .maybeSingle();
+    expect(Number(trialInvoice!.total)).toBe(0);
+
     // The real recurring charge, 30 days later, on the SAME provider_reference/m_payment_id --
     // PayFast echoes it unchanged for the life of the subscription. Must fall through to the
     // EXISTING payment_succeeded handling (flips org to 'active'), not be mistaken for a second
-    // trial-activation event.
+    // trial-activation event, and must be recorded as a BRAND NEW row -- never by overwriting the
+    // R0 row above.
     const result = await processBillingWebhookEvent(serviceClient, {
       rawBody: JSON.stringify({
         providerEventId: `evt-real-charge-${orgId}`,
@@ -298,6 +319,88 @@ describeIfSupabase('trial-activation checkout (real local Supabase integration)'
       .eq('id', orgId)
       .single();
     expect(org!.status).toBe('active');
+
+    // The R0 row is still exactly as it was -- untouched by the later real charge.
+    const { data: trialRowAfter } = await serviceClient
+      .from('subscription_payments')
+      .select('amount, status')
+      .eq('id', checkout.subscriptionPaymentId)
+      .single();
+    expect(Number(trialRowAfter!.amount)).toBe(0);
+    expect(trialRowAfter!.status).toBe('paid');
+
+    // The real R299 charge is a SEPARATE row, correctly recording what was ACTUALLY collected.
+    const { data: allPayments } = await serviceClient
+      .from('subscription_payments')
+      .select('id, amount, status, purpose, paid_at')
+      .eq('org_id', orgId)
+      .order('created_at', { ascending: true });
+    expect(allPayments).toHaveLength(2);
+    expect(allPayments![0]!.id).toBe(checkout.subscriptionPaymentId);
+    expect(Number(allPayments![0]!.amount)).toBe(0);
+    const realCharge = allPayments![1]!;
+    expect(realCharge.id).not.toBe(checkout.subscriptionPaymentId);
+    expect(Number(realCharge.amount)).toBe(299);
+    expect(realCharge.status).toBe('paid');
+    expect(realCharge.purpose).toBe('subscription_charge');
+    expect(realCharge.paid_at).not.toBeNull();
+
+    // The real charge also gets its own, separate, correctly-valued invoice.
+    const { data: realInvoice } = await serviceClient
+      .from('subscription_invoices')
+      .select('total, invoice_type')
+      .eq('subscription_payment_id', realCharge.id)
+      .maybeSingle();
+    expect(Number(realInvoice!.total)).toBe(299);
+  });
+
+  it('a recurring charge with a mismatched amount is rejected and creates no new payment row', async () => {
+    const checkout = await startTrialActivationCheckout(serviceClient, {
+      orgId,
+      principalUserId,
+      planTier: 'starter',
+      interval: 'monthly',
+      idempotencyKey: `test-trial-${orgId}`,
+    });
+    await processBillingWebhookEvent(serviceClient, {
+      rawBody: JSON.stringify({
+        providerEventId: `evt-setup-${orgId}`,
+        type: 'payment_succeeded',
+        providerReference: checkout.providerSubscriptionId,
+        orgId,
+        amount: 0,
+        currency: 'ZAR',
+      }),
+      signatureHeader: 'test-signature',
+    });
+
+    // A tampered/incorrect amount for the real recurring charge (Starter is R299, not R999).
+    await expect(
+      processBillingWebhookEvent(serviceClient, {
+        rawBody: JSON.stringify({
+          providerEventId: `evt-bad-charge-${orgId}`,
+          type: 'payment_succeeded',
+          providerReference: checkout.providerSubscriptionId,
+          orgId,
+          amount: 999,
+          currency: 'ZAR',
+        }),
+        signatureHeader: 'test-signature',
+      }),
+    ).rejects.toThrow(/billing_amount_mismatch/);
+
+    const { data: allPayments } = await serviceClient
+      .from('subscription_payments')
+      .select('id')
+      .eq('org_id', orgId);
+    expect(allPayments).toHaveLength(1);
+
+    const { data: org } = await serviceClient
+      .from('organizations')
+      .select('status')
+      .eq('id', orgId)
+      .single();
+    expect(org!.status).toBe('trial');
   });
 
   it('a principal who has already used a trial is refused a second one at checkout time', async () => {
