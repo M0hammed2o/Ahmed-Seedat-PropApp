@@ -7,6 +7,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { loginSchema, type LoginInput } from '@propvault/validation';
 import { Button } from '@/components/ui/Button';
+import { PasswordInput } from '@/components/ui/PasswordInput';
 import { OAuthButtons } from '@/components/auth/OAuthButtons';
 import { MfaChallengeForm } from '@/components/auth/MfaChallengeForm';
 import { ProplystLogo } from '@/components/branding/ProplystLogo';
@@ -146,8 +147,7 @@ export function LoginForm() {
             Forgot password?
           </Link>
         </div>
-        <input
-          type="password"
+        <PasswordInput
           autoComplete="current-password"
           className="mt-1 w-full rounded-lg border border-light-border bg-transparent px-3 py-2 text-sm text-light-textPrimary outline-none focus:border-light-accent/40 focus:ring-4 focus:ring-light-accent/10 dark:border-dark-border dark:text-dark-textPrimary dark:focus:border-dark-accent/40 dark:focus:ring-dark-accent/10"
           {...register('password')}

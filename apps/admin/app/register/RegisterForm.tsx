@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { registerSchema } from '@propvault/validation';
 import { TERMS_VERSION, PRIVACY_VERSION } from '@propvault/config';
 import { Button } from '@/components/ui/Button';
+import { PasswordInput } from '@/components/ui/PasswordInput';
 import { OAuthButtons } from '@/components/auth/OAuthButtons';
 import { CheckEmailScreen } from '@/components/auth/CheckEmailScreen';
 import { ProplystLogo } from '@/components/branding/ProplystLogo';
@@ -160,9 +161,8 @@ export function RegisterForm() {
         <label className="mt-4 block text-xs text-light-textSecondary dark:text-dark-textSecondary">
           Password
         </label>
-        <input
+        <PasswordInput
           required
-          type="password"
           autoComplete="new-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
@@ -177,9 +177,8 @@ export function RegisterForm() {
         <label className="mt-4 block text-xs text-light-textSecondary dark:text-dark-textSecondary">
           Confirm password
         </label>
-        <input
+        <PasswordInput
           required
-          type="password"
           autoComplete="new-password"
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}

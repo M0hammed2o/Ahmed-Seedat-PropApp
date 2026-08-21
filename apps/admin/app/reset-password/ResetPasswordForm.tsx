@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { getBrowserSupabaseClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/Button';
+import { PasswordInput } from '@/components/ui/PasswordInput';
 import { ProplystLogo } from '@/components/branding/ProplystLogo';
 
 type SessionState = 'checking' | 'valid' | 'invalid';
@@ -137,9 +138,8 @@ export function ResetPasswordForm() {
             <label className="mt-6 block text-xs text-light-textSecondary dark:text-dark-textSecondary">
               New password
             </label>
-            <input
+            <PasswordInput
               required
-              type="password"
               autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -149,9 +149,8 @@ export function ResetPasswordForm() {
             <label className="mt-4 block text-xs text-light-textSecondary dark:text-dark-textSecondary">
               Confirm new password
             </label>
-            <input
+            <PasswordInput
               required
-              type="password"
               autoComplete="new-password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}

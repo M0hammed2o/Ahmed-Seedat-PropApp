@@ -77,17 +77,33 @@ export async function getOrganizationEntitlements(
   supabase: SupabaseClient,
   orgId: string,
 ): Promise<OrganizationEntitlements> {
-  const [limit, count, slots, ocr, ownerPortal, advancedReporting, bulkCommunications, apiAccess] =
-    await Promise.all([
-      supabase.rpc('org_property_limit', { p_org_id: orgId }),
-      supabase.rpc('org_active_property_count', { p_org_id: orgId }),
-      supabase.rpc('available_property_slots', { p_org_id: orgId }),
-      supabase.rpc('org_feature_enabled', { p_org_id: orgId, p_feature_key: 'ocrEnabled' }),
-      supabase.rpc('org_feature_enabled', { p_org_id: orgId, p_feature_key: 'ownerPortalEnabled' }),
-      supabase.rpc('org_feature_enabled', { p_org_id: orgId, p_feature_key: 'advancedReporting' }),
-      supabase.rpc('org_feature_enabled', { p_org_id: orgId, p_feature_key: 'bulkCommunications' }),
-      supabase.rpc('org_feature_enabled', { p_org_id: orgId, p_feature_key: 'apiAccess' }),
-    ]);
+  const [
+    limit,
+    count,
+    slots,
+    ocr,
+    ownerPortal,
+    advancedReporting,
+    bulkCommunications,
+    apiAccess,
+    ownerLimit,
+    ownerCount,
+    ownerSlots,
+    multiOwnerManagement,
+  ] = await Promise.all([
+    supabase.rpc('org_property_limit', { p_org_id: orgId }),
+    supabase.rpc('org_active_property_count', { p_org_id: orgId }),
+    supabase.rpc('available_property_slots', { p_org_id: orgId }),
+    supabase.rpc('org_feature_enabled', { p_org_id: orgId, p_feature_key: 'ocrEnabled' }),
+    supabase.rpc('org_feature_enabled', { p_org_id: orgId, p_feature_key: 'ownerPortalEnabled' }),
+    supabase.rpc('org_feature_enabled', { p_org_id: orgId, p_feature_key: 'advancedReporting' }),
+    supabase.rpc('org_feature_enabled', { p_org_id: orgId, p_feature_key: 'bulkCommunications' }),
+    supabase.rpc('org_feature_enabled', { p_org_id: orgId, p_feature_key: 'apiAccess' }),
+    supabase.rpc('org_owner_limit', { p_org_id: orgId }),
+    supabase.rpc('org_active_owner_count', { p_org_id: orgId }),
+    supabase.rpc('available_owner_slots', { p_org_id: orgId }),
+    supabase.rpc('org_feature_enabled', { p_org_id: orgId, p_feature_key: 'multiOwnerManagement' }),
+  ]);
   for (const [name, result] of [
     ['org_property_limit', limit],
     ['org_active_property_count', count],
@@ -97,6 +113,10 @@ export async function getOrganizationEntitlements(
     ['org_feature_enabled(advancedReporting)', advancedReporting],
     ['org_feature_enabled(bulkCommunications)', bulkCommunications],
     ['org_feature_enabled(apiAccess)', apiAccess],
+    ['org_owner_limit', ownerLimit],
+    ['org_active_owner_count', ownerCount],
+    ['available_owner_slots', ownerSlots],
+    ['org_feature_enabled(multiOwnerManagement)', multiOwnerManagement],
   ] as const) {
     if (result.error) throw new Error(`${name} RPC failed: ${result.error.message}`);
   }
@@ -110,7 +130,21 @@ export async function getOrganizationEntitlements(
     advancedReporting: advancedReporting.data === true,
     bulkCommunications: bulkCommunications.data === true,
     apiAccess: apiAccess.data === true,
+    ownerLimit: ownerLimit.data === null ? null : Number(ownerLimit.data),
+    activeOwnerCount: Number(ownerCount.data ?? 0),
+    availableOwnerSlots: ownerSlots.data === null ? null : Number(ownerSlots.data),
+    multiOwnerManagement: multiOwnerManagement.data === true,
   };
+}
+
+/** Real, gated: whether the org may add another external owner (owners.status = 'active' row) --
+ * enforced unbypassably by the owners_insert_agent_plus_capacity RLS policy (migration
+ * 20260101000112); this is the "friendlier message at the API layer" wrapper, same split every
+ * other canUse-/mayCreate-style helper in this file already establishes. */
+export async function mayAddExternalOwner(supabase: SupabaseClient, orgId: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('available_owner_slots', { p_org_id: orgId });
+  if (error) throw new Error(`available_owner_slots RPC failed: ${error.message}`);
+  return data === null || Number(data) > 0;
 }
 
 /** Real, gated feature: the three OCR extraction routes (documents/leases/levy-statements). */

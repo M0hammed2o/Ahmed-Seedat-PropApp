@@ -143,6 +143,19 @@ export interface OrganizationEntitlements {
   /** No technical surface exists anywhere in this codebase to gate (RELEASE A audit finding) --
    * exposed here as the raw plan value for UI display only, never enforced. */
   apiAccess: boolean;
+  /** Commercial plan restructure (WORKLOG.md this date): the org's current plan's
+   * feature_limits.includedOwners + purchased_extra_owner_slots. null = unlimited; 0 on Starter
+   * (deliberately not sold as an agency plan) is a real, enforced zero, never treated as unset. */
+  ownerLimit: number | null;
+  /** Distinct external-owner identities (owners rows) for this org -- one owner linked to five
+   * properties counts once, never five. */
+  activeOwnerCount: number;
+  /** null = unlimited. May be zero or negative once the limit is reached. */
+  availableOwnerSlots: number | null;
+  /** Business-tier only in the current plan catalogue. Raw plan value, not independently
+   * technically gated anywhere beyond the UI today (same posture as bulkCommunications/apiAccess
+   * above -- RELEASE A's own "do not pretend a feature exists merely to gate it" instruction). */
+  multiOwnerManagement: boolean;
 }
 
 // Rank order for "at least X" comparisons — mirrors has_org_role()'s per-branch semantics in
