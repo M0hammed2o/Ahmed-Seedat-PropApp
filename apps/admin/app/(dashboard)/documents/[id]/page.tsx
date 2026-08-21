@@ -8,6 +8,7 @@ import { OcrPanel } from '@/components/documents/OcrPanel';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Panel } from '@/components/ui/Panel';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
+import { canUseOcr } from '@/lib/subscriptionEntitlements';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -48,6 +49,7 @@ export default async function DocumentDetailPage({ params }: RouteParams) {
         signedUrl={null}
         extractionResult={null}
         canAct
+        ocrEnabled
       />
     );
   }
@@ -87,6 +89,7 @@ export default async function DocumentDetailPage({ params }: RouteParams) {
   const membership =
     session && document.orgId ? findActiveMembership(session, document.orgId) : undefined;
   const canAct = Boolean(membership && canWriteOrgRecords(membership.role));
+  const ocrEnabled = document.orgId ? await canUseOcr(supabase, document.orgId) : true;
 
   return (
     <DocumentDetailView
@@ -94,6 +97,7 @@ export default async function DocumentDetailPage({ params }: RouteParams) {
       signedUrl={signedUrl}
       extractionResult={extractionResult}
       canAct={canAct}
+      ocrEnabled={ocrEnabled}
     />
   );
 }
@@ -103,11 +107,13 @@ function DocumentDetailView({
   signedUrl,
   extractionResult,
   canAct,
+  ocrEnabled,
 }: {
   document: DocumentRecord;
   signedUrl: string | null;
   extractionResult: ExtractionResult | null;
   canAct: boolean;
+  ocrEnabled: boolean;
 }) {
   return (
     <div className="space-y-6 animate-rise">
@@ -165,6 +171,7 @@ function DocumentDetailView({
         documentType={document.documentType}
         extractionResult={extractionResult}
         canAct={canAct}
+        ocrEnabled={ocrEnabled}
       />
     </div>
   );

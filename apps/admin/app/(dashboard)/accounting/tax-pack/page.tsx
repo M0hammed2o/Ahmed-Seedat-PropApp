@@ -8,6 +8,8 @@ import {
   canPostAccountingRecords,
 } from '@/lib/orgSession';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
+import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { canUseAdvancedReporting } from '@/lib/subscriptionEntitlements';
 
 /**
  * GET /accounting/tax-pack (TASKS.md M14 part 3, API_SPEC.md §6, ACCOUNTING.md §7) -- computed
@@ -44,13 +46,16 @@ export default async function TaxPackPage() {
     );
   }
 
+  const supabase = await getServerSupabaseClient();
+  const advancedReportingEnabled = await canUseAdvancedReporting(supabase, activeOrg.orgId);
+
   return (
     <div className="space-y-5 animate-rise">
       <PageHeader
         title="Tax Pack"
         subtitle="South African tax-year summary, computed from your ledger."
       />
-      <TaxPackClient orgId={activeOrg.orgId} />
+      <TaxPackClient orgId={activeOrg.orgId} advancedReportingEnabled={advancedReportingEnabled} />
     </div>
   );
 }

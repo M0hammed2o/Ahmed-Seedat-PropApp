@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { TaxPackLine } from '@propvault/types';
+import { FeatureLockNotice } from '@/components/ui/FeatureLockNotice';
 
 function currentSaTaxYear(): number {
   const now = new Date();
@@ -62,7 +63,15 @@ function demoTaxPackResponse(taxYear: number): TaxPackResponse {
 
 // ACCOUNTING.md §7 -- SA tax year runs 1 March - end of February; "tax_year" labels the year it
 // ENDS in (e.g. 2027 = 1 Mar 2026 - 28/29 Feb 2027), matching compute_tax_pack()'s own convention.
-export function TaxPackClient({ orgId, demoMode = false }: { orgId: string; demoMode?: boolean }) {
+export function TaxPackClient({
+  orgId,
+  demoMode = false,
+  advancedReportingEnabled = true,
+}: {
+  orgId: string;
+  demoMode?: boolean;
+  advancedReportingEnabled?: boolean;
+}) {
   const [taxYear, setTaxYear] = useState(currentSaTaxYear());
   const [data, setData] = useState<TaxPackResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -122,15 +131,21 @@ export function TaxPackClient({ orgId, demoMode = false }: { orgId: string; demo
           >
             Download CSV
           </span>
-        ) : (
+        ) : advancedReportingEnabled ? (
           <a
             href={`/api/v1/tax-pack/export?org_id=${orgId}&tax_year=${taxYear}`}
             className="rounded-md bg-light-accent px-3 py-1.5 text-sm font-medium text-light-accentContrast dark:bg-dark-accent dark:text-dark-accentContrast"
           >
             Download CSV
           </a>
-        )}
+        ) : null}
       </div>
+
+      {!demoMode && !advancedReportingEnabled ? (
+        <div className="mt-4">
+          <FeatureLockNotice feature="CSV export" requiredPlanName="Professional" />
+        </div>
+      ) : null}
 
       {error ? (
         <p className="mt-4 text-sm text-light-statusOverdue dark:text-dark-statusOverdue">

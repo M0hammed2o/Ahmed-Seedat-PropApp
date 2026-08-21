@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import type { ExtractionResult, FieldExtractionResult } from '@propvault/types';
 import { Button } from '@/components/ui/Button';
 import { Panel } from '@/components/ui/Panel';
+import { FeatureLockNotice } from '@/components/ui/FeatureLockNotice';
 
 const SUPPORTED_TYPES = new Set(['bill', 'lease']);
 
@@ -33,11 +34,13 @@ export function OcrPanel({
   documentType,
   extractionResult,
   canAct,
+  ocrEnabled,
 }: {
   documentId: string;
   documentType: string;
   extractionResult: ExtractionResult | null;
   canAct: boolean;
+  ocrEnabled: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -105,7 +108,9 @@ export function OcrPanel({
       ) : null}
 
       {!extractionResult ? (
-        canAct ? (
+        !ocrEnabled ? (
+          <FeatureLockNotice feature="OCR extraction" requiredPlanName="Professional" />
+        ) : canAct ? (
           <>
             <p className="text-xs text-light-textMuted dark:text-dark-textMuted">
               No extraction yet. This never applies fields automatically — you'll review them here

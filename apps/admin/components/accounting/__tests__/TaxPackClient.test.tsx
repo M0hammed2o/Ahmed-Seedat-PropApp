@@ -65,6 +65,28 @@ describe('TaxPackClient', () => {
     );
   });
 
+  it('shows a feature-lock notice instead of the download link when the org plan does not include advanced reporting', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          taxYear: 2027,
+          lines: [],
+          totalIncome: 0,
+          totalExpenses: 0,
+          netIncome: 0,
+          disclaimer: 'This tax pack is not tax advice.',
+        }),
+      }),
+    );
+
+    render(<TaxPackClient orgId="org-1" advancedReportingEnabled={false} />);
+
+    await waitFor(() => expect(screen.getByText(/CSV export is available on Professional/)).toBeTruthy());
+    expect(screen.queryByText('Download CSV')).toBeNull();
+  });
+
   it('renders fixture data with no fetch call when demoMode is true (PWA_V1_COMPLETION_PLAN.md #2)', async () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal('fetch', fetchSpy);

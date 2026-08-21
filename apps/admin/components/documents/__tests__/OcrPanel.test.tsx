@@ -36,21 +36,39 @@ const RESULT: ExtractionResult = {
 describe('OcrPanel', () => {
   it('renders nothing for a document type the provider does not support', () => {
     const { container } = render(
-      <OcrPanel documentId="document-1" documentType="statement" extractionResult={null} canAct />,
+      <OcrPanel
+        documentId="document-1"
+        documentType="statement"
+        extractionResult={null}
+        canAct
+        ocrEnabled
+      />,
     );
     expect(container.innerHTML).toBe('');
   });
 
   it('shows an "Extract fields" button when no extraction exists yet and the caller can act', () => {
     render(
-      <OcrPanel documentId="document-1" documentType="lease" extractionResult={null} canAct />,
+      <OcrPanel
+        documentId="document-1"
+        documentType="lease"
+        extractionResult={null}
+        canAct
+        ocrEnabled
+      />,
     );
     expect(screen.getByText('Extract fields')).toBeTruthy();
   });
 
   it('shows extracted field values and a "Confirm reviewed" button once extraction exists but is unreviewed', () => {
     render(
-      <OcrPanel documentId="document-1" documentType="lease" extractionResult={RESULT} canAct />,
+      <OcrPanel
+        documentId="document-1"
+        documentType="lease"
+        extractionResult={RESULT}
+        canAct
+        ocrEnabled
+      />,
     );
     expect(screen.getByText('Mock Tenant')).toBeTruthy();
     expect(screen.getByText('Confirm reviewed')).toBeTruthy();
@@ -63,6 +81,7 @@ describe('OcrPanel', () => {
         documentType="lease"
         extractionResult={{ ...RESULT, reviewedAt: '2026-08-02T00:00:00Z' }}
         canAct
+        ocrEnabled
       />,
     );
     expect(screen.getByText(/Reviewed/)).toBeTruthy();
@@ -76,9 +95,24 @@ describe('OcrPanel', () => {
         documentType="lease"
         extractionResult={null}
         canAct={false}
+        ocrEnabled
       />,
     );
     expect(screen.queryByText('Extract fields')).toBeNull();
     expect(screen.getByText('No extraction yet.')).toBeTruthy();
+  });
+
+  it('shows a feature-lock notice instead of Extract fields when the org plan does not include OCR, even for a caller who can act', () => {
+    render(
+      <OcrPanel
+        documentId="document-1"
+        documentType="lease"
+        extractionResult={null}
+        canAct
+        ocrEnabled={false}
+      />,
+    );
+    expect(screen.queryByText('Extract fields')).toBeNull();
+    expect(screen.getByText(/OCR extraction is available on Professional/)).toBeTruthy();
   });
 });
