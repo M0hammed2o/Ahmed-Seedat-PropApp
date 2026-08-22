@@ -6,7 +6,7 @@ import { resolveOwnerSession } from './ownerSession';
 import { hasAcceptedCurrentLegalTerms } from './legalConsent';
 import { isProfileComplete } from './profileCompletion';
 import { mayCreatePortfolio } from './subscriptionEntitlements';
-import { getServerSupabaseClient } from './supabase/server';
+import { getServerSupabaseClient, getServiceRoleClient } from './supabase/server';
 
 export interface AuthenticatedDestination {
   kind:
@@ -117,6 +117,21 @@ export async function resolveAuthenticatedDestination(): Promise<AuthenticatedDe
     const customerGate = await resolveCustomerOnboardingGate(portalSession.organizations);
     if (customerGate) return customerGate;
 
+    // Staff invitation flow audit (this date), defense-in-depth: a caller with zero memberships
+    // who was actually invited to an EXISTING organization must never reach the self-service
+    // onboarding branch below at all -- resolved server-side from a real pending invitation row
+    // matching this exact authenticated caller's own email (never a client parameter), so this
+    // catches ANY way invitation context could get lost before reaching here (the confirmation-
+    // email fix below is the primary repair; this is the backstop for cases that fix doesn't
+    // cover -- a stale pre-fix email already sitting in someone's inbox, a caller who navigates to
+    // `/` directly instead of pressing Continue, etc.). Deliberately does NOT use any persisted
+    // per-user flag (is_staff or similar) -- this is a fresh, per-request lookup against the real
+    // invitation table, so it can never drift from what's actually true, and a user who later
+    // creates their own organization is completely unaffected (this only ever fires while they
+    // hold zero memberships).
+    const pendingInvitation = await resolvePendingInvitationDestination();
+    if (pendingInvitation) return pendingInvitation;
+
     // Commercial onboarding bypass fix (this date): a caller with zero organization memberships
     // at all previously landed straight on /onboarding/create-organization -- which creates a
     // fully-inert org (no plan, no payment method) with zero further gating, letting a brand-new
@@ -162,6 +177,41 @@ async function hasIncompleteCommercialSetup(principalOrgIds: string[]): Promise<
     .is('commercial_setup_completed_at', null)
     .limit(1);
   return (data?.length ?? 0) > 0;
+}
+
+/**
+ * Staff invitation flow audit (this date). Uses the service-role client deliberately, not the
+ * caller's own session-bound client -- organization_invites' only SELECT policy
+ * (organization_invites_select_same_org) scopes to orgs the caller ALREADY has an active
+ * membership in, which by construction is never true for a caller reaching this function (it's
+ * only called from the zero-membership branch). A brand-new invitee genuinely cannot see their
+ * own pending invite through RLS yet -- that's correct for arbitrary client-side queries, but this
+ * is a narrow, server-only, read-only lookup keyed on the ALREADY-AUTHENTICATED caller's own email
+ * (never client input), not a new client-facing capability. Deterministic when more than one
+ * pending invite exists: most recently created wins; any others remain fully intact and
+ * acceptable later by navigating directly to their own link.
+ */
+async function resolvePendingInvitationDestination(): Promise<AuthenticatedDestination | null> {
+  const supabase = await getServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user?.email) return null;
+
+  const serviceClient = getServiceRoleClient();
+  const { data: invite } = await serviceClient
+    .from('organization_invites')
+    .select('token')
+    .eq('email', user.email)
+    .is('accepted_at', null)
+    .is('revoked_at', null)
+    .gt('expires_at', new Date().toISOString())
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!invite) return null;
+
+  return { kind: 'onboarding', path: `/invitations/accept?token=${invite.token}` };
 }
 
 async function resolveCustomerOnboardingGate(

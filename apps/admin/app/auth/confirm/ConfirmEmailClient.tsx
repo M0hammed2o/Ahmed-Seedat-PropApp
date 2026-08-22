@@ -13,8 +13,18 @@ type ConfirmState =
  * /auth/confirm (app/auth/confirm/page.tsx) never calls verifyOtp(); only a real click on the
  * button below does, via POST /api/v1/auth/confirm. This is what makes the link safe against
  * email security scanners and link-preview fetchers, which only ever issue a GET.
+ *
+ * Staff invitation flow audit (this date): `next` is already fully resolved and safety-validated
+ * by the parent Server Component (safeNextPathOr against the extracted inner RedirectTo path) --
+ * this component only ever navigates to it, never re-derives or re-trusts it itself.
  */
-export function ConfirmEmailClient({ tokenHash }: { tokenHash: string | null }) {
+export function ConfirmEmailClient({
+  tokenHash,
+  next,
+}: {
+  tokenHash: string | null;
+  next: string;
+}) {
   const router = useRouter();
   const [state, setState] = useState<ConfirmState>(tokenHash ? 'idle' : 'invalid');
   const [resendEmail, setResendEmail] = useState('');
@@ -37,7 +47,7 @@ export function ConfirmEmailClient({ tokenHash }: { tokenHash: string | null }) 
   }
 
   function handleContinue() {
-    router.replace('/');
+    router.replace(next);
     router.refresh();
   }
 

@@ -65,10 +65,24 @@ export async function POST(request: NextRequest) {
   });
 
   if (error) {
-    // The RPC raises a plain exception for "not found/expired/wrong email" (see its comment in
-    // the migration) — treated as 404, never 403, so a guessed/leaked token can't be used to
-    // distinguish "wrong email" from "doesn't exist" (API_SPEC.md §0's org-enumeration rule,
-    // applied here to invite tokens for the same reason).
+    // Staff invitation flow audit (this date): a seat-capacity rejection (migration
+    // 20260101000123) is a real, distinct outcome — the invite is still genuinely valid and
+    // addressed to this account, it just can't be accepted right now — so it gets its own code
+    // and a non-404 status, unlike the generic "not found/expired/wrong email" bucket below (which
+    // stays 404, never 403, so a guessed/leaked token still can't be used to distinguish "wrong
+    // email" from "doesn't exist," API_SPEC.md §0's org-enumeration rule).
+    if (error.message.startsWith('staff_seat_limit_reached')) {
+      return NextResponse.json(
+        {
+          error: {
+            code: 'staff_seat_limit_reached',
+            message:
+              'This organization has no remaining staff seats available right now. Ask the organization to free up a seat or upgrade their plan, then try again.',
+          },
+        },
+        { status: 409 },
+      );
+    }
     return NextResponse.json(
       {
         error: {

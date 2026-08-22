@@ -14,12 +14,36 @@ import { resolveAuthenticatedDestination } from '../destinationResolver';
 // resolves to an empty array) so every pre-existing test above keeps testing exactly what it
 // always tested, matching this file's own established convention for the consent/profile mocks.
 const mockSetupQuery = vi.fn();
+// Staff invitation flow audit (this date): destinationResolver's new pending-invitation backstop
+// reads the caller's own email via getServerSupabaseClient().auth.getUser(), then looks up a
+// pending invite via getServiceRoleClient() (RLS on organization_invites only allows a same-org
+// SELECT, which a zero-membership caller never satisfies -- see the function's own comment).
+const mockGetUser = vi.fn();
+const mockInviteMaybeSingle = vi.fn();
 vi.mock('../supabase/server', () => ({
   getServerSupabaseClient: () => ({
+    auth: { getUser: mockGetUser },
     from: () => ({
       select: () => ({
         in: () => ({
           is: () => ({ limit: mockSetupQuery }),
+        }),
+      }),
+    }),
+  }),
+  getServiceRoleClient: () => ({
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          is: () => ({
+            is: () => ({
+              gt: () => ({
+                order: () => ({
+                  limit: () => ({ maybeSingle: mockInviteMaybeSingle }),
+                }),
+              }),
+            }),
+          }),
         }),
       }),
     }),
@@ -67,6 +91,11 @@ beforeEach(() => {
   // branch keeps testing what it always tested. The "linked owner/tenant only" case gets its own
   // dedicated test further down.
   mockMayCreatePortfolio.mockResolvedValue(true);
+  // Staff invitation flow audit (this date): defaults to "no pending invitation" so every
+  // pre-existing test below keeps testing exactly what it always tested. The invitation-backstop
+  // case gets its own dedicated tests further down.
+  mockGetUser.mockResolvedValue({ data: { user: { email: 'caller@example.com' } } });
+  mockInviteMaybeSingle.mockResolvedValue({ data: null });
 });
 
 describe('resolveAuthenticatedDestination', () => {
@@ -290,6 +319,95 @@ describe('resolveAuthenticatedDestination', () => {
     expect(await resolveAuthenticatedDestination()).toEqual({
       kind: 'onboarding',
       path: '/onboarding/create-organization',
+    });
+  });
+
+  describe('pending-invitation backstop (staff invitation flow audit, this date)', () => {
+    it('routes a zero-membership caller with a valid pending invitation matching their email to /invitations/accept, not choose-plan', async () => {
+      mockResolvePortalSession.mockResolvedValue({
+        userId: 'user-1',
+        organizations: [],
+        ownerIdentities: [],
+        isPlatformAdmin: false,
+        supportSessions: [],
+      });
+      mockMayCreatePortfolio.mockResolvedValue(true);
+      mockGetUser.mockResolvedValue({ data: { user: { email: 'invitee@example.com' } } });
+      mockInviteMaybeSingle.mockResolvedValue({ data: { token: 'abc-123-token' } });
+
+      expect(await resolveAuthenticatedDestination()).toEqual({
+        kind: 'onboarding',
+        path: '/invitations/accept?token=abc-123-token',
+      });
+    });
+
+    it('the invitation backstop takes priority even for a NOT portfolio-eligible (linked-owner-only) caller', async () => {
+      mockResolvePortalSession.mockResolvedValue({
+        userId: 'user-1',
+        organizations: [],
+        ownerIdentities: [],
+        isPlatformAdmin: false,
+        supportSessions: [],
+      });
+      mockMayCreatePortfolio.mockResolvedValue(false);
+      mockInviteMaybeSingle.mockResolvedValue({ data: { token: 'linked-owner-invite-token' } });
+
+      expect(await resolveAuthenticatedDestination()).toEqual({
+        kind: 'onboarding',
+        path: '/invitations/accept?token=linked-owner-invite-token',
+      });
+    });
+
+    it('falls through to choose-plan when no pending invitation exists (the ordinary new-customer case, unaffected)', async () => {
+      mockResolvePortalSession.mockResolvedValue({
+        userId: 'user-1',
+        organizations: [],
+        ownerIdentities: [],
+        isPlatformAdmin: false,
+        supportSessions: [],
+      });
+      mockMayCreatePortfolio.mockResolvedValue(true);
+      mockInviteMaybeSingle.mockResolvedValue({ data: null });
+
+      expect(await resolveAuthenticatedDestination()).toEqual({
+        kind: 'onboarding',
+        path: '/onboarding/choose-plan',
+      });
+    });
+
+    it('never consults the invitation backstop for an active org member (existing membership routing is completely unaffected)', async () => {
+      mockResolvePortalSession.mockResolvedValue({
+        userId: 'user-1',
+        organizations: [
+          { orgId: 'org-1', role: 'principal', status: 'active', orgStatus: 'active' },
+        ],
+        ownerIdentities: [],
+        isPlatformAdmin: false,
+        supportSessions: [],
+      });
+
+      expect(await resolveAuthenticatedDestination()).toEqual({
+        kind: 'org-dashboard',
+        path: '/dashboard',
+      });
+      expect(mockInviteMaybeSingle).not.toHaveBeenCalled();
+    });
+
+    it('does not crash and falls through normally if the caller has no resolvable email', async () => {
+      mockResolvePortalSession.mockResolvedValue({
+        userId: 'user-1',
+        organizations: [],
+        ownerIdentities: [],
+        isPlatformAdmin: false,
+        supportSessions: [],
+      });
+      mockGetUser.mockResolvedValue({ data: { user: null } });
+
+      expect(await resolveAuthenticatedDestination()).toEqual({
+        kind: 'onboarding',
+        path: '/onboarding/choose-plan',
+      });
+      expect(mockInviteMaybeSingle).not.toHaveBeenCalled();
     });
   });
 

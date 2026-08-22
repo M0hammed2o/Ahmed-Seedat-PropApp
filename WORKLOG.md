@@ -1,5 +1,51 @@
 # Worklog
 
+## 2026-08-22 (continued) — Staff invitation flow: continuation-through-confirmation, routing backstop, seat check
+
+Root cause of a second real production bug (found via a live staff-invitation walkthrough): the
+signup confirmation email's link (`supabase/templates/confirmation.html`) never carried `next=` at
+all -- hardcoded to `/auth/confirm?token_hash=...&type=signup`, discarding whatever
+`emailRedirectTo` was actually passed to `signUp()`. Every email/password signup that confirmed
+via that link (invited staff or not) landed on `router.replace('/')` with zero context;
+`resolveAuthenticatedDestination()`'s zero-membership branch then had no way to know the caller
+held a real pending invitation, sending them to `/onboarding/choose-plan` to select their own
+subscription instead.
+
+**Empirically verified before implementing** (per explicit instruction not to assume encoding
+behavior): a real local signup against local Supabase + Mailpit inspection proved `{{ .RedirectTo
+}}` renders as the FULL `emailRedirectTo` URL, not a bare safe path -- `redirect_to` must also be
+sent as a URL query parameter on the signup request (not the JSON body) for GoTrue to honor it at
+all. Fix design follows directly from that finding, not a guess.
+
+**Fix 1** -- `confirmation.html`'s link now carries `&next={{ .RedirectTo }}`;
+`app/auth/confirm/page.tsx` extracts the INNER `next` query param from that URL server-side and
+re-validates with `safeNextPathOr()` before `ConfirmEmailClient` ever sees it (never trusts the
+outer RedirectTo URL as a redirect target itself); `ConfirmEmailClient`'s "Continue"/"already
+confirmed" buttons now navigate to that validated `next` instead of a hardcoded `/`. Template
+change committed to the repo only -- production sync (`supabase config push` or dashboard) still
+needs a separate, explicit step, not performed this pass.
+
+**Fix 2**, defense-in-depth -- `destinationResolver.ts`'s zero-membership branch now checks for a
+real pending, unexpired invitation matching the authenticated caller's own email (service-role
+read -- `organization_invites`' only SELECT policy requires an active same-org membership, which a
+brand-new invitee never has yet) before ever considering `mayCreatePortfolio()`. No global
+`is_staff` flag; a fresh per-request DB lookup, so it can't drift from what's actually true and
+never affects a user who later creates their own org.
+
+**Fix 3** -- closed a real gap found during the audit: `accept_organization_invite()` only ever
+validated staff-seat capacity at invite-*creation* time, never at *acceptance*. Migration
+`20260101000123` adds a concurrency-safe re-check inside the RPC itself (locks the org row, not
+just the invite row, so two different invitations for the same org serialize against each other);
+rejects atomically with nothing partially created if no seat remains. Verified against a REAL race,
+not just reasoned about: a new vitest integration test fires two genuinely concurrent
+`accept_organization_invite()` calls (two real PostgREST connections) at an org with exactly one
+seat left -- exactly one succeeds, one is cleanly rejected, final billable-staff count is always 1.
+
+Full local pgTAP suite (68 files, 948 tests, including two new files for this fix) passes clean;
+full local `vitest run` at 735/743 passing, the only 5 non-passing are the same pre-existing
+invalid-local-Resend-API-key failures in `emailDispatch.test.ts` this engagement has already
+disclosed repeatedly, unrelated to any file this pass touched. Not pushed, not deployed.
+
 ## 2026-08-22 — Commercial onboarding fix + public website / registration polish
 
 Root cause (found via a live production walkthrough, then a two-part audit before any code
