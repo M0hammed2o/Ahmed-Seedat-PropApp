@@ -97,4 +97,35 @@ describe('OAuthButtons', () => {
     expect(screen.queryByText('Continue with Apple')).toBeNull();
     expect(screen.getByText('Continue with Google')).toBeTruthy();
   });
+
+  // Entry-path preservation audit (this date): a plan-specific pricing CTA sets
+  // next=/onboarding/choose-plan?plan=...&interval=... on /register -- both OAuth providers must
+  // carry that exact value through unchanged (same redirectTo mechanism as any other `next`, no
+  // provider-specific handling exists anywhere in this component).
+  it('Google preserves a next containing plan + interval unchanged', async () => {
+    render(<OAuthButtons next="/onboarding/choose-plan?plan=professional&interval=annual" />);
+    fireEvent.click(screen.getByText('Continue with Google'));
+
+    await waitFor(() => expect(signInWithOAuth).toHaveBeenCalledTimes(1));
+    const call = signInWithOAuth.mock.calls[0]![0];
+    expect(call.options.redirectTo).toContain(
+      encodeURIComponent('/onboarding/choose-plan?plan=professional&interval=annual'),
+    );
+  });
+
+  it('Apple preserves a next containing plan + interval unchanged', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APPLE_OAUTH_ENABLED', 'true');
+    vi.resetModules();
+    const { OAuthButtons: OAuthButtonsWithAppleEnabled } = await import('../OAuthButtons');
+    render(
+      <OAuthButtonsWithAppleEnabled next="/onboarding/choose-plan?plan=starter&interval=monthly" />,
+    );
+    fireEvent.click(screen.getByText('Continue with Apple'));
+
+    await waitFor(() => expect(signInWithOAuth).toHaveBeenCalledTimes(1));
+    const call = signInWithOAuth.mock.calls[0]![0];
+    expect(call.options.redirectTo).toContain(
+      encodeURIComponent('/onboarding/choose-plan?plan=starter&interval=monthly'),
+    );
+  });
 });

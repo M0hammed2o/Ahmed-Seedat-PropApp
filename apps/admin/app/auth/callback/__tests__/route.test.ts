@@ -104,6 +104,19 @@ describeIfSupabase('GET /auth/callback (real local Supabase integration)', () =>
     expect(response.headers.get('location')).toBe(`http://localhost:3000${nextPath}`);
   });
 
+  // Entry-path preservation audit (this date): the same shared tail a plan-specific pricing CTA's
+  // ?next=/onboarding/choose-plan?plan=...&interval=... must survive through -- proves the plan +
+  // interval query params themselves (not just an opaque path) come out the other side intact.
+  it('preserves a next carrying plan + interval query params end-to-end', async () => {
+    const { tokenHash } = await createUnconfirmedUserWithTokenHash('next-plan-preserved');
+    const nextPath = '/onboarding/choose-plan?plan=business&interval=monthly';
+    const response = await authCallback(
+      callbackRequest(`?token_hash=${tokenHash}&type=signup&next=${encodeURIComponent(nextPath)}`),
+    );
+    expect(response.status).toBe(307);
+    expect(response.headers.get('location')).toBe(`http://localhost:3000${nextPath}`);
+  });
+
   it('open-redirect protection: an absolute-URL ?next= is neutralized, never followed to an attacker origin', async () => {
     const { tokenHash } = await createUnconfirmedUserWithTokenHash('open-redirect');
     const response = await authCallback(

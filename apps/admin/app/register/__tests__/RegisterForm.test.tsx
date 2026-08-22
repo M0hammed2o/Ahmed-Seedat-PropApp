@@ -65,12 +65,34 @@ describe('RegisterForm', () => {
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
-  it('requires accepting both Terms and Privacy before it will submit', async () => {
+  // Part D CTA-state polish (this date): the submit button is now disabled outright until BOTH
+  // Terms and Privacy are checked -- a disabled native <button> never dispatches a click-driven
+  // submit, so this replaces the old "click submit anyway, see the schema-validation error"
+  // assertion (that error text is now unreachable via normal UI interaction). registerSchema's own
+  // server-side validation is unchanged and unaffected -- this is a UI affordance only.
+  it('disables the submit button until both Terms and Privacy are accepted', async () => {
     global.fetch = vi.fn();
     render(<RegisterForm />);
-    fillAndSubmit({ terms: false });
+    fireEvent.change(document.querySelector('input[type="email"]')!, {
+      target: { value: 'new-user@example.com' },
+    });
+    const passwordInputs = document.querySelectorAll('input[type="password"]');
+    fireEvent.change(passwordInputs[0]!, { target: { value: 'a-real-password-1' } });
+    fireEvent.change(passwordInputs[1]!, { target: { value: 'a-real-password-1' } });
 
-    await waitFor(() => expect(screen.getByText(/You must accept the Terms/)).toBeTruthy());
+    const submitButton = screen.getByText('Create account').closest('button')!;
+    expect(submitButton.disabled).toBe(true);
+
+    const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+    fireEvent.click(checkboxes[0]!);
+    expect(submitButton.disabled).toBe(true);
+
+    fireEvent.click(checkboxes[1]!);
+    expect(submitButton.disabled).toBe(false);
+
+    fireEvent.click(checkboxes[0]!);
+    expect(submitButton.disabled).toBe(true);
+
     expect(global.fetch).not.toHaveBeenCalled();
   });
 

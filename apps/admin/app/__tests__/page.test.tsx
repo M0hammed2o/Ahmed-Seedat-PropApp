@@ -101,6 +101,14 @@ describe('RootPage (/)', () => {
     await expect(renderRootPage()).rejects.toThrow('REDIRECT:/onboarding/create-organization');
   });
 
+  it('redirects a portfolio-eligible identity-less caller to /onboarding/choose-plan (commercial onboarding bypass fix)', async () => {
+    mockResolveAuthenticatedDestination.mockResolvedValue({
+      kind: 'onboarding',
+      path: '/onboarding/choose-plan',
+    });
+    await expect(renderRootPage()).rejects.toThrow('REDIRECT:/onboarding/choose-plan');
+  });
+
   it('demo mode always redirects to /platform-admin/overview without consulting the resolver', async () => {
     demoMode = true;
     await expect(renderRootPage()).rejects.toThrow('REDIRECT:/platform-admin/overview');

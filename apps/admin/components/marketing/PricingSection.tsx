@@ -162,7 +162,10 @@ export function PricingSection() {
                   ))}
                 </div>
               ) : null}
-              <Link href="/register" className="mt-6 block">
+              <Link
+                href={`/register?next=${encodeURIComponent(`/onboarding/choose-plan?plan=${tier.id}&interval=${interval}`)}`}
+                className="mt-6 block"
+              >
                 <Button
                   variant={'highlighted' in tier && tier.highlighted ? 'primary' : 'secondary'}
                   className="w-full"

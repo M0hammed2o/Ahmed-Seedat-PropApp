@@ -1,5 +1,54 @@
 # Worklog
 
+## 2026-08-22 — Commercial onboarding fix + public website / registration polish
+
+Root cause (found via a live production walkthrough, then a two-part audit before any code
+changed): `destinationResolver.ts`'s `hasIncompleteCommercialSetup()` only ever inspects orgs the
+caller is ALREADY a principal of; a caller with ZERO memberships fell through untouched, straight
+to `/onboarding/create-organization` — a page whose `create_organization()` RPC has no plan/payment
+check at all. A brand-new self-service signup could create a fully inert org (no plan, no trial,
+no billing) and land in the product having skipped commercial setup entirely.
+
+**Fix, reusing the existing architecture (no schema/migration, no RLS change, no new billing
+surface):** `resolveAuthenticatedDestination()`'s zero-membership branch now consults the existing
+`mayCreatePortfolio()` check (unchanged, already the authoritative linked-owner/tenant-only gate)
+and routes an eligible caller to a new `/onboarding/choose-plan` page instead. That page collects
+plan tier + billing interval + organization name/type, then calls the SAME two existing endpoints
+CommercialSetupView already used for an existing org (`POST /api/v1/organizations`, then
+`POST /api/v1/organizations/:id/billing/trial-activation`) — pricing is always resolved
+server-side from `planTier`+`interval` by `startTrialActivationCheckout()`, never trusted from the
+client. A linked-owner/tenant-only caller is unaffected, still lands on
+`/onboarding/create-organization`'s own upgrade-explanation fallback.
+
+**Entry-path preservation:** a plan-specific pricing CTA (`PricingSection.tsx`) now sets
+`next=/onboarding/choose-plan?plan=...&interval=...` on `/register` — reusing the existing,
+already-safe `next=`/`safeNextPathOr` continuation mechanism end-to-end (RegisterForm → OAuth
+`redirectTo` → server-baked `emailRedirectTo` → `/auth/callback` → choose-plan's own dynamic
+self-reference through legal-consent/complete-account). No new persistence mechanism. `?plan=`/
+`?interval=` are validated against a fixed enum (`lib/planSelection.ts`) and only ever used as a UI
+pre-selection default.
+
+**Website polish:** real Proplyst logo in header/footer (was a generic icon badge), a stylized
+product preview and dependency-free scroll-reveal (`Reveal.tsx`, plain IntersectionObserver,
+respects the existing global `prefers-reduced-motion` rule), corrected trial copy ("30-day free
+trial. Payment method required. No charge today." — the old "No credit card required" claim was
+false). Register CTA now disabled until Terms + Privacy are both accepted (server-side validation
+unchanged/still authoritative); Apple OAuth icon's clipping/misalignment fixed with a fixed-size
+flex-centered icon slot; `create-organization`'s fallback form got shorter labels and a disabled
+CTA until a legal name is entered.
+
+New/updated tests: `destinationResolver.test.ts` (portfolio-eligible vs linked-owner/tenant-only
+zero-membership routing), `planSelection.test.ts` (invalid plan/interval defaulting), a new
+`ChoosePlanClient.test.tsx`, plan-context-preservation tests added to `OAuthButtons.test.tsx` and
+`auth/callback/route.test.ts`, a new mocked `auth/signup/route.test.ts` proving `emailRedirectTo`
+wiring, `RegisterForm.test.tsx`/`CreateOrganizationForm.test.tsx` updated for the new disabled-CTA
+behavior. Full targeted suite + typecheck + lint + production build all clean; full `vitest run`
+719/722 non-skipped passing — the 3 non-passing are pre-existing/environmental (an invalid local
+Resend API key on 5 `emailDispatch.test.ts` cases unrelated to any file this pass touched, one
+`maintenance-tickets/documents` timeout that passed 7/7 on isolated re-run, a resource-contention
+flake under full-suite load). Not pushed, no migration added, PayFast ITN activation architecture
+and RLS unchanged.
+
 ## 2026-08-18 (continued) — Proplyst final pre-UAT engineering completion pass
 
 The last engineering pass before Mohammed begins hands-on UAT: deploy, test web/PWA, test

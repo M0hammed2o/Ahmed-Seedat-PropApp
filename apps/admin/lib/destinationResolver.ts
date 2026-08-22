@@ -5,6 +5,7 @@ import { resolveTenantSession } from './tenantSession';
 import { resolveOwnerSession } from './ownerSession';
 import { hasAcceptedCurrentLegalTerms } from './legalConsent';
 import { isProfileComplete } from './profileCompletion';
+import { mayCreatePortfolio } from './subscriptionEntitlements';
 import { getServerSupabaseClient } from './supabase/server';
 
 export interface AuthenticatedDestination {
@@ -115,7 +116,23 @@ export async function resolveAuthenticatedDestination(): Promise<AuthenticatedDe
   if (portalSession) {
     const customerGate = await resolveCustomerOnboardingGate(portalSession.organizations);
     if (customerGate) return customerGate;
-    return { kind: 'onboarding', path: '/onboarding/create-organization' };
+
+    // Commercial onboarding bypass fix (this date): a caller with zero organization memberships
+    // at all previously landed straight on /onboarding/create-organization -- which creates a
+    // fully-inert org (no plan, no payment method) with zero further gating, letting a brand-new
+    // signup skip plan selection and trial-activation checkout entirely (real production bug,
+    // caught in a live walkthrough). hasIncompleteCommercialSetup() can never catch this case --
+    // it only inspects orgs the caller is ALREADY a principal of, and there are none yet. The fix
+    // is scoped by mayCreatePortfolio() (already the authoritative "linked owner/tenant only vs.
+    // everyone else" check, migration 20260101000094/95, also enforced inside create_organization()
+    // itself): a portfolio-eligible caller is sent to /onboarding/choose-plan (plan + interval +
+    // org creation + trial-activation checkout in one flow); a linked-owner/tenant-only caller is
+    // unaffected and still lands on create-organization's own upgrade-explanation fallback.
+    const eligible = await mayCreatePortfolio(await getServerSupabaseClient());
+    return {
+      kind: 'onboarding',
+      path: eligible ? '/onboarding/choose-plan' : '/onboarding/create-organization',
+    };
   }
 
   return null;

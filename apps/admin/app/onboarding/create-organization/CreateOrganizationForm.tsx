@@ -15,11 +15,13 @@ export function CreateOrganizationForm() {
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<CreateOrganizationInput>({
     resolver: zodResolver(createOrganizationSchema),
     defaultValues: { orgType: 'owner_managed' },
   });
+  const legalNameValue = watch('legalName');
 
   const onSubmit = async (values: CreateOrganizationInput) => {
     setSubmitError(null);
@@ -88,15 +90,20 @@ export function CreateOrganizationForm() {
           className="mt-1 w-full rounded-lg border border-light-border bg-transparent px-3 py-2 text-sm text-light-textPrimary outline-none focus:border-light-accent/40 focus:ring-4 focus:ring-light-accent/10 dark:border-dark-border dark:text-dark-textPrimary dark:focus:border-dark-accent/40 dark:focus:ring-dark-accent/10"
           {...register('orgType')}
         >
-          <option value="owner_managed">Owner-managed (I manage my own properties)</option>
-          <option value="agency">Agency (I manage properties for other owners)</option>
+          <option value="owner_managed">Owner-managed — my own properties</option>
+          <option value="agency">Agency — properties for other owners</option>
         </select>
 
         {submitError ? (
           <p className="mt-3 text-sm text-light-danger dark:text-dark-danger">{submitError}</p>
         ) : null}
 
-        <Button type="submit" variant="primary" disabled={isSubmitting} className="mt-6 w-full">
+        <Button
+          type="submit"
+          variant="primary"
+          disabled={isSubmitting || !legalNameValue?.trim()}
+          className="mt-6 w-full"
+        >
           {isSubmitting ? 'Creating…' : 'Create organization'}
         </Button>
       </form>

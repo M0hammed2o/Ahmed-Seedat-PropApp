@@ -5,6 +5,7 @@ import { resolveTenantSession } from '../tenantSession';
 import { resolveOwnerSession } from '../ownerSession';
 import { hasAcceptedCurrentLegalTerms } from '../legalConsent';
 import { isProfileComplete } from '../profileCompletion';
+import { mayCreatePortfolio } from '../subscriptionEntitlements';
 import { resolveAuthenticatedDestination } from '../destinationResolver';
 
 // Commercial plan restructure: mocks the one Supabase query resolveCustomerOnboardingGate's own
@@ -38,6 +39,7 @@ vi.mock('../tenantSession', () => ({ resolveTenantSession: vi.fn() }));
 vi.mock('../ownerSession', () => ({ resolveOwnerSession: vi.fn() }));
 vi.mock('../legalConsent', () => ({ hasAcceptedCurrentLegalTerms: vi.fn() }));
 vi.mock('../profileCompletion', () => ({ isProfileComplete: vi.fn() }));
+vi.mock('../subscriptionEntitlements', () => ({ mayCreatePortfolio: vi.fn() }));
 
 const mockGetAdminGateStatus = vi.mocked(getAdminGateStatus);
 const mockResolvePortalSession = vi.mocked(resolvePortalSession);
@@ -45,6 +47,7 @@ const mockResolveTenantSession = vi.mocked(resolveTenantSession);
 const mockResolveOwnerSession = vi.mocked(resolveOwnerSession);
 const mockHasAcceptedCurrentLegalTerms = vi.mocked(hasAcceptedCurrentLegalTerms);
 const mockIsProfileComplete = vi.mocked(isProfileComplete);
+const mockMayCreatePortfolio = vi.mocked(mayCreatePortfolio);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -59,6 +62,11 @@ beforeEach(() => {
   mockHasAcceptedCurrentLegalTerms.mockResolvedValue(true);
   mockIsProfileComplete.mockResolvedValue(true);
   mockSetupQuery.mockResolvedValue({ data: [] });
+  // Commercial onboarding bypass fix (this date): defaults to "ordinary, portfolio-eligible
+  // signup" (the common case) so every pre-existing test below that reaches the zero-membership
+  // branch keeps testing what it always tested. The "linked owner/tenant only" case gets its own
+  // dedicated test further down.
+  mockMayCreatePortfolio.mockResolvedValue(true);
 });
 
 describe('resolveAuthenticatedDestination', () => {
@@ -253,7 +261,7 @@ describe('resolveAuthenticatedDestination', () => {
     });
   });
 
-  it('routes an authenticated caller with zero identities to onboarding', async () => {
+  it('routes a portfolio-eligible authenticated caller with zero identities to /onboarding/choose-plan (commercial onboarding bypass fix)', async () => {
     mockResolvePortalSession.mockResolvedValue({
       userId: 'user-1',
       organizations: [],
@@ -261,6 +269,23 @@ describe('resolveAuthenticatedDestination', () => {
       isPlatformAdmin: false,
       supportSessions: [],
     });
+    mockMayCreatePortfolio.mockResolvedValue(true);
+
+    expect(await resolveAuthenticatedDestination()).toEqual({
+      kind: 'onboarding',
+      path: '/onboarding/choose-plan',
+    });
+  });
+
+  it('still routes a linked-owner/tenant-only (not portfolio-eligible) caller with zero memberships to /onboarding/create-organization', async () => {
+    mockResolvePortalSession.mockResolvedValue({
+      userId: 'user-1',
+      organizations: [],
+      ownerIdentities: [],
+      isPlatformAdmin: false,
+      supportSessions: [],
+    });
+    mockMayCreatePortfolio.mockResolvedValue(false);
 
     expect(await resolveAuthenticatedDestination()).toEqual({
       kind: 'onboarding',

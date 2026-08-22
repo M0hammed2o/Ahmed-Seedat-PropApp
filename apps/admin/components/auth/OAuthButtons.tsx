@@ -55,7 +55,9 @@ export function OAuthButtons({ next = '/' }: { next?: string }) {
         disabled={pending !== null}
         className="flex w-full items-center justify-center gap-2 rounded-lg border border-light-border bg-transparent px-3 py-2 text-sm font-medium text-light-textPrimary transition-colors hover:bg-light-surface disabled:opacity-60 dark:border-dark-border dark:text-dark-textPrimary dark:hover:bg-dark-surface"
       >
-        <GoogleIcon />
+        <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+          <GoogleIcon />
+        </span>
         {pending === 'google' ? 'Redirecting…' : 'Continue with Google'}
       </button>
       {APPLE_OAUTH_ENABLED ? (
@@ -65,7 +67,14 @@ export function OAuthButtons({ next = '/' }: { next?: string }) {
           disabled={pending !== null}
           className="flex w-full items-center justify-center gap-2 rounded-lg border border-light-border bg-transparent px-3 py-2 text-sm font-medium text-light-textPrimary transition-colors hover:bg-light-surface disabled:opacity-60 dark:border-dark-border dark:text-dark-textPrimary dark:hover:bg-dark-surface"
         >
-          <AppleIcon />
+          {/* Fixed-size, flex-centered icon slot -- an inline <svg> alone relies on its default
+              baseline/line-height for vertical position, which visually clips/misaligns the Apple
+              glyph's own path (register/login walkthrough, this date) even though Google's path
+              happened not to show it. This slot centers by flexbox instead, independent of the
+              path's exact bounding box, and keeps the identical treatment on both icons. */}
+          <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+            <AppleIcon />
+          </span>
           {pending === 'apple' ? 'Redirecting…' : 'Continue with Apple'}
         </button>
       ) : null}
@@ -75,7 +84,7 @@ export function OAuthButtons({ next = '/' }: { next?: string }) {
 
 function GoogleIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 48 48" aria-hidden="true">
+    <svg width="16" height="16" viewBox="0 0 48 48" className="block" aria-hidden="true">
       <path
         fill="#4285F4"
         d="M45.1 24.5c0-1.6-.1-3.1-.4-4.6H24v9h11.8c-.5 2.7-2 5-4.3 6.5v5.4h7C42.5 37 45.1 31.3 45.1 24.5z"
@@ -98,7 +107,14 @@ function GoogleIcon() {
 
 function AppleIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      className="block"
+      aria-hidden="true"
+    >
       <path d="M16.365 1.43c0 1.14-.42 2.07-1.26 2.79-.86.75-1.83 1.18-2.9 1.09-.13-1.1.4-2.24 1.24-3 .86-.79 2.16-1.29 2.92-1.28.02.13.02.27 0 .4zm4.02 15.99c-.4.92-.88 1.79-1.44 2.6-.77 1.1-1.4 1.86-1.88 2.28-.75.71-1.55 1.07-2.41 1.09-.62 0-1.36-.18-2.22-.54-.87-.36-1.66-.54-2.4-.54-.77 0-1.6.18-2.48.54-.88.36-1.59.55-2.13.57-.83.03-1.65-.34-2.46-1.11-.52-.46-1.18-1.24-1.98-2.35-.86-1.19-1.57-2.57-2.13-4.13-.6-1.68-.9-3.31-.9-4.89 0-1.81.39-3.37 1.17-4.68.61-1.05 1.42-1.88 2.44-2.49a6.5 6.5 0 0 1 3.3-.99c.66 0 1.53.2 2.6.6 1.07.4 1.76.6 2.06.6.22 0 .98-.24 2.28-.71 1.23-.44 2.27-.62 3.12-.55 2.31.19 4.04 1.1 5.2 2.74-2.07 1.25-3.1 3-3.08 5.26.02 1.76.65 3.22 1.9 4.38.57.53 1.2.94 1.9 1.23-.15.44-.31.87-.5 1.29z" />
     </svg>
   );

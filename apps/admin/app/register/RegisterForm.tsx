@@ -242,7 +242,18 @@ export function RegisterForm() {
           <p className="mt-3 text-sm text-light-danger dark:text-dark-danger">{submitError}</p>
         ) : null}
 
-        <Button type="submit" variant="primary" disabled={submitting} className="mt-6 w-full">
+        <Button
+          type="submit"
+          variant="primary"
+          disabled={submitting || !acceptedTerms || !acceptedPrivacy}
+          // Part D CTA-state polish: while Terms + Privacy aren't both accepted, override the
+          // primary variant's own faded-blue disabled look with an explicit light-grey/muted
+          // state (still validated server-side by registerSchema regardless -- this is a visual
+          // affordance only, never the actual gate). Scoped to this one button via !important
+          // utilities rather than changing Button.tsx's shared disabled treatment, which every
+          // other primary button in the app (submitting states elsewhere) also relies on.
+          className="mt-6 w-full disabled:!border disabled:!border-light-border disabled:!bg-light-border disabled:!text-light-textMuted disabled:!opacity-100 dark:disabled:!border-dark-border dark:disabled:!bg-dark-border dark:disabled:!text-dark-textMuted"
+        >
           {submitting ? 'Creating account…' : 'Create account'}
         </Button>
 
