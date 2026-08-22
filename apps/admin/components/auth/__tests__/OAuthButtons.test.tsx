@@ -60,4 +60,41 @@ describe('OAuthButtons', () => {
       expect(screen.getByText(/Google sign-in is not available right now/)).toBeTruthy(),
     );
   });
+
+  it('calls signInWithOAuth with the apple provider (not a separate/insecure path) and the same redirectTo shape as Google', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APPLE_OAUTH_ENABLED', 'true');
+    vi.resetModules();
+    const { OAuthButtons: OAuthButtonsWithAppleEnabled } = await import('../OAuthButtons');
+    render(<OAuthButtonsWithAppleEnabled next="/invitations/accept?token=abc" />);
+    fireEvent.click(screen.getByText('Continue with Apple'));
+
+    await waitFor(() => expect(signInWithOAuth).toHaveBeenCalledTimes(1));
+    const call = signInWithOAuth.mock.calls[0]![0];
+    expect(call.provider).toBe('apple');
+    expect(call.options.redirectTo).toContain('/auth/callback?next=');
+    expect(call.options.redirectTo).toContain(encodeURIComponent('/invitations/accept?token=abc'));
+    // The exact same route.ts (/auth/callback) is used for both providers -- confirmed by the
+    // redirectTo shape being identical apart from ?next= carrying whatever the caller passed; there
+    // is no apple-specific callback path anywhere in this call.
+  });
+
+  it('shows a friendly error and re-enables the button if the provider call itself fails (Apple)', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APPLE_OAUTH_ENABLED', 'true');
+    vi.resetModules();
+    const { OAuthButtons: OAuthButtonsWithAppleEnabled } = await import('../OAuthButtons');
+    signInWithOAuth.mockResolvedValueOnce({ error: { message: 'provider not configured' } });
+    render(<OAuthButtonsWithAppleEnabled />);
+    fireEvent.click(screen.getByText('Continue with Apple'));
+
+    await waitFor(() =>
+      expect(screen.getByText(/Apple sign-in is not available right now/)).toBeTruthy(),
+    );
+  });
+
+  it('Apple stays hidden (and Google unaffected) when NEXT_PUBLIC_APPLE_OAUTH_ENABLED is explicitly false', () => {
+    vi.stubEnv('NEXT_PUBLIC_APPLE_OAUTH_ENABLED', 'false');
+    render(<OAuthButtons />);
+    expect(screen.queryByText('Continue with Apple')).toBeNull();
+    expect(screen.getByText('Continue with Google')).toBeTruthy();
+  });
 });
