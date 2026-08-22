@@ -1,5 +1,26 @@
 # Worklog
 
+## 2026-08-22 (continued) — Staff invitation flow, follow-up: profile-completion gate on /invitations/accept
+
+Closed the one remaining gap flagged (not fixed) in the previous pass: `/invitations/accept`
+checked legal consent but never profile completeness, unlike every customer-track path
+(`resolveCustomerOnboardingGate()`). An invited staff member with an incomplete profile could
+reach `AcceptInviteClient` and join an org without ever supplying first/last name/phone.
+
+Reuses `isProfileComplete()` completely unchanged -- the same server-owned
+`profiles.profile_completed_at` marker every other authenticated caller is judged by, set only by
+`POST /api/v1/profile/complete` -- no second, staff-specific profile system. Checked AFTER the
+existing legal-consent check (matching the established consent-before-profile ordering elsewhere),
+redirects to `/complete-account?next=<this exact invitation URL>` when incomplete --
+`/complete-account` already generically forwards whatever `next` it's given back to the caller on
+success, so no new continuation mechanism was needed, only the one new gate check + redirect.
+Already-complete callers (the common case for an existing user accepting a second org's invite)
+are a no-op, same as the pre-existing legal-consent check.
+
+Application-layer only, no schema change. Full local pgTAP (68 files/948 tests) unaffected/still
+passing; targeted + full local vitest clean (739 passed, only the same pre-existing unrelated
+`emailDispatch.test.ts` failures). Not pushed, not deployed.
+
 ## 2026-08-22 (continued) — Staff invitation flow: continuation-through-confirmation, routing backstop, seat check
 
 Root cause of a second real production bug (found via a live staff-invitation walkthrough): the

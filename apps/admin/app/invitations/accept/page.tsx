@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { ProplystLogo } from '@/components/branding/ProplystLogo';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 import { hasAcceptedCurrentLegalTerms } from '@/lib/legalConsent';
+import { isProfileComplete } from '@/lib/profileCompletion';
 
 export const dynamic = 'force-dynamic';
 
@@ -80,6 +81,22 @@ export default async function AcceptInvitePage({ searchParams }: SearchParams) {
   if (!(await hasAcceptedCurrentLegalTerms())) {
     const currentPath = `/invitations/accept?token=${encodeURIComponent(token)}`;
     redirect(`/legal-consent?next=${encodeURIComponent(currentPath)}`);
+  }
+
+  // Staff invitation flow audit, follow-up (this date): this page previously checked legal
+  // consent but never profile completeness, unlike every customer-track path
+  // (resolveCustomerOnboardingGate()). An invited staff member with an incomplete profile could
+  // reach AcceptInviteClient and join an org without ever having supplied first/last name/phone.
+  // Reuses isProfileComplete() completely unchanged -- the SAME server-owned
+  // profiles.profile_completed_at marker every other authenticated caller is judged by, set only
+  // by POST /api/v1/profile/complete -- no second, staff-specific profile system. Already
+  // complete (the common case for an existing user accepting a second org's invite) is a no-op
+  // here, same as the legal-consent check above. `/complete-account` already generically forwards
+  // whatever `next` it's given (safeNextPathOr, proven by its own existing tests) straight back
+  // to this exact invitation URL on success -- no new continuation mechanism needed.
+  if (!(await isProfileComplete())) {
+    const currentPath = `/invitations/accept?token=${encodeURIComponent(token)}`;
+    redirect(`/complete-account?next=${encodeURIComponent(currentPath)}`);
   }
 
   return <AcceptInviteClient token={token} />;
