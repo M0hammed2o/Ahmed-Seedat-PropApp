@@ -16,6 +16,11 @@ export interface OnboardingProgress {
   /** First step that is neither completed nor skipped -- null once everything is done/skipped. */
   currentStep: OnboardingStep | null;
   allDone: boolean;
+  /** V1 commercial UX pass -- the interactive walkthrough's own persisted state (distinct from the
+   * checklist above). Surfaced here so the walkthrough engine (client-side) knows whether to
+   * auto-show itself on first load without a second round trip. */
+  walkthroughDismissed: boolean;
+  walkthroughCompleted: boolean;
 }
 
 /**
@@ -176,6 +181,8 @@ export async function resolveOnboardingProgress(
     percentComplete,
     currentStep,
     allDone: currentStep === null,
+    walkthroughDismissed: Boolean(onboardingState?.walkthrough_dismissed_at),
+    walkthroughCompleted: Boolean(onboardingState?.walkthrough_completed_at),
   };
 }
 
@@ -207,12 +214,23 @@ export async function markOnboardingIntroViewed(
 
 /** Marks the interactive first-use walkthrough dismissed or completed -- distinct from the
  * checklist above (a UI preference, not a system-state fact), stored because it genuinely cannot
- * be derived from anything else. */
+ * be derived from anything else. `restart` clears BOTH timestamps so the walkthrough shows again
+ * from step one ("Restart guided tour" in Settings) -- deliberately never triggered automatically
+ * on its own; only an explicit user action calls this. */
 export async function setWalkthroughState(
   supabase: SupabaseClient,
   orgId: string,
-  state: 'dismissed' | 'completed',
+  state: 'dismissed' | 'completed' | 'restart',
 ): Promise<void> {
+  if (state === 'restart') {
+    await supabase
+      .from('organization_onboarding_state')
+      .upsert(
+        { org_id: orgId, walkthrough_dismissed_at: null, walkthrough_completed_at: null },
+        { onConflict: 'org_id' },
+      );
+    return;
+  }
   const column = state === 'dismissed' ? 'walkthrough_dismissed_at' : 'walkthrough_completed_at';
   await supabase
     .from('organization_onboarding_state')

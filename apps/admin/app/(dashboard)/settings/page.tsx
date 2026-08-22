@@ -2,9 +2,11 @@ import Link from 'next/link';
 import { AccountSettingsForm } from '@/components/settings/AccountSettingsForm';
 import { LinkedAccountsPanel } from '@/components/settings/LinkedAccountsPanel';
 import { MfaSettingsPanel } from '@/components/settings/MfaSettingsPanel';
+import { RestartWalkthroughButton } from '@/components/walkthrough/RestartWalkthroughButton';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
+import { resolvePortalSession, findActiveMembership } from '@/lib/orgSession';
 
 /**
  * GET /settings -- PWA_V1_COMPLETION_PLAN.md #7. Own-account settings only (name/email/password);
@@ -43,6 +45,11 @@ export default async function SettingsPage() {
     .eq('id', user.id)
     .maybeSingle();
 
+  const session = await resolvePortalSession();
+  const activeOrg = session?.organizations.find((m) => m.status === 'active');
+  const membership = session && activeOrg ? findActiveMembership(session, activeOrg.orgId) : undefined;
+  const isPrincipal = membership?.role === 'principal';
+
   return (
     <div className="space-y-5 animate-rise">
       <PageHeader title="Account settings" subtitle="Your name, email, and password." />
@@ -52,6 +59,19 @@ export default async function SettingsPage() {
       />
       <LinkedAccountsPanel />
       <MfaSettingsPanel />
+      {isPrincipal ? (
+        <div className="flex items-center justify-between rounded-card border border-light-border p-4 dark:border-dark-border">
+          <div>
+            <p className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+              Guided tour
+            </p>
+            <p className="mt-1 text-xs text-light-textSecondary dark:text-dark-textSecondary">
+              Replay the interactive walkthrough of your dashboard.
+            </p>
+          </div>
+          <RestartWalkthroughButton />
+        </div>
+      ) : null}
       <p className="text-sm text-light-textSecondary dark:text-dark-textSecondary">
         Manage which emails and notifications you receive at{' '}
         <Link

@@ -34,6 +34,8 @@ import { AppShell, type HeaderNotification, type NavSection } from '@/components
 import { navIcon } from '@/components/shell/navIcon';
 import { SupportModeBanner } from '@/components/organizations/SupportModeBanner';
 import { OverdueBillingBanner } from '@/components/organizations/OverdueBillingBanner';
+import { WalkthroughOverlay } from '@/components/walkthrough/WalkthroughOverlay';
+import { getWalkthroughSteps, type PlanTier } from '@/lib/walkthroughSteps';
 import { CollectionHealthWidget } from '@/components/shell/CollectionHealthWidget';
 import { AssistantDrawer } from '@/components/assistant/AssistantDrawer';
 
@@ -231,6 +233,13 @@ export default async function PortalLayout({ children }: { children: React.React
       : []),
   ];
 
+  // V1 commercial UX pass, Phase 8 -- the interactive walkthrough. Principal-only ("only
+  // principals get commercial onboarding... staff/owners/tenants must not be routed into plan
+  // selection") -- an invited staff member, owner, or tenant never even fetches this data, let
+  // alone sees the overlay. A support session is excluded via canManageBilling's own posture.
+  const walkthroughData =
+    !ADMIN_DEMO_MODE && canManageBilling ? await loadWalkthroughData(activeOrg.orgId) : null;
+
   return (
     <AppShell
       productLabel={branding.productName}
@@ -260,8 +269,51 @@ export default async function PortalLayout({ children }: { children: React.React
       }
     >
       {children}
+      {walkthroughData ? (
+        <WalkthroughOverlay
+          orgId={activeOrg.orgId}
+          steps={getWalkthroughSteps(walkthroughData.planTier)}
+          autoShow={!walkthroughData.walkthroughDismissed && !walkthroughData.walkthroughCompleted}
+        />
+      ) : null}
     </AppShell>
   );
+}
+
+async function loadWalkthroughData(
+  orgId: string,
+): Promise<{ planTier: PlanTier | null; walkthroughDismissed: boolean; walkthroughCompleted: boolean }> {
+  const supabase = await getServerSupabaseClient();
+  const [{ data: sub }, { data: state }] = await Promise.all([
+    supabase
+      .from('organization_subscriptions')
+      .select('plan_id, plans(code)')
+      .eq('org_id', orgId)
+      .order('current_period_start', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('organization_onboarding_state')
+      .select('walkthrough_dismissed_at, walkthrough_completed_at')
+      .eq('org_id', orgId)
+      .maybeSingle(),
+  ]);
+
+  const plansRelation = sub?.plans as { code: string } | { code: string }[] | null;
+  const planCode = Array.isArray(plansRelation) ? (plansRelation[0]?.code ?? null) : (plansRelation?.code ?? null);
+  const planTier: PlanTier | null = planCode?.startsWith('starter')
+    ? 'starter'
+    : planCode?.startsWith('professional')
+      ? 'professional'
+      : planCode?.startsWith('business')
+        ? 'business'
+        : null;
+
+  return {
+    planTier,
+    walkthroughDismissed: Boolean(state?.walkthrough_dismissed_at),
+    walkthroughCompleted: Boolean(state?.walkthrough_completed_at),
+  };
 }
 
 // The org name for the support-mode banner -- RLS-visible via has_org_role()'s new support-session

@@ -5,6 +5,7 @@ import {
   resolveOnboardingProgress,
   skipStaffOnboardingStep,
   markOnboardingIntroViewed,
+  setWalkthroughState,
 } from '../onboarding';
 
 const SUPABASE_URL = 'http://127.0.0.1:54321';
@@ -185,5 +186,25 @@ describeIfSupabase('resolveOnboardingProgress (real local Supabase integration)'
     expect(progress.allDone).toBe(true);
     expect(progress.percentComplete).toBe(100);
     expect(progress.currentStep).toBeNull();
+  });
+
+  it('walkthrough state starts unset, reflects dismissed/completed, and restart clears both', async () => {
+    let progress = await resolveOnboardingProgress(serviceClient, orgId);
+    expect(progress.walkthroughDismissed).toBe(false);
+    expect(progress.walkthroughCompleted).toBe(false);
+
+    await setWalkthroughState(serviceClient, orgId, 'dismissed');
+    progress = await resolveOnboardingProgress(serviceClient, orgId);
+    expect(progress.walkthroughDismissed).toBe(true);
+    expect(progress.walkthroughCompleted).toBe(false);
+
+    await setWalkthroughState(serviceClient, orgId, 'completed');
+    progress = await resolveOnboardingProgress(serviceClient, orgId);
+    expect(progress.walkthroughCompleted).toBe(true);
+
+    await setWalkthroughState(serviceClient, orgId, 'restart');
+    progress = await resolveOnboardingProgress(serviceClient, orgId);
+    expect(progress.walkthroughDismissed).toBe(false);
+    expect(progress.walkthroughCompleted).toBe(false);
   });
 });

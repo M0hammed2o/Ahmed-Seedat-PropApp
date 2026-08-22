@@ -14,7 +14,7 @@ type RouteParams = { params: Promise<{ orgId: string }> };
 const actionSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('skip_staff') }),
   z.object({ action: z.literal('mark_intro_viewed'), intro: z.enum(['payments', 'documents']) }),
-  z.object({ action: z.literal('walkthrough'), state: z.enum(['dismissed', 'completed']) }),
+  z.object({ action: z.literal('walkthrough'), state: z.enum(['dismissed', 'completed', 'restart']) }),
 ]);
 
 /**
