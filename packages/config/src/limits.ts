@@ -34,6 +34,12 @@ export const RATE_LIMITS = {
   // are UUIDs (impractical to brute-force regardless), this is defense in depth, not the only
   // protection.
   inviteAcceptAttemptsPerMinute: 10,
+  // Provisioned-staff account model (this date): POST /api/v1/staff/activate, the unauthenticated
+  // token_hash -> verifyOtp()+set-password step. Same floor as email-confirm/MFA -- a real
+  // employee needs at most a couple of clicks; the ceiling is against a hashed_token being
+  // brute-forced (GoTrue's own hashed_token is not a UUID, so this matters more than the
+  // invite-accept case above).
+  staffActivationAttemptsPerMinute: 10,
 } as const;
 
 export const BIOMETRIC_LOCK_DEFAULT_TIMEOUT_SECONDS = 60;

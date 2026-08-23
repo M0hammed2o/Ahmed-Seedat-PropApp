@@ -33,6 +33,30 @@ export const createOrganizationInviteSchema = z.object({
 });
 export type CreateOrganizationInviteInput = z.infer<typeof createOrganizationInviteSchema>;
 
+// Provisioned-staff account model (this date) -- Organization -> Staff -> "Add staff member".
+// Deliberately the SAME field shape as createOrganizationInviteSchema above (name/email/role/
+// property access) -- this is a different provisioning MECHANISM, not a different data model;
+// principal can never be selected here (ORGANIZATION_MEMBER_ROLES minus 'principal', enforced
+// again server-side inside provision_staff_member() itself, never trusted from this schema alone).
+export const provisionStaffMemberSchema = z.object({
+  fullName: z.string().max(200).optional().nullable(),
+  email: z.string().email('Enter a valid email address'),
+  role: z.enum(ORGANIZATION_MEMBER_ROLES).refine((r) => r !== 'principal', {
+    message: 'Principal cannot be assigned through staff provisioning',
+  }),
+  propertyAccessMode: z.enum(PROPERTY_ACCESS_MODES).default('all'),
+  selectedProperties: z
+    .array(
+      z.object({
+        propertyId: z.string().uuid(),
+        propertyRole: z.enum(STAFF_PROPERTY_ROLES).default('read_only'),
+      }),
+    )
+    .max(500)
+    .default([]),
+});
+export type ProvisionStaffMemberInput = z.infer<typeof provisionStaffMemberSchema>;
+
 // PATCH /api/v1/organizations/:orgId (PWA_V1_COMPLETION_PLAN.md #8) -- every organizations column
 // that is actual org configuration, matching PERMISSIONS.md's "Organisation settings" row
 // (manager+ full, agent/accountant/viewer view-only). Excludes `status` (Super Admin-only,

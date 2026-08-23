@@ -5,7 +5,7 @@ import type { OrganizationMemberRole, OrgSeatSummary } from '@propvault/types';
 import { Button } from '@/components/ui/Button';
 import { Panel } from '@/components/ui/Panel';
 import { safeJson } from '@/lib/safeJson';
-import { InviteStaffForm } from './InviteStaffForm';
+import { AddStaffMemberForm, type AddStaffMemberResult } from './AddStaffMemberForm';
 
 interface Member {
   userId: string;
@@ -27,6 +27,36 @@ interface Invite {
   revokedAt: string | null;
   createdAt: string;
 }
+
+type ProvisionStatus =
+  | 'pending'
+  | 'pending_send_failed'
+  | 'awaiting_activation'
+  | 'expired'
+  | 'activated'
+  | 'revoked';
+
+interface StaffProvision {
+  id: string;
+  email: string;
+  fullName: string | null;
+  role: OrganizationMemberRole;
+  propertyAccessMode: 'all' | 'selected';
+  status: ProvisionStatus;
+  expiresAt: string;
+  activatedAt: string | null;
+  resendCount: number;
+  createdAt: string;
+}
+
+const PROVISION_STATUS_LABELS: Record<ProvisionStatus, string> = {
+  pending: 'Activation pending',
+  pending_send_failed: 'Email delivery failed',
+  awaiting_activation: 'Activation pending',
+  expired: 'Activation link expired',
+  activated: 'Active',
+  revoked: 'Revoked',
+};
 
 interface PropertyOption {
   id: string;
@@ -74,18 +104,26 @@ export function StaffAccessPanel({
 }) {
   const [members, setMembers] = useState<Member[] | null>(null);
   const [invites, setInvites] = useState<Invite[] | null>(null);
+  const [provisions, setProvisions] = useState<StaffProvision[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [showInvite, setShowInvite] = useState(false);
+  const [showAddStaff, setShowAddStaff] = useState(false);
   const [deliveryNotice, setDeliveryNotice] = useState<boolean | null>(null);
 
   const load = useCallback(async () => {
-    const [membersRes, invitesRes] = await Promise.all([
+    const [membersRes, invitesRes, provisionsRes] = await Promise.all([
       fetch(`/api/v1/organizations/${orgId}/members`).then((r) => safeJson(r)),
       fetch(`/api/v1/organizations/${orgId}/invites`).then((r) => safeJson(r)),
+      fetch(`/api/v1/organizations/${orgId}/staff-provisions`).then((r) => safeJson(r)),
     ]);
     setMembers(membersRes.members ?? []);
     setInvites((invitesRes.invites ?? []).filter((i: Invite) => !i.acceptedAt && !i.revokedAt));
+    // 'activated' provisions are already reflected in the Team list above (provisioning an
+    // existing user activates membership immediately) -- only the still-in-flight/terminal states
+    // are useful to show in this separate section.
+    setProvisions(
+      (provisionsRes.provisions ?? []).filter((p: StaffProvision) => p.status !== 'activated'),
+    );
   }, [orgId]);
 
   useEffect(() => {
@@ -161,12 +199,41 @@ export function StaffAccessPanel({
     await load();
   }
 
+  async function resendProvision(id: string) {
+    setError(null);
+    setDeliveryNotice(null);
+    const res = await fetch(`/api/v1/organizations/${orgId}/staff-provisions/${id}/resend`, {
+      method: 'POST',
+    });
+    const body = await safeJson(res);
+    if (!res.ok) {
+      setError(body.error?.message ?? 'Failed to resend activation email.');
+      return;
+    }
+    setDeliveryNotice(body.emailDeliveryConfigured ?? null);
+    await load();
+  }
+
+  async function revokeProvision(id: string) {
+    if (!confirm('Revoke this staff activation?')) return;
+    setError(null);
+    const res = await fetch(`/api/v1/organizations/${orgId}/staff-provisions/${id}/revoke`, {
+      method: 'POST',
+    });
+    if (!res.ok) {
+      const body = await safeJson(res);
+      setError(body.error?.message ?? 'Failed to revoke this staff activation.');
+      return;
+    }
+    await load();
+  }
+
   const invitableRoles: OrganizationMemberRole[] =
     callerRole === 'principal'
       ? ['manager', 'agent', 'accountant', 'viewer']
       : ['agent', 'accountant', 'viewer'];
 
-  if (!members || !invites) {
+  if (!members || !invites || !provisions) {
     return <p className="panel py-8 text-center text-sm text-muted-foreground">Loading staff…</p>;
   }
 
@@ -189,22 +256,21 @@ export function StaffAccessPanel({
 
       {deliveryNotice === false ? (
         <p className="rounded-md border border-light-danger bg-light-danger/10 px-3 py-2 text-xs text-light-danger dark:border-dark-danger dark:bg-dark-danger/10 dark:text-dark-danger">
-          The invitation was created, but email delivery is not configured in this environment — no
-          email was sent. Share the accept link with {'"'}Resend{'"'} once delivery is configured,
-          or copy it from Supabase for now.
+          Email delivery is not configured in this environment — no email was sent.
+          {'"'}Resend{'"'} once delivery is configured.
         </p>
       ) : deliveryNotice === true ? (
         <p className="rounded-md border border-light-border bg-light-surface px-3 py-2 text-xs text-light-textSecondary dark:border-dark-border dark:bg-dark-surface dark:text-dark-textSecondary">
-          Invitation email sent.
+          Email sent.
         </p>
       ) : null}
 
       <Panel
         title={`Team (${members.length})`}
         actions={
-          !showInvite ? (
-            <Button size="sm" variant="primary" onClick={() => setShowInvite(true)}>
-              + Invite staff member
+          !showAddStaff ? (
+            <Button size="sm" variant="primary" onClick={() => setShowAddStaff(true)}>
+              + Add staff member
             </Button>
           ) : undefined
         }
@@ -303,18 +369,54 @@ export function StaffAccessPanel({
         </ul>
       </Panel>
 
-      {showInvite ? (
-        <InviteStaffForm
+      {showAddStaff ? (
+        <AddStaffMemberForm
           orgId={orgId}
           properties={properties}
           invitableRoles={invitableRoles}
-          onCancel={() => setShowInvite(false)}
-          onInvited={async (emailDeliveryConfigured) => {
-            setShowInvite(false);
-            setDeliveryNotice(emailDeliveryConfigured);
+          onCancel={() => setShowAddStaff(false)}
+          onAdded={async (result: AddStaffMemberResult) => {
+            setShowAddStaff(false);
+            setDeliveryNotice(result.emailDeliveryConfigured);
             await load();
           }}
         />
+      ) : null}
+
+      {provisions.length > 0 ? (
+        <Panel title={`Staff activations (${provisions.length})`}>
+          <ul className="divide-y divide-light-border dark:divide-dark-border">
+            {provisions.map((p) => (
+              <li key={p.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-foreground">
+                    {p.fullName ?? p.email}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {p.fullName ? `${p.email} · ` : ''}
+                    {ORG_ROLE_LABELS[p.role]} ·{' '}
+                    {p.propertyAccessMode === 'all' ? 'All properties' : 'Selected properties'} ·{' '}
+                    {PROVISION_STATUS_LABELS[p.status]}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {p.status === 'pending_send_failed' ||
+                  p.status === 'awaiting_activation' ||
+                  p.status === 'expired' ? (
+                    <Button size="sm" onClick={() => resendProvision(p.id)}>
+                      Resend
+                    </Button>
+                  ) : null}
+                  {p.status !== 'revoked' ? (
+                    <Button size="sm" variant="destructive" onClick={() => revokeProvision(p.id)}>
+                      Revoke
+                    </Button>
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Panel>
       ) : null}
 
       {invites.length > 0 ? (

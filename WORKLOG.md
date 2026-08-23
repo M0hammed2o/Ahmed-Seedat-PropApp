@@ -1,5 +1,77 @@
 # Worklog
 
+## 2026-08-23 — Proplyst provisioned-staff account model (implementation, not yet deployed)
+
+Implemented the dedicated admin-provisioned staff model from the prior session's own audit
+("PROPLYST PROVISIONED STAFF ACCOUNT AUDIT", `RECOMMENDED: YES`) -- a Principal/manager now adds
+staff directly from Organization -> Staff instead of routing them through self-service
+signup+invite-redemption. The existing `organization_invites` self-service flow (owner/tenant
+invitations included) is untouched and remains fully functional; nothing was deleted or migrated.
+
+**Database** (`20260101000124_staff_provisioning.sql`): new `organization_staff_provisions` /
+`organization_staff_provision_properties` tables, hashed tokens only (GoTrue's own
+`generateLink()` `hashed_token`, never a second Proplyst-side hash, never plaintext), RLS
+SELECT-only for same-org members (no direct INSERT/UPDATE -- RPC-only mutation, matching
+`organization_members`' own convention). `provision_staff_member()` branches on whether the target
+email already has a REAL, password-capable `auth.users` identity
+(`encrypted_password is not null and encrypted_password <> ''`): an existing customer is activated
+immediately (org-row-locked, authoritative seat check, membership + property access applied in one
+transaction); a new email OR a passwordless leftover identity from an interrupted prior attempt
+(the orphan-recovery case) gets a `pending` row only, with a fast non-authoritative seat check --
+the authoritative, org-row-locked check happens later inside `activate_staff_provision()`,
+mirroring the already-shipped acceptance-time seat check pattern (migration `20260101000123`)
+exactly. `activate_staff_provision()` takes zero parameters -- resolves the caller's own pending
+row via `auth.uid()` alone, so no second token needs to be carried through the
+legal-consent/complete-account continuation chain. A partial unique index on
+`(org_id, email) where status in (pending, pending_send_failed, awaiting_activation)` prevents
+duplicate in-flight provisions without colliding with a later legitimate re-provision after revoke.
+
+**Application layer**: `lib/staffProvisioning.ts` orchestrates the GoTrue Admin API call
+(`generateLink({type:'invite'})`, never `inviteUserByEmail` -- that would send an untracked GoTrue
+email) and branded email dispatch that the SQL layer structurally can't do itself. New API routes:
+`POST .../staff-provisions` (add), `GET .../staff-provisions` (list), `.../resend`, `.../revoke`.
+New public activation flow: `POST /api/v1/staff/activate` (unauthenticated `token_hash` ->
+`verifyOtp(type:'invite')` -> `updateUser({password})`, retry-safe -- if `updateUser` fails after a
+successful `verifyOtp`, the session cookie the response already wrote lets a retry skip straight to
+`updateUser` without needing the now-single-use-consumed token again) and
+`POST /api/v1/staff/activate/finish` (authenticated, calls `activate_staff_provision()`), fronted
+by `/staff/activate` (mirrors `/activate`'s and `/invitations/accept`'s existing
+consent-then-profile gate ordering) and two new client components
+(`SetPasswordClient`/`ActivateStaffClient`, mirroring `AcceptInviteClient`'s auto-fire pattern).
+Two new email templates (`staff_activation`, `staff_added_existing_user`) added to
+`emailDispatch.ts`, using a `dispatchAttempt`-suffixed `relatedEntityType` for resends from the
+start (this codebase already found and fixed the "resend silently swallowed by the idempotency
+guard" bug once, for `organization-invites/resend` -- applied proactively here instead of
+reintroducing it). `Organization -> Staff` UI: "+ Invite staff member" renamed to "+ Add staff
+member" and repointed at the new flow; a new "Staff activations" panel lists in-flight/terminal
+provisions with Resend/Revoke controls; the legacy "Pending invitations" panel and its Resend/Cancel
+controls are unchanged, so any already-pending legacy invitation remains fully manageable.
+
+**Verification**: new pgTAP file (`staff_provisioning.test.sql`, 28 assertions) covers
+principal-exclusion, the manager role-ceiling, the commercial-setup gate, seat enforcement at both
+provisioning and activation time, the orphan/passwordless-identity branch, the existing-user
+immediate-activation branch, the partial-unique-index duplicate-request rejection, and
+revoke-then-re-provision; full local pgTAP suite (69 files) still passes with zero regressions. New
+real local-Supabase vitest integration tests (not mocked -- this codebase's established convention
+for this class of test) empirically prove the audit's central safety question: calling
+`generateLink({type:'invite'})` twice for the same still-passwordless email reuses the SAME
+`auth.users` row rather than creating a duplicate, and a real `hashed_token` it returns is genuinely
+consumable end-to-end (`verifyOtp` -> `updateUser` -> `activate_staff_provision()` -> a fresh
+sign-in with the new password succeeds), and is single-use (a second `verifyOtp` with the same
+token fails). Full local vitest (750 tests), `tsc --noEmit`, `eslint`, and `next build` all pass.
+
+**Not verified / disclosed limitation**: Google/Apple same-email account-linking behavior after a
+password-based staff activation could not be empirically tested -- local Supabase has
+`auth.external.google`/`auth.external.apple` both `enabled = false` with no OAuth client
+credentials configured, and a genuine OAuth consent flow requires real user interaction with
+Google's/Apple's own servers, which cannot be scripted in this non-interactive session. Per the
+task's own instruction, this does not block password-based activation -- it ships regardless, with
+the limitation disclosed rather than assumed away. `security_manual_linking_enabled` was not
+touched (stays `false`, matching the already-confirmed production value).
+
+Committed locally only (new migration + a set of new files, no historical migration edited, no
+production migration/push/deploy performed).
+
 ## 2026-08-22 (continued) — Staff invitation flow, follow-up: profile-completion gate on /invitations/accept
 
 Closed the one remaining gap flagged (not fixed) in the previous pass: `/invitations/accept`

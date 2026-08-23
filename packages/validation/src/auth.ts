@@ -43,6 +43,22 @@ export const resetPasswordSchema = z
   });
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 
+// Provisioned-staff account model (this date): POST /api/v1/staff/activate. tokenHash is optional
+// -- present on the first submission (consumed via verifyOtp server-side), omitted on a retry once
+// a session already exists (see that route's own comment for why retrying with an already-consumed
+// token would otherwise fail).
+export const staffActivateSchema = z
+  .object({
+    tokenHash: z.string().min(1).optional(),
+    password: passwordSchema,
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: 'Passwords do not match',
+    path: ['confirmPassword'],
+  });
+export type StaffActivateInput = z.infer<typeof staffActivateSchema>;
+
 // PATCH /api/v1/profile (PWA_V1_COMPLETION_PLAN.md #7) -- public.profiles.display_name only.
 // Email/password changes go straight through Supabase Auth client-side (supabase.auth.updateUser),
 // same as ResetPasswordForm.tsx -- there is no separate app-level "email"/"password" column to

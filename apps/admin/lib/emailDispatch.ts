@@ -45,7 +45,15 @@ export type EmailTemplateName =
   // Utility templates currently in review) to deliver an OTP -- deliberately not built; email is
   // the "already-supported secure verification channel" this pass was explicitly told to use
   // instead, per its own instruction not to invent a WhatsApp Authentication template.
-  | 'phone_verification_code';
+  | 'phone_verification_code'
+  // Provisioned-staff account model (this date): distinct from member_invited (the legacy
+  // organization_invites self-service flow, left fully intact) -- staff_activation goes to a
+  // brand-new or previously-passwordless identity and carries a GoTrue-issued activation link
+  // (set-password, no plaintext credential ever included); staff_added_existing_user goes to an
+  // already password-capable Proplyst account, which provision_staff_member() activates
+  // immediately with no password/activation step, so this is a notification, not an invitation.
+  | 'staff_activation'
+  | 'staff_added_existing_user';
 
 // Only categories with an existing notification_preferences row can be preference-gated
 // (DATABASE.md §7's closed enum has no 'billing'/'accounting' category) -- invoice/payment/
@@ -105,6 +113,10 @@ const TEMPLATE_SUBJECTS: Record<EmailTemplateName, (vars: Record<string, unknown
   subscription_reactivated: () =>
     `Welcome back — your ${branding.productName} subscription is active again`,
   phone_verification_code: (v) => `Your ${branding.productName} verification code: ${v.code ?? ''}`,
+  staff_activation: (v) =>
+    `You've been added to ${v.orgName ?? 'an organization'} on ${branding.productName}`,
+  staff_added_existing_user: (v) =>
+    `You've been added to ${v.orgName ?? 'an organization'} on ${branding.productName}`,
 };
 
 // Plain-text bodies -- the required MIME text/plain fallback for every real send (never removed
@@ -152,6 +164,10 @@ const TEMPLATE_BODY: Record<EmailTemplateName, (vars: Record<string, unknown>) =
     `Your ${branding.productName} subscription is active again on the ${v.planName ?? ''} plan. Welcome back.`,
   phone_verification_code: (v) =>
     `Your ${branding.productName} verification code is ${v.code ?? ''}. It expires in 10 minutes. If you didn't request this, you can safely ignore this email.`,
+  staff_activation: (v) =>
+    `You've been added to ${v.orgName ?? 'an organization'} on ${branding.productName} as ${v.role ?? 'a team member'}. ${v.activateUrl ? `Set your password to activate your account: ${v.activateUrl}. ` : ''}${v.expiresAt ? `This link expires on ${v.expiresAt}. ` : ''}If you weren't expecting this, you can safely ignore this email.`,
+  staff_added_existing_user: (v) =>
+    `You've been added to ${v.orgName ?? 'an organization'} on ${branding.productName} as ${v.role ?? 'a team member'}. Sign in to ${branding.productName} with your existing account to access it.`,
 };
 
 /**
@@ -333,6 +349,23 @@ const TEMPLATE_HTML_CONTENT: Record<
       'This code expires in 10 minutes.',
       "If you didn't request this, you can safely ignore this email.",
     ],
+  }),
+  staff_activation: (v, _appUrl) => ({
+    eyebrow: 'Staff account',
+    heading: `You've been added to ${v.orgName ?? 'an organization'}`,
+    intro: `You've been added to ${v.orgName ?? 'an organization'} on ${branding.productName} as ${v.role ?? 'a team member'}. Set your password to activate your account.`,
+    infoBox: v.expiresAt
+      ? { label: 'Expires', text: `This link expires on ${v.expiresAt}.` }
+      : undefined,
+    cta: v.activateUrl ? { label: 'Set your password', url: String(v.activateUrl) } : undefined,
+    paragraphs: ["If you weren't expecting this, you can safely ignore this email."],
+  }),
+  staff_added_existing_user: (v, appUrl) => ({
+    eyebrow: 'Staff account',
+    heading: `You've been added to ${v.orgName ?? 'an organization'}`,
+    intro: `You've been added to ${v.orgName ?? 'an organization'} on ${branding.productName} as ${v.role ?? 'a team member'}.`,
+    paragraphs: ['Sign in with your existing account to access it.'],
+    cta: { label: `Sign in to ${branding.productName}`, url: `${appUrl}/login` },
   }),
 };
 
