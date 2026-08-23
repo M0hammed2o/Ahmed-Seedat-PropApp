@@ -9,11 +9,13 @@ import { branding } from '@propvault/config';
 
 type RouteParams = { params: Promise<{ orgId: string }> };
 
-// A manager who can only rank strictly below `principal` must not be able to invite a peer or
-// superior manager/principal — PERMISSIONS.md's role table: "manager: Invite/remove
-// agent/accountant/viewer only". `has_org_role()`/RLS enforce "is this caller manager+ at all";
-// this table enforces the finer "which roles can THIS caller's rank grant" rule RLS doesn't
-// express (PERMISSIONS.md layer 2).
+// Staff security + audit hardening pass (this date): staff administration -- including this
+// legacy self-service invite flow -- is principal-only now (was manager+, PERMISSIONS.md's older
+// "manager: Invite/remove agent/accountant/viewer only" row). The `manager` entry below is kept
+// (not deleted) purely as historical/defensive shape -- `requireOrgRole(..., 'principal')` below
+// already means a manager caller never reaches this lookup at all, but keeping the type honest
+// about every role rather than narrowing it to a single key avoids a silent crash if this route's
+// own floor is ever loosened again without updating this table to match.
 const MAX_INVITABLE_ROLE_FOR: Record<'principal' | 'manager', ReadonlySet<string>> = {
   principal: new Set(['manager', 'agent', 'accountant', 'viewer']),
   manager: new Set(['agent', 'accountant', 'viewer']),
@@ -21,8 +23,9 @@ const MAX_INVITABLE_ROLE_FOR: Record<'principal' | 'manager', ReadonlySet<string
 
 /**
  * GET /api/v1/organizations/:orgId/invites (owner + staff access completion pass, WORKLOG.md this
- * date) -- pending invites for the Staff & property access screen. Manager+ only, same floor as
- * everything else about who may see/manage staff.
+ * date; principal-only, staff security + audit hardening pass, this date) -- pending invites for
+ * the Staff & property access screen. Principal-only, same floor as everything else about who may
+ * see/manage staff (was manager+).
  */
 export async function GET(_request: NextRequest, { params }: RouteParams) {
   const { orgId } = await params;
@@ -37,7 +40,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     );
   }
 
-  const canManage = await requireOrgRole(supabase, orgId, 'manager');
+  const canManage = await requireOrgRole(supabase, orgId, 'principal');
   if (!canManage) {
     return NextResponse.json(
       { error: { code: 'forbidden', message: 'You do not have permission to view invitations.' } },
@@ -133,7 +136,7 @@ async function handlePOST(request: NextRequest, { params }: RouteParams) {
     );
   }
 
-  const canInviteAtAll = await requireOrgRole(supabase, orgId, 'manager');
+  const canInviteAtAll = await requireOrgRole(supabase, orgId, 'principal');
   if (!canInviteAtAll) {
     return NextResponse.json(
       {

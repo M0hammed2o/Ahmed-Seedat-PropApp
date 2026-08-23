@@ -12,7 +12,10 @@ interface Member {
   role: OrganizationMemberRole;
   propertyAccessMode: 'all' | 'selected';
   joinedAt: string;
-  displayName: string | null;
+  // Item 5 (UUID display bug fix): the API resolves this via a fallback hierarchy (profile name
+  // -> email -> "Unnamed user") and never returns null or a raw UUID -- see the members route's
+  // own comment for the RLS root cause this closes.
+  displayName: string;
   propertyCount: number;
 }
 
@@ -86,20 +89,17 @@ const ORG_ROLE_LABELS: Record<OrganizationMemberRole, string> = {
   viewer: 'Viewer',
 };
 
-// A manager can only manage roles strictly below manager -- mirrors
-// update_organization_member_role()'s own server-side ceiling (20260101000090); this is display
-// convenience only, the RPC is the real boundary.
-const MANAGER_EDITABLE_ROLES: OrganizationMemberRole[] = ['agent', 'accountant', 'viewer'];
-
+// Staff security + audit hardening pass (this date): this panel is reachable only via
+// /organization/staff, which is principal-only end-to-end (page gate, every route it calls, and
+// the underlying RPCs/RLS) -- there is no longer a caller-role branch for this component to make,
+// so the old `callerRole` prop was removed rather than kept as dead weight.
 export function StaffAccessPanel({
   orgId,
   properties,
-  callerRole,
   seatSummary,
 }: {
   orgId: string;
   properties: PropertyOption[];
-  callerRole: 'principal' | 'manager';
   seatSummary: OrgSeatSummary;
 }) {
   const [members, setMembers] = useState<Member[] | null>(null);
@@ -228,10 +228,11 @@ export function StaffAccessPanel({
     await load();
   }
 
-  const invitableRoles: OrganizationMemberRole[] =
-    callerRole === 'principal'
-      ? ['manager', 'agent', 'accountant', 'viewer']
-      : ['agent', 'accountant', 'viewer'];
+  // Staff security + audit hardening pass (this date): this panel is principal-only now (page
+  // gate + every underlying route/RPC), so `callerRole` is always 'principal' -- kept as an
+  // explicit prop rather than hardcoded so the component's own contract still states its
+  // assumption, matching every other role-gated component in this codebase.
+  const invitableRoles: OrganizationMemberRole[] = ['manager', 'agent', 'accountant', 'viewer'];
 
   if (!members || !invites || !provisions) {
     return <p className="panel py-8 text-center text-sm text-muted-foreground">Loading staff…</p>;
@@ -278,14 +279,18 @@ export function StaffAccessPanel({
         <ul className="divide-y divide-light-border dark:divide-dark-border">
           {members.map((m) => {
             const isPrincipal = m.role === 'principal';
-            const canEditRole =
-              callerRole === 'principal' || MANAGER_EDITABLE_ROLES.includes(m.role);
+            // Principal row safety (this date, item 6): the Principal's own row is never an
+            // ordinary editable staff row -- no role dropdown, no property-access toggles, no
+            // "Remove staff access" -- regardless of who's viewing (only the principal ever
+            // reaches this panel at all now). A future explicit ownership-transfer workflow is a
+            // separate, deliberate feature, not a side effect of this generic staff list.
+            const canEditRole = !isPrincipal;
             return (
               <li key={m.userId} className="py-3">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-foreground">
-                      {m.displayName ?? m.userId}
+                      {m.displayName}
                     </p>
                     <div className="mt-0.5 flex items-center gap-2">
                       {canEditRole ? (
@@ -351,7 +356,7 @@ export function StaffAccessPanel({
                       <Button
                         size="sm"
                         variant="destructive"
-                        onClick={() => removeStaff(m.userId, m.displayName ?? 'this member')}
+                        onClick={() => removeStaff(m.userId, m.displayName)}
                       >
                         Remove staff access
                       </Button>

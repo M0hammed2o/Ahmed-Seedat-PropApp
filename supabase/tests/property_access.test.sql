@@ -141,7 +141,7 @@ select throws_ok(
     'f1000000-0000-0000-0000-000000000003'::uuid,
     'read_only'::public.property_role
   ) $$,
-  'Only manager+ org members may grant property access',
+  'Only the organization principal may grant property access',
   'a viewer-role member cannot grant property access'
 );
 
@@ -225,7 +225,7 @@ select throws_ok(
     current_setting('pgtap.property_access_test.property_id')::uuid,
     'f1000000-0000-0000-0000-000000000003'::uuid
   ) $$,
-  'Only manager+ org members may revoke property access',
+  'Only the organization principal may revoke property access',
   'a viewer-role member cannot revoke property access'
 );
 

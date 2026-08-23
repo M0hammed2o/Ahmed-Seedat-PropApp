@@ -176,10 +176,15 @@ select is(
 );
 
 -- === STAFF 21: the Principal cannot accidentally lose required administrative access ===
+-- Staff security + audit hardening pass (this date): set_member_property_access_mode() now
+-- rejects a self-targeting call outright (Principal row safety, item 6) before ever reaching the
+-- older "always retains all-properties access" check -- same protective outcome (a Principal can
+-- never end up in 'selected' mode), different/earlier error message for the self-targeting case
+-- specifically.
 set local "request.jwt.claim.sub" = 'd4000000-0000-0000-0000-000000000001';
 select throws_ok(
   $$ select public.set_member_property_access_mode(current_setting('pgtap.osl.org_id')::uuid, 'd4000000-0000-0000-0000-000000000001', 'selected') $$,
-  'A Principal always retains all-properties access and cannot be restricted to selected properties',
+  'Principal property access cannot be changed via this action',
   '21: the Principal cannot be narrowed to selected-properties mode, by themselves or anyone else'
 );
 

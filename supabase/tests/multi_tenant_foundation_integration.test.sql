@@ -109,6 +109,10 @@ select is(
   'accepting the invite creates a membership row with the invited role (agent), not principal'
 );
 
+-- Staff security + audit hardening pass (this date): organization_invites' SELECT policy is now
+-- principal-only (was "any active same-org member") -- user2 (role 'agent') can no longer see
+-- their own accepted invite row via RLS. reset role for this one verification read.
+reset role;
 select is(
   (select accepted_at is not null from public.organization_invites oi
      join public.organizations o on o.id = oi.org_id
@@ -117,6 +121,8 @@ select is(
   true,
   'the invite row is marked accepted after acceptance (cannot be replayed)'
 );
+set local role authenticated;
+set local "request.jwt.claim.sub" = 'a0000000-0000-0000-0000-000000000002';
 
 -- === 5. org_id propagation: the newly-joined agent can create a property scoped to this org ===
 -- properties no longer has a client-facing INSERT policy (20260101000064) -- create_property()

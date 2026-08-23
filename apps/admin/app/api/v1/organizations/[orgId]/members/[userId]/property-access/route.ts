@@ -38,7 +38,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
       { status: 401 },
     );
   }
-  const canManage = await requireOrgRole(supabase, orgId, 'manager');
+  const canManage = await requireOrgRole(supabase, orgId, 'principal');
   if (!canManage) {
     return NextResponse.json(
       { error: { code: 'forbidden', message: 'You do not have permission to view this.' } },

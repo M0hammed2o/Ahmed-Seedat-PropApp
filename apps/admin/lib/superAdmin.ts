@@ -248,7 +248,7 @@ export async function getPlatformOrganizationDetail(
     client
       .from('audit_events')
       .select(
-        'id, org_id, actor_user_id, actor_type, action, entity_type, entity_id, before, after, ip_address, ai_conversation_id, ai_message_id, created_at',
+        'id, org_id, actor_user_id, actor_type, action, entity_type, entity_id, before, after, ip_address, ai_conversation_id, ai_message_id, property_id, actor_role, actor_display_name, correlation_id, created_at',
       )
       .eq('org_id', orgId)
       .order('created_at', { ascending: false })
@@ -306,6 +306,10 @@ export async function getPlatformOrganizationDetail(
       ipAddress: row.ip_address,
       aiConversationId: row.ai_conversation_id,
       aiMessageId: row.ai_message_id,
+      propertyId: row.property_id,
+      actorRole: row.actor_role,
+      actorDisplayName: row.actor_display_name,
+      correlationId: row.correlation_id,
       createdAt: row.created_at,
     })),
   };

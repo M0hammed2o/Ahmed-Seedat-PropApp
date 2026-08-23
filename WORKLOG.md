@@ -1,5 +1,82 @@
 # Worklog
 
+## 2026-08-23 (continued) — Staff security + audit hardening pass (not yet deployed)
+
+A real production walkthrough of the provisioned-staff model exposed a permission-model bug: a
+Manager could reach `/organization/staff` and administer staff there -- not permitted under V1
+(Staff & Property Access, and Billing, are Principal-only). Audited first, then implemented.
+Migration `20260101000125`.
+
+**Principal-only enforcement, every layer**: staff administration (add/remove/revoke staff,
+role changes, property-access changes, legacy invite create/resend/revoke) moved from manager+ to
+principal-only at the RPC floor (`provision_staff_member`, `update_organization_member_role`,
+`revoke_organization_member`, `set_member_property_access_mode`, `grant_property_access`,
+`revoke_property_access`, `revoke_organization_invite`), the RLS SELECT/INSERT/UPDATE policies on
+`organization_invites`/`organization_staff_provisions`/`organization_staff_provision_properties`
+(previously readable by any/agent+ same-org member), the `/organization/staff` page gate, the
+account-menu nav (split a new `canManageStaff` flag out of the old `canManageOrg` bundle, which
+still correctly stays manager+ for Organization settings/Lease templates -- not staff
+administration, never asked to change), and every staff-provisions/members/invites API route.
+Billing was already principal-only end-to-end (page + all `.../billing/*` routes already used
+`requireBillingPrincipalAccess()`) -- audited, confirmed, untouched. Added Principal
+self-protection: a Principal can no longer change their own role, their own property-access mode,
+or revoke their own access via the generic staff-management actions (a future explicit
+ownership-transfer workflow is separate, deliberate, not built here); the UI's own Principal row
+is now fully read-only (no role dropdown, no property-access toggles, no remove button).
+
+**Root-caused and fixed the raw-UUID-in-staff-list display bug** the production screenshots
+showed: `profiles` has only ever had an own-row SELECT policy (`profiles_select_own`), so every
+cross-member name lookup via the session client (`members/route.ts`, `downgradeImpact.ts`) was
+silently RLS-blocked, returning null for every teammate except the caller -- the UI's
+`?? m.userId` fallback then rendered the raw auth UUID. Fixed via the service-role client for
+these specific elevated reads (the routes' own `requireOrgRole` check is already the
+authorization boundary), not by widening `profiles`' RLS to every same-org member. New fallback
+hierarchy: profile name -> email -> "Unnamed user", never a UUID.
+
+**New Organisation -> Activity page** (`/organization/activity`, principal-only): filterable
+(staff member, category, property, date range, search), server-side via a new
+`GET .../activity` route mirroring the existing Super Admin audit route's own
+service-role-after-app-layer-check pattern (audit_events' own broad viewer+ SELECT policy was
+deliberately left untouched -- the dashboard's existing 8-row "recent activity" widget depends on
+it for every role; the NEW route, not a second RLS policy, is this feature's real enforcement
+boundary).
+
+**Extended (not duplicated) the existing `audit_events`/`writeAuditEvent()` architecture**: added
+`property_id`/`actor_role`/`actor_display_name`/`correlation_id` columns (all nullable, backward
+compatible) and `ip_address`/`ai_conversation_id`/`ai_message_id` write support `writeAuditEvent()`
+itself was missing despite the read side already supporting them. A full mutating-route audit
+(background agent) found `properties`/`units`/`tenants`/`leases`/`inspections`/
+`accounting_periods` completely unaudited anywhere (no RPC insert, no TS call, no trigger) --
+closed by attaching the ALREADY-PROVEN generic `log_audit_event_trigger()` (previously only on
+`owner_statements`/`cash_receipts`/`maintenance_tickets`) to all six, zero route changes needed.
+`bank_transactions` deliberately excluded (no direct `org_id` column, would need a bespoke
+trigger) -- disclosed, not silently skipped.
+
+**Role-aware dashboard**: the Getting-Started/owner-onboarding checklist and "Invite your team" CTA
+are now Principal-only; a non-principal with zero properties sees "Your workspace is ready..."
+instead of the org-owner onboarding flow they can't act on.
+
+**Regression fixes in existing pgTAP tests** (expected consequences of the intentional
+manager->principal floor change, not new defects): several tests needed `reset role` added before
+a verification read that used to work under RLS at the OLD (broader) floor and now needs
+unrestricted read access (same "verify via an unrestricted read" pattern this suite already used
+elsewhere), and several `throws_ok` assertions needed their expected error-message strings updated
+to match the new principal-only rejection messages. Full pgTAP: 70/70 files. New pgTAP file
+(`staff_principal_only_and_audit_hardening.test.sql`, 27 assertions): principal-only RPC denials
+for a Manager caller, principal self-protection guards, RLS visibility (agent cannot SELECT
+`organization_invites`, principal can), and the six new audit triggers producing correctly-scoped
+rows. New real-local-Supabase vitest route test (3 tests): a Manager gets 403 from
+`/members`/`/staff-provisions`/`/activity`, the Principal is allowed and sees the Manager's REAL
+resolved name (not null, not a UUID), and the Activity route's staff/category filters narrow
+correctly with actor-role snapshots populated.
+
+Full vitest: 756 passed, 3 pre-existing skips, plus one pre-existing full-suite-load-only flake
+(`daily-jobs` idempotency test -- confirmed passing 5/5 in isolation, unrelated to this pass,
+matches this project's own previously-documented flake pattern). `tsc`/`eslint`/`next build` all
+clean. Committed locally only -- migration `20260101000125` not applied to production, nothing
+pushed, no deploy performed.
+
+
 ## 2026-08-23 (continued) — Provisioned-staff model: CONTROLLED PRODUCTION DEPLOYMENT executed
 
 Deployed `3699e1f` (on top of `adba1be`) to production following the approved 13-phase plan.

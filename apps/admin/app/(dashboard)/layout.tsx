@@ -215,6 +215,13 @@ export default async function PortalLayout({ children }: { children: React.React
     : undefined;
   const canManageOrg =
     !activeSupportSession && (activeOrg.role === 'principal' || activeOrg.role === 'manager');
+  // Staff security + audit hardening pass (this date): a real production walkthrough showed a
+  // Manager reaching /organization/staff via this exact `canManageOrg` bundle and administering
+  // staff -- not permitted under the V1 permission model. Staff & property access, and the new
+  // Activity log, are now their own principal-only flag, split out of canManageOrg (which still
+  // correctly gates Organization settings/Lease templates at manager+ -- those are NOT staff
+  // administration and were never asked to change).
+  const canManageStaff = !activeSupportSession && activeOrg.role === 'principal';
   // Billing is principal-only, stricter than canManageOrg -- it moves real money (subscription
   // checkout/cancellation), not just organization metadata, matching PATCH .../billing/*'s own
   // super_admin-only floor at the platform-admin layer.
@@ -224,8 +231,13 @@ export default async function PortalLayout({ children }: { children: React.React
     ...(canManageOrg
       ? [
           { href: '/organization/settings', label: 'Organization settings' },
-          { href: '/organization/staff', label: 'Staff & property access' },
           { href: '/organization/lease-templates', label: 'Lease templates' },
+        ]
+      : []),
+    ...(canManageStaff
+      ? [
+          { href: '/organization/staff', label: 'Staff & property access' },
+          { href: '/organization/activity', label: 'Activity' },
         ]
       : []),
     ...(canManageBilling

@@ -64,7 +64,7 @@ async function handlePOST(_request: NextRequest, { params }: RouteParams) {
     );
   }
 
-  const canManage = await requireOrgRole(supabase, invite.org_id, 'manager');
+  const canManage = await requireOrgRole(supabase, invite.org_id, 'principal');
   if (!canManage) {
     return NextResponse.json(
       {

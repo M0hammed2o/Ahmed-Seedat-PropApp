@@ -1,5 +1,6 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { getServiceRoleClient } from './supabase/server';
 
 /**
  * V1 commercial UX pass -- "before customer confirms a downgrade, show a preview... do not permit
@@ -82,10 +83,17 @@ export async function computeDowngradeImpact(
       .order('created_at', { ascending: true }),
   ]);
 
+  // Staff security + audit hardening pass (this date): same fix as
+  // organizations/[orgId]/members/route.ts -- profiles has only an own-row SELECT policy, so this
+  // cross-member lookup must go through the service-role client (this function is only ever
+  // called from billing/quote/route.ts, already gated by requireBillingPrincipalAccess) rather
+  // than the caller's session client, which would silently return zero rows for every staff
+  // member except the caller themselves.
   const staffUserIds = (staff ?? []).map((m) => m.user_id);
+  const serviceClient = getServiceRoleClient();
   const { data: profiles } =
     staffUserIds.length > 0
-      ? await supabase.from('profiles').select('id, display_name').in('id', staffUserIds)
+      ? await serviceClient.from('profiles').select('id, display_name').in('id', staffUserIds)
       : { data: [] as { id: string; display_name: string | null }[] };
   const displayNameByUserId = new Map((profiles ?? []).map((p) => [p.id, p.display_name]));
 

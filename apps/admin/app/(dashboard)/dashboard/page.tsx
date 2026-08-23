@@ -79,6 +79,12 @@ interface DashboardData {
   insights: DashboardInsight[];
   displayFirstName?: string;
   orgId?: string;
+  orgName?: string;
+  /** Role-aware dashboard (item 7, staff security + audit hardening pass, this date): the
+   *  Getting-Started/organisation-onboarding content below is Principal-only -- a Manager/Agent/
+   *  Accountant/Viewer does not administer the SaaS organisation and should never see "Invite
+   *  your team" or the owner-onboarding checklist. */
+  role?: 'principal' | 'manager' | 'agent' | 'accountant' | 'viewer';
   onboardingProgress?: OnboardingProgress;
 }
 
@@ -196,6 +202,33 @@ export default async function DashboardPage() {
   // reads as broken rather than empty. A single welcome/CTA panel replaces that noise; nothing
   // about the populated dashboard below this block changes.
   if (data.totalProperties === 0) {
+    // Role-aware dashboard (item 7, staff security + audit hardening pass, this date): a
+    // non-principal staff member does not administer the SaaS organisation -- they never see the
+    // owner-onboarding checklist ("Invite your team", "Choose your plan", etc.) or a CTA to
+    // actions they're not authorized to perform. They get a distinct, honest empty state instead.
+    if (data.role && data.role !== 'principal') {
+      return (
+        <>
+          <PageHeader
+            title={`${greeting()}${data.displayFirstName ? `, ${data.displayFirstName}` : ''}`}
+            subtitle={`Welcome to ${data.orgName ?? 'your organisation'}`}
+          />
+          <div className="panel flex flex-col items-center gap-3 px-6 py-16 text-center">
+            <span className="grid h-12 w-12 place-items-center rounded-2xl bg-primary-soft text-primary">
+              <Building2 className="h-6 w-6" aria-hidden="true" />
+            </span>
+            <h2 className="font-display text-xl font-bold text-foreground">
+              Your workspace is ready
+            </h2>
+            <p className="max-w-sm text-sm text-muted-foreground">
+              Here are the properties and tasks you have access to. Your organisation hasn&apos;t
+              added any properties yet -- check back once your Principal has set up the portfolio.
+            </p>
+          </div>
+        </>
+      );
+    }
+
     // V1 commercial onboarding pass, Phase 5/6: the first-login welcome screen. The hero CTA
     // points at whatever resolveOnboardingProgress() says is genuinely the next step -- staff
     // setup before property setup, per product requirement, achieved by sequencing (the
@@ -644,10 +677,24 @@ async function loadData(): Promise<DashboardData> {
   // second, cheap session lookup, same as (dashboard)/layout.tsx's own independent resolution for
   // its own gates.
   const session = await resolvePortalSession();
-  const activeOrgId = session?.organizations.find((m) => m.status === 'active')?.orgId;
-  const onboardingProgress = activeOrgId
-    ? await resolveOnboardingProgress(supabase, activeOrgId)
-    : undefined;
+  const activeOrg = session?.organizations.find((m) => m.status === 'active');
+  const activeOrgId = activeOrg?.orgId;
+  const onboardingProgress =
+    activeOrgId && activeOrg?.role === 'principal'
+      ? await resolveOnboardingProgress(supabase, activeOrgId)
+      : undefined;
+  // Role-aware dashboard (item 7): org name is only needed for the non-principal empty-state
+  // greeting ("Welcome to {org}") -- a cheap, single-row lookup, only fired when actually needed.
+  const orgName =
+    activeOrgId && activeOrg?.role !== 'principal'
+      ? (
+          await supabase
+            .from('organizations')
+            .select('trading_name, legal_name')
+            .eq('id', activeOrgId)
+            .maybeSingle()
+        ).data
+      : null;
 
   const [
     propertiesResult,
@@ -870,6 +917,8 @@ async function loadData(): Promise<DashboardData> {
     })),
     displayFirstName: profileResult.data?.display_name?.split(' ')[0] || undefined,
     orgId: activeOrgId,
+    orgName: orgName?.trading_name || orgName?.legal_name || undefined,
+    role: activeOrg?.role,
     onboardingProgress,
   };
 }

@@ -49,10 +49,18 @@ select lives_ok(
   $$ select public.accept_organization_invite('f4000000-0000-0000-0000-000000000001'::uuid) $$,
   'first invitee accepts successfully while a seat is available'
 );
+-- Staff security + audit hardening pass (this date): organization_invites' own SELECT policy is
+-- now principal-only (was "any active same-org member") -- the invitee themselves (role 'agent')
+-- can no longer see their own now-accepted invite row via RLS. reset role for this one
+-- verification read, same "verify via an unrestricted read, not the RLS-scoped caller" pattern
+-- this file's own earlier fix already established for a different reason.
+reset role;
 select ok(
   (select accepted_at is not null from public.organization_invites where id = 'f3000000-0000-0000-0000-000000000001'),
   'the first invite is marked accepted'
 );
+set local role authenticated;
+set local "request.jwt.claim.sub" = 'f1000000-0000-0000-0000-000000000002';
 select ok(
   exists(select 1 from public.organization_members
     where org_id = 'f2000000-0000-0000-0000-000000000001'

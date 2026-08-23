@@ -67,11 +67,14 @@ select throws_ok(
   'principal role is rejected regardless of caller rank'
 );
 
+-- Staff security + audit hardening pass (this date): the old manager-can't-grant-manager/
+-- principal role-ceiling is moot now -- staff administration is principal-only, full stop, so a
+-- manager caller is rejected outright before role-ceiling logic is ever reached.
 select throws_ok(
   $$ select public.provision_staff_member('a2000000-0000-0000-0000-000000000005'::uuid, 'x@test.propertyvault.example'::citext, null, 'manager'::public.organization_member_role, 'all'::public.property_access_mode) $$,
   'P0001',
-  'A manager cannot provision a member with the manager or principal role',
-  'a manager caller cannot grant the manager role (role-ceiling)'
+  'Only the organization principal may provision staff',
+  'a manager caller is rejected outright -- staff administration is principal-only, not a manager ceiling'
 );
 
 select throws_ok(
@@ -87,7 +90,7 @@ set local "request.jwt.claim.sub" = 'a1000000-0000-0000-0000-000000000004';
 select throws_ok(
   $$ select public.provision_staff_member('a2000000-0000-0000-0000-000000000001'::uuid, 'x@test.propertyvault.example'::citext, null, 'agent'::public.organization_member_role, 'all'::public.property_access_mode) $$,
   'P0001',
-  'Only manager+ org members may provision staff',
+  'Only the organization principal may provision staff',
   'a caller with no active membership in the org cannot provision staff'
 );
 
@@ -283,6 +286,11 @@ select ok(
       and user_id = 'a1000000-0000-0000-0000-000000000006' and property_role = 'property_manager'),
   'activation copied the pending selected-property grant into property_access'
 );
+-- Staff security + audit hardening pass (this date): organization_staff_provisions' own SELECT
+-- policy is now principal-only (was agent+) -- the new hire themselves (role 'agent') can no
+-- longer see their own provisions row via RLS. reset role for this one verification read, same
+-- pattern as organization_invites' own equivalent fix elsewhere in this suite.
+reset role;
 select is(
   (select status from public.organization_staff_provisions
     where org_id = 'a2000000-0000-0000-0000-000000000003' and email = 'staffprov-new-hire@test.propertyvault.example'::citext),
@@ -294,6 +302,8 @@ select is(
   1,
   'the org''s seat is now consumed at activation time'
 );
+set local role authenticated;
+set local "request.jwt.claim.sub" = 'a1000000-0000-0000-0000-000000000006';
 
 -- A caller with no awaiting_activation row of their own (e.g. already activated, or none ever
 -- existed) gets a clear error, never a silent no-op.
