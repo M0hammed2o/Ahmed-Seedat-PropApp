@@ -1,5 +1,57 @@
 # Worklog
 
+## 2026-08-23 (continued) — Staff security + audit hardening: CONTROLLED PRODUCTION DEPLOYMENT
+
+Deployed `74fbad2` (migration `20260101000125`) to production. Pre/post migration snapshots
+matched exactly across all 14 tracked tables. `git push` was a clean fast-forward; Render's
+auto-deploy confirmed live via `/organization/activity` going from 404 to reachable.
+
+**Real-account verification** (via GoTrue `admin.generateLink({type:'magiclink'})` + `verifyOtp()`
+-- a real, reversible session for the real Mo's Properties Principal and the real Manager,
+without ever touching either account's password or sending them an email): Principal confirmed
+full access to Staff/Billing/Activity (pages + APIs), including real member names resolving
+correctly (no UUIDs). Manager confirmed denied on all three (200-with-PermissionDenied at the
+page level per this codebase's own convention, 403 at the API level) -- including denied mutation
+attempts (`role`/`revoke`), confirmed via response body showing the real RPC rejection message and
+a DB check proving zero state change. Two of the two mutation-denial routes return HTTP 400 rather
+than 403 (a pre-existing thin-wrapper pattern that surfaces any RPC error as 400, not unique to
+this pass) -- the action is still genuinely blocked, just a non-standard status code; noted, not
+fixed inline.
+
+Role-aware dashboard confirmed correct for both real accounts via a **real cookie-based session**
+(driven through the app's own `/auth/callback?token_hash=...` endpoint, which sets real
+`@supabase/ssr` cookies) after discovering bearer-token requests can't reach `/dashboard` at all --
+`proxy.ts`'s `PROTECTED_ROUTE_PREFIXES` gate runs its own cookie-only Supabase client ahead of the
+page, a pre-existing middleware property unrelated to this pass (confirmed via direct code read,
+not assumed). `/organization/staff|billing|activity` aren't in that prefix list, so bearer worked
+fine for those. Nav-dropdown *link* presence itself couldn't be confirmed via raw HTML (client-
+rendered, not in the server response) -- disclosed as a tooling limitation, not a pass/fail claim;
+the authoritative server-side page/API gates were fully verified live for both roles either way.
+
+**Real defect found via live QA-org testing, disclosed rather than silently patched**: the new
+`GET .../activity` route's actor-name fallback only tries `profiles.display_name`, never email --
+unlike `members/route.ts`, which already has the full profile-name -> email -> "Unnamed user"
+chain. A QA identity with no `display_name` set (created via the raw Admin API, never completed
+onboarding) showed `actorDisplayName: null` on its own audit rows, which the UI client renders as
+the generic "Unknown user" rather than the real email. Confirmed NOT a security or audit-integrity
+issue -- action/entity/org/role/before-after were all still correct, immutability held, no UUID
+was ever shown -- purely an incomplete fallback chain in one new route. Left as a disclosed,
+un-fixed finding for a follow-up pass (per the deploy's own "no live production hotfix" instruction)
+rather than improvised in place.
+
+Audit immutability re-proven against a genuinely new (this session's QA) row via normal
+authenticated PostgREST access, not just trusting the trigger: an UPDATE/DELETE attempt as the
+QA principal returned a 200/204 "success" with zero rows actually affected (no UPDATE/DELETE RLS
+policy exists at all) -- confirmed by re-reading the row unchanged afterward. Operational
+regression (property/tenant/expense mutations) confirmed correct for manager/agent/accountant/
+viewer in a disposable QA org with all four real roles. No secrets found in any newly-written audit
+row (pattern-scanned). Real Mo's Properties org/principal/manager/subscription state confirmed
+byte-for-byte unchanged throughout. QA cleanup: all QA staff memberships revoked, QA org relabelled
++cancelled; 2 of 5 QA identities (accountant, viewer -- never an audited actor) hard-deleted
+cleanly, the other 3 (principal, manager, agent) blocked by the same `audit_events` FK immutability
+already documented in earlier sessions, left in place rather than forced.
+
+
 ## 2026-08-23 (continued) — Staff security + audit hardening pass (not yet deployed)
 
 A real production walkthrough of the provisioned-staff model exposed a permission-model bug: a
