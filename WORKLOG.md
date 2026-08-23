@@ -1,5 +1,67 @@
 # Worklog
 
+## 2026-08-23 (continued) — Provisioned-staff model: CONTROLLED PRODUCTION DEPLOYMENT executed
+
+Deployed `3699e1f` (on top of `adba1be`) to production following the approved 13-phase plan.
+Migration `20260101000124` applied to `radqoboichldiucydrgy` via `supabase db push --linked`
+(dry-run confirmed first: exactly one migration pending). Pre/post migration read-only snapshots
+matched exactly (auth.users=2, organizations=1, organization_members=1, organization_invites=0,
+properties=0, property_access=0, organization_subscriptions=2, subscription_payments=0,
+payment_methods=0, audit_events=0) -- the two intentionally-retained production accounts
+(Mohammed's own account, and the owner of the real "Mo's Properties" trial org) confirmed present
+and untouched throughout. `git push origin main` was a clean fast-forward (`bb5a32e..3699e1f`);
+Render's auto-deploy picked it up and `/staff/activate` went from 404 to 200 within its normal
+build window, confirmed via external HTTP polling only (no Render log access this session, not
+claimed).
+
+**Full real production proof, disposable QA identities throughout, never touching Mohammed's real
+account or Mo's Properties**: a QA principal + QA org were created via the Admin API, then the
+entire feature was driven through the REAL deployed HTTP routes (bearer auth for org-scoped
+actions, real cookie-jar sessions with the required `Origin` header for the CSRF-protected
+cookie-based routes) --
+1. Brand-new hire: add -> real `awaiting_activation` row, 0 seats consumed, real Resend dispatch
+   (`emailDeliveryConfigured:true`) -> `/api/v1/staff/activate` (real password set) -> hit
+   `/staff/activate` unauthenticated-then-authenticated and watched the real 307 redirects through
+   `/legal-consent` then `/complete-account` fire exactly as coded -> real `.../finish` RPC call ->
+   membership active, correct role/property-access-mode, seat consumed, never became Principal,
+   no subscription ever created for the employee.
+2. Existing (already password-capable) QA identity provisioned into the same org: immediate
+   activation, notification email dispatched, confirmed exactly one `auth.users` row for that
+   email (no duplicate identity).
+3. Revoke (real `.../members/:userId/revoke` route) -> re-add (real `staff-provisions` route,
+   different role): membership row reactivated (not duplicated), full `audit_events` history
+   intact across the whole lifecycle (`provision_created` -> `activated` -> `removed` ->
+   `provisioned_existing_user`).
+4. Real forgot-password flow (`/api/v1/auth/password-reset` + a real GoTrue recovery token) for
+   the freshly-activated hire: old password invalidated, new password works, org
+   membership/role/property-access completely unchanged, no staff-specific reset path exists.
+5. Resend activation (real `.../resend` route): no duplicate auth user, no duplicate provisions
+   row, a genuinely second `email_messages` row dispatched (the `dispatchAttempt`-suffix fix
+   proven live, not just locally).
+6. Legacy regression: the pre-existing `organization_invites` create+accept flow exercised
+   end-to-end through the real deployed routes, unaffected by this deployment.
+
+Confirmed via a read-only Management API GET (no write made) that `external_google_enabled`/
+`external_apple_enabled` are both still `true` and `security_manual_linking_enabled` is still
+`false` in production, exactly as before this deployment -- OAuth config was not touched, per
+instruction; Google/Apple same-email linking behaviour remains `UNKNOWN`, a later manual test
+item, not a blocker.
+
+**Cleanup**: every QA staff membership was revoked via the real routes (zero active staff
+memberships remain); the QA org was relabelled `[deleted QA test org] <uuid>` and marked
+`cancelled` (its own principal membership necessarily remains -- `revoke_organization_member()`'s
+own last-Principal guard, plus the org can't be hard-deleted). Attempted to hard-delete all 5 QA
+`auth.users` identities: all 5 blocked by real foreign-key constraints (`audit_events.actor_user_id`
+for identities that performed an audited action; `organization_staff_provisions.auth_user_id` for
+one that didn't) -- left in place with zero memberships rather than forced, exactly matching this
+project's own established convention from earlier QA sessions. No audit history was deleted, no
+real customer/account data was touched.
+
+Full production result: every phase of the approved plan passed. No production errors observed
+(only real, expected 403s from the CSRF layer on deliberately-malformed test requests). Deployed
+HEAD `3699e1f`, production migration head now `20260101000124`.
+
+## 2026-08-23 (continued) — Provisioned-staff predeploy hardening: closed all 4 flagged test gaps
 ## 2026-08-23 (continued) — Provisioned-staff predeploy hardening: closed all 4 flagged test gaps
 
 Closed every test gap the prior pass's own implementation report disclosed (`adba1be`), per an
