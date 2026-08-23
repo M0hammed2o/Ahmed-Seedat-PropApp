@@ -1,5 +1,65 @@
 # Worklog
 
+## 2026-08-23 (continued) — Provisioned-staff predeploy hardening: closed all 4 flagged test gaps
+
+Closed every test gap the prior pass's own implementation report disclosed (`adba1be`), per an
+explicit "do not deploy until these are closed" instruction. No architecture change -- every new
+test passed against the existing code on the first attempt it actually exercised the real
+behaviour (three earlier attempts failed on test-authoring bugs, not product defects; see below).
+
+1. **Concurrent final-seat race** (`lib/__tests__/staffActivationSeatRace.test.ts`) -- two real,
+   independent PostgREST connections call `activate_staff_provision()` at the same instant for an
+   org with exactly one free seat. Confirmed: exactly one wins, one fails with
+   `staff_seat_limit_reached`, `org_active_billable_staff_count()` ends at exactly 1, no duplicate
+   membership, no partial `property_access` row for the loser -- the org-row `for update` lock
+   genuinely serializes the race, not just in theory.
+2. **Multi-org scoping** (`lib/__tests__/staffProvisioningMultiOrg.test.ts`) -- an existing member
+   of Org A gets provisioned into Org B with a different role and different (selected) property
+   access. Confirmed: no duplicate `auth.users` row, Org A's membership is byte-for-byte unchanged
+   after Org B's provisioning, Org B is scoped independently, both memberships are visible via a
+   normal same-user query, no organisation/subscription is ever created for the employee, and
+   revoking only Org B leaves Org A untouched.
+3. **Revoke -> re-add, real route handlers** (`.../staff-provisions/__tests__/revokeReadd.route.test.ts`)
+   -- exercises the actual Next.js route handlers end-to-end (not just RPCs, mirroring
+   `switch-tenancy/__tests__/route.test.ts`'s own real-route pattern): add (selected properties) ->
+   `POST /api/v1/staff/activate` (real password set) -> `POST .../finish` (real RPC) -> the
+   existing, unmodified `POST .../members/:userId/revoke` -> re-add (all properties, different
+   role). Confirmed: property_access cleared and seat released on revoke, the same auth identity
+   and the same `organization_members` row are reactivated on re-add (not a duplicate), and
+   `audit_events` history survives the whole lifecycle intact.
+4. **Password reset after activation** (`app/api/v1/auth/password-reset/__tests__/staffActivationRecovery.test.ts`)
+   -- a brand-new hire runs the full `generateLink -> verifyOtp -> set password ->
+   activate_staff_provision()` chain, then the real, unmodified `POST /api/v1/auth/password-reset`
+   route + a real GoTrue recovery token round-trip through it. Confirmed: old password stops
+   working, new password works, org membership/role/property access are untouched, and no
+   staff-specific password mechanism exists anywhere (deliberately not built, per instruction).
+
+**Real bugs found and fixed -- all in test code, none in product code**: (a) the seat-race test's
+first attempt pre-created both "hires" via `admin.createUser({email_confirm:true})` with no
+`password` field, and empirically discovered (via a direct `docker exec` check) that GoTrue's
+Admin API generates a REAL random password anyway when none is supplied -- this silently flipped
+both employees onto the existing-password-user branch, consuming the seat at *provisioning* time
+and never reaching the race the test existed to prove; fixed by letting `provisionStaffMember()`
+itself create the (genuinely passwordless) identity via `generateLink()`, exactly matching how a
+real brand-new hire's identity comes to exist. (b) The revoke/re-add route test initially sent a
+body on a GET request (`Request with GET/HEAD method cannot have body`) -- fixed by omitting the
+body for GET in the test's own fetch helper. (c) Filtering GoTrue's admin list-users endpoint by an
+`email` query param silently returned unfiltered results (50 users, not 1) -- fixed by using the
+JS Admin SDK's `listUsers()` + client-side filter instead of a hand-rolled raw query param.
+
+**Also found and fixed, unrelated to any of the four new tests**: a full pgTAP regression run
+initially showed one failure (`rls_isolation.test.sql`, `duplicate key value violates unique
+constraint "users_pkey"`) -- root-caused to a leftover `auth.users` row this same session had
+inserted directly via `docker exec` while empirically diagnosing bug (a) above, colliding with
+that test's own hardcoded fixture UUID; deleted the leftover row (local-dev-only, never
+product-reachable) and the full suite passed cleanly on rerun. Not a code defect.
+
+Full regression, all green: pgTAP 69/69 files (0 failures), Vitest 754 passed / 3 skipped
+(pre-existing, unrelated), `tsc --noEmit` clean, `eslint` clean, `next build` succeeds. Google/Apple
+same-email linking remains `Unknown` as instructed -- not touched, documented as needing manual
+production/browser testing later, does not block this launch. Committed locally only -- still not
+pushed, migration `20260101000124` still not applied to production, no deploy performed.
+
 ## 2026-08-23 — Proplyst provisioned-staff account model (implementation, not yet deployed)
 
 Implemented the dedicated admin-provisioned staff model from the prior session's own audit
