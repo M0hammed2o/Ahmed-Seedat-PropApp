@@ -1,5 +1,46 @@
 # Worklog
 
+## 2026-08-24 (continued) — Activity name fallback + 403 status mapping: CONTROLLED PRODUCTION DEPLOYMENT
+
+Deployed `3e94e2a` (+ docs `9047fcd`) to production. No migration -- TypeScript-only fix, predeploy
+audit confirmed no migration `00126` pending. Clean fast-forward push; Render auto-deploy confirmed
+live via the new 403-mapping and Activity-fallback behaviour actually being observable (the old
+code could not have produced either), not just a homepage 200.
+
+**Real-account verification**, same non-destructive `admin.generateLink` + `verifyOtp()` technique
+as the prior deployment. Real Manager (Mo's Properties): role-change/revoke/mode-change/
+provision-staff all correctly 403 (previously 400); grant/revoke property-access couldn't be
+exercised against Mo's Properties itself (it has zero real properties, so the RPC's own "Property
+not found" pre-check fires before the role check on any disposable property id) -- verified instead
+inside a fully isolated, synthetic QA org against a real property, with a distinct QA "manager"
+identity, both correctly 403. DB check confirmed Mo's Properties' member roster (2) and staff
+provisions (1) were byte-for-byte unchanged after the whole Manager test pass. Real Principal:
+staff/activity/billing reads all 200 with real data, one idempotent mode-change (Manager's mode set
+to its own current value, `'all'` -> `'all'`) proved valid staff administration still succeeds with
+zero net state change, and a malformed role payload stayed 400 for both Principal and Manager (no
+over-eager 403 remapping).
+
+Activity fallback: exercised all three tiers live. Built a disposable QA org + QA principal with a
+genuinely blank `profiles.display_name` and a real (synthetic, non-deliverable) email; a real
+`accounting_periods` insert through the actual API showed the email, never the raw UUID. Set a
+display name, made a fresh trigger-based insert (a property), confirmed live resolution to the
+profile name. Created an `expenses` row (goes through `writeAuditEvent()`, which snapshots
+`actor_display_name` at write time) with that same name, then changed the profile's current display
+name and re-fetched the same Activity row -- the stored snapshot was unchanged, while a brand-new
+row created after the change correctly picked up the new name live, proving the snapshot-vs-live
+split works exactly as coded, end-to-end, against the deployed production route. The third tier
+("Unnamed user", a resolvable-neither-name-nor-email actor) was **not** independently re-executed
+live in production this pass -- it requires a phone-only auth identity, and production has no
+confirmed no-op way to mint one without a real OTP/SMS dispatch attempt; relied instead on the
+already-passing real-Supabase vitest coverage for this exact tier plus code review of the identical
+deployed branch. Security scan of the Activity API response (regex sweep for token/password/
+service-key/card-number patterns) found nothing.
+
+Cleanup: QA org's expense/accounting-period/property rows deleted outright. The org itself and the
+two synthetic QA auth identities could not be hard-deleted (`audit_events.org_id`/blocked by FK,
+`23503`) -- both QA memberships were set to `revoked` instead, leaving zero active access, matching
+this engagement's established pattern rather than forcing deletion through the audit trail.
+
 ## 2026-08-24 — Staff hardening follow-up: Activity name fallback + 403 status mapping (not deployed)
 
 Two findings from the previous production verification, fixed locally. (1) `GET .../activity`'s
