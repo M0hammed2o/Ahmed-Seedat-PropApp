@@ -50,6 +50,17 @@ export interface Application {
   decidedAt: string | null;
   /** Internal landlord/staff notes -- V1 simplification, 2026-08-01. Never applicant-visible. */
   notes: string | null;
+  // Applicant self-service fields (migration 20260101000132) -- filled in by the applicant
+  // themselves via submit_application_by_token(), or left null for a staff-entered application.
+  dateOfBirth: string | null;
+  currentAddress: string | null;
+  employmentStatus: string | null;
+  employerName: string | null;
+  monthlyIncome: number | null;
+  householdSize: number | null;
+  /** Free text the APPLICANT wrote about themselves -- distinct from `notes` (staff-internal). */
+  applicantNotes: string | null;
+  submittedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }

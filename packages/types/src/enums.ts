@@ -170,7 +170,10 @@ export type ApplicationScreeningStatus = (typeof APPLICATION_SCREENING_STATUSES)
 
 // 'screening' is retained (dormant, V2 candidate -- ROADMAP.md) but no V1 UI path sets it.
 // 'reviewing'/'withdrawn' added 2026-08-01 for the simplified V1 applications workflow.
+// 'invited' added 2026-08-25 (migration 20260101000132): applicant self-service, a token has been
+// issued but the applicant has not yet completed/submitted the form.
 export const APPLICATION_STATUSES = [
+  'invited',
   'submitted',
   'reviewing',
   'screening',

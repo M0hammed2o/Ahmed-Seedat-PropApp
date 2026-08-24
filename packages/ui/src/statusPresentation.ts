@@ -127,6 +127,7 @@ export const MAINTENANCE_PRIORITY_PRESENTATION: Record<MaintenancePriority, Stat
 // own `applicationDisplayPresentation()`, which shows the actual decision (Approved/Declined)
 // instead of the generic "Decided" label below.
 export const APPLICATION_STATUS_PRESENTATION: Record<ApplicationStatus, StatusPresentation> = {
+  invited: { label: 'Invited', icon: 'dot', colorToken: 'statusNeedsReview' },
   submitted: { label: 'New', icon: 'eye', colorToken: 'statusNeedsReview' },
   reviewing: { label: 'Reviewing', icon: 'spinner', colorToken: 'statusProcessing' },
   screening: { label: 'Screening', icon: 'spinner', colorToken: 'statusProcessing' },

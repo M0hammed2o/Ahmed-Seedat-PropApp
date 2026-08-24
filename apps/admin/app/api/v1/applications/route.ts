@@ -113,6 +113,7 @@ export async function POST(request: NextRequest) {
       applicant_name: parsed.data.applicantName,
       applicant_email: parsed.data.applicantEmail ?? null,
       applicant_phone: parsed.data.applicantPhone ?? null,
+      ...(parsed.data.selfService ? { status: 'invited' as const } : {}),
     })
     .select('*')
     .single();
@@ -122,6 +123,15 @@ export async function POST(request: NextRequest) {
       { error: { code: 'application_create_failed', message: error.message } },
       { status: 500 },
     );
+  }
+
+  if (parsed.data.selfService) {
+    // Best-effort: the application itself was created successfully either way -- a seeding
+    // failure here shouldn't block the response, since staff can still open the application and
+    // the applicant-intake page tolerates zero requirements (nothing to upload yet, not an error).
+    await supabase.rpc('seed_default_application_document_requirements', {
+      p_application_id: data.id,
+    });
   }
 
   return NextResponse.json({ application: mapApplicationRow(data) }, { status: 201 });

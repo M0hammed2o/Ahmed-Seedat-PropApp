@@ -49,6 +49,14 @@ interface ApplicationRow {
   decided_by: string | null;
   decided_at: string | null;
   notes: string | null;
+  date_of_birth: string | null;
+  current_address: string | null;
+  employment_status: string | null;
+  employer_name: string | null;
+  monthly_income: number | null;
+  household_size: number | null;
+  applicant_notes: string | null;
+  submitted_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -71,6 +79,14 @@ export function mapApplicationRow(row: ApplicationRow): Application {
     decidedBy: row.decided_by,
     decidedAt: row.decided_at,
     notes: row.notes,
+    dateOfBirth: row.date_of_birth,
+    currentAddress: row.current_address,
+    employmentStatus: row.employment_status,
+    employerName: row.employer_name,
+    monthlyIncome: row.monthly_income,
+    householdSize: row.household_size,
+    applicantNotes: row.applicant_notes,
+    submittedAt: row.submitted_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

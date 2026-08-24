@@ -29,8 +29,38 @@ export const applicationCreateSchema = z.object({
   applicantName: z.string().min(1, 'Applicant name is required').max(200),
   applicantEmail: z.string().email('Enter a valid email address').optional().nullable(),
   applicantPhone: z.string().max(30).optional().nullable(),
+  // When true, the application is created as 'invited' (applicant self-service, migration
+  // 20260101000132) instead of the default 'submitted' (staff entered the whole application
+  // themselves, unchanged V1 behaviour) -- and the default document-requirement set is seeded.
+  selfService: z.boolean().default(false),
 });
 export type ApplicationCreateInput = z.infer<typeof applicationCreateSchema>;
+
+// POST /api/v1/applications/:id/access-tokens -- create_application_access_token() (migration
+// 20260101000132). Issues (or re-issues) the secure link staff sends the applicant.
+export const applicationAccessTokenCreateSchema = z.object({
+  deliveryChannel: z.enum(['email', 'whatsapp', 'manual']),
+  destinationHint: z.string().max(200).optional().nullable(),
+});
+export type ApplicationAccessTokenCreateInput = z.infer<typeof applicationAccessTokenCreateSchema>;
+
+// POST /api/v1/apply/:token/submit -- submit_application_by_token() (migration 20260101000132).
+// Public (token-authenticated, not session-authenticated) -- every field here maps 1:1 to a
+// whitelisted column the RPC itself updates, nothing more.
+export const applicationSelfServiceSubmitSchema = z.object({
+  applicantName: z.string().min(1, 'Your name is required').max(200),
+  applicantEmail: z.string().email('Enter a valid email address').optional().nullable(),
+  applicantPhone: z.string().max(30).optional().nullable(),
+  dateOfBirth: z.string().optional().nullable(),
+  currentAddress: z.string().max(500).optional().nullable(),
+  employmentStatus: z.string().max(100).optional().nullable(),
+  employerName: z.string().max(200).optional().nullable(),
+  monthlyIncome: z.number().min(0).optional().nullable(),
+  householdSize: z.number().int().min(1).optional().nullable(),
+  applicantNotes: z.string().max(2000).optional().nullable(),
+  popiaConsent: z.boolean(),
+});
+export type ApplicationSelfServiceSubmitInput = z.infer<typeof applicationSelfServiceSubmitSchema>;
 
 // POST /api/v1/applications/:id/consent -- at least one of the two consent flags must be given;
 // each is independently capturable (a POPIA consent can be given before screening consent, since
@@ -52,10 +82,9 @@ export const applicationDecisionSchema = z.discriminatedUnion('decision', [
   }),
   z.object({
     decision: z.literal('approved'),
-    rentAmount: z.number().positive('Rent amount must be greater than zero'),
-    depositAmount: z.number().min(0).default(0),
-    startDate: z.string().min(1, 'startDate is required (YYYY-MM-DD)'),
-    endDate: z.string().optional().nullable(),
+    // Approval only creates/links a tenant and a DRAFT lease (approve_application(), migration
+    // 20260101000131) -- commercial terms (rent/deposit/dates) are entered afterwards during lease
+    // preparation, on the draft lease itself, never here.
     // Staff already knows this applicant is an existing tenant (e.g. re-applying for a different
     // unit) -- links to that tenant instead of relying on approve_application()'s own email-match
     // fallback. Optional: most approvals still go through the automatic email match.

@@ -1,5 +1,80 @@
 # Worklog
 
+## 2026-08-25 (continued) — Applicant->tenant->lease V1: overnight implementation pass (PARTIAL, local only)
+
+Unattended overnight implementation pass per Mohammed's instruction, working entirely against local
+Docker Postgres/Supabase -- production never touched, no deploy. Full field-by-field results in the
+FINAL MORNING REPORT delivered in-conversation; summary for future sessions:
+
+**Completed and verified (73/73 -> 74/74 pgTAP, full vitest suite, typecheck, lint, production
+build all pass):**
+
+- **Fixed the property-photo-derivative RLS gap** disclosed-but-not-fixed in the prior production
+  deployment turn (migration `20260101000128`): hero/card derivatives (no `documents` row of their
+  own) are now readable by exactly the same callers who can already read the original photo, via an
+  additional metadata-driven `property_photos`-joined SELECT branch. New pgTAP suite
+  `property_photo_derivative_storage_rls.test.sql` (10 assertions).
+- **Fixed the DOCX lease-template upload bug** -- actually TWO stacked bugs, not one:
+  (1) the `documents` storage bucket's `allowed_mime_types` never included DOCX (migration
+  `20260101000129`, same class of gap as the earlier WebP fix), plus real zip-content verification
+  (`lib/leaseTemplateValidation.ts`) rejecting non-DOCX zips and DOCM/macro-bearing files outright;
+  (2) a previously-undetected, more fundamental bug found while testing the first fix: every
+  `storage.objects` INSERT/UPDATE/SELECT policy on the bucket assumed a `{org_id}/{property_id}/...`
+  path shape and threw a hard `invalid input syntax for type uuid` error on lease-templates' actual
+  `{org_id}/lease-templates/...` shape -- meaning lease-template uploads (PDF or DOCX) have likely
+  never worked in production since migration `20260101000086`. Fixed via an additional
+  manager-plus-authorized branch per policy (migration `20260101000130`). New pgTAP suite
+  `lease_template_storage_rls.test.sql` (10 assertions) + vitest integration suite
+  `lease-templates/__tests__/route.test.ts` (7/7 passing, all real local-Supabase requests).
+- **Rewrote `approve_application()` (migration `20260101000131`)** -- the single most
+  architecturally significant change. Approval now only creates/links a tenant and a **draft**
+  lease (tenant already assigned via `lease_tenants`, `source_application_id` set) -- it no longer
+  creates an active lease, no longer touches unit occupancy, no longer creates a rent-schedule row.
+  Those remain exclusively `activate_lease()`'s job (migration `20260101000078`, already correct,
+  untouched). Updated the "Approve application" UI (`ApplicationActions.tsx`) to match -- no more
+  asking for rent/deposit/dates at approval time; approving now redirects straight to the new draft
+  lease's edit screen. Updated `applicationDecisionSchema`, the `/decide` route, and every
+  pgTAP/vitest/Playwright test that asserted the old immediate-occupancy behaviour (3 pgTAP files,
+  1 e2e spec) to assert prepare-then-activate instead. Manual lease creation
+  (`POST /api/v1/leases`, `source='manual'`) is completely untouched.
+- **Built the applicant self-service token model (migrations `20260101000132`/`133`)**: a new
+  leading `application_status` value `'invited'`; `application_access_tokens` (hashed, expiring,
+  one-active-per-application, same posture as `tenant_invitations` but deliberately NOT tied to a
+  real `auth.users` account -- the applicant never signs up); `application_document_requirements`
+  (built-in V1 default 3-item checklist: ID, proof of income, proof of address); `documents.
+  application_id`; and four SECURITY DEFINER RPCs (`create_application_access_token`,
+  `get_application_by_token`, `submit_application_by_token`, `record_application_document_upload`,
+  `get_application_document_requirements_by_token`) that are the ONLY way an anonymous
+  token-holding caller ever touches this data -- direct table RLS grants zero access to `anon`.
+  Wired up the HTTP layer: `POST /applications/:id/access-tokens` (staff), `GET`/`POST /apply/
+  :token(/submit|/documents)` (public, token-scoped; document upload uses the service-role client
+  for the storage write only after independent token validation, storage path server-constructed).
+  New pgTAP suite `applicant_self_service.test.sql` (27 assertions) -- caught and fixed one real
+  test-harness bug of its own (a stale `request.jwt.claim.sub` GUC surviving a `SET ROLE anon`
+  switch was making the "anon" checks silently re-use the previous staff identity; not a real RLS
+  gap, confirmed by clearing the claim explicitly and re-verifying).
+- Applicant-fillable fields added to `applications` (date of birth, current address, employment,
+  income, household size, applicant's own notes, `submitted_at`) -- deliberately no plaintext ID
+  number column, matching this codebase's existing "no write path yet" stance on `tenants.
+  id_number_ref`.
+
+**NOT completed this pass (real, disclosed gap -- not attempted, not silently dropped):** the
+applicant-facing intake UI page itself (backend/API only, no page built yet), OCR pipeline extension
+for applicant document types, application/lease email+WhatsApp templates, `writeAuditEvent()` wiring
+across the lifecycle (RPCs write their own minimal `audit_events` rows directly where they already
+touch the DB; the broader lifecycle wiring described in the earlier audit is still open), the
+DOCX-template lease-generation engine, the lease-preparation UI, the lease review/send/accept flow,
+and the full test-matrix battery (RLS-per-role, email/WhatsApp mocks, OCR synthetic docs, golden
+path, idempotency, security). `docxtemplater`/`pizzip` are installed and ready; `activate_lease()`/
+`LeaseActions.tsx`/`sync_unit_status_from_lease_trigger` already correctly implement everything
+Phase 28-31 (lease activation/occupancy) needed, so that phase needed no new code once the
+approval-semantics fix landed.
+
+Six new migrations this pass: `20260101000128` through `20260101000133`. Sequential, none editing
+anything before `20260101000127`. Nothing deployed; nothing applied to the linked production
+Supabase project; every migration applied only to local Docker Postgres and backfilled into
+`supabase_migrations.schema_migrations` there.
+
 ## 2026-08-25 — First tenant/application + lease workflow: full audit, NO CODE CHANGED
 
 Read-only audit (4 parallel research passes + direct production reads) ahead of the first real
