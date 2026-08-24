@@ -1,7 +1,9 @@
+import { revalidatePath } from 'next/cache';
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
-import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { requireOrgRole } from '@/lib/portfolio';
+import { writeAuditEvent } from '@/lib/audit';
 
 type RouteParams = { params: Promise<{ id: string; photoId: string }> };
 
@@ -14,7 +16,9 @@ async function loadPhoto(
 ) {
   return supabase
     .from('property_photos')
-    .select('id, property_id, document_id, is_cover, properties(org_id), documents(storage_path)')
+    .select(
+      'id, property_id, document_id, is_cover, hero_storage_path, card_storage_path, properties(org_id), documents(storage_path)',
+    )
     .eq('id', photoId)
     .eq('property_id', propertyId)
     .maybeSingle();
@@ -41,7 +45,11 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       { status: 500 },
     );
   }
-  const photo = data as unknown as { id: string; properties: { org_id: string } | null } | null;
+  const photo = data as unknown as {
+    id: string;
+    is_cover: boolean;
+    properties: { org_id: string } | null;
+  } | null;
   if (!photo || !photo.properties) {
     return NextResponse.json(
       { error: { code: 'not_found', message: 'Photo not found.' } },
@@ -74,6 +82,19 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     );
   }
 
+  if (photo.is_cover) {
+    // Already the cover -- a no-op, not an error (matches this codebase's own established
+    // idempotent-mutation convention elsewhere, e.g. cancelOrgSubscription()).
+    return NextResponse.json({ ok: true });
+  }
+
+  const { data: previousCover } = await supabase
+    .from('property_photos')
+    .select('id')
+    .eq('property_id', propertyId)
+    .eq('is_cover', true)
+    .maybeSingle();
+
   // Demote any other cover first -- property_photos_one_cover_idx (migration 20260101000080)
   // would otherwise reject the new cover as a duplicate.
   await supabase
@@ -92,6 +113,21 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       { status: 500 },
     );
   }
+
+  await writeAuditEvent(getServiceRoleClient(), {
+    orgId: photo.properties.org_id,
+    actorUserId: user.id,
+    actorType: 'user',
+    action: 'property.photo_cover_changed',
+    entityType: 'property_photos',
+    entityId: photoId,
+    propertyId,
+    before: { coverPhotoId: previousCover?.id ?? null },
+    after: { coverPhotoId: photoId },
+  });
+
+  revalidatePath('/properties');
+  revalidatePath(`/properties/${propertyId}`);
 
   return NextResponse.json({ ok: true });
 }
@@ -121,6 +157,8 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
     id: string;
     document_id: string;
     is_cover: boolean;
+    hero_storage_path: string | null;
+    card_storage_path: string | null;
     properties: { org_id: string } | null;
     documents: { storage_path: string } | null;
   } | null;
@@ -152,12 +190,20 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
     );
   }
 
-  if (photo.documents?.storage_path) {
-    await supabase.storage.from('documents').remove([photo.documents.storage_path]);
+  const storagePathsToRemove = [
+    photo.documents?.storage_path,
+    photo.hero_storage_path,
+    photo.card_storage_path,
+  ].filter((p): p is string => p !== null && p !== undefined);
+  if (storagePathsToRemove.length > 0) {
+    await supabase.storage.from('documents').remove(storagePathsToRemove);
   }
 
   // If the deleted photo was the cover, promote the oldest remaining photo so the property never
-  // silently loses its hero image just because the current cover was removed.
+  // silently loses its hero image just because the current cover was removed. No remaining photo
+  // -> nothing to promote, and every reader's fallback rule (resolveCoverPhotoRow()) already
+  // renders the generic placeholder cleanly when property_photos has zero rows.
+  let promotedCoverId: string | null = null;
   if (photo.is_cover) {
     const { data: next } = await supabase
       .from('property_photos')
@@ -168,8 +214,24 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
       .maybeSingle();
     if (next) {
       await supabase.from('property_photos').update({ is_cover: true }).eq('id', next.id);
+      promotedCoverId = next.id;
     }
   }
+
+  await writeAuditEvent(getServiceRoleClient(), {
+    orgId: photo.properties.org_id,
+    actorUserId: user.id,
+    actorType: 'user',
+    action: 'property.photo_removed',
+    entityType: 'property_photos',
+    entityId: photoId,
+    propertyId,
+    before: { wasCover: photo.is_cover },
+    after: { promotedCoverPhotoId: promotedCoverId },
+  });
+
+  revalidatePath('/properties');
+  revalidatePath(`/properties/${propertyId}`);
 
   return NextResponse.json({ ok: true });
 }

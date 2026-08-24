@@ -1,8 +1,11 @@
 import { createHash } from 'node:crypto';
+import { revalidatePath } from 'next/cache';
 import { NextResponse, type NextRequest } from 'next/server';
-import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { requireOrgRole, requirePropertyAccess } from '@/lib/portfolio';
 import { scanUploadOrRespond } from '@/lib/uploadScan';
+import { writeAuditEvent } from '@/lib/audit';
+import { derivativeStoragePath, generatePhotoDerivatives } from '@/lib/propertyPhotos';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -32,7 +35,9 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 
   const { data, error } = await supabase
     .from('property_photos')
-    .select('id, is_cover, created_at, documents(id, storage_path, original_file_name)')
+    .select(
+      'id, is_cover, created_at, card_storage_path, documents(id, storage_path, original_file_name)',
+    )
     .eq('property_id', id)
     .order('is_cover', { ascending: false })
     .order('created_at', { ascending: true });
@@ -47,6 +52,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     id: string;
     is_cover: boolean;
     created_at: string;
+    card_storage_path: string | null;
     documents: { id: string; storage_path: string; original_file_name: string } | null;
   }[];
 
@@ -54,9 +60,12 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     rows
       .filter((r) => r.documents !== null)
       .map(async (r) => {
+        // Panel thumbnails use the card derivative when one exists (bandwidth-friendlier than the
+        // original at this display size) -- falls back to the original for a photo uploaded
+        // before this feature existed, or one whose derivative generation failed.
         const { data: signed } = await supabase.storage
           .from('documents')
-          .createSignedUrl(r.documents!.storage_path, SIGNED_URL_TTL_SECONDS);
+          .createSignedUrl(r.card_storage_path ?? r.documents!.storage_path, SIGNED_URL_TTL_SECONDS);
         return {
           id: r.id,
           documentId: r.documents!.id,
@@ -209,6 +218,33 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     );
   }
 
+  // Image-quality audit finding (WORKLOG.md this date): best-effort hero (~1800px) and card
+  // (~850px) WebP derivatives, never upscaling past the original. Soft-fails for an undecodable
+  // input (e.g. HEIC on this build's libvips, which has no HEIC decoder) -- the original is always
+  // uploaded above regardless, so a derivative-generation problem never blocks the photo itself.
+  const derivatives = await generatePhotoDerivatives(buffer);
+  const heroStoragePath = derivatives.hero ? derivativeStoragePath(storagePath, 'hero') : null;
+  const cardStoragePath = derivatives.card ? derivativeStoragePath(storagePath, 'card') : null;
+  const uploadedDerivativePaths: string[] = [];
+  if (derivatives.hero && heroStoragePath) {
+    const { error } = await supabase.storage
+      .from('documents')
+      .upload(heroStoragePath, derivatives.hero.buffer, {
+        contentType: derivatives.hero.contentType,
+        upsert: false,
+      });
+    if (!error) uploadedDerivativePaths.push(heroStoragePath);
+  }
+  if (derivatives.card && cardStoragePath) {
+    const { error } = await supabase.storage
+      .from('documents')
+      .upload(cardStoragePath, derivatives.card.buffer, {
+        contentType: derivatives.card.contentType,
+        upsert: false,
+      });
+    if (!error) uploadedDerivativePaths.push(cardStoragePath);
+  }
+
   const { data: documentRow, error: documentError } = await supabase
     .from('documents')
     .insert({
@@ -225,7 +261,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     .select('id')
     .single();
   if (documentError) {
-    await supabase.storage.from('documents').remove([storagePath]);
+    await supabase.storage.from('documents').remove([storagePath, ...uploadedDerivativePaths]);
     return NextResponse.json(
       { error: { code: 'document_create_failed', message: documentError.message } },
       { status: 500 },
@@ -240,23 +276,55 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     .select('id', { count: 'exact', head: true })
     .eq('property_id', propertyId);
 
-  const { data: photoRow, error: photoError } = await supabase
+  const photoInsert = {
+    property_id: propertyId,
+    document_id: documentRow.id,
+    hero_storage_path: uploadedDerivativePaths.includes(heroStoragePath ?? '') ? heroStoragePath : null,
+    card_storage_path: uploadedDerivativePaths.includes(cardStoragePath ?? '') ? cardStoragePath : null,
+    width: derivatives.width,
+    height: derivatives.height,
+  };
+
+  let { data: photoRow, error: photoError } = await supabase
     .from('property_photos')
-    .insert({
-      property_id: propertyId,
-      document_id: documentRow.id,
-      is_cover: (existingCount ?? 0) === 0,
-    })
+    .insert({ ...photoInsert, is_cover: (existingCount ?? 0) === 0 })
     .select('id, is_cover')
     .single();
-  if (photoError) {
-    await supabase.storage.from('documents').remove([storagePath]);
+
+  // Concurrent-upload race (two requests for the same property both read existingCount === 0):
+  // the losing insert hits property_photos_one_cover_idx (migration 20260101000080) instead of
+  // failing the whole upload -- retried once as a non-cover photo, matching what SHOULD have
+  // happened had the two requests been serialized.
+  if (photoError?.code === '23505') {
+    ({ data: photoRow, error: photoError } = await supabase
+      .from('property_photos')
+      .insert({ ...photoInsert, is_cover: false })
+      .select('id, is_cover')
+      .single());
+  }
+
+  if (photoError || !photoRow) {
+    await supabase.storage.from('documents').remove([storagePath, ...uploadedDerivativePaths]);
     await supabase.from('documents').delete().eq('id', documentRow.id);
     return NextResponse.json(
-      { error: { code: 'property_photo_create_failed', message: photoError.message } },
+      { error: { code: 'property_photo_create_failed', message: photoError?.message ?? 'Failed to record photo.' } },
       { status: 500 },
     );
   }
+
+  await writeAuditEvent(getServiceRoleClient(), {
+    orgId: property.org_id,
+    actorUserId: user.id,
+    actorType: 'user',
+    action: 'property.photo_uploaded',
+    entityType: 'property_photos',
+    entityId: photoRow.id,
+    propertyId,
+    after: { isCover: photoRow.is_cover, fileName: file.name },
+  });
+
+  revalidatePath('/properties');
+  revalidatePath(`/properties/${propertyId}`);
 
   return NextResponse.json(
     { photo: { id: photoRow.id, isCover: photoRow.is_cover } },

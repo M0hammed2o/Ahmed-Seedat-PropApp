@@ -20,6 +20,7 @@ import { PropertyCompliancePanel } from '@/components/properties/PropertyComplia
 import { PropertyManagementPanel } from '@/components/properties/PropertyManagementPanel';
 import { PropertyDocumentFolders } from '@/components/properties/PropertyDocumentFolders';
 import { PropertyOwnersPanel } from '@/components/properties/PropertyOwnersPanel';
+import { resolveCoverPhotoRow, signCoverPhotoUrl } from '@/lib/propertyPhotos';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -270,23 +271,18 @@ async function loadSetupProgress(
 // Stage 4: the real photo hero source, backed by the private documents bucket (property_photos ->
 // documents, migration 20260101000080) -- properties.image_path (read elsewhere in this file) has
 // no writer anywhere in the app and stays permanently null; this is the actual mechanism.
+//
+// Property cover-photo audit (WORKLOG.md this date): now goes through the SAME shared
+// resolveCoverPhotoRow()/signCoverPhotoUrl() the /properties list card uses (lib/propertyPhotos.ts)
+// -- one authoritative cover-photo query, not two independently-maintained ones -- and signs the
+// hero (~1800px) derivative rather than always the original.
 async function loadCoverPhotoUrl(
   supabase: Awaited<ReturnType<typeof getServerSupabaseClient>>,
   propertyId: string,
 ): Promise<string | null> {
-  const { data } = await supabase
-    .from('property_photos')
-    .select('documents(storage_path)')
-    .eq('property_id', propertyId)
-    .eq('is_cover', true)
-    .maybeSingle();
-  const storagePath = (data as unknown as { documents: { storage_path: string } | null } | null)
-    ?.documents?.storage_path;
-  if (!storagePath) return null;
-  const { data: signed } = await supabase.storage
-    .from('documents')
-    .createSignedUrl(storagePath, 300);
-  return signed?.signedUrl ?? null;
+  const row = await resolveCoverPhotoRow(supabase, propertyId);
+  if (!row) return null;
+  return signCoverPhotoUrl(supabase, row, 'hero');
 }
 
 async function loadPropertyTenants(

@@ -7,6 +7,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapPropertyRow } from '@/lib/portfolio';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
+import { resolveCoverPhotoRowsByProperty, signCoverPhotoUrl } from '@/lib/propertyPhotos';
 
 const DEMO_PROPERTIES: Property[] = [
   {
@@ -147,14 +148,22 @@ async function loadProperties(): Promise<Property[]> {
 // estimate), outstanding from rent_schedules rows not yet paid. Three flat queries + client-side
 // grouping, matching this codebase's existing join style (e.g. leases/page.tsx), rather than a
 // deep nested PostgREST embed.
+// Property cover-photo audit (WORKLOG.md this date), root cause: this function used to pass
+// `property.imagePath` straight through -- properties.image_path has no writer anywhere in the
+// app (see properties/[id]/page.tsx's own comment) and stays permanently null, so every card fell
+// through to the generic placeholder unconditionally, even for a property with a real uploaded
+// cover photo. Now resolves the SAME authoritative property_photos-backed cover (one query,
+// shared with the detail page's hero) and signs its card (~850px) derivative -- never the
+// original at this display size, and never a second, independent cover-photo authority.
 async function loadPropertyCards(properties: Property[]): Promise<PropertyCardData[]> {
   if (properties.length === 0) return [];
   const supabase = await getServerSupabaseClient();
   const propertyIds = properties.map((p) => p.id);
 
-  const [unitsResult, leasesResult] = await Promise.all([
+  const [unitsResult, leasesResult, coverRowsByProperty] = await Promise.all([
     supabase.from('units').select('id, property_id, status').in('property_id', propertyIds),
     supabase.from('leases').select('id, unit_id, rent_amount, status'),
+    resolveCoverPhotoRowsByProperty(supabase, propertyIds),
   ]);
   if (unitsResult.error) throw new Error(`Failed to load units: ${unitsResult.error.message}`);
   if (leasesResult.error) throw new Error(`Failed to load leases: ${leasesResult.error.message}`);
@@ -186,6 +195,14 @@ async function loadPropertyCards(properties: Property[]): Promise<PropertyCardDa
     outstandingByProperty.set(propId, (outstandingByProperty.get(propId) ?? 0) + Number(r.amount));
   }
 
+  const coverUrlEntries = await Promise.all(
+    [...coverRowsByProperty.entries()].map(async ([propertyId, row]) => [
+      propertyId,
+      await signCoverPhotoUrl(supabase, row, 'card'),
+    ] as const),
+  );
+  const coverUrlByProperty = new Map(coverUrlEntries);
+
   return properties.map((property) => {
     const propertyUnits = units.filter((u) => u.property_id === property.id);
     const occupiedCount = propertyUnits.filter((u) => u.status === 'occupied').length;
@@ -200,7 +217,7 @@ async function loadPropertyCards(properties: Property[]): Promise<PropertyCardDa
       city: property.city,
       propertyType: property.propertyType,
       status: property.status,
-      imagePath: property.imagePath,
+      imagePath: coverUrlByProperty.get(property.id) ?? null,
       unitsCount: propertyUnits.length,
       occupiedCount,
       monthlyIncome,

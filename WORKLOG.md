@@ -1,5 +1,96 @@
 # Worklog
 
+## 2026-08-24 (continued) — Property cover-photo + image-quality audit (local only, NOT deployed)
+
+Real production report (Musgrave Flats): the uploaded cover photo correctly appears on the
+property detail hero, but `/properties`' card still shows the generic building illustration.
+Separately, the hero image looks noticeably soft.
+
+**Root cause, card placeholder.** `/properties`' `loadPropertyCards()` passed
+`property.imagePath` straight through to the card -- `properties.image_path` has had no writer
+anywhere in the app since `property_photos`/`is_cover` (migration `20260101000080`) was built; the
+property DETAIL page's own code comment already said as much. The list card was simply never
+wired to `property_photos` at all -- two independent, one-dead-one-live "cover" sources existed by
+accident (not by design), and the card always resolved the dead one.
+
+**Root cause, image quality -- confirmed against the real production file (read-only; never
+modified, never re-uploaded).** Signed the real Musgrave Flats photo and read its actual PNG
+header: 520x280px, 214,340 bytes. No client-side compression, no server-side resize/transform, no
+Next.js Image usage anywhere in this path existed before this pass -- the single original file was
+(and, for every OTHER property photo already in production, still is) served unmodified at every
+display size via a plain `<img object-cover>`, both hero and card. The softness is the browser
+upscaling a genuinely small original to fill a much larger hero band -- not a compression artifact
+this app introduced. Disclosed limitation: no derivative pipeline can add resolution that was never
+captured -- a 520x280 source will still be soft in a large hero band even after this fix; what the
+fix changes is that new, higher-resolution uploads get properly-sized, non-upscaled, well-encoded
+derivatives instead of always shipping (and rendering) the raw original at every size.
+
+**Fix, commit pending (local only):**
+- Migration `20260101000127_property_photo_derivatives.sql`: `property_photos` gains
+  `hero_storage_path`/`card_storage_path`/`width`/`height` (all nullable -- a pre-existing photo
+  or one whose derivative generation failed still renders, at its original resolution). Also fixes
+  a related, pre-existing gap found live: the `documents` storage bucket's own
+  `allowed_mime_types` never included `image/webp`, even though the photo upload route already
+  accepted it as a valid ORIGINAL upload type -- a native `.webp` upload would already have hit a
+  silent storage-level rejection; the new WebP derivatives hit the identical restriction. Fixed by
+  the same one-line allowlist addition.
+- New `lib/propertyPhotos.ts` -- the ONE authoritative cover-photo query, used by both the detail
+  hero and the list card: `order by is_cover desc, created_at asc limit 1` (explicit cover, else
+  first-uploaded, else nothing -> caller falls back to the placeholder), never two independently-
+  maintained cover authorities. `generatePhotoDerivatives()` (sharp, already an installed
+  dependency, previously only used in a build-time icon script -- moved from devDependencies to
+  dependencies since it's now used at request time) produces a ~1800px/quality-82 WebP hero and a
+  ~850px/quality-78 WebP card, `withoutEnlargement: true` throughout (never upscales past the
+  original). HEIC input soft-fails cleanly (this build's libvips has no HEIC decoder, confirmed via
+  `sharp.format.heif`) -- derivatives stay null, the original still uploads and still renders,
+  exactly the pre-fix behavior for that one format only.
+- Photo upload route: generates + uploads both derivatives (best-effort, never blocks the primary
+  upload), stores their paths + the original's real width/height. Added a small robustness fix
+  found while implementing this: a genuine concurrent-double-upload race (two requests both read
+  "no cover yet" before either inserts) used to fail the SECOND upload outright on the
+  `property_photos_one_cover_idx` unique-violation; now caught and retried as a non-cover photo.
+- Set-cover/remove routes: unchanged cover-fallback logic (already correct -- demote-then-promote,
+  confirmed by reading the code before touching it) now also writes an audit event
+  (`property.photo_cover_changed`/`property.photo_removed`, alongside the new
+  `property.photo_uploaded` on the upload route) and calls `revalidatePath('/properties')` +
+  `revalidatePath('/properties/:id')` (this codebase's first use of `revalidatePath` -- both pages
+  are already fully dynamic per-request with no caching directives of their own, so this is a
+  defensive fix for the client Router Cache specifically, not a response to any static/ISR caching
+  that exists today). Remove also now deletes the hero/card derivative storage objects, not just
+  the original.
+- `/properties`' `loadPropertyCards()`: now calls the shared resolver in one batched query (not
+  N+1) and signs the card derivative -- the actual root-cause fix. The property detail page's
+  `loadCoverPhotoUrl()` now calls the same shared resolver + signs the hero derivative, replacing
+  its own bespoke, stricter (`is_cover = true` only, no fallback) query.
+- Security: unchanged and re-confirmed, not weakened -- every reader still uses the CALLER's own
+  session-bound client (never service-role) to resolve and sign cover photos, so
+  `property_photos_select_staff_or_owner`/the storage-bucket SELECT RLS (migration `20260101000086`)
+  still gate every read exactly as before; an unauthorized session cannot generate a valid signed
+  URL for a photo it can't otherwise see.
+
+**Tests.** `supabase/tests/property_photos.test.sql` extended (6 -> 8 assertions): the new
+derivative columns are purely additive (null on a plain insert, accept real values). New
+`lib/__tests__/propertyPhotos.test.ts` (8 tests): no-photo -> null, explicit-cover-wins,
+first-uploaded fallback, per-property batch correctness, no-upscale guarantee (both directions:
+small source stays small, large source actually downscales with a real bandwidth reduction), and
+the HEIC-class soft-fail. New
+`app/api/v1/properties/[id]/photos/__tests__/route.test.ts` (9 tests, `next/cache` mocked --
+`revalidatePath` needs a real Next.js request-render context a direct handler invocation doesn't
+provide): first-upload-becomes-cover with real derivatives generated and correctly non-upscaled,
+no duplicate photo/document rows from one upload, second upload never becomes cover, set-cover
+demotes the old one, remove-cover promotes the next (and removing the last leaves zero rows, not a
+dangling reference), an outsider sees zero photos, all three photo actions write a secret-free
+audit event, and a fake-HEIC upload still succeeds with null derivatives. Full local pgTAP (87
+files) -- zero failures. Full `vitest run`: 3 of ~800 tests failed on the first full-suite pass (1
+new, pre-existing `daily-jobs` flake + 2 in this pass's own new route test file), all reconfirmed
+100% passing when the same 2 files were re-run in isolation -- CPU-bound `sharp` work contending
+under full parallel-suite load, matching this project's own established full-suite-load flake
+pattern, not a regression. `apps/admin` typecheck clean (one real, narrow fix needed: `@types/node`
+globally widens `Uint8Array`'s default type parameter to `ArrayBufferLike`, which the DOM lib's
+`File`/`BlobPart` types don't accept -- worked around with one explicit cast in the new test file's
+own PNG-buffer helper, not a masked real error). `pnpm lint`: 7/7 clean. `next build` (admin):
+clean.
+
 ## 2026-08-24 (continued) — Subscription current-row integrity: CONTROLLED PRODUCTION REPAIR + DEPLOYMENT
 
 Deployed `3b32654` and applied migration `20260101000126` to production, in that order, exactly as
