@@ -1,5 +1,26 @@
 # Worklog
 
+## 2026-08-24 — Staff hardening follow-up: Activity name fallback + 403 status mapping (not deployed)
+
+Two findings from the previous production verification, fixed locally. (1) `GET .../activity`'s
+actor-name fallback only tried `profiles.display_name`, never email like `members/route.ts`
+already does -- fixed with the identical three-tier chain (profile name -> email -> "Unnamed
+user"), resolved at read time only; a real historical `actor_display_name` snapshot is used
+exactly as stored, never touched. (2) Six staff-administration mutation routes (member
+role/revoke/property-access-mode, grant/revoke property access, legacy invite revoke) surfaced
+every RPC failure as a blanket 400, even once the RPC's own principal-only check had already
+correctly blocked a Manager (proven live); `staff-provisions`' own mapping was worse -- a stale
+"Only manager+" string match from before migration `20260101000125` never matched the new message,
+so a denied Manager fell through to 500. New `lib/staffAuthorizationErrors.ts` (`isPrincipalOnlyDenial()`)
+narrowly maps ONLY the known principal-only denial strings to 403 across all six routes; every
+other RPC failure (seat limits, not-found, the Principal self-protection guards, validation) is
+untouched. No database changes -- both fixes are TypeScript-only. New real-local-Supabase vitest
+file (12 tests) covers both. Full vitest/tsc/eslint/build clean (a handful of unrelated
+real-integration tests timed out under full-suite load and were independently re-confirmed passing
+in isolation -- same pre-existing environmental pattern already documented earlier this session,
+not a regression). Committed as `3e94e2a`, not deployed.
+
+
 ## 2026-08-23 (continued) — Staff security + audit hardening: CONTROLLED PRODUCTION DEPLOYMENT
 
 Deployed `74fbad2` (migration `20260101000125`) to production. Pre/post migration snapshots
