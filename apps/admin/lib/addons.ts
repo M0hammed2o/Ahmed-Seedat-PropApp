@@ -50,6 +50,7 @@ export async function setAddonCapacity(
     )
     .eq('org_id', input.orgId)
     .order('current_period_start', { ascending: false })
+    .order('created_at', { ascending: false })
     .limit(1)
     .single();
   if (subError || !sub)

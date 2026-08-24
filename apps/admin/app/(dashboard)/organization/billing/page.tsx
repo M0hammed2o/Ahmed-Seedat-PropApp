@@ -159,6 +159,7 @@ export default async function OrganizationBillingPage() {
       .select('*')
       .eq('org_id', activeOrg.orgId)
       .order('current_period_start', { ascending: false })
+      .order('created_at', { ascending: false })
       .limit(1),
     supabase
       .from('subscription_payments')

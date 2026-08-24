@@ -1,5 +1,119 @@
 # Worklog
 
+## 2026-08-24 (continued) — Subscription current-row integrity fix (local only, NOT deployed)
+
+A read-only production audit (this date, requested separately) found Mo's Properties with 2
+simultaneous `organization_subscriptions` rows, both Professional/monthly/`trial`, identical
+`current_period_start`, neither ever confirmed by a real PayFast payment (zero `subscription_payments`/
+`payment_methods`/`billing_events`/`trial_usage_records` rows for either). A full production-wide
+check confirmed Mo's Properties is the ONLY organization (of 4 total) with more than one
+trial/active row — nothing else to report.
+
+**Exhaustive lifecycle audit** (every writer and reader of `organization_subscriptions`, full detail
+in migration `20260101000126`'s own header comment): `organization_subscriptions.status` is only
+ever written as `trial`/`active`/`cancelled` — `overdue`/`suspended` apply only to
+`organizations.status` (`expire_trials_and_suspend_overdue()` never touches this table at all) and
+`archived` is never used here either. Every UPDATE-based writer (webhook confirmation, cancellation,
+downgrade/upgrade, add-on purchase, credits) already assumes exactly one current row exists; only
+the Super Admin plan-change route and the two checkout-initiation functions
+(`startSubscriptionCheckout`/`startTrialActivationCheckout`, `lib/billing.ts`) ever INSERT a new row,
+and neither of the latter two ever checked for an already-open, unresolved `trial` row before
+inserting another one — the real root cause. Separately, **every single "current subscription"
+reader in the codebase (10 SQL functions, 12 TypeScript call sites) resolved the current row via
+`order by current_period_start desc limit 1` with no secondary tiebreaker** — harmless while rows
+never tied, genuinely nondeterministic once they did (as happened here). One reader,
+`lib/ai.ts`'s `checkAiUsageCap()`, didn't even have that: a bare `.maybeSingle()` with no
+`.order()`/`.limit()` at all, which throws (`PGRST116`) the instant an org has 2+ rows — meaning any
+AI-assistant message send for Mo's Properties has very likely been failing with a 500 since the
+duplicate row appeared. Not empirically re-triggered live to confirm (would cost a real AI call);
+flagged as a confirmed-by-code-review, not confirmed-by-live-reproduction, consequence.
+
+**Fix, commit pending (local only):**
+- Migration `20260101000126_subscription_current_row_integrity.sql`: adds a `, created_at desc`
+  tiebreaker to all 10 SQL functions' current-row resolution, then adds
+  `organization_subscriptions_one_current_per_org`, a partial unique index on `(org_id) where status
+  in ('trial','active')` — the real, DB-enforced "at most one commercially-current row per org"
+  guarantee. Preceded by a `do $$ ... raise exception ... $$` guard that refuses to create the index
+  (and, since the whole file runs as one migration transaction, refuses to apply ANY of this
+  migration) if any org still has more than one current-status row — this migration cannot succeed
+  against production until Mo's Properties' two rows are explicitly cleaned up first (below), by
+  design, per instruction to prefer reviewed cleanup over a migration that silently repairs
+  unknown customer data.
+- `lib/billing.ts`: new shared `findOrCreateCurrentSubscriptionForCheckout()` — reuses an existing
+  unresolved `trial` row (redirecting it to the newly requested plan/period, since nothing charged
+  against it yet) instead of inserting a second one; an existing `active` row is reused by id only,
+  never rewritten. A genuine concurrent-request race (two requests both pass the reuse-check before
+  either inserts) is caught via the new unique index's `23505` and turned into the same reuse path,
+  never surfaced to the caller as a failed checkout. `startPlanChangeCheckout()` (already reuses the
+  current row id for a plan change, never inserts one for an existing org) and
+  `startPaymentMethodUpdateCheckout()`/webhook idempotency (`billing_events` unique on
+  `(provider_name, provider_event_id)`, pre-existing) were both audited and needed no change.
+- Every TS reader (`lib/addons.ts`, `lib/superAdmin.ts`, `lib/ai.ts`, the billing page, the dashboard
+  layout, the Super Admin credits/plan routes) got the same `created_at` tiebreaker;
+  `checkAiUsageCap()`'s missing `.order()`/`.limit()` was added (a real bug fix, not just a
+  determinism improvement).
+
+**Mo's Properties cleanup — reviewed SQL, documented here, NOT executed.** Canonical row chosen by a
+general, reproducible rule (earliest-created wins among tied current rows, since it represents the
+first checkout attempt): `1060e257-7787-4a21-bea8-8c99177502e9` (created 17:04:32.936454, ~1s after
+the org itself) stays canonical, unchanged, still `trial` (accurate — neither row was ever actually
+confirmed, and Mo's Properties' commercial bypass already grants access independently of this
+table's status, so there is nothing to gain and something to lose in truthfulness by marking it
+`active`). `b18542c8-1c61-4e90-a82b-a0578c17b2b5` (created 17:36:31, 32 minutes later) is the
+duplicate to supersede. No new status invented — `cancelled` already exists, is already the only
+terminal status this table uses, and is already handled correctly by every reader once the unique
+index exists. Dates/plan/discount/add-on columns on both rows stay untouched (history preserved,
+nothing deleted). `organizations.commercial_setup_required`/`commercial_setup_completed_at` (the
+existing, separately-authorized QA bypass) is NOT touched by this statement, on purpose.
+
+```sql
+update public.organization_subscriptions
+set status = 'cancelled'
+where id = 'b18542c8-1c61-4e90-a82b-a0578c17b2b5'
+  and org_id = 'be0d2990-4d57-4aa3-b2a2-2f1d6cf8a770'
+  and status = 'trial'; -- guards against double-applying if re-run
+
+insert into public.audit_events (
+  org_id, actor_user_id, actor_type, action, entity_type, entity_id, before, after
+) values (
+  'be0d2990-4d57-4aa3-b2a2-2f1d6cf8a770',
+  null,
+  'system',
+  'organization.subscription_duplicate_superseded',
+  'organization_subscriptions',
+  'b18542c8-1c61-4e90-a82b-a0578c17b2b5',
+  jsonb_build_object('status', 'trial', 'reason', 'duplicate_current_row_from_unconfirmed_checkout_retry'),
+  jsonb_build_object('status', 'cancelled', 'canonical_row_id', '1060e257-7787-4a21-bea8-8c99177502e9')
+);
+```
+
+Execution order for the eventual controlled deployment: run the two statements above against
+production FIRST (as their own explicit, reviewed step), confirm zero duplicate current rows remain,
+THEN apply migration `20260101000126` (its own guard will pass once the above has run).
+
+**Tests.** New pgTAP file `subscription_current_row_integrity.test.sql` (16 assertions): the unique
+index rejects every trial/active-duplicate combination, never restricts `cancelled` history rows
+(unlimited, all queryable), the `created_at` tiebreaker resolves deterministically across all 4
+entitlement RPCs when `current_period_start` ties, a same-day downgrade still updates the one
+existing row in place, and the migration's own dirty-data guard is exercised directly (not just
+described) via a throwaway org and an isolated `pg_temp` copy of the guard query. New vitest file
+`billing.checkoutIdempotency.test.ts` (5 tests, real local Supabase): double-clicking
+`startSubscriptionCheckout` creates exactly one subscription row (two separate payment attempts,
+one row); resubmitting `startTrialActivationCheckout` for a different plan redirects the same
+unresolved row; a genuine concurrent-insert race (two simultaneous requests) still converges to one
+row via the new unique index (23505 caught, not surfaced); a checkout against an org with an
+existing `active` row reuses it by id without rewriting the live plan; cancellation still allows a
+genuinely new row for reactivation. Full local pgTAP suite (86 files, this new one included) — zero
+failures. Full `vitest run` (apps/admin): 773/778 non-skipped passing on the first full-suite pass;
+the 6 that failed (`auth/callback`, `auth/confirm`, `billing/invoices` access, `payment-reports`
+workflow, `tenant-portal maintenance-tickets` documents, `daily-jobs` idempotency) all re-ran 100%
+clean in isolation — none touch `organization_subscriptions`/`lib/billing.ts`, matching this
+project's already-repeatedly-documented full-suite-load/Docker-contention flake pattern, not a
+regression. `apps/admin` typecheck clean directly (`tsc --noEmit`); the monorepo `pnpm typecheck`
+fails only on `apps/mobile` (a pre-existing, unrelated `react-native`/TypeScript global-type-
+definition conflict — no file in this change touches `apps/mobile`). `pnpm lint`: 7/7 packages
+clean. `next build` (admin): clean, no new errors.
+
 ## 2026-08-24 (continued) — Activity name fallback + 403 status mapping: CONTROLLED PRODUCTION DEPLOYMENT
 
 Deployed `3e94e2a` (+ docs `9047fcd`) to production. No migration -- TypeScript-only fix, predeploy

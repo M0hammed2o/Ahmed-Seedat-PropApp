@@ -302,6 +302,7 @@ async function loadWalkthroughData(
       .select('plan_id, plans(code)')
       .eq('org_id', orgId)
       .order('current_period_start', { ascending: false })
+      .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
     supabase

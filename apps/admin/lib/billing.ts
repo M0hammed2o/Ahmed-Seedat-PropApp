@@ -34,6 +34,100 @@ function formatMoney(amount: number, currency: string): string {
   }
 }
 
+/**
+ * Subscription integrity fix (this date): the shared checkout-initiation entry point for
+ * `startSubscriptionCheckout()`/`startTrialActivationCheckout()`. Both used to unconditionally
+ * INSERT a new `organization_subscriptions` row on every call -- nothing stopped a double-click,
+ * page refresh, or retry-after-a-failed-gateway-response from creating a second, simultaneous
+ * 'trial' row before the first ever resolved (this is how Mo's Properties ended up with two,
+ * confirmed via a read-only production audit this date).
+ *
+ * Fast path: an unresolved 'trial' row from an earlier attempt is reused and redirected to the
+ * newly requested plan/period (nothing has been charged against it yet, so there is no history to
+ * preserve). An already-'active' row is reused by id only, never rewritten -- a real plan change on
+ * a paying org belongs in `startPlanChangeCheckout()`, not here.
+ *
+ * Race path: two concurrent requests can both pass the fast-path check before either has inserted.
+ * The `organization_subscriptions_one_current_per_org` partial unique index (migration
+ * 20260101000126) is the actual, DB-enforced backstop -- the losing INSERT fails with Postgres
+ * error 23505, caught below and treated exactly like a normal reuse, never surfaced to the caller
+ * as a failed checkout.
+ */
+async function findOrCreateCurrentSubscriptionForCheckout(
+  serviceClient: SupabaseClient,
+  params: {
+    orgId: string;
+    planId: string;
+    billingCycle: string;
+    periodStart: string;
+    periodEnd: string;
+  },
+): Promise<{ id: string; reused: boolean }> {
+  const { data: existing, error: existingError } = await serviceClient
+    .from('organization_subscriptions')
+    .select('id, status')
+    .eq('org_id', params.orgId)
+    .in('status', ['trial', 'active'])
+    .order('current_period_start', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (existingError) throw new Error(existingError.message);
+
+  if (existing) {
+    if (existing.status === 'trial') {
+      const { error: updateError } = await serviceClient
+        .from('organization_subscriptions')
+        .update({
+          plan_id: params.planId,
+          billing_cycle: params.billingCycle,
+          current_period_start: params.periodStart,
+          current_period_end: params.periodEnd,
+          next_payment_date: params.periodEnd,
+        })
+        .eq('id', existing.id);
+      if (updateError) throw new Error(updateError.message);
+    }
+    return { id: existing.id, reused: true };
+  }
+
+  const { data: inserted, error: insertError } = await serviceClient
+    .from('organization_subscriptions')
+    .insert({
+      org_id: params.orgId,
+      plan_id: params.planId,
+      billing_cycle: params.billingCycle,
+      current_period_start: params.periodStart,
+      current_period_end: params.periodEnd,
+      next_payment_date: params.periodEnd,
+      status: 'trial',
+    })
+    .select('id')
+    .single();
+
+  if (insertError) {
+    if (insertError.code === '23505') {
+      const { data: winner, error: refetchError } = await serviceClient
+        .from('organization_subscriptions')
+        .select('id')
+        .eq('org_id', params.orgId)
+        .in('status', ['trial', 'active'])
+        .order('current_period_start', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      if (refetchError || !winner)
+        throw new Error(
+          refetchError?.message ?? 'Failed to resolve subscription after a concurrent checkout race',
+        );
+      return { id: winner.id, reused: true };
+    }
+    throw new Error(insertError.message ?? 'Failed to create subscription');
+  }
+  if (!inserted) throw new Error('Failed to create subscription');
+  return { id: inserted.id, reused: false };
+}
+
 /** Fires the one lifecycle email that corresponds to a completed billing_plan_changes row --
  * shared by confirm-change/route.ts (a synchronous, no-payment-required change: a $0 upgrade, a
  * downgrade, or a $0 reactivation) and processBillingWebhookEvent below (an upgrade/reactivation
@@ -173,21 +267,13 @@ export async function startSubscriptionCheckout(
   const periodStart = new Date().toISOString().slice(0, 10);
   const periodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
-  const { data: orgSubscription, error: subInsertError } = await serviceClient
-    .from('organization_subscriptions')
-    .insert({
-      org_id: org.id,
-      plan_id: plan.id,
-      billing_cycle: plan.billing_cycle,
-      current_period_start: periodStart,
-      current_period_end: periodEnd,
-      next_payment_date: periodEnd,
-      status: 'trial',
-    })
-    .select('id')
-    .single();
-  if (subInsertError || !orgSubscription)
-    throw new Error(subInsertError?.message ?? 'Failed to create subscription');
+  const orgSubscription = await findOrCreateCurrentSubscriptionForCheckout(serviceClient, {
+    orgId: org.id,
+    planId: plan.id,
+    billingCycle: plan.billing_cycle,
+    periodStart,
+    periodEnd,
+  });
 
   const { data: payment, error: paymentInsertError } = await serviceClient
     .from('subscription_payments')
@@ -302,21 +388,13 @@ export async function startTrialActivationCheckout(
   const periodStart = new Date().toISOString().slice(0, 10);
   const periodEnd = billingDate;
 
-  const { data: orgSubscription, error: subInsertError } = await serviceClient
-    .from('organization_subscriptions')
-    .insert({
-      org_id: org.id,
-      plan_id: plan.id,
-      billing_cycle: plan.billing_cycle,
-      current_period_start: periodStart,
-      current_period_end: periodEnd,
-      next_payment_date: periodEnd,
-      status: 'trial',
-    })
-    .select('id')
-    .single();
-  if (subInsertError || !orgSubscription)
-    throw new Error(subInsertError?.message ?? 'Failed to create subscription');
+  const orgSubscription = await findOrCreateCurrentSubscriptionForCheckout(serviceClient, {
+    orgId: org.id,
+    planId: plan.id,
+    billingCycle: plan.billing_cycle,
+    periodStart,
+    periodEnd,
+  });
 
   const { data: payment, error: paymentInsertError } = await serviceClient
     .from('subscription_payments')
@@ -380,6 +458,7 @@ export async function startPaymentMethodUpdateCheckout(
     .select('id, plan_id, billing_cycle')
     .eq('org_id', input.orgId)
     .order('current_period_start', { ascending: false })
+    .order('created_at', { ascending: false })
     .limit(1)
     .single();
   if (subError || !subscription)
@@ -754,6 +833,7 @@ export async function startPlanChangeCheckout(
     .select('id')
     .eq('org_id', input.orgId)
     .order('current_period_start', { ascending: false })
+    .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
   if (subFetchError) throw new Error(subFetchError.message);
@@ -1258,6 +1338,7 @@ export async function cancelOrgSubscription(
     )
     .eq('org_id', input.orgId)
     .order('current_period_start', { ascending: false })
+    .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
   if (error) throw new Error(error.message);

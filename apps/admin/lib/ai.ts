@@ -510,10 +510,19 @@ export async function checkAiUsageCap(
   supabase: SupabaseClient,
   orgId: string,
 ): Promise<{ allowed: boolean; capExceeded: boolean }> {
+  // Subscription integrity fix (this date): this was the one reader in the codebase missing the
+  // order-by-current_period_start (+ created_at tiebreaker) every other "current subscription"
+  // lookup already has -- `.maybeSingle()` with no `.order()`/`.limit()` throws (PGRST116) the
+  // instant an org has more than one organization_subscriptions row, which an org with a duplicate
+  // current row (the exact bug this migration fixes) already could. Now consistent with every
+  // other reader.
   const { data: subscription, error: subError } = await supabase
     .from('organization_subscriptions')
     .select('plan_id')
     .eq('org_id', orgId)
+    .order('current_period_start', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(1)
     .maybeSingle();
   if (subError)
     throw new Error(`Failed to resolve organization_subscriptions: ${subError.message}`);

@@ -53,6 +53,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     .select('id, promotional_credit')
     .eq('org_id', orgId)
     .order('current_period_start', { ascending: false })
+    .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
   if (currentError) {

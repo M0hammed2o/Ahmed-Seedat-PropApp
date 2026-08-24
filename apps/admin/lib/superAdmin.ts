@@ -101,12 +101,13 @@ async function fetchLatestSubscriptionsByOrg(
       'id, org_id, plan_id, price_override, discount_pct, promotional_credit, billing_cycle, current_period_end, next_payment_date, status',
     )
     .in('org_id', orgIds)
-    .order('current_period_start', { ascending: false });
+    .order('current_period_start', { ascending: false })
+    .order('created_at', { ascending: false });
   if (error) throw new Error(`Failed to fetch organization_subscriptions: ${error.message}`);
 
   const latestByOrg = new Map<string, SubscriptionRow>();
   for (const row of (data ?? []) as SubscriptionRow[]) {
-    if (!latestByOrg.has(row.org_id)) latestByOrg.set(row.org_id, row); // first row per org_id wins (already ordered newest-first)
+    if (!latestByOrg.has(row.org_id)) latestByOrg.set(row.org_id, row); // first row per org_id wins (already ordered newest-first, ties broken by created_at)
   }
   return latestByOrg;
 }
