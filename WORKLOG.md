@@ -1,5 +1,46 @@
 # Worklog
 
+## 2026-08-25 — First tenant/application + lease workflow: full audit, NO CODE CHANGED
+
+Read-only audit (4 parallel research passes + direct production reads) ahead of the first real
+applicant-to-tenant-to-lease test at Musgrave Flats/Unit 601 (confirmed via production: 2 units,
+both vacant, zero applications/leases on record — clean starting state). Full findings/report
+delivered in-conversation, not duplicated here; headline results for future sessions:
+
+- **Applications**: solid schema/status lifecycle (`submitted→reviewing→screening(dormant)→decided`,
+  or `withdrawn`), but 100% staff-entered — no applicant self-service portal, and **no way to attach
+  a document to an application at all** (`documents` has no `application_id` column, confirmed
+  directly against production schema).
+- **Communications**: zero email or WhatsApp templates exist for ANY application event, and **lease
+  sending doesn't exist at all** (no email/WhatsApp/portal delivery of lease documents anywhere).
+  Real Resend email is confirmed healthy in production (7 real sends on record); real WhatsApp
+  (Meta Cloud API, code-complete, 8 approved templates registered) has **zero messages ever sent in
+  production** — cannot confirm live credentials without an actual send.
+- **OCR**: real pipeline (AWS Textract/Google Document AI, Professional-plan-gated, confirmed
+  `ocrEnabled=true` live for Mo's Properties), but only supports `bill`/`lease` document types — no
+  applicant-document (ID/payslip/bank statement) extraction schema exists. The review UI is
+  **confirm-only, not correct-only** — there is no field-editing capability anywhere in the OCR
+  review flow today.
+- **Application→tenant conversion**: already correctly deduped (existing tenant reused by explicit
+  id or exact-email match before ever inserting a new one) — no duplicate-person risk found.
+- **Occupancy**: already correctly trigger-derived from `leases.status` (not an independently-settable
+  flag) via `sync_unit_status_from_lease_trigger` — this already matches the desired "lease drives
+  occupancy" rule, nothing to fix here.
+- **Audit trail**: zero `writeAuditEvent()` calls anywhere in the application/tenant/lease lifecycle
+  — a full, confirmed gap across application created/decided, tenant created, lease created/activated.
+- **Lease templates**: solid architecture (org-scoped, one-default enforced via partial unique index,
+  full version history via `supersedes_id`, never overwrites). The reported DOCX-upload failure's
+  root cause is the **exact same class of bug fixed for WebP derivatives earlier this engagement**:
+  the `documents` storage bucket's `allowed_mime_types` never included DOCX, even though the API
+  route's own allowlist already does — one-line bucket-config fix once approved.
+- **Lease generation/merge**: not implemented at all; no DOCX-templating library installed (would
+  need `docxtemplater`+`pizzip` for Word-run-split-safe placeholder merging — confirmed nothing
+  currently in the dependency tree does this safely). `pdfkit` is already used elsewhere for
+  unrelated PDF generation.
+
+No code or production state was changed this pass. Full detailed report (all 28 requested sections)
+delivered in conversation.
+
 ## 2026-08-24 (continued) — Property cover-photo fix: CONTROLLED PRODUCTION DEPLOYMENT -- **a real bug found during verification, follow-up fix required, not yet applied**
 
 Deployed `5d250d7` and applied migration `20260101000127` to production, in that order. Predeploy
