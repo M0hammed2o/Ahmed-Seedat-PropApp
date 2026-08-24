@@ -1,5 +1,60 @@
 # Worklog
 
+## 2026-08-24 (continued) — Property cover-photo fix: CONTROLLED PRODUCTION DEPLOYMENT -- **a real bug found during verification, follow-up fix required, not yet applied**
+
+Deployed `5d250d7` and applied migration `20260101000127` to production, in that order. Predeploy
+audit, production snapshot (Musgrave Flats' property/photo/storage-object/counts all confirmed
+unchanged beforehand), migration dry-run+apply, and app deploy all completed cleanly -- see the
+full phase-by-phase detail below. **The root-cause fix itself is confirmed working correctly in
+production**: Musgrave Flats' card on `/properties` now shows the real uploaded photo (verified via
+a real cookie session for Mo's Properties' actual Principal -- the page HTML now embeds a genuine
+signed URL to the real original file, zero occurrences of the placeholder graphic), and the detail
+hero is unchanged and still correct.
+
+**A real, previously-undetected bug was found while verifying the NEW derivative pipeline against a
+disposable QA property (never Musgrave Flats).** Uploading a real 3000x2000 JPEG through the actual
+production API worked correctly end-to-end at the DATA layer -- original preserved (3000x2000
+recorded exactly), hero derivative generated at 1800x1200 WebP, card at 850x567 WebP, both
+confirmed via direct signed-URL fetch + real dimension inspection, both far smaller than the
+original (3.9KB/0.9KB vs 35.5KB), no upscaling. Cover-management logic is also fully correct at the
+data layer: second upload does not auto-become cover, Set-as-cover correctly demotes the old one,
+removing the cover correctly promotes the next photo. **But neither derivative ever actually
+renders** on `/properties` or the property detail page for an ordinary authenticated session --
+both silently fall back to the placeholder. Root cause: `storage.objects`' own SELECT RLS policy
+(`documents_bucket_select_org_member_and_property_access`, migration `20260101000086`) authorizes a
+read by joining `storage.objects.name` to `public.documents.storage_path` -- but hero/card
+derivative files are uploaded directly to Storage with no corresponding `documents` row at all
+(they're referenced only via the new `property_photos.hero_storage_path`/`card_storage_path`
+columns). `createSignedUrl()`, called with the caller's own session-bound client (correctly, not
+service-role), therefore fails RLS for any derivative path and returns no URL -- confirmed directly:
+the QA principal's own session CAN read the `property_photos` row's derivative path columns fine via
+PostgREST (RLS on that table is unaffected), but generating a signed URL for the derivative object
+itself fails. This is an over-restriction, not a leak -- confirmed separately that a staff member
+genuinely without property access still correctly gets zero photos back (`PHOTO AUTHORIZATION` is
+still a real PASS) -- but it means every photo uploaded since this deployment has a cover/hero/card
+that silently won't display past the generic placeholder, which defeats the actual point of this
+whole pass for anything uploaded going forward. Musgrave Flats itself is NOT affected (its
+hero/card columns are still null, so it falls back to the original path, which does have a
+`documents` row and passes RLS correctly) -- confirmed unaffected in production.
+
+Why this wasn't caught locally: the local vitest coverage for `resolveCoverPhotoRow()`/
+`resolveCoverPhotoRowsByProperty()` used a service-role client to verify the resolver's own query
+logic (deliberately, to isolate that logic from RLS) -- it never exercised a real session-bound
+`createSignedUrl()` call against a derivative path end-to-end, which is exactly the path this bug
+lives in. A genuine test-coverage gap, not a difference between local and production behavior.
+
+**Not fixed or re-deployed this pass, per instruction to stop on an authorization-adjacent
+finding.** The correct fix (not yet written): extend the storage SELECT RLS policy with an
+additional `exists` branch authorizing a read when `storage.objects.name` matches a
+`property_photos.hero_storage_path`/`card_storage_path` for a photo the caller can otherwise see via
+the same `has_org_role`/`has_property_access` checks already used -- metadata-driven, matching this
+policy's own established design principle, never simply relying on path text. Needs a new migration,
+review, and its own controlled deployment.
+
+All QA data cleaned: storage objects removed, `documents`/`property_photos` rows deleted; the QA
+org/property themselves could not be hard-deleted (`audit_events` immutability FK, same established
+pattern as every prior QA cleanup this engagement) -- both QA memberships set to `revoked` instead.
+
 ## 2026-08-24 (continued) — Property cover-photo + image-quality audit (local only, NOT deployed)
 
 Real production report (Musgrave Flats): the uploaded cover photo correctly appears on the
