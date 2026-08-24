@@ -41,7 +41,8 @@ test.describe('property -> unit -> application -> tenant -> lease -> occupancy -
     const unitId = await createUnit(request, propertyId, 'Unit A');
     expect(await getUnitStatus(request, unitId)).toBe('vacant');
 
-    // === Application (Stage 9) -> approval creates tenant + active lease + rent schedule ===
+    // === Application (Stage 9) -> approval creates tenant + DRAFT lease only (no occupancy, no
+    // rent schedule yet -- approve_application(), migration 20260101000131) ===
     const applicationResponse = await request.post('/api/v1/applications', {
       headers: { Origin: BASE_URL },
       data: {
@@ -57,22 +58,29 @@ test.describe('property -> unit -> application -> tenant -> lease -> occupancy -
 
     const decideResponse = await request.post(
       `/api/v1/applications/${application.application.id}/decide`,
-      {
-        headers: { Origin: BASE_URL },
-        data: {
-          decision: 'approved',
-          rentAmount: 10000,
-          depositAmount: 10000,
-          startDate: '2026-01-01',
-        },
-      },
+      { headers: { Origin: BASE_URL }, data: { decision: 'approved' } },
     );
     expect(decideResponse.ok()).toBe(true);
     const decided = await decideResponse.json();
     const leaseId = decided.leaseId as string;
 
-    // Occupancy (Stage 18): approval's lease is created directly 'active' -- the unit must be
-    // occupied immediately, not left vacant/stale.
+    // Approval alone must never occupy the unit.
+    expect(await getUnitStatus(request, unitId)).toBe('vacant');
+
+    // === Lease preparation (Stage 17-21): commercial terms are set on the draft lease itself,
+    // then it is explicitly activated -- only activation drives occupancy/rent-schedule. ===
+    const prepareResponse = await request.patch(`/api/v1/leases/${leaseId}`, {
+      headers: { Origin: BASE_URL },
+      data: { rentAmount: 10000, depositAmount: 10000, startDate: '2026-01-01' },
+    });
+    expect(prepareResponse.ok()).toBe(true);
+
+    const activateResponse = await request.post(`/api/v1/leases/${leaseId}/activate`, {
+      headers: { Origin: BASE_URL },
+    });
+    expect(activateResponse.ok()).toBe(true);
+
+    // Occupancy (Stage 18): the unit must be occupied immediately once the lease is activated.
     expect(await getUnitStatus(request, unitId)).toBe('occupied');
 
     const leaseResponse = await request.get(`/api/v1/leases/${leaseId}`);
@@ -199,15 +207,7 @@ test.describe('property -> unit -> application -> tenant -> lease -> occupancy -
       const application = await applicationResponse.json();
       const decideResponse = await request.post(
         `/api/v1/applications/${application.application.id}/decide`,
-        {
-          headers: { Origin: BASE_URL },
-          data: {
-            decision: 'approved',
-            rentAmount: 8000,
-            depositAmount: 8000,
-            startDate: '2026-01-01',
-          },
-        },
+        { headers: { Origin: BASE_URL }, data: { decision: 'approved' } },
       );
       expect(decideResponse.ok()).toBe(true);
     }
@@ -309,7 +309,8 @@ test.describe('property -> unit -> application -> tenant -> lease -> occupancy -
     const vacantUnitId = await createUnit(request, propertyId, 'Unit Vacant');
     const occupiedUnitId = await createUnit(request, propertyId, 'Unit Occupied');
 
-    // Occupy the second unit via a real approved application (the only legitimate path).
+    // Occupy the second unit via a real approved-and-activated application (the only legitimate
+    // path). Approval alone only creates a draft lease -- it must be prepared and activated too.
     const applicationResponse = await request.post('/api/v1/applications', {
       headers: { Origin: BASE_URL },
       data: {
@@ -320,14 +321,17 @@ test.describe('property -> unit -> application -> tenant -> lease -> occupancy -
       },
     });
     const application = await applicationResponse.json();
-    await request.post(`/api/v1/applications/${application.application.id}/decide`, {
+    const decideResponse = await request.post(
+      `/api/v1/applications/${application.application.id}/decide`,
+      { headers: { Origin: BASE_URL }, data: { decision: 'approved' } },
+    );
+    const decided = await decideResponse.json();
+    await request.patch(`/api/v1/leases/${decided.leaseId}`, {
       headers: { Origin: BASE_URL },
-      data: {
-        decision: 'approved',
-        rentAmount: 7000,
-        depositAmount: 0,
-        startDate: '2026-01-01',
-      },
+      data: { rentAmount: 7000, depositAmount: 0, startDate: '2026-01-01' },
+    });
+    await request.post(`/api/v1/leases/${decided.leaseId}/activate`, {
+      headers: { Origin: BASE_URL },
     });
     expect(await getUnitStatus(request, occupiedUnitId)).toBe('occupied');
 

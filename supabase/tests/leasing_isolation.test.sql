@@ -2,9 +2,15 @@
 -- (TASKS.md M9/M10, migrations 20260101000029-31), and specifically approve_application() -- the
 -- highest-risk piece of this milestone since it's a multi-table atomic write, not just an RLS
 -- policy shape already proven elsewhere.
+--
+-- Updated by 20260101000131_application_approval_draft_lease.sql: approval itself now only ever
+-- produces a DRAFT lease (tenant assigned, no occupancy, no rent schedule) -- the
+-- occupied-unit/rent-schedule assertions that used to follow directly from approval now instead
+-- follow an explicit activate_lease() call, proving the full approve -> (prepare) -> activate
+-- chain still ends in exactly the same real-world state as before, just gated by an extra step.
 
 begin;
-select plan(14);
+select plan(19);
 
 insert into auth.users (id, email) values
   ('e1000000-0000-0000-0000-000000000001', 'leasing-agent-a@test.propertyvault.example'),
@@ -50,7 +56,7 @@ select is(
 -- outsider should fail with "Application not found" via the same SELECT ... FOR UPDATE RLS
 -- filtering, proving this function cannot be used to bypass org isolation.
 select throws_ok(
-  $$ select public.approve_application('9a9a9a9a-0000-0000-0000-000000000001'::uuid, 5000) $$,
+  $$ select public.approve_application('9a9a9a9a-0000-0000-0000-000000000001'::uuid) $$,
   'P0001',
   'Application not found (or not visible to the caller)',
   'Org B agent calling approve_application() on Org A''s application raises -- RLS blocks the internal SELECT, not a security bypass'
@@ -81,10 +87,8 @@ select is(
 set local "request.jwt.claim.sub" = 'e1000000-0000-0000-0000-000000000001';
 
 select lives_ok(
-  $$ select public.approve_application(
-       '9a9a9a9a-0000-0000-0000-000000000001'::uuid, 8500, 8500, '2026-08-01'::date
-     ) $$,
-  'Org A agent can approve Org A''s application, creating tenant+lease+rent_schedule atomically'
+  $$ select public.approve_application('9a9a9a9a-0000-0000-0000-000000000001'::uuid) $$,
+  'Org A agent can approve Org A''s application, creating tenant + draft lease atomically'
 );
 
 select is(
@@ -109,8 +113,8 @@ select is(
   (select l.status from public.leases l
      join public.applications a on a.id = l.source_application_id
      where a.id = '9a9a9a9a-0000-0000-0000-000000000001'),
-  'active'::public.lease_status,
-  'the created lease is active, sourced from application_approved'
+  'draft'::public.lease_status,
+  'the created lease is a DRAFT, sourced from application_approved -- not active yet'
 );
 
 select is(
@@ -119,27 +123,68 @@ select is(
      join public.applications a on a.id = l.source_application_id
      where a.id = '9a9a9a9a-0000-0000-0000-000000000001' and lt.is_primary = true),
   1::bigint,
-  'the new tenant is linked to the lease as the primary tenant'
+  'the new tenant is linked to the lease as the primary tenant, even though the lease is still a draft'
 );
 
 select is(
-  (select rs.amount from public.rent_schedules rs
+  (select count(*) from public.rent_schedules rs
      join public.leases l on l.id = rs.lease_id
      join public.applications a on a.id = l.source_application_id
      where a.id = '9a9a9a9a-0000-0000-0000-000000000001'),
-  8500::numeric,
-  'a first rent_schedules row was generated matching the approved rent amount'
+  0::bigint,
+  'no rent_schedules row exists yet -- approval alone never generates one'
+);
+
+select is(
+  (select status from public.units where id = '9f9f9f9f-0000-0000-0000-000000000001'),
+  'vacant'::public.unit_status,
+  'the unit is still vacant after approval alone -- only an activated lease occupies it'
+);
+
+-- === Preparing and activating the draft lease drives occupancy/rent-schedule, same as any lease ===
+select set_config(
+  'pgtap.li.draft_lease_id',
+  (select l.id::text from public.leases l
+     join public.applications a on a.id = l.source_application_id
+     where a.id = '9a9a9a9a-0000-0000-0000-000000000001'),
+  false
+);
+
+update public.leases set rent_amount = 8500, deposit_amount = 8500, start_date = '2026-08-01'::date
+where id = current_setting('pgtap.li.draft_lease_id')::uuid;
+
+select lives_ok(
+  $$ select public.activate_lease(current_setting('pgtap.li.draft_lease_id')::uuid) $$,
+  'Org A agent can activate the prepared draft lease'
+);
+
+select is(
+  (select status from public.leases where id = current_setting('pgtap.li.draft_lease_id')::uuid),
+  'active'::public.lease_status,
+  'the lease is active after explicit activation'
 );
 
 select is(
   (select status from public.units where id = '9f9f9f9f-0000-0000-0000-000000000001'),
   'occupied'::public.unit_status,
-  'the unit is marked occupied as a side effect of the lease becoming active'
+  'the unit is marked occupied as a side effect of activate_lease(), not of approval'
+);
+
+select is(
+  (select count(*)::int from public.rent_schedules rs
+     where rs.lease_id = current_setting('pgtap.li.draft_lease_id')::uuid and rs.amount = 8500),
+  (select count(*)::int from public.rent_schedules rs where rs.lease_id = current_setting('pgtap.li.draft_lease_id')::uuid),
+  'rent_schedules row(s) were generated by activate_lease(), all matching the prepared rent amount'
+);
+
+select ok(
+  (select count(*)::int from public.rent_schedules rs where rs.lease_id = current_setting('pgtap.li.draft_lease_id')::uuid) >= 1,
+  'at least one rent_schedules row was generated by activate_lease()'
 );
 
 -- === Cannot re-decide an already-decided application (data-integrity guard, not RLS) ===
 select throws_ok(
-  $$ select public.approve_application('9a9a9a9a-0000-0000-0000-000000000001'::uuid, 9000) $$,
+  $$ select public.approve_application('9a9a9a9a-0000-0000-0000-000000000001'::uuid) $$,
   'P0001',
   'Application 9a9a9a9a-0000-0000-0000-000000000001 has already been decided',
   'approving an already-decided application raises rather than silently creating a second lease'

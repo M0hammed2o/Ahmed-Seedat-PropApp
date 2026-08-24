@@ -7,10 +7,12 @@ import { mapApplicationRow } from '@/lib/leasing';
 type RouteParams = { params: Promise<{ id: string }> };
 
 /**
- * POST /api/v1/applications/:id/decide (API_SPEC.md §4: "approved -> atomically creates
- * tenant+lease+rent_schedule"). Decline is a simple single-table update (no atomicity concern);
- * approve calls approve_application() (supabase/migrations/20260101000031), the only sanctioned
- * way to create the tenant+lease+lease_tenants+rent_schedule rows together.
+ * POST /api/v1/applications/:id/decide. Decline is a simple single-table update (no atomicity
+ * concern); approve calls approve_application() (supabase/migrations/20260101000131), which
+ * atomically creates/links a tenant and a DRAFT lease (source_application_id set, tenant already
+ * assigned) -- never active, never occupies the unit, never creates a rent schedule. The caller
+ * takes the returned leaseId to the lease-preparation flow; occupancy/rent-schedule only happen
+ * once that lease is later activated via activate_lease() (migration 20260101000078).
  */
 export async function POST(request: NextRequest, { params }: RouteParams) {
   const { id } = await params;
@@ -113,10 +115,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
   const { data: leaseId, error: approveError } = await supabase.rpc('approve_application', {
     p_application_id: id,
-    p_rent_amount: parsed.data.rentAmount,
-    p_deposit_amount: parsed.data.depositAmount,
-    p_start_date: parsed.data.startDate,
-    p_end_date: parsed.data.endDate ?? null,
     p_tenant_id: parsed.data.tenantId ?? null,
   });
 

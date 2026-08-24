@@ -254,10 +254,6 @@ function DecisionPanel({
 }) {
   const router = useRouter();
   const [mode, setMode] = useState<'approve' | 'decline'>('approve');
-  const [rentAmount, setRentAmount] = useState('');
-  const [depositAmount, setDepositAmount] = useState('0');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
   const [reason, setReason] = useState('');
 
   async function submit(e: FormEvent) {
@@ -266,15 +262,7 @@ function DecisionPanel({
     setError(null);
     try {
       const payload =
-        mode === 'approve'
-          ? {
-              decision: 'approved',
-              rentAmount: Number(rentAmount),
-              depositAmount: Number(depositAmount || '0'),
-              startDate,
-              endDate: endDate || null,
-            }
-          : { decision: 'declined', reason: reason || null };
+        mode === 'approve' ? { decision: 'approved' } : { decision: 'declined', reason: reason || null };
       const response = await fetch(`/api/v1/applications/${applicationId}/decide`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -283,6 +271,12 @@ function DecisionPanel({
       const body = await response.json();
       if (!response.ok) {
         setError(body.error?.message ?? 'Failed to record decision.');
+        return;
+      }
+      if (mode === 'approve' && body.leaseId) {
+        // Approval only creates a DRAFT lease -- commercial terms are entered next, on the lease
+        // itself, via the existing lease edit screen (no active lease/occupancy happens yet).
+        router.push(`/leases/${body.leaseId}/edit`);
         return;
       }
       router.refresh();
@@ -319,59 +313,11 @@ function DecisionPanel({
 
       <form onSubmit={submit} className="mt-4 max-w-md space-y-3">
         {mode === 'approve' ? (
-          <>
-            <label className="block text-xs">
-              <span className="text-light-textMuted dark:text-dark-textMuted">
-                Rent amount (ZAR)
-              </span>
-              <input
-                required
-                type="number"
-                min={0}
-                step={0.01}
-                value={rentAmount}
-                onChange={(e) => setRentAmount(e.target.value)}
-                className={inputClass}
-              />
-            </label>
-            <label className="block text-xs">
-              <span className="text-light-textMuted dark:text-dark-textMuted">
-                Deposit amount (ZAR)
-              </span>
-              <input
-                type="number"
-                min={0}
-                step={0.01}
-                value={depositAmount}
-                onChange={(e) => setDepositAmount(e.target.value)}
-                className={inputClass}
-              />
-            </label>
-            <label className="block text-xs">
-              <span className="text-light-textMuted dark:text-dark-textMuted">Start date</span>
-              <input
-                required
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className={inputClass}
-              />
-            </label>
-            <label className="block text-xs">
-              <span className="text-light-textMuted dark:text-dark-textMuted">
-                End date (optional)
-              </span>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className={inputClass}
-              />
-            </label>
-            <p className="text-xs text-light-textMuted dark:text-dark-textMuted">
-              Approving creates the tenant and lease, and continues straight to lease setup.
-            </p>
-          </>
+          <p className="text-xs text-light-textMuted dark:text-dark-textMuted">
+            Approving links this applicant to a tenant and creates a draft lease. The unit is not
+            marked occupied and no rent is charged until you finish preparing and activating the
+            lease.
+          </p>
         ) : (
           <label className="block text-xs">
             <span className="text-light-textMuted dark:text-dark-textMuted">Reason (optional)</span>
