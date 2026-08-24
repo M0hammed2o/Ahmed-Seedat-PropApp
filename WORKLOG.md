@@ -1,5 +1,83 @@
 # Worklog
 
+## 2026-08-24 (continued) — Subscription current-row integrity: CONTROLLED PRODUCTION REPAIR + DEPLOYMENT
+
+Deployed `3b32654` and applied migration `20260101000126` to production, in that order, exactly as
+planned. Fresh predeploy audit confirmed migration 00126 was the only pending migration and Mo's
+Properties was still the only organization (of 4 total) with duplicate current-status subscription
+rows — no drift since the prior audit.
+
+**Explicit repair (Phase 3), executed as its own reviewed step before the migration.** In a single
+transaction: `organization_subscriptions` row `b18542c8-1c61-4e90-a82b-a0578c17b2b5` (the
+later-created of the two tied rows) flipped `trial` -> `cancelled`; a `system`-actor audit event
+(`organization.subscription_duplicate_superseded`) recorded before/after status and the canonical
+row id; an in-transaction assertion re-counted current rows and would have raised (aborting the
+whole transaction, nothing committed) had the count not been exactly 1 -- it was, and the
+transaction committed. The canonical row (`1060e257-7787-4a21-bea8-8c99177502e9`) was never
+touched: same plan, same period dates, still `trial`. Both rows, dates, and plan untouched --
+confirmed byte-for-byte against the Phase 2 snapshot. `subscription_payments`/`payment_methods`/
+`billing_events`/`trial_usage_records` stayed at 0 throughout (repair never touched any of them).
+`org_property_limit`/`org_staff_seat_limit`/`org_owner_limit` unchanged (15/5/2). `organizations`
+row (`commercial_setup_required`/`commercial_setup_completed_at`/`status`/`trial_ends_at`/
+`overdue_since`) byte-for-byte identical before and after. Re-ran the production-wide duplicate
+query after commit: zero organizations with >1 current row.
+
+**Migration.** `supabase db push --linked --dry-run` showed only `20260101000126` pending;
+applied cleanly (its own dirty-data guard passed now that the repair had already run). Confirmed
+live: migration recorded in `supabase_migrations.schema_migrations`, the partial unique index
+(`organization_subscriptions_one_current_per_org`, predicate `status = ANY (ARRAY['trial','active'])`)
+exists, `org_property_limit()`'s live definition now includes the `created_at` tiebreaker, and
+Mo's Properties still has both its rows (2 total) -- no history deleted.
+
+**Database invariant proof (Phase 7).** Ran directly against production inside a single
+`begin; ... rollback;` transaction, never committed, using a disposable org id -- never Mo's
+Properties: (1) a first trial row for a fresh org inserts cleanly; (2) a second simultaneous
+trial row for the same org is rejected with a real `23505 unique_violation`, caught and confirmed
+inside a `do $$ ... exception when unique_violation $$` block; (3)-(5) a `cancelled` historical row
+and one `active` row coexist for the same org, both remain queryable (2 total rows), and exactly
+one commercially-current row is possible. Zero residue confirmed afterward (`select count(*)` for
+the disposable org id back to 0) -- the rollback left nothing to clean up.
+
+**Deployment.** `git push origin main` (fast-forward, no force). Site stayed 200 throughout the
+Render auto-deploy window; `/`, `/login` 200, `/dashboard`, `/organization/billing` correctly 307
+(unauthenticated). Real-account verification via the same non-destructive
+`admin.generateLink`+`verifyOtp` technique used throughout this engagement: a real cookie session
+for Mo's Properties' actual Principal loaded `/dashboard` (200, real content, no error strings) and
+`/organization/billing` (200, shows "Professional", no error strings, no pending change, zero
+invoices -- all correct since no real payment has ever been made). `GET .../organizations/:orgId`,
+`.../billing/invoices`, `.../billing/pending-change` all 200 with clean, non-duplicated data.
+
+**AI usage-cap resolver.** Confirmed the exact fixed query shape (`order by current_period_start
+desc, created_at desc limit 1` with PostgREST's single-object `Accept` header, matching
+`checkAiUsageCap()`'s corrected query) executes cleanly against real production data (200, one
+clean row). Did **not** re-create a 2-row scenario to re-prove the specific PGRST116-avoidance
+live in production -- doing so would have meant creating a new subscription row purely for the
+test, which this deployment's own instructions explicitly forbade ("do not create new subscriptions
+during verification"). That exact scenario was already proven, before this deployment, by the
+local real-Supabase vitest suite (`billing.checkoutIdempotency.test.ts` and code review of the
+committed fix) -- cited as the evidence for this specific sub-claim rather than re-run live. No
+billable AI/LLM call was made at any point.
+
+**Checkout idempotency.** No real PayFast checkout was started. Confirmed via `git show
+3b32654:apps/admin/lib/billing.ts` that the exact deployed commit contains
+`findOrCreateCurrentSubscriptionForCheckout()`, wired into both `startSubscriptionCheckout()` and
+`startTrialActivationCheckout()`; combined with origin/main now at `3b32654` and the site staying
+healthy through the deploy window, this is the evidence for "deployed code contains the fix." Its
+specific behaviors (reuse an unresolved trial row, never rewrite an active row, absorb a losing
+concurrent-insert's `23505` as a reuse, no duplicate payment row from a losing race) were proven
+by the 5 new vitest tests against real local Supabase in the prior (local-only) pass -- cited, not
+re-run against production.
+
+**Final production-wide integrity sweep.** `organization_subscriptions` total row count across ALL
+production orgs: 2 (unchanged from before repair -- nothing added, nothing lost). Global
+`subscription_payments`/`payment_methods`/`billing_events` totals: 0/0/0, unchanged. Zero orgs with
+duplicate current rows. Security scan of the new repair audit event's `before`/`after` JSON: only
+`status`/`reason`/`canonical_row_id` -- no tokens, no secrets, no payment credentials.
+
+**Cleanup.** No persisted QA/test data was created this pass -- the Phase 7 invariant proof was a
+full `rollback`, confirmed zero residue. Local scratch files holding the service-role key and
+session tokens were deleted after use.
+
 ## 2026-08-24 (continued) — Subscription current-row integrity fix (local only, NOT deployed)
 
 A read-only production audit (this date, requested separately) found Mo's Properties with 2
