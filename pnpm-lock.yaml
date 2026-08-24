@@ -84,6 +84,9 @@ importers:
       '@tanstack/react-table':
         specifier: ^8.20.5
         version: 8.21.3(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      docxtemplater:
+        specifier: ^3.69.3
+        version: 3.69.3
       lucide-react:
         specifier: ^1.28.0
         version: 1.28.0(react@19.2.3)
@@ -99,6 +102,9 @@ importers:
       pdfkit:
         specifier: ^0.19.1
         version: 0.19.1
+      pizzip:
+        specifier: ^3.2.0
+        version: 3.2.0
       react:
         specifier: 19.2.3
         version: 19.2.3
@@ -2807,10 +2813,12 @@ packages:
   '@xmldom/xmldom@0.8.13':
     resolution: {integrity: sha512-KRYzxepc14G/CEpEGc3Yn+JKaAeT63smlDr+vjB8jRfgTBBI9wRj/nkQEO+ucV8p8I9bfKLWp37uHgFrbntPvw==}
     engines: {node: '>=10.0.0'}
+    deprecated: this version has critical issues, please update to the latest version
 
   '@xmldom/xmldom@0.9.10':
     resolution: {integrity: sha512-A9gOqLdi6cV4ibazAjcQufGj0B1y/vDqYrcuP6d/6x8P27gRS8643Dj9o1dEKtB6O7fwxb2FgBmJS2mX7gpvdw==}
     engines: {node: '>=14.6'}
+    deprecated: this version has critical issues, please update to the latest version
 
   abab@2.0.6:
     resolution: {integrity: sha512-j2afSsaIENvHZN2B8GOpF566vZ5WVk5opAiMTvWgaQT8DkbOqsTfvNAvHoRGU2zzP8cPoqys+xHTRDWW8L+/BA==}
@@ -3515,6 +3523,10 @@ packages:
   doctrine@2.1.0:
     resolution: {integrity: sha512-35mSku4ZXK0vfCuHEDAwt55dg2jNajHZ1odvF+8SSr82EsZY4QmXfuWso8oEd8zRhVObSN18aM0CjSdoBX7zIw==}
     engines: {node: '>=0.10.0'}
+
+  docxtemplater@3.69.3:
+    resolution: {integrity: sha512-z6IIXImBvOFudR1VHZIjIoewPd/xft/OVF1JT9eKgJLGWQaFZ8gPrjPuAnho0bbQEfKd5Ge7RPq+owqKLmC3PA==}
+    engines: {node: '>=0.10'}
 
   dom-accessibility-api@0.5.16:
     resolution: {integrity: sha512-X7BJ2yElsnOJ30pZF4uIIDfBEVgF4XEBxL9Bxhy6dnrm5hkzqmsWHGTiHqRiITNhMyFLyAiWndIJP7Z1NTteDg==}
@@ -5195,6 +5207,9 @@ packages:
   pako@1.0.11:
     resolution: {integrity: sha512-4hLB8Py4zZce5s4yd9XzopqwVv/yGNhV1Bl8NTmCq1763HeK2+EwVTv+leGeL13Dnh2wfbqowVPXCIO0z4taYw==}
 
+  pako@2.2.0:
+    resolution: {integrity: sha512-zJq6RP/5q+TO2OpFV3FHzlPnFjmkb7Nc99a5SNjJE+uu/PkpChs+NIZSSzbBoD+6kjiISXjfYdwj1ZRQ81dz/w==}
+
   parent-module@1.0.1:
     resolution: {integrity: sha512-GQ2EWRpQV8/o+Aw8YqtfZZPfNRWZYkbidE9k5rpl/hC3vtHHBfGm2Ifi6qWV+coDGkrUKZAxE3Lot5kcsRlh+g==}
     engines: {node: '>=6'}
@@ -5261,6 +5276,9 @@ packages:
   pirates@4.0.7:
     resolution: {integrity: sha512-TfySrs/5nm8fQJDcBDuUng3VOUKsd7S+zqvbOTiGXHfxX4wK31ard+hoNuvkicM/2YFzlpDgABOevKSsB4G/FA==}
     engines: {node: '>= 6'}
+
+  pizzip@3.2.0:
+    resolution: {integrity: sha512-X4NPNICxCfIK8VYhF6wbksn81vTiziyLbvKuORVAmolvnUzl1A1xmz9DAWKxPRq9lZg84pJOOAMq3OE61bD8IQ==}
 
   pkg-dir@4.2.0:
     resolution: {integrity: sha512-HRDzbaKjC+AOWVXxAU/x54COGeIv9eb+6CkDSQoNTt4XyWoIJvuPsXizxu/Fr23EiekbtZwmh1IcIG/l/a10GQ==}
@@ -8865,7 +8883,9 @@ snapshots:
       metro-runtime: 0.84.4
     transitivePeerDependencies:
       - '@babel/core'
+      - bufferutil
       - supports-color
+      - utf-8-validate
 
   '@react-native/normalize-colors@0.74.89': {}
 
@@ -10178,6 +10198,10 @@ snapshots:
   doctrine@2.1.0:
     dependencies:
       esutils: 2.0.3
+
+  docxtemplater@3.69.3:
+    dependencies:
+      '@xmldom/xmldom': 0.9.10
 
   dom-accessibility-api@0.5.16: {}
 
@@ -12335,6 +12359,8 @@ snapshots:
 
   pako@1.0.11: {}
 
+  pako@2.2.0: {}
+
   parent-module@1.0.1:
     dependencies:
       callsites: 3.1.0
@@ -12391,6 +12417,10 @@ snapshots:
   pify@2.3.0: {}
 
   pirates@4.0.7: {}
+
+  pizzip@3.2.0:
+    dependencies:
+      pako: 2.2.0
 
   pkg-dir@4.2.0:
     dependencies:
