@@ -3,6 +3,7 @@ import { provisionStaffMemberSchema } from '@propvault/validation';
 import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { requireOrgRole } from '@/lib/portfolio';
 import { provisionStaffMember } from '@/lib/staffProvisioning';
+import { isPrincipalOnlyDenial } from '@/lib/staffAuthorizationErrors';
 
 type RouteParams = { params: Promise<{ orgId: string }> };
 
@@ -189,7 +190,14 @@ async function handlePOST(request: NextRequest, params: RouteParams['params']) {
         { status: 402 },
       );
     }
-    if (message.includes('Only manager+') || message.includes('cannot provision a member')) {
+    // Staff security + audit hardening follow-up (this date): this string match was stale after
+    // migration 20260101000125 changed provision_staff_member()'s caller-role floor from manager+
+    // to principal-only -- the OLD "Only manager+ org members may provision staff" /
+    // "cannot provision a member with the manager or principal role" messages no longer exist, so
+    // a Manager's request was silently falling through to the generic 500 catch-all below instead
+    // of a 403. Now matches the RPC's real, current denial message (isPrincipalOnlyDenial(),
+    // shared with every other staff-administration route).
+    if (isPrincipalOnlyDenial(message) || message.includes('cannot provision a member')) {
       return NextResponse.json({ error: { code: 'forbidden', message } }, { status: 403 });
     }
     if (message.includes('Principal cannot be assigned')) {

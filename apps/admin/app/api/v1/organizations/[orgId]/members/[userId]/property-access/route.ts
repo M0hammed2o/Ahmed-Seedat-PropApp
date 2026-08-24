@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { requireOrgRole } from '@/lib/portfolio';
+import { isPrincipalOnlyDenial } from '@/lib/staffAuthorizationErrors';
 
 type RouteParams = { params: Promise<{ orgId: string; userId: string }> };
 
@@ -110,9 +111,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     p_property_role: parsed.data.propertyRole,
   });
   if (error) {
+    // Staff security + audit hardening follow-up (this date): narrow, exact-match mapping to 403
+    // for the RPC's own known principal-only denial only -- see lib/staffAuthorizationErrors.ts.
+    const status = isPrincipalOnlyDenial(error.message) ? 403 : 400;
     return NextResponse.json(
       { error: { code: 'grant_failed', message: error.message } },
-      { status: 400 },
+      { status },
     );
   }
 
@@ -145,9 +149,12 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     p_user_id: userId,
   });
   if (error) {
+    // Staff security + audit hardening follow-up (this date): narrow, exact-match mapping to 403
+    // for the RPC's own known principal-only denial only -- see lib/staffAuthorizationErrors.ts.
+    const status = isPrincipalOnlyDenial(error.message) ? 403 : 400;
     return NextResponse.json(
       { error: { code: 'revoke_failed', message: error.message } },
-      { status: 400 },
+      { status },
     );
   }
 

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { ORGANIZATION_MEMBER_ROLES } from '@propvault/types';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { isPrincipalOnlyDenial } from '@/lib/staffAuthorizationErrors';
 
 type RouteParams = { params: Promise<{ orgId: string; userId: string }> };
 
@@ -54,9 +55,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     p_role: parsed.data.role,
   });
   if (error) {
+    // Staff security + audit hardening follow-up (this date): real Manager testing proved the
+    // RPC's own principal-only check correctly blocks this, but every RPC failure previously
+    // surfaced as a generic 400 -- narrow, exact-match mapping to 403 for this known denial only.
+    const status = isPrincipalOnlyDenial(error.message) ? 403 : 400;
     return NextResponse.json(
       { error: { code: 'role_update_failed', message: error.message } },
-      { status: 400 },
+      { status },
     );
   }
 

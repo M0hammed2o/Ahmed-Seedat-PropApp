@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { isPrincipalOnlyDenial } from '@/lib/staffAuthorizationErrors';
 
 type RouteParams = { params: Promise<{ orgId: string; userId: string }> };
 
@@ -45,9 +46,15 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     p_mode: parsed.data.mode,
   });
   if (error) {
+    // Staff security + audit hardening follow-up (this date): narrow, exact-match mapping to 403
+    // for the RPC's own known principal-only denial only -- see lib/staffAuthorizationErrors.ts.
+    // The Principal self-protection guard ("Principal property access cannot be changed via this
+    // action") is deliberately NOT included -- that's a business rule, not a role-insufficiency
+    // signal, and stays 400.
+    const status = isPrincipalOnlyDenial(error.message) ? 403 : 400;
     return NextResponse.json(
       { error: { code: 'set_mode_failed', message: error.message } },
-      { status: 400 },
+      { status },
     );
   }
 

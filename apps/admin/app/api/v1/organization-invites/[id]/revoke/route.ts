@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { isPrincipalOnlyDenial } from '@/lib/staffAuthorizationErrors';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -23,9 +24,12 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
 
   const { error } = await supabase.rpc('revoke_organization_invite', { p_invite_id: id });
   if (error) {
+    // Staff security + audit hardening follow-up (this date): narrow, exact-match mapping to 403
+    // for the RPC's own known principal-only denial only -- see lib/staffAuthorizationErrors.ts.
+    const status = isPrincipalOnlyDenial(error.message) ? 403 : 400;
     return NextResponse.json(
       { error: { code: 'revoke_failed', message: error.message } },
-      { status: 400 },
+      { status },
     );
   }
 

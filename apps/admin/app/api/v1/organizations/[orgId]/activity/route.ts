@@ -111,42 +111,65 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
   const rows = data ?? [];
 
-  // Snapshot fallback: rows written before this pass (or whose actor had no resolvable snapshot
-  // at write time) may have a null actor_display_name -- resolve those specific actors' CURRENT
-  // name as a best-effort fallback rather than showing nothing. This is read-time convenience
-  // only; it never rewrites the stored snapshot (audit_events is append-only).
-  const missingNameActorIds = [
+  // Actor-name fallback (staff security + audit hardening follow-up, this date): a real historical
+  // snapshot in `actor_display_name` is an audit-trail fact -- what the name WAS at the time of
+  // the action -- and is used exactly as stored, never touched or overwritten here. Only rows with
+  // NO snapshot (written before this column existed, or whose actor had nothing resolvable at
+  // write time) fall through to a read-time lookup, using the SAME three-tier hierarchy
+  // members/route.ts already established: profile display_name -> auth email -> "Unnamed user".
+  // Never a raw UUID. `audit_events` itself is never written to here -- this is a response-shaping
+  // read, not a backfill.
+  const actorIdsNeedingResolution = [
     ...new Set(
-      rows.filter((r) => r.actor_user_id && !r.actor_display_name).map((r) => r.actor_user_id as string),
+      rows
+        .filter((r) => r.actor_user_id && !r.actor_display_name)
+        .map((r) => r.actor_user_id as string),
     ),
   ];
-  const fallbackNameById = new Map<string, string>();
-  if (missingNameActorIds.length > 0) {
+
+  const nameById = new Map<string, string>();
+  if (actorIdsNeedingResolution.length > 0) {
     const { data: profiles } = await serviceClient
       .from('profiles')
       .select('id, display_name')
-      .in('id', missingNameActorIds);
+      .in('id', actorIdsNeedingResolution);
     for (const p of profiles ?? []) {
-      if (p.display_name) fallbackNameById.set(p.id, p.display_name);
+      if (p.display_name) nameById.set(p.id, p.display_name);
     }
   }
 
-  const activity = rows.map((row) => ({
-    id: row.id,
-    actorUserId: row.actor_user_id,
-    actorType: row.actor_type,
-    actorRole: row.actor_role,
-    actorDisplayName:
-      row.actor_display_name ??
-      (row.actor_user_id ? (fallbackNameById.get(row.actor_user_id) ?? null) : null),
-    action: row.action,
-    entityType: row.entity_type,
-    entityId: row.entity_id,
-    before: row.before,
-    after: row.after,
-    propertyId: row.property_id,
-    createdAt: row.created_at,
-  }));
+  const missingNameIds = actorIdsNeedingResolution.filter((id) => !nameById.has(id));
+  const emailById = new Map<string, string>();
+  if (missingNameIds.length > 0) {
+    await Promise.all(
+      missingNameIds.map(async (id) => {
+        const { data: authUser } = await serviceClient.auth.admin.getUserById(id);
+        if (authUser.user?.email) emailById.set(id, authUser.user.email);
+      }),
+    );
+  }
+
+  const activity = rows.map((row) => {
+    let actorDisplayName = row.actor_display_name;
+    if (!actorDisplayName && row.actor_user_id) {
+      actorDisplayName =
+        nameById.get(row.actor_user_id) || emailById.get(row.actor_user_id) || 'Unnamed user';
+    }
+    return {
+      id: row.id,
+      actorUserId: row.actor_user_id,
+      actorType: row.actor_type,
+      actorRole: row.actor_role,
+      actorDisplayName,
+      action: row.action,
+      entityType: row.entity_type,
+      entityId: row.entity_id,
+      before: row.before,
+      after: row.after,
+      propertyId: row.property_id,
+      createdAt: row.created_at,
+    };
+  });
 
   const nextCursor =
     rows.length === limit ? (rows[rows.length - 1]?.created_at ?? null) : null;
