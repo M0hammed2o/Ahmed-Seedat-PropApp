@@ -351,14 +351,19 @@ export function PrepareLeaseClient({
         ) : (
           <ul className="divide-y divide-light-border dark:divide-dark-border">
             {documents.map((d) => (
-              <li key={d.id} className="flex items-center justify-between gap-3 py-2 text-sm">
-                <span>
-                  v{d.version} — {d.kind} — {d.originalFileName ?? 'lease.docx'}
-                </span>
-                <span className="flex items-center gap-2">
-                  <span className="text-xs text-light-textMuted dark:text-dark-textMuted">{d.status}</span>
-                  <DownloadLink leaseId={leaseId} documentId={d.id} />
-                </span>
+              <li key={d.id} className="py-2 text-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <span>
+                    v{d.version} — {d.kind} — {d.originalFileName ?? 'lease.docx'}
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <span className="text-xs text-light-textMuted dark:text-dark-textMuted">{d.status}</span>
+                    <DownloadLink leaseId={leaseId} documentId={d.id} />
+                  </span>
+                </div>
+                {d.kind === 'uploaded' ? (
+                  <LeaseOcrSuggestions leaseId={leaseId} leaseDocumentId={d.id} onApplied={load} />
+                ) : null}
               </li>
             ))}
           </ul>
@@ -458,5 +463,116 @@ function DownloadLink({ leaseId, documentId }: { leaseId: string; documentId: st
     >
       {loading ? 'Opening…' : 'Download'}
     </button>
+  );
+}
+
+interface LeaseExtractedField {
+  value: string | number;
+  confidence: number;
+}
+
+const LEASE_OCR_FIELD_TARGETS: { key: string; label: string; patchKey: 'rentAmount' | 'depositAmount' | 'startDate' | 'endDate' }[] = [
+  { key: 'rentAmount', label: 'Monthly rent', patchKey: 'rentAmount' },
+  { key: 'depositAmount', label: 'Deposit', patchKey: 'depositAmount' },
+  { key: 'leaseStartDate', label: 'Start date', patchKey: 'startDate' },
+  { key: 'leaseEndDate', label: 'End date', patchKey: 'endDate' },
+];
+
+/** Phase 13 (first-tenant-workflow predeploy pass): lease OCR integration -- a manually uploaded
+ * completed lease can be scanned for suggested commercial terms, each individually reviewable and
+ * appliable (PATCH /api/v1/leases/:id, the same route the lease edit form already uses) -- never
+ * auto-applied, matching this codebase's "customer always sees extracted fields in an editable
+ * confirmation screen before they're treated as final" rule. */
+function LeaseOcrSuggestions({
+  leaseId,
+  leaseDocumentId,
+  onApplied,
+}: {
+  leaseId: string;
+  leaseDocumentId: string;
+  onApplied: () => void;
+}) {
+  const [scanning, setScanning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [fields, setFields] = useState<Record<string, LeaseExtractedField> | null>(null);
+  const [edits, setEdits] = useState<Record<string, string>>({});
+  const [applying, setApplying] = useState<string | null>(null);
+
+  async function scan() {
+    setScanning(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/v1/leases/${leaseId}/upload-and-parse`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leaseDocumentId }),
+      });
+      const body = await response.json();
+      if (!response.ok) {
+        setError(body.error?.message ?? 'Could not scan this document.');
+        return;
+      }
+      setFields(body.extraction ?? {});
+    } catch {
+      setError('Scan failed — check your connection and try again.');
+    } finally {
+      setScanning(false);
+    }
+  }
+
+  async function applyField(patchKey: 'rentAmount' | 'depositAmount' | 'startDate' | 'endDate', rawValue: string) {
+    const finalValue = edits[patchKey] ?? rawValue;
+    setApplying(patchKey);
+    try {
+      const payload: Record<string, unknown> =
+        patchKey === 'rentAmount' || patchKey === 'depositAmount' ? { [patchKey]: Number(finalValue) } : { [patchKey]: finalValue };
+      const response = await fetch(`/api/v1/leases/${leaseId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (response.ok) onApplied();
+    } finally {
+      setApplying(null);
+    }
+  }
+
+  return (
+    <div className="mt-2 rounded-md bg-light-surface p-2 dark:bg-dark-surface">
+      <Button type="button" variant="secondary" size="sm" disabled={scanning} onClick={scan}>
+        {scanning ? 'Scanning…' : fields ? 'Re-scan' : 'Suggest values from this document'}
+      </Button>
+      {error ? <p className="mt-1 text-xs text-light-danger dark:text-dark-danger">{error}</p> : null}
+      {fields ? (
+        <div className="mt-2 space-y-1">
+          {LEASE_OCR_FIELD_TARGETS.map(({ key, label, patchKey }) => {
+            const field = fields[key];
+            if (!field) return null;
+            const currentValue = edits[patchKey] ?? String(field.value);
+            return (
+              <div key={key} className="flex items-center gap-2 text-xs">
+                <span className="w-28 shrink-0 text-light-textMuted dark:text-dark-textMuted">{label}</span>
+                <input
+                  value={currentValue}
+                  onChange={(e) => setEdits((prev) => ({ ...prev, [patchKey]: e.target.value }))}
+                  className={inputClass + ' mt-0 flex-1'}
+                />
+                <span className="shrink-0 text-[10px] text-light-textMuted dark:text-dark-textMuted">
+                  {Math.round(field.confidence * 100)}%
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={applying === patchKey}
+                  onClick={() => void applyField(patchKey, String(field.value))}
+                >
+                  Apply
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
   );
 }

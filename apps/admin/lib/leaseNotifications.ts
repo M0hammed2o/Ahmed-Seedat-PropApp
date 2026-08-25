@@ -2,6 +2,9 @@ import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getServiceRoleClient } from '@/lib/supabase/server';
 import { dispatchEmail, type DispatchEmailResult } from '@/lib/emailDispatch';
+import { dispatchWhatsApp, resolveOrgWhatsAppBranding, type DispatchWhatsAppResult } from '@/lib/whatsappDispatch';
+import { buildLeaseReadyVariables } from '@/lib/whatsappTemplateVariables';
+import { checkApplicantWhatsAppEligibility } from '@/lib/applicationNotifications';
 import { getAppUrl } from '@/lib/appUrl';
 
 // Applicant->tenant->lease V1 continuation (WORKLOG.md 2026-08-25), Phase T: lease_ready
@@ -64,4 +67,51 @@ export async function dispatchLeaseReadyEmail(
     relatedEntityId: leaseId,
     actorUserId: null,
   });
+}
+
+/** Phase U: lease_ready WhatsApp -- eligibility follows the lease's own source_application_id (the
+ * only place an affirmative WhatsApp consent can currently come from, Phase 7). A manual lease
+ * (no source application) has no consent record to check against and is therefore never eligible
+ * -- a real, disclosed V1 gap (no broader tenant-level WhatsApp consent flow yet), not a bug.
+ * Not approved in Meta yet either way (whatsappTemplates.ts) -- dispatchWhatsApp() itself refuses
+ * a real send regardless of eligibility. */
+export async function dispatchLeaseReadyWhatsApp(
+  leaseId: string,
+): Promise<(DispatchWhatsAppResult & { eligible: boolean }) | { eligible: false; sent: false }> {
+  const serviceClient = getServiceRoleClient();
+
+  const { data: lease } = await serviceClient
+    .from('leases')
+    .select('org_id, source_application_id, units(unit_label, properties(nickname))')
+    .eq('id', leaseId)
+    .maybeSingle();
+  if (!lease || !lease.source_application_id) {
+    return { eligible: false, sent: false };
+  }
+
+  const eligibility = await checkApplicantWhatsAppEligibility(serviceClient, lease.source_application_id);
+  if (!eligibility.eligible || !eligibility.phone) {
+    return { eligible: false, sent: false };
+  }
+
+  const unit = (lease as unknown as { units: { unit_label: string; properties: { nickname: string } | null } | null }).units;
+  const branding = await resolveOrgWhatsAppBranding(serviceClient, lease.org_id);
+  const propertyLabel = unit?.properties?.nickname
+    ? `${unit.properties.nickname} — ${unit.unit_label}`
+    : (unit?.unit_label ?? 'your rental');
+
+  const result = await dispatchWhatsApp(serviceClient, {
+    orgId: lease.org_id,
+    toPhone: eligibility.phone,
+    templateName: 'lease_ready',
+    variables: buildLeaseReadyVariables({
+      organizationName: branding.organizationName,
+      propertyLabel,
+      leaseUrl: `${getAppUrl()}/my-lease`,
+    }),
+    relatedEntityType: 'leases',
+    relatedEntityId: leaseId,
+    actorUserId: null,
+  });
+  return { ...result, eligible: true };
 }

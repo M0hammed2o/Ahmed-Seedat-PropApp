@@ -9,9 +9,21 @@ type RouteParams = { params: Promise<{ id: string }> };
 
 const SIGNED_URL_TTL_SECONDS = 300; // 5 minutes -- matches GET /api/v1/documents/:id's own TTL
 
-const uploadAndParseSchema = z.object({
-  documentId: z.string().uuid('documentId must be a valid UUID'),
-});
+// First-tenant-workflow predeploy pass (WORKLOG.md 2026-08-25), Phase 13: exactly one of
+// documentId (legacy -- the general `documents` table, still supported unchanged) or
+// leaseDocumentId (new -- lease_documents, Phase N/migration 20260101000134's manual-upload/
+// generated version history) must be provided. Lets the new lease-preparation UI reuse this same
+// OCR pipeline for a manually uploaded completed lease without requiring a parallel `documents` row
+// to exist for it.
+const uploadAndParseSchema = z
+  .object({
+    documentId: z.string().uuid('documentId must be a valid UUID').optional(),
+    leaseDocumentId: z.string().uuid('leaseDocumentId must be a valid UUID').optional(),
+  })
+  .refine((v) => (v.documentId ? !v.leaseDocumentId : Boolean(v.leaseDocumentId)), {
+    message: 'Provide exactly one of documentId or leaseDocumentId',
+    path: ['documentId'],
+  });
 
 /**
  * POST /api/v1/leases/:id/upload-and-parse (API_SPEC.md §4: "PDF -> OCR -> prefilled lease
@@ -110,16 +122,39 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     );
   }
 
-  const { data: document, error: documentError } = await supabase
-    .from('documents')
-    .select('id, org_id, storage_path, mime_type')
-    .eq('id', parsed.data.documentId)
-    .maybeSingle();
-  if (documentError) {
-    return NextResponse.json(
-      { error: { code: 'document_fetch_failed', message: documentError.message } },
-      { status: 500 },
-    );
+  let document: { id: string; org_id: string; storage_path: string; mime_type: string } | null = null;
+  if (parsed.data.documentId) {
+    const { data, error: documentError } = await supabase
+      .from('documents')
+      .select('id, org_id, storage_path, mime_type')
+      .eq('id', parsed.data.documentId)
+      .maybeSingle();
+    if (documentError) {
+      return NextResponse.json(
+        { error: { code: 'document_fetch_failed', message: documentError.message } },
+        { status: 500 },
+      );
+    }
+    document = data;
+  } else {
+    const { data, error: documentError } = await supabase
+      .from('lease_documents')
+      .select('id, org_id, lease_id, storage_path, mime_type')
+      .eq('id', parsed.data.leaseDocumentId)
+      .maybeSingle();
+    if (documentError) {
+      return NextResponse.json(
+        { error: { code: 'document_fetch_failed', message: documentError.message } },
+        { status: 500 },
+      );
+    }
+    if (data && data.lease_id !== id) {
+      return NextResponse.json(
+        { error: { code: 'not_found', message: 'Document not found.' } },
+        { status: 404 },
+      );
+    }
+    document = data;
   }
   if (!document) {
     return NextResponse.json(
