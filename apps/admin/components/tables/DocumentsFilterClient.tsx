@@ -16,6 +16,10 @@ const CATEGORY_LABELS: Record<DocumentType, string> = {
   supporting_document: 'Supporting document',
   lease: 'Lease',
   other: 'Other',
+  id_document: 'ID document',
+  proof_of_address: 'Proof of address',
+  payslip: 'Payslip',
+  bank_statement: 'Bank statement',
 };
 
 function currency(bytes: number): string {

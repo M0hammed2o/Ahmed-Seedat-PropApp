@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import type { DocumentType } from '@propvault/types';
 import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { requireOrgRole, requirePropertyAccess } from '@/lib/portfolio';
 import { canUseOcr } from '@/lib/subscriptionEntitlements';
@@ -10,10 +11,20 @@ type RouteParams = { params: Promise<{ id: string }> };
 
 const SIGNED_URL_TTL_SECONDS = 300; // 5 minutes -- matches GET /api/v1/documents/:id's own TTL
 
-// Same two document types apps/admin/lib/providers/documentIntelligence.ts's extractFields()
-// actually returns meaningful fields for (bill/lease) -- other types would just get the generic
-// bill-shaped fallback, which would be misleading to show as "extracted" data.
-const SUPPORTED_TYPES = new Set(['bill', 'lease']);
+// Document types apps/admin/lib/providers/documentIntelligence.ts's extractFields() actually
+// returns meaningful fields for -- other types would just get the generic bill-shaped fallback,
+// which would be misleading to show as "extracted" data. The 4 applicant types (first-tenant-
+// workflow predeploy pass, WORKLOG.md 2026-08-25) let staff also trigger/view OCR on an
+// applicant-uploaded document from the ordinary documents UI, not just from the applicant portal's
+// own token-scoped route (POST /api/v1/apply/:token/documents/:documentId/extract).
+const SUPPORTED_TYPES = new Set([
+  'bill',
+  'lease',
+  'id_document',
+  'proof_of_address',
+  'payslip',
+  'bank_statement',
+]);
 
 /**
  * POST /api/v1/documents/:id/extract (API_SPEC.md §7 OCR review workflow, TASKS.md M20).
@@ -154,7 +165,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
   try {
     const extraction = await provider.extractFields(
       processingInput,
-      document.document_type as 'bill' | 'lease',
+      document.document_type as DocumentType,
     );
 
     const { data: resultRow, error: resultError } = await serviceRole

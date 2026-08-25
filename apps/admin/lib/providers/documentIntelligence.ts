@@ -73,6 +73,49 @@ export class MockDocumentIntelligenceProvider implements DocumentIntelligencePro
       };
     }
 
+    if (documentType === 'id_document') {
+      return {
+        fullName: { value: 'Mock Applicant', confidence: 0.95 },
+        idNumber: { value: '9001015800086', confidence: 0.92 },
+        dateOfBirth: { value: '1990-01-01', confidence: 0.9 },
+        nationality: { value: 'South African', confidence: 0.85 },
+        overallConfidence: 0.9,
+        metadata: mockMetadata(100),
+      };
+    }
+
+    if (documentType === 'proof_of_address') {
+      return {
+        personName: { value: 'Mock Applicant', confidence: 0.85 },
+        residentialAddress: { value: '1 Mock Street, Cape Town, 8001', confidence: 0.75 },
+        documentDate: { value: new Date().toISOString().slice(0, 10), confidence: 0.7 },
+        overallConfidence: 0.77,
+        metadata: mockMetadata(100),
+      };
+    }
+
+    if (documentType === 'payslip') {
+      return {
+        employeeName: { value: 'Mock Applicant', confidence: 0.88 },
+        employerName: { value: 'Mock Employer (Pty) Ltd', confidence: 0.8 },
+        grossIncome: { value: 25000, confidence: 0.75 },
+        netIncome: { value: 19500, confidence: 0.72 },
+        payPeriod: { value: new Date().toISOString().slice(0, 7), confidence: 0.7 },
+        overallConfidence: 0.77,
+        metadata: mockMetadata(100),
+      };
+    }
+
+    if (documentType === 'bank_statement') {
+      return {
+        accountHolderName: { value: 'Mock Applicant', confidence: 0.86 },
+        statementPeriod: { value: new Date().toISOString().slice(0, 7), confidence: 0.7 },
+        residentialAddress: { value: '1 Mock Street, Cape Town, 8001', confidence: 0.6 },
+        overallConfidence: 0.72,
+        metadata: mockMetadata(100),
+      };
+    }
+
     return {
       supplierName: { value: 'City of Cape Town (mock)', confidence: 0.7 },
       accountNumber: { value: '000000000', confidence: 0.65 },
@@ -175,6 +218,11 @@ function toExtractedField<T>(
   return value === undefined ? undefined : { value, confidence };
 }
 
+// Field aliases whose FieldExtractionResult type is ExtractedField<number> (currency amounts) --
+// extractByQueries() below needs to know which query answers to run parseCurrencyToNumber() on,
+// since Textract QUERIES always returns plain text regardless of the semantic field type.
+const NUMERIC_FIELD_ALIASES = new Set(['rentAmount', 'depositAmount', 'grossIncome', 'netIncome']);
+
 const LEASE_QUERIES: { alias: keyof FieldExtractionResult; text: string }[] = [
   { alias: 'tenantName', text: 'Who is the tenant?' },
   { alias: 'rentAmount', text: 'What is the monthly rent amount?' },
@@ -182,6 +230,34 @@ const LEASE_QUERIES: { alias: keyof FieldExtractionResult; text: string }[] = [
   { alias: 'leaseStartDate', text: 'What is the lease start date?' },
   { alias: 'leaseEndDate', text: 'What is the lease end date?' },
   { alias: 'propertyAddress', text: 'What is the address of the rental property?' },
+];
+
+// Applicant document query sets (WORKLOG.md 2026-08-25, first-tenant-workflow predeploy pass) --
+// same Textract QUERIES approach as LEASE_QUERIES, which works against any document with no
+// per-vendor training (unlike Google's Custom Extractor path below, which needs one).
+const ID_DOCUMENT_QUERIES: { alias: keyof FieldExtractionResult; text: string }[] = [
+  { alias: 'fullName', text: 'What is the full name on this document?' },
+  { alias: 'idNumber', text: 'What is the ID number or passport number?' },
+  { alias: 'dateOfBirth', text: 'What is the date of birth?' },
+  { alias: 'nationality', text: 'What is the nationality?' },
+  { alias: 'documentExpiryDate', text: 'What is the expiry date?' },
+];
+const PROOF_OF_ADDRESS_QUERIES: { alias: keyof FieldExtractionResult; text: string }[] = [
+  { alias: 'personName', text: 'What is the name on this document?' },
+  { alias: 'residentialAddress', text: 'What is the residential address?' },
+  { alias: 'documentDate', text: 'What is the date of this document?' },
+];
+const PAYSLIP_QUERIES: { alias: keyof FieldExtractionResult; text: string }[] = [
+  { alias: 'employeeName', text: 'What is the employee name?' },
+  { alias: 'employerName', text: 'What is the employer name?' },
+  { alias: 'grossIncome', text: 'What is the gross income or gross pay?' },
+  { alias: 'netIncome', text: 'What is the net income or net pay?' },
+  { alias: 'payPeriod', text: 'What is the pay period or pay date?' },
+];
+const BANK_STATEMENT_QUERIES: { alias: keyof FieldExtractionResult; text: string }[] = [
+  { alias: 'accountHolderName', text: 'What is the account holder name?' },
+  { alias: 'statementPeriod', text: 'What is the statement period?' },
+  { alias: 'residentialAddress', text: 'What is the address on this statement?' },
 ];
 
 function extractQueryAnswers(
@@ -252,10 +328,20 @@ export class AWSTextractDocumentIntelligenceProvider implements DocumentIntellig
     documentType: DocumentType,
   ): Promise<FieldExtractionResult> {
     const start = Date.now();
-    if (documentType === 'lease') {
-      return this.extractLeaseFields(input, start);
+    switch (documentType) {
+      case 'lease':
+        return this.extractByQueries(input, LEASE_QUERIES, start);
+      case 'id_document':
+        return this.extractByQueries(input, ID_DOCUMENT_QUERIES, start);
+      case 'proof_of_address':
+        return this.extractByQueries(input, PROOF_OF_ADDRESS_QUERIES, start);
+      case 'payslip':
+        return this.extractByQueries(input, PAYSLIP_QUERIES, start);
+      case 'bank_statement':
+        return this.extractByQueries(input, BANK_STATEMENT_QUERIES, start);
+      default:
+        return this.extractBillFields(input, start);
     }
-    return this.extractBillFields(input, start);
   }
 
   private async detectText(
@@ -324,8 +410,13 @@ export class AWSTextractDocumentIntelligenceProvider implements DocumentIntellig
     };
   }
 
-  private async extractLeaseFields(
+  // Generic Textract-QUERIES extractor shared by every query-based document type (lease, and the
+  // 4 applicant document types added WORKLOG.md 2026-08-25) -- pulled out of what used to be a
+  // lease-only extractLeaseFields() once a second, third, fourth, and fifth caller needed the
+  // identical AnalyzeDocumentCommand/QueriesConfig/extractQueryAnswers boilerplate.
+  private async extractByQueries(
     input: ProcessingInput,
+    queries: { alias: keyof FieldExtractionResult; text: string }[],
     start: number,
   ): Promise<FieldExtractionResult> {
     const bytes = await fetchDocumentBytes(input, this.providerName);
@@ -333,38 +424,28 @@ export class AWSTextractDocumentIntelligenceProvider implements DocumentIntellig
       new AnalyzeDocumentCommand({
         Document: { Bytes: bytes },
         FeatureTypes: ['QUERIES'],
-        QueriesConfig: { Queries: LEASE_QUERIES.map((q) => ({ Text: q.text, Alias: q.alias })) },
+        QueriesConfig: { Queries: queries.map((q) => ({ Text: q.text, Alias: q.alias })) },
       }),
     );
     const answers = extractQueryAnswers(response.Blocks);
-
-    const tenantName = answers.get('tenantName');
-    const rentAmount = answers.get('rentAmount');
-    const depositAmount = answers.get('depositAmount');
-    const leaseStartDate = answers.get('leaseStartDate');
-    const leaseEndDate = answers.get('leaseEndDate');
-    const propertyAddress = answers.get('propertyAddress');
-
     const confidences = [...answers.values()].map((v) => v.confidence);
     const overallConfidence =
       confidences.length > 0 ? confidences.reduce((a, b) => a + b, 0) / confidences.length : 0;
 
-    return {
-      tenantName: toExtractedField(tenantName?.text, tenantName?.confidence ?? 0),
-      rentAmount: toExtractedField(
-        parseCurrencyToNumber(rentAmount?.text),
-        rentAmount?.confidence ?? 0,
-      ),
-      depositAmount: toExtractedField(
-        parseCurrencyToNumber(depositAmount?.text),
-        depositAmount?.confidence ?? 0,
-      ),
-      leaseStartDate: toExtractedField(leaseStartDate?.text, leaseStartDate?.confidence ?? 0),
-      leaseEndDate: toExtractedField(leaseEndDate?.text, leaseEndDate?.confidence ?? 0),
-      propertyAddress: toExtractedField(propertyAddress?.text, propertyAddress?.confidence ?? 0),
+    const result: FieldExtractionResult = {
       overallConfidence,
       metadata: this.metadata(Date.now() - start),
     };
+    for (const { alias } of queries) {
+      const answer = answers.get(alias);
+      const field = NUMERIC_FIELD_ALIASES.has(alias)
+        ? toExtractedField(parseCurrencyToNumber(answer?.text), answer?.confidence ?? 0)
+        : toExtractedField(answer?.text, answer?.confidence ?? 0);
+      if (field !== undefined) {
+        (result as unknown as Record<string, unknown>)[alias] = field;
+      }
+    }
+    return result;
   }
 
   private metadata(processingDurationMs: number): ProviderMetadata {
@@ -476,6 +557,42 @@ interface GoogleDocumentAIResponse {
   };
 }
 
+// Entity alias lists for extractByEntities() -- same alias names as the Textract QUERIES constants
+// above, reused (not duplicated with different names) so both providers report the exact same
+// FieldExtractionResult keys regardless of which vendor actually served a given extraction.
+const LEASE_ENTITY_ALIASES: (keyof FieldExtractionResult)[] = [
+  'tenantName',
+  'rentAmount',
+  'depositAmount',
+  'leaseStartDate',
+  'leaseEndDate',
+  'propertyAddress',
+];
+const ID_DOCUMENT_ENTITY_ALIASES: (keyof FieldExtractionResult)[] = [
+  'fullName',
+  'idNumber',
+  'dateOfBirth',
+  'nationality',
+  'documentExpiryDate',
+];
+const PROOF_OF_ADDRESS_ENTITY_ALIASES: (keyof FieldExtractionResult)[] = [
+  'personName',
+  'residentialAddress',
+  'documentDate',
+];
+const PAYSLIP_ENTITY_ALIASES: (keyof FieldExtractionResult)[] = [
+  'employeeName',
+  'employerName',
+  'grossIncome',
+  'netIncome',
+  'payPeriod',
+];
+const BANK_STATEMENT_ENTITY_ALIASES: (keyof FieldExtractionResult)[] = [
+  'accountHolderName',
+  'statementPeriod',
+  'residentialAddress',
+];
+
 export class GoogleDocumentAIProvider implements DocumentIntelligenceProvider {
   readonly providerName = 'google-document-ai';
   private readonly config: GoogleDocumentAIConfig;
@@ -507,10 +624,20 @@ export class GoogleDocumentAIProvider implements DocumentIntelligenceProvider {
     documentType: DocumentType,
   ): Promise<FieldExtractionResult> {
     const start = Date.now();
-    if (documentType === 'lease') {
-      return this.extractLeaseFields(input, start);
+    switch (documentType) {
+      case 'lease':
+        return this.extractByEntities(input, LEASE_ENTITY_ALIASES, start);
+      case 'id_document':
+        return this.extractByEntities(input, ID_DOCUMENT_ENTITY_ALIASES, start);
+      case 'proof_of_address':
+        return this.extractByEntities(input, PROOF_OF_ADDRESS_ENTITY_ALIASES, start);
+      case 'payslip':
+        return this.extractByEntities(input, PAYSLIP_ENTITY_ALIASES, start);
+      case 'bank_statement':
+        return this.extractByEntities(input, BANK_STATEMENT_ENTITY_ALIASES, start);
+      default:
+        return this.extractBillFields(input, start);
     }
-    return this.extractBillFields(input, start);
   }
 
   // Invoice/Expense-parser entity type names as published in Google's Document AI schema
@@ -563,48 +690,38 @@ export class GoogleDocumentAIProvider implements DocumentIntelligenceProvider {
   // type names (tenantName, rentAmount, depositAmount, leaseStartDate, leaseEndDate,
   // propertyAddress), documented here rather than guessed at, since there is no default schema to
   // fall back to.
-  private async extractLeaseFields(
+  // Generic Custom-Extractor-entity reader shared by every entity-based document type (lease, and
+  // the 4 applicant document types added WORKLOG.md 2026-08-25) -- each still only works correctly
+  // once Mohammed trains a processor whose entity labels match these exact alias names (documented
+  // per query-set constant below), same caveat the original lease-only version already carried.
+  private async extractByEntities(
     input: ProcessingInput,
+    aliases: (keyof FieldExtractionResult)[],
     start: number,
   ): Promise<FieldExtractionResult> {
     const { entities } = await this.process(input, this.config.processorId);
 
-    const tenantName = entities.get('tenantName');
-    const rentAmount = entities.get('rentAmount');
-    const depositAmount = entities.get('depositAmount');
-    const leaseStartDate = entities.get('leaseStartDate');
-    const leaseEndDate = entities.get('leaseEndDate');
-    const propertyAddress = entities.get('propertyAddress');
-
-    const confidences = [
-      tenantName,
-      rentAmount,
-      depositAmount,
-      leaseStartDate,
-      leaseEndDate,
-      propertyAddress,
-    ]
+    const confidences = aliases
+      .map((alias) => entities.get(alias))
       .filter((v): v is { text: string; confidence: number } => v !== undefined)
       .map((v) => v.confidence);
     const overallConfidence =
       confidences.length > 0 ? confidences.reduce((a, b) => a + b, 0) / confidences.length : 0;
 
-    return {
-      tenantName: toExtractedField(tenantName?.text, tenantName?.confidence ?? 0),
-      rentAmount: toExtractedField(
-        parseCurrencyToNumber(rentAmount?.text),
-        rentAmount?.confidence ?? 0,
-      ),
-      depositAmount: toExtractedField(
-        parseCurrencyToNumber(depositAmount?.text),
-        depositAmount?.confidence ?? 0,
-      ),
-      leaseStartDate: toExtractedField(leaseStartDate?.text, leaseStartDate?.confidence ?? 0),
-      leaseEndDate: toExtractedField(leaseEndDate?.text, leaseEndDate?.confidence ?? 0),
-      propertyAddress: toExtractedField(propertyAddress?.text, propertyAddress?.confidence ?? 0),
+    const result: FieldExtractionResult = {
       overallConfidence,
       metadata: this.metadata(Date.now() - start),
     };
+    for (const alias of aliases) {
+      const entity = entities.get(alias);
+      const field = NUMERIC_FIELD_ALIASES.has(alias)
+        ? toExtractedField(parseCurrencyToNumber(entity?.text), entity?.confidence ?? 0)
+        : toExtractedField(entity?.text, entity?.confidence ?? 0);
+      if (field !== undefined) {
+        (result as unknown as Record<string, unknown>)[alias] = field;
+      }
+    }
+    return result;
   }
 
   private async process(

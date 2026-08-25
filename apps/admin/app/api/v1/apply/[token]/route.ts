@@ -62,6 +62,23 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
   const { data: requirementRows } = await supabase.rpc('get_application_document_requirements_by_token', {
     p_token: token,
   });
+  const documentRequirements = (
+    (requirementRows ?? []) as {
+      requirement_key: string;
+      label: string;
+      is_required: boolean;
+      status: string;
+      rejection_reason: string | null;
+      document_id: string | null;
+    }[]
+  ).map((r) => ({
+    requirementKey: r.requirement_key,
+    label: r.label,
+    isRequired: r.is_required,
+    status: r.status,
+    rejectionReason: r.rejection_reason,
+    documentId: r.document_id,
+  }));
 
   return NextResponse.json({
     application: {
@@ -81,6 +98,6 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
       propertyNickname: row.property_nickname,
       unitLabel: row.unit_label,
     },
-    documentRequirements: requirementRows ?? [],
+    documentRequirements,
   });
 }

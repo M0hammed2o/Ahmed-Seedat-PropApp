@@ -28,6 +28,8 @@ export const ALLOWED_MIME_TYPES = [
 ] as const;
 export type AllowedMimeType = (typeof ALLOWED_MIME_TYPES)[number];
 
+// id_document/proof_of_address/payslip/bank_statement added for applicant self-service document
+// OCR (WORKLOG.md 2026-08-25, Phase 1-2 of the first-tenant-workflow predeploy pass).
 export const DOCUMENT_TYPES = [
   'bill',
   'statement',
@@ -36,6 +38,10 @@ export const DOCUMENT_TYPES = [
   'supporting_document',
   'lease',
   'other',
+  'id_document',
+  'proof_of_address',
+  'payslip',
+  'bank_statement',
 ] as const;
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 
@@ -392,6 +398,14 @@ export const WHATSAPP_NOTIFICATION_TYPES = [
   // category ('owner_summary', migration 20260101000107) and preferred-day column, not by any of
   // the rent/maintenance/lease categories above.
   'owner_monthly_property_summary',
+  // First-tenant-workflow predeploy pass (WORKLOG.md 2026-08-25), Phase 6: applicant/lease events.
+  // Code-ready, mock-testable, but NOT yet submitted to Meta -- see whatsappTemplates.ts's registry
+  // entries (approved: false) for why a real send is blocked before ever reaching the Meta API.
+  'application_invitation',
+  'application_documents_requested',
+  'application_approved',
+  'application_declined',
+  'lease_ready',
 ] as const;
 export type WhatsAppNotificationType = (typeof WHATSAPP_NOTIFICATION_TYPES)[number];
 

@@ -71,6 +71,28 @@ export interface FieldExtractionResult {
   leaseStartDate?: ExtractedField<string>;
   leaseEndDate?: ExtractedField<string>;
   propertyAddress?: ExtractedField<string>;
+  // Applicant document-shaped fields (WORKLOG.md 2026-08-25, first-tenant-workflow predeploy
+  // pass) -- same "one shared all-optional result type" reasoning as the lease fields above,
+  // documentType tells the caller which subset to expect.
+  // id_document (SA ID book/card or passport):
+  fullName?: ExtractedField<string>;
+  idNumber?: ExtractedField<string>;
+  dateOfBirth?: ExtractedField<string>;
+  nationality?: ExtractedField<string>;
+  documentExpiryDate?: ExtractedField<string>;
+  // proof_of_address:
+  personName?: ExtractedField<string>;
+  residentialAddress?: ExtractedField<string>;
+  documentDate?: ExtractedField<string>;
+  // payslip / proof of income:
+  employeeName?: ExtractedField<string>;
+  employerName?: ExtractedField<string>;
+  grossIncome?: ExtractedField<number>;
+  netIncome?: ExtractedField<number>;
+  payPeriod?: ExtractedField<string>;
+  // bank_statement:
+  accountHolderName?: ExtractedField<string>;
+  statementPeriod?: ExtractedField<string>;
   overallConfidence: number;
   metadata: ProviderMetadata;
 }
