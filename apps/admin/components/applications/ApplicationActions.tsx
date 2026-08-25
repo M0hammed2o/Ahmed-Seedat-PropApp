@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Application } from '@propvault/types';
 import { applicationDisplayPresentation } from '@propvault/ui';
@@ -127,6 +127,7 @@ export function ApplicationActions({
 
       {canAct ? (
         <>
+          <DocumentRequirementsPanel applicationId={application.id} />
           <DecisionPanel
             applicationId={application.id}
             busy={busy}
@@ -344,3 +345,106 @@ function DecisionPanel({
 
 const inputClass =
   'mt-1 block w-full rounded-md border border-light-border bg-transparent px-3 py-2 text-sm text-light-textPrimary dark:border-dark-border dark:text-dark-textPrimary';
+
+interface DocumentRequirementRow {
+  id: string;
+  requirementKey: string;
+  label: string;
+  isRequired: boolean;
+  status: 'requested' | 'uploaded' | 'reviewed' | 'accepted' | 'rejected';
+  rejectionReason: string | null;
+}
+
+// Phase 12 (first-tenant-workflow predeploy pass, WORKLOG.md 2026-08-25): staff-facing "Request
+// documents" action -- selects which requirement(s) to (re)request, with an optional message, and
+// notifies the applicant. Idempotent by state (POST /request-documents route.ts) -- selecting an
+// already-'requested' item and submitting again is a harmless no-op, not a duplicate notification.
+function DocumentRequirementsPanel({ applicationId }: { applicationId: string }) {
+  const [requirements, setRequirements] = useState<DocumentRequirementRow[]>([]);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [message, setMessage] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`/api/v1/applications/${applicationId}/document-requirements`)
+      .then((res) => res.json())
+      .then((body) => setRequirements(body.requirements ?? []))
+      .catch(() => setRequirements([]));
+  }, [applicationId]);
+
+  if (requirements.length === 0) return null;
+
+  function toggle(key: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  async function submit() {
+    if (selected.size === 0) return;
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch(`/api/v1/applications/${applicationId}/request-documents`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requirementKeys: [...selected], message: message || null }),
+      });
+      const body = await response.json();
+      if (!response.ok) {
+        setError(body.error?.message ?? 'Could not request documents.');
+        return;
+      }
+      setNotice(
+        body.requested.length > 0
+          ? `Requested: ${body.requested.join(', ')}.`
+          : 'No change — the selected item(s) were already awaiting upload.',
+      );
+      setSelected(new Set());
+      setMessage('');
+    } catch {
+      setError('Failed — check your connection and try again.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-light-border p-4 dark:border-dark-border">
+      <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+        Request documents
+      </h2>
+      {error ? <p className="mt-1 text-xs text-light-danger dark:text-dark-danger">{error}</p> : null}
+      {notice ? (
+        <p className="mt-1 text-xs text-light-statusPaid dark:text-dark-statusPaid">{notice}</p>
+      ) : null}
+      <ul className="mt-2 space-y-1">
+        {requirements.map((r) => (
+          <li key={r.id} className="flex items-center gap-2 text-xs text-light-textSecondary dark:text-dark-textSecondary">
+            <input
+              type="checkbox"
+              checked={selected.has(r.requirementKey)}
+              onChange={() => toggle(r.requirementKey)}
+            />
+            <span>
+              {r.label} — <span className="text-light-textMuted dark:text-dark-textMuted">{r.status}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+      <label className="mt-2 block text-xs">
+        <span className="text-light-textMuted dark:text-dark-textMuted">Message to applicant (optional)</span>
+        <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={2} className={inputClass} />
+      </label>
+      <Button className="mt-2" size="sm" disabled={busy || selected.size === 0} onClick={submit}>
+        {busy ? 'Sending…' : 'Request selected documents'}
+      </Button>
+    </div>
+  );
+}
