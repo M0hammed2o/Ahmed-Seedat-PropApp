@@ -6,7 +6,7 @@
 -- leasing_isolation.test.sql; this file focuses on the new RPCs and tables themselves.
 
 begin;
-select plan(25);
+select plan(29);
 
 insert into auth.users (id, email) values
   ('c6000000-0000-0000-0000-000000000001', 'lp-manager@test.propertyvault.example'),
@@ -62,6 +62,16 @@ select throws_ok(
   'an agent with no property access cannot review this lease'
 );
 
+-- First-tenant-workflow predeploy pass (WORKLOG.md 2026-08-25), Phase 15 security matrix: staff
+-- cannot send a lease for a property they're not assigned to. send_lease()'s own permission check
+-- runs before any lease-state check, so this holds even for a bare draft lease with nothing
+-- reviewed/sent yet -- same unassigned agent as the review-gate test above.
+select throws_ok(
+  $$ select public.send_lease(current_setting('pgtap.lp.lease_id')::uuid) $$,
+  'P0001', 'Caller does not have permission to send this lease',
+  'an agent with no property access cannot send this lease either'
+);
+
 -- === Review gate refuses: no tenant assigned yet ===
 set local "request.jwt.claim.sub" = 'c6000000-0000-0000-0000-000000000001';
 select throws_ok(
@@ -89,11 +99,33 @@ select throws_ok(
   'the review gate refuses without a lease document'
 );
 
+select set_config(
+  'pgtap.lp.document_path',
+  current_setting('pgtap.lp.org_id') || '/' || current_setting('pgtap.lp.property_id') || '/lease-v1.docx',
+  false
+);
+
 insert into public.lease_documents (lease_id, org_id, kind, status, version, storage_path, mime_type, file_size_bytes)
 values (
   current_setting('pgtap.lp.lease_id')::uuid, current_setting('pgtap.lp.org_id')::uuid,
-  'generated', 'draft', 1, current_setting('pgtap.lp.org_id') || '/' || current_setting('pgtap.lp.property_id') || '/lease-v1.docx',
+  'generated', 'draft', 1, current_setting('pgtap.lp.document_path'),
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 2048
+);
+
+-- The real storage object a generation/upload route would have created alongside the
+-- lease_documents metadata row (Phase N/storage RLS fix, migration 20260101000140). Inserted as
+-- superuser (test setup, not what's under test here) same as every other pgTAP file's own
+-- "simulate what the real upload API would have written" convention.
+reset role;
+insert into storage.objects (bucket_id, name, owner)
+values ('documents', current_setting('pgtap.lp.document_path'), 'c6000000-0000-0000-0000-000000000001');
+set local role authenticated;
+set local "request.jwt.claim.sub" = 'c6000000-0000-0000-0000-000000000001';
+
+select is(
+  (select count(*)::int from storage.objects where name = current_setting('pgtap.lp.document_path')),
+  1,
+  'the assigned staff member can read the lease document''s underlying storage.objects row'
 );
 
 -- === send_lease refuses before review ===
@@ -191,6 +223,15 @@ select is(
   'the tenant can read their own ISSUED lease document'
 );
 
+-- Storage RLS fix (migration 20260101000140): the tenant can also read the underlying
+-- storage.objects row (what a real signed-URL download needs), not just the lease_documents
+-- metadata row -- these are two separate RLS-protected surfaces and both need their own branch.
+select is(
+  (select count(*)::int from storage.objects where name = current_setting('pgtap.lp.document_path')),
+  1,
+  'the tenant can also read the underlying storage.objects row for their own issued lease document'
+);
+
 select throws_ok(
   $$ update public.lease_preparations set special_conditions = 'tenant tampering attempt' where lease_id = current_setting('pgtap.lp.lease_id')::uuid $$,
   'P0001', 'A tenant may only acknowledge a lease, not edit it',
@@ -236,6 +277,11 @@ select is(
   (select count(*)::int from public.lease_documents where lease_id = current_setting('pgtap.lp.lease_id')::uuid),
   0,
   'a principal of a different org cannot read this lease_documents row'
+);
+select is(
+  (select count(*)::int from storage.objects where name = current_setting('pgtap.lp.document_path')),
+  0,
+  'a principal of a different org cannot read the underlying storage.objects row either'
 );
 
 select * from finish();

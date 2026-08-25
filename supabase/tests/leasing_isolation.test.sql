@@ -10,7 +10,7 @@
 -- chain still ends in exactly the same real-world state as before, just gated by an extra step.
 
 begin;
-select plan(24);
+select plan(28);
 
 insert into auth.users (id, email) values
   ('e1000000-0000-0000-0000-000000000001', 'leasing-agent-a@test.propertyvault.example'),
@@ -150,6 +150,37 @@ select set_config(
   false
 );
 
+-- First-tenant-workflow predeploy pass (WORKLOG.md 2026-08-25), Phase 15 security matrix: 2
+-- genuine gaps identified by audit -- the base leases table had no dedicated cross-org SELECT
+-- test, and no test proved a viewer cannot mutate leases (only applications was covered).
+
+-- === Cross-org isolation on the base leases table itself ===
+set local "request.jwt.claim.sub" = 'e2000000-0000-0000-0000-000000000001';
+select is(
+  (select count(*) from public.leases where id = current_setting('pgtap.li.draft_lease_id')::uuid),
+  0::bigint,
+  'Org B agent cannot SELECT Org A''s lease (base leases table, not just lease_preparations/lease_documents)'
+);
+
+-- === Role-scoped write denial: Org A's viewer can read but not write leases ===
+set local "request.jwt.claim.sub" = 'e4000000-0000-0000-0000-000000000001';
+select is(
+  (select count(*) from public.leases where id = current_setting('pgtap.li.draft_lease_id')::uuid),
+  1::bigint,
+  'Org A viewer CAN SELECT their own org''s lease'
+);
+select lives_ok(
+  $$ update public.leases set rent_amount = 999999
+     where id = current_setting('pgtap.li.draft_lease_id')::uuid $$,
+  'Org A viewer UPDATE against their own org''s lease runs without error (agent+ required, filtered to zero rows, verified next)'
+);
+select isnt(
+  (select rent_amount from public.leases where id = current_setting('pgtap.li.draft_lease_id')::uuid),
+  999999::numeric,
+  'the viewer''s write attempt did not change the lease''s rent_amount'
+);
+
+set local "request.jwt.claim.sub" = 'e1000000-0000-0000-0000-000000000001';
 update public.leases set rent_amount = 8500, deposit_amount = 8500, start_date = '2026-08-01'::date
 where id = current_setting('pgtap.li.draft_lease_id')::uuid;
 

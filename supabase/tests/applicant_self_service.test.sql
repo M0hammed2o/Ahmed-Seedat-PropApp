@@ -6,7 +6,7 @@
 -- no editing once staff has moved the application past submitted/reviewing.
 
 begin;
-select plan(27);
+select plan(35);
 
 insert into auth.users (id, email) values
   ('c5000000-0000-0000-0000-000000000001', 'ass-agent@test.propertyvault.example'),
@@ -259,6 +259,110 @@ select is(
   (select valid from public.get_application_by_token(current_setting('pgtap.ass.token2'))),
   true,
   'the newly issued token is valid'
+);
+
+-- First-tenant-workflow predeploy pass (WORKLOG.md 2026-08-25), Phase 14/15 idempotency/security
+-- matrix: 3 genuine gaps identified by audit -- document upload REPLACE (not just first upload),
+-- an expired token, and proof one applicant's token can never surface a DIFFERENT application's
+-- data, all previously untested.
+
+-- === Document upload retry: re-uploading against the SAME already-uploaded requirement replaces
+-- it (not a second, orphaned linkage) -- migration 20260101000141's v_is_replacement branch.
+-- Uses token2, not the original token -- by this point in the file the original was already
+-- revoked (a new one was issued for the same application, tested above). ===
+select is(
+  (select success from public.record_application_document_upload(
+    current_setting('pgtap.ass.token2'), 'id_document', 'orgid/lease-templates/replacement.pdf',
+    'id-v2.pdf', 'application/pdf', 22222, 'replacement-checksum'
+  )),
+  true,
+  'a second upload against the SAME already-uploaded requirement (a replace) succeeds'
+);
+
+reset role;
+set local role authenticated;
+set local "request.jwt.claim.sub" = 'c5000000-0000-0000-0000-000000000001';
+
+select is(
+  (select count(*)::int from public.application_document_requirements where application_id = current_setting('pgtap.ass.app_id')::uuid and requirement_key = 'id_document'),
+  1,
+  'still exactly one requirement row for id_document -- the replace did not create a duplicate requirement'
+);
+
+select is(
+  (select d.original_file_name from public.application_document_requirements r
+     join public.documents d on d.id = r.document_id
+   where r.application_id = current_setting('pgtap.ass.app_id')::uuid and r.requirement_key = 'id_document'),
+  'id-v2.pdf',
+  'the requirement now points at the NEW (replacement) document, not the original'
+);
+
+-- Both the original upload and the replace happen within this same transaction, so created_at
+-- can tie between them (no reliable "most recent" ordering) -- assert existence of the replaced
+-- event directly instead, which is the actual thing this proves.
+select is(
+  (select count(*)::int from public.audit_events
+   where entity_type = 'application_document_requirements'
+     and entity_id = (select id from public.application_document_requirements where application_id = current_setting('pgtap.ass.app_id')::uuid and requirement_key = 'id_document')
+     and action = 'application.document_replaced'),
+  1,
+  'an application.document_replaced audit event exists for this requirement, distinct from the original .document_uploaded'
+);
+
+-- === Expired token is denied (distinct from revoked) ===
+insert into public.applications (org_id, property_id, unit_id, applicant_name, status)
+select current_setting('pgtap.ass.org_id')::uuid, current_setting('pgtap.ass.property_id')::uuid, current_setting('pgtap.ass.unit_id')::uuid, 'Expired Token Applicant', 'invited';
+select set_config('pgtap.ass.exp_app_id', (select id::text from public.applications where applicant_name = 'Expired Token Applicant'), false);
+select set_config(
+  'pgtap.ass.exp_token',
+  (select token from public.create_application_access_token(current_setting('pgtap.ass.exp_app_id')::uuid, 'email', null)),
+  false
+);
+-- Force the real expiry into the past -- superuser only, matching this file's own service-role-
+-- fixture convention (application_access_tokens has no client UPDATE policy at all).
+reset role;
+update public.application_access_tokens
+set expires_at = now() - interval '1 hour'
+where application_id = current_setting('pgtap.ass.exp_app_id')::uuid;
+
+set local role anon;
+select set_config('request.jwt.claim.sub', '', true);
+select is(
+  (select error_code from public.get_application_by_token(current_setting('pgtap.ass.exp_token'))),
+  'expired',
+  'a token whose expires_at has passed is denied with error_code expired, not treated as valid'
+);
+select is(
+  (select valid from public.get_application_by_token(current_setting('pgtap.ass.exp_token'))),
+  false,
+  'an expired token is never valid'
+);
+
+-- === One applicant's token can never surface a DIFFERENT application's data ===
+reset role;
+set local role authenticated;
+set local "request.jwt.claim.sub" = 'c5000000-0000-0000-0000-000000000001';
+insert into public.applications (org_id, property_id, unit_id, applicant_name, status)
+select current_setting('pgtap.ass.org_id')::uuid, current_setting('pgtap.ass.property_id')::uuid, current_setting('pgtap.ass.unit_id')::uuid, 'Second Real Applicant', 'invited';
+select set_config('pgtap.ass.app2_id', (select id::text from public.applications where applicant_name = 'Second Real Applicant'), false);
+select set_config(
+  'pgtap.ass.token_b',
+  (select token from public.create_application_access_token(current_setting('pgtap.ass.app2_id')::uuid, 'email', null)),
+  false
+);
+
+reset role;
+set local role anon;
+select set_config('request.jwt.claim.sub', '', true);
+select is(
+  (select applicant_name from public.get_application_by_token(current_setting('pgtap.ass.token_b'))),
+  'Second Real Applicant',
+  'token B correctly resolves to application B''s own applicant name'
+);
+select isnt(
+  (select applicant_name from public.get_application_by_token(current_setting('pgtap.ass.token_b'))),
+  'Self Service Applicant',
+  'token B never returns application A''s (the original test applicant''s) data'
 );
 
 select * from finish();
