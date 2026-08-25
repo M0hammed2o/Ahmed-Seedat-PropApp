@@ -64,6 +64,11 @@ export const WHATSAPP_TEMPLATE_REGISTRY: Record<
     | 'rent_overdue_notice'
     | 'lease_expiry_reminder'
     | 'owner_monthly_property_summary'
+    | 'application_invitation'
+    | 'application_documents_requested'
+    | 'application_approved'
+    | 'application_declined'
+    | 'lease_ready'
   >,
   WhatsAppTemplateDefinition
 > = {
@@ -125,6 +130,42 @@ export const WHATSAPP_TEMPLATE_REGISTRY: Record<
     // NOTE: no organizationName variable -- the earlier draft prepended one that doesn't belong.
     expectedVariableCount: 9,
     variableCountVerified: true,
+  },
+  // First-tenant-workflow predeploy pass (WORKLOG.md 2026-08-25), Phase 6/21: none of these 5
+  // templates have been created or submitted in Meta Business Manager yet -- approved: false is
+  // not a placeholder pending confirmation, it is the correct, current state. dispatchWhatsApp()
+  // refuses a real send for any of these (reason: 'template_not_approved') the instant
+  // deliveryConfigured is true, before ever calling the Meta API. Proposed body text/variable
+  // catalogue for Meta submission is in the FINAL PREDEPLOY REPORT, not duplicated here.
+  application_invitation: {
+    metaTemplateName: 'application_invitation',
+    approved: false,
+    expectedVariableCount: 3, // organizationName, propertyLabel, applyUrl -- proposed, unsubmitted
+    variableCountVerified: false,
+  },
+  application_documents_requested: {
+    metaTemplateName: 'application_documents_requested',
+    approved: false,
+    expectedVariableCount: 3, // organizationName, propertyLabel, applyUrl -- proposed, unsubmitted
+    variableCountVerified: false,
+  },
+  application_approved: {
+    metaTemplateName: 'application_approved',
+    approved: false,
+    expectedVariableCount: 2, // organizationName, propertyLabel -- proposed, unsubmitted
+    variableCountVerified: false,
+  },
+  application_declined: {
+    metaTemplateName: 'application_declined',
+    approved: false,
+    expectedVariableCount: 2, // organizationName, propertyLabel -- proposed, unsubmitted
+    variableCountVerified: false,
+  },
+  lease_ready: {
+    metaTemplateName: 'lease_ready',
+    approved: false,
+    expectedVariableCount: 3, // organizationName, propertyLabel, leaseUrl -- proposed, unsubmitted
+    variableCountVerified: false,
   },
 };
 

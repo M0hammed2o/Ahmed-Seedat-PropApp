@@ -12,21 +12,68 @@ import {
 // templates show Active/Approved in Meta -- the property worth testing now is that `approved`
 // reflects that real, explicit confirmation (never silently defaults true on its own), and that
 // an unrecognized name still fails safe regardless.
+//
+// First-tenant-workflow predeploy pass (WORKLOG.md 2026-08-25), Phase 6/21: 5 new applicant/lease
+// templates were added to the registry, all correctly `approved: false, variableCountVerified:
+// false` (none have been created/submitted in Meta Business Manager yet) -- the registry is no
+// longer "exactly 8, all approved," it's "8 real + verified, plus 5 proposed + unapproved." Split
+// below so each group's own invariant stays independently testable.
+
+const APPROVED_PRODUCTION_TEMPLATES = [
+  'maintenance_request_update',
+  'payment_received_confirmation',
+  'tenant_account_invitation',
+  'payment_confirmation_required',
+  'rent_payment_reminder',
+  'rent_overdue_notice',
+  'lease_expiry_reminder',
+  'owner_monthly_property_summary',
+] as const;
+
+const PROPOSED_UNAPPROVED_TEMPLATES = [
+  'application_invitation',
+  'application_documents_requested',
+  'application_approved',
+  'application_declined',
+  'lease_ready',
+] as const;
 
 describe('WHATSAPP_TEMPLATE_REGISTRY', () => {
-  it("every registered template is approved, per Mohammed's direct 2026-08-17 confirmation", () => {
-    for (const [name, def] of Object.entries(WHATSAPP_TEMPLATE_REGISTRY)) {
-      expect(def.approved, `${name} should be approved`).toBe(true);
+  it("every one of the 8 real templates is approved, per Mohammed's direct 2026-08-17 confirmation", () => {
+    for (const name of APPROVED_PRODUCTION_TEMPLATES) {
+      expect(WHATSAPP_TEMPLATE_REGISTRY[name].approved, `${name} should be approved`).toBe(true);
     }
   });
 
-  it('every one of the 8 templates has a positive expectedVariableCount and is variableCountVerified, per the real Meta export Mohammed reviewed 2026-08-17', () => {
-    for (const [name, def] of Object.entries(WHATSAPP_TEMPLATE_REGISTRY)) {
+  it('every one of the 5 proposed applicant/lease templates is NOT approved -- none has been submitted to Meta yet', () => {
+    for (const name of PROPOSED_UNAPPROVED_TEMPLATES) {
+      expect(WHATSAPP_TEMPLATE_REGISTRY[name].approved, `${name} should not be approved`).toBe(
+        false,
+      );
+    }
+  });
+
+  it('every one of the 8 real templates has a positive expectedVariableCount and is variableCountVerified, per the real Meta export Mohammed reviewed 2026-08-17', () => {
+    for (const name of APPROVED_PRODUCTION_TEMPLATES) {
+      const def = WHATSAPP_TEMPLATE_REGISTRY[name];
       expect(
         def.expectedVariableCount,
         `${name} should have a positive variable count`,
       ).toBeGreaterThan(0);
       expect(def.variableCountVerified, `${name} should be variableCountVerified`).toBe(true);
+    }
+  });
+
+  it('every one of the 5 proposed templates has a positive expectedVariableCount but is NOT variableCountVerified (proposed counts, never confirmed against a real Meta export)', () => {
+    for (const name of PROPOSED_UNAPPROVED_TEMPLATES) {
+      const def = WHATSAPP_TEMPLATE_REGISTRY[name];
+      expect(
+        def.expectedVariableCount,
+        `${name} should have a positive variable count`,
+      ).toBeGreaterThan(0);
+      expect(def.variableCountVerified, `${name} should not be variableCountVerified`).toBe(
+        false,
+      );
     }
   });
 
@@ -36,18 +83,9 @@ describe('WHATSAPP_TEMPLATE_REGISTRY', () => {
     }
   });
 
-  it('registers exactly the 8 Meta templates, all now with a real dispatch call site', () => {
+  it('registers exactly the 8 real production templates plus the 5 proposed applicant/lease templates', () => {
     expect(Object.keys(WHATSAPP_TEMPLATE_REGISTRY).sort()).toEqual(
-      [
-        'maintenance_request_update',
-        'payment_received_confirmation',
-        'tenant_account_invitation',
-        'payment_confirmation_required',
-        'rent_payment_reminder',
-        'rent_overdue_notice',
-        'lease_expiry_reminder',
-        'owner_monthly_property_summary',
-      ].sort(),
+      [...APPROVED_PRODUCTION_TEMPLATES, ...PROPOSED_UNAPPROVED_TEMPLATES].sort(),
     );
   });
 });
@@ -55,6 +93,10 @@ describe('WHATSAPP_TEMPLATE_REGISTRY', () => {
 describe('isKnownWhatsAppTemplate', () => {
   it('recognizes a registered template name', () => {
     expect(isKnownWhatsAppTemplate('tenant_account_invitation')).toBe(true);
+  });
+
+  it('recognizes a proposed (not yet approved) template name too -- known and approved are separate questions', () => {
+    expect(isKnownWhatsAppTemplate('application_invitation')).toBe(true);
   });
 
   it('rejects an unregistered template name, including a deleted old one', () => {
@@ -66,14 +108,15 @@ describe('isKnownWhatsAppTemplate', () => {
 
 describe('isWhatsAppTemplateApproved', () => {
   it('returns true for every one of the 8 real templates, per direct confirmation 2026-08-17', () => {
-    expect(isWhatsAppTemplateApproved('tenant_account_invitation')).toBe(true);
-    expect(isWhatsAppTemplateApproved('payment_received_confirmation')).toBe(true);
-    expect(isWhatsAppTemplateApproved('maintenance_request_update')).toBe(true);
-    expect(isWhatsAppTemplateApproved('payment_confirmation_required')).toBe(true);
-    expect(isWhatsAppTemplateApproved('rent_payment_reminder')).toBe(true);
-    expect(isWhatsAppTemplateApproved('rent_overdue_notice')).toBe(true);
-    expect(isWhatsAppTemplateApproved('lease_expiry_reminder')).toBe(true);
-    expect(isWhatsAppTemplateApproved('owner_monthly_property_summary')).toBe(true);
+    for (const name of APPROVED_PRODUCTION_TEMPLATES) {
+      expect(isWhatsAppTemplateApproved(name)).toBe(true);
+    }
+  });
+
+  it('returns false for every one of the 5 proposed applicant/lease templates -- known but not approved', () => {
+    for (const name of PROPOSED_UNAPPROVED_TEMPLATES) {
+      expect(isWhatsAppTemplateApproved(name)).toBe(false);
+    }
   });
 
   it('fails safe (false), not open (true), for an unrecognized template name', () => {

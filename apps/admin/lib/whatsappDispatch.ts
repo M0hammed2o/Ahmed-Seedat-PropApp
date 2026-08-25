@@ -184,6 +184,16 @@ export type DispatchableWhatsAppType = Extract<
   | 'lease_expiry_reminder'
   | 'payment_confirmation_required'
   | 'owner_monthly_property_summary'
+  // First-tenant-workflow predeploy pass, Phase 6-8: applicant/lease events. Deliberately NOT
+  // added to TEMPLATE_CATEGORY above -- an applicant has no notification_preferences row to gate
+  // against (no auth.users identity); the real gate is the affirmative
+  // applicant_whatsapp_consents check each call site performs BEFORE ever calling
+  // dispatchWhatsApp(), see lib/applicationNotifications.ts / lib/leaseNotifications.ts.
+  | 'application_invitation'
+  | 'application_documents_requested'
+  | 'application_approved'
+  | 'application_declined'
+  | 'lease_ready'
 >;
 
 function toE164(phone: string | null | undefined): string | null {

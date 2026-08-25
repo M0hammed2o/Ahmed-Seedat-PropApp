@@ -1,10 +1,25 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { applicationDecisionSchema } from '@propvault/validation';
 import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { requireOrgRole } from '@/lib/portfolio';
 import { mapApplicationRow } from '@/lib/leasing';
 import { writeAuditEvent } from '@/lib/audit';
 import { dispatchEmail } from '@/lib/emailDispatch';
+import {
+  dispatchApplicationApprovedWhatsApp,
+  dispatchApplicationDeclinedWhatsApp,
+} from '@/lib/applicationNotifications';
+
+async function loadPropertyLabel(serviceClient: SupabaseClient, applicationId: string): Promise<string> {
+  const { data } = await serviceClient
+    .from('applications')
+    .select('units(unit_label, properties(nickname))')
+    .eq('id', applicationId)
+    .maybeSingle();
+  const units = (data as unknown as { units: { unit_label: string; properties: { nickname: string } | null } | null } | null)?.units;
+  return units?.properties?.nickname ? `${units.properties.nickname} — ${units.unit_label}` : (units?.unit_label ?? 'your rental');
+}
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -133,6 +148,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         actorUserId: user.id,
       });
     }
+    await dispatchApplicationDeclinedWhatsApp(serviceClient, {
+      orgId: existing.org_id,
+      applicationId: id,
+      propertyLabel: await loadPropertyLabel(serviceClient, id),
+    });
 
     return NextResponse.json({ application: mapApplicationRow(data) });
   }
@@ -182,6 +202,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       actorUserId: user.id,
     });
   }
+  await dispatchApplicationApprovedWhatsApp(serviceClient, {
+    orgId: existing.org_id,
+    applicationId: id,
+    propertyLabel: await loadPropertyLabel(serviceClient, id),
+  });
 
   return NextResponse.json({ application: mapApplicationRow(application), leaseId });
 }

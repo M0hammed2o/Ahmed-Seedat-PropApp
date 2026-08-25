@@ -3,6 +3,7 @@ import { applicationAccessTokenCreateSchema } from '@propvault/validation';
 import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { writeAuditEvent } from '@/lib/audit';
 import { dispatchEmail } from '@/lib/emailDispatch';
+import { dispatchApplicationInvitationWhatsApp } from '@/lib/applicationNotifications';
 import { getAppUrl } from '@/lib/appUrl';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -110,6 +111,21 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         relatedEntityType: 'application_access_tokens',
         relatedEntityId: row.token_id,
         actorUserId: user.id,
+      });
+    } else if (parsed.data.deliveryChannel === 'whatsapp') {
+      // Realistically always ineligible at this exact moment -- no applicant_whatsapp_consents
+      // row can exist yet (the applicant hasn't had a chance to opt in), so the very first
+      // message can only ever go by email. Still wired through the same eligibility check as
+      // every later application WhatsApp event, both to prove "no consent -> blocked" holds here
+      // too and so this call site doesn't need special-casing once a future consent-on-invite flow
+      // (e.g. a phone number collected at invite time with a pre-checked opt-in) is ever added.
+      await dispatchApplicationInvitationWhatsApp(serviceClient, {
+        orgId: app.org_id,
+        applicationId: id,
+        propertyLabel: app.units?.properties?.nickname
+          ? `${app.units.properties.nickname} — ${app.units.unit_label}`
+          : (app.units?.unit_label ?? 'a rental'),
+        applyUrl: `${getAppUrl()}/apply/${row.token}`,
       });
     }
   }

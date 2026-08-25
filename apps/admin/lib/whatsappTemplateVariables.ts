@@ -148,3 +148,59 @@ export function buildOwnerMonthlyPropertySummaryVariables(input: {
     reportUrl: input.reportUrl,
   };
 }
+
+// First-tenant-workflow predeploy pass (WORKLOG.md 2026-08-25), Phase 6/21: applicant/lease event
+// variable builders. None of these templates are approved yet (whatsappTemplates.ts,
+// approved: false) -- dispatchWhatsApp() refuses the real Meta call regardless, but the variable
+// order is still fixed here now so the eventual real submission has one already-correct,
+// already-tested source of truth to match against, not a guess made after the fact.
+
+export function buildApplicationInvitationVariables(input: {
+  organizationName: string;
+  propertyLabel: string;
+  applyUrl: string;
+}): Record<string, string> {
+  return {
+    organizationName: input.organizationName,
+    propertyLabel: input.propertyLabel,
+    applyUrl: input.applyUrl,
+  };
+}
+
+export function buildApplicationDocumentsRequestedVariables(input: {
+  organizationName: string;
+  propertyLabel: string;
+  applyUrl: string;
+}): Record<string, string> {
+  return {
+    organizationName: input.organizationName,
+    propertyLabel: input.propertyLabel,
+    applyUrl: input.applyUrl,
+  };
+}
+
+export function buildApplicationApprovedVariables(input: {
+  organizationName: string;
+  propertyLabel: string;
+}): Record<string, string> {
+  return { organizationName: input.organizationName, propertyLabel: input.propertyLabel };
+}
+
+export function buildApplicationDeclinedVariables(input: {
+  organizationName: string;
+  propertyLabel: string;
+}): Record<string, string> {
+  return { organizationName: input.organizationName, propertyLabel: input.propertyLabel };
+}
+
+export function buildLeaseReadyVariables(input: {
+  organizationName: string;
+  propertyLabel: string;
+  leaseUrl: string;
+}): Record<string, string> {
+  return {
+    organizationName: input.organizationName,
+    propertyLabel: input.propertyLabel,
+    leaseUrl: input.leaseUrl,
+  };
+}
