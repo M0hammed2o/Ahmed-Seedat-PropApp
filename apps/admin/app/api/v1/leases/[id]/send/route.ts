@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { mapLeasePreparationRow } from '@/lib/leasing';
-import { dispatchLeaseReadyEmail } from '@/lib/leaseNotifications';
+import { dispatchLeaseReadyEmail, dispatchLeaseReadyWhatsApp } from '@/lib/leaseNotifications';
 import { writeAuditEvent } from '@/lib/audit';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -27,6 +27,15 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     );
   }
 
+  // Captured before the RPC call so the audit action can distinguish a true first send from an
+  // idempotent resend (send_lease() itself is a no-op on the state transition when already sent).
+  const { data: priorPrep } = await supabase
+    .from('lease_preparations')
+    .select('status')
+    .eq('lease_id', id)
+    .maybeSingle();
+  const wasAlreadySent = priorPrep?.status === 'sent';
+
   const { data, error } = await supabase.rpc('send_lease', { p_lease_id: id }).single();
   if (error) {
     return NextResponse.json(
@@ -36,17 +45,18 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
   }
 
   const emailResult = await dispatchLeaseReadyEmail(supabase, id);
+  const whatsappResult = await dispatchLeaseReadyWhatsApp(id);
   const prep = mapLeasePreparationRow(data as Parameters<typeof mapLeasePreparationRow>[0]);
 
   await writeAuditEvent(getServiceRoleClient(), {
     orgId: prep.orgId,
     actorUserId: user.id,
     actorType: 'user',
-    action: 'lease.sent',
+    action: wasAlreadySent ? 'lease.resent' : 'lease.sent',
     entityType: 'leases',
     entityId: id,
     after: { sentAt: prep.sentAt, emailSent: emailResult.sent },
   });
 
-  return NextResponse.json({ leasePreparation: prep, email: emailResult });
+  return NextResponse.json({ leasePreparation: prep, email: emailResult, whatsapp: whatsappResult });
 }

@@ -1,11 +1,12 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { leaseTemplateUploadMetadataSchema } from '@propvault/validation';
 import { LEASE_TEMPLATE_MIME_TYPES } from '@propvault/types';
-import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { requireOrgRole } from '@/lib/portfolio';
 import { mapLeaseTemplateRow } from '@/lib/leaseTemplates';
 import { scanUploadOrRespond } from '@/lib/uploadScan';
 import { validateDocxContent } from '@/lib/leaseTemplateValidation';
+import { writeAuditEvent } from '@/lib/audit';
 
 const DOCX_MIME_TYPE =
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
@@ -238,6 +239,16 @@ export async function POST(request: NextRequest) {
       .update({ status: 'archived' })
       .eq('id', parsed.data.supersedesId);
   }
+
+  await writeAuditEvent(getServiceRoleClient(), {
+    orgId: parsed.data.orgId,
+    actorUserId: user.id,
+    actorType: 'user',
+    action: parsed.data.supersedesId ? 'template.replaced' : 'template.uploaded',
+    entityType: 'lease_templates',
+    entityId: data.id,
+    after: { name: parsed.data.name, isDefault: parsed.data.isDefault, supersedesId: parsed.data.supersedesId ?? null },
+  });
 
   return NextResponse.json({ leaseTemplate: mapLeaseTemplateRow(data) }, { status: 201 });
 }

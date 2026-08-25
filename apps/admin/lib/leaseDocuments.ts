@@ -95,6 +95,27 @@ export async function createLeaseDocumentVersion(
         templateId: input.templateId ?? null,
       },
     });
+
+    // First-tenant-workflow predeploy pass (WORKLOG.md 2026-08-25), Phase 10: the same event
+    // additionally recorded against the LEASE itself (not just the document version) -- the exact
+    // lifecycle action names the audit spec calls for. nextVersion > 1 is exactly "a document
+    // already existed for this lease before this call", i.e. a real regeneration, not the first
+    // generation.
+    let leaseAction: string;
+    if (input.kind === 'generated') {
+      leaseAction = nextVersion > 1 ? 'lease.regenerated' : 'lease.generated';
+    } else {
+      leaseAction = 'lease.manual_document_uploaded';
+    }
+    await writeAuditEvent(serviceClient, {
+      orgId: input.orgId,
+      actorUserId: input.generatedBy,
+      actorType: 'user',
+      action: leaseAction,
+      entityType: 'leases',
+      entityId: input.leaseId,
+      after: { leaseDocumentId: data.id, version: nextVersion, templateId: input.templateId ?? null },
+    });
   }
 
   return { data, error };

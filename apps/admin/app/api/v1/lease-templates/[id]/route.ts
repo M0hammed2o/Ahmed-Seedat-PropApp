@@ -1,8 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { leaseTemplateUpdateSchema } from '@propvault/validation';
-import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { requireOrgRole } from '@/lib/portfolio';
 import { mapLeaseTemplateRow } from '@/lib/leaseTemplates';
+import { writeAuditEvent } from '@/lib/audit';
 
 const SIGNED_URL_TTL_SECONDS = 60 * 10;
 
@@ -138,6 +139,19 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         { error: { code: 'lease_template_set_default_failed', message: rpcError.message } },
         { status: 500 },
       );
+    }
+    // Only a real change, not a re-click of "set default" on an already-default template.
+    if (!existing.is_default) {
+      await writeAuditEvent(getServiceRoleClient(), {
+        orgId: existing.org_id,
+        actorUserId: user.id,
+        actorType: 'user',
+        action: 'template.default_changed',
+        entityType: 'lease_templates',
+        entityId: id,
+        before: { wasDefault: false },
+        after: { isDefault: true },
+      });
     }
   }
 

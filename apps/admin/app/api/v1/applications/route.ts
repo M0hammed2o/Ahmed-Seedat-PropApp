@@ -1,9 +1,10 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { applicationCreateSchema } from '@propvault/validation';
-import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { requireOrgRole } from '@/lib/portfolio';
 import { mapApplicationRow } from '@/lib/leasing';
 import { parseListQuery, encodeCursor, beforeCursorFilter } from '@/lib/cursorPagination';
+import { writeAuditEvent } from '@/lib/audit';
 
 /** GET/POST /api/v1/applications (API_SPEC.md §4, TASKS.md M9). Same shape as owners/tenants. */
 export async function GET(request: NextRequest) {
@@ -124,6 +125,16 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     );
   }
+
+  await writeAuditEvent(getServiceRoleClient(), {
+    orgId: parsed.data.orgId,
+    actorUserId: user.id,
+    actorType: 'user',
+    action: 'application.created',
+    entityType: 'applications',
+    entityId: data.id,
+    after: { unitId: parsed.data.unitId, selfService: Boolean(parsed.data.selfService) },
+  });
 
   if (parsed.data.selfService) {
     // Best-effort: the application itself was created successfully either way -- a seeding

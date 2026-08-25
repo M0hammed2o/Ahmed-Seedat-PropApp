@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { requireOrgRole } from '@/lib/portfolio';
 import { mapApplicationRow } from '@/lib/leasing';
+import { writeAuditEvent } from '@/lib/audit';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -80,6 +81,16 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       { status: 500 },
     );
   }
+
+  await writeAuditEvent(getServiceRoleClient(), {
+    orgId: existing.org_id,
+    actorUserId: user.id,
+    actorType: 'user',
+    action: 'application.withdrawn',
+    entityType: 'applications',
+    entityId: id,
+    before: { status: existing.status },
+  });
 
   return NextResponse.json({ application: mapApplicationRow(data) });
 }
