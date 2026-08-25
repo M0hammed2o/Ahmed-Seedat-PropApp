@@ -5,6 +5,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import Link from 'next/link';
 import type { Unit } from '@propvault/types';
 import { UNIT_STATUS_PRESENTATION } from '@propvault/ui';
+import { formatSouthAfricanNumber } from '@propvault/utils';
 import { AdminDataTable } from '@/components/ui/AdminDataTable';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 
@@ -66,7 +67,7 @@ function buildColumns(showProperty: boolean): ColumnDef<UnitRow, unknown>[] {
       accessorKey: 'marketRent',
       cell: (info) => {
         const value = info.getValue() as number | null;
-        return value != null ? `R${value.toLocaleString('en-ZA')}` : '—';
+        return value != null ? `R${formatSouthAfricanNumber(value)}` : '—';
       },
     },
     {

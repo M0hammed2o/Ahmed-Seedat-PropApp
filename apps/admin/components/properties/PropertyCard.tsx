@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { MapPin } from 'lucide-react';
 import type { PropertyStatus, PropertyType } from '@propvault/types';
 import { PROPERTY_TYPE_LABELS, PROPERTY_STATUS_PRESENTATION } from '@propvault/ui';
+import { formatSouthAfricanNumber } from '@propvault/utils';
 import { Meter } from '@/components/ui/Meter';
 import { Pill, statusTone } from '@/components/ui/Pill';
 
@@ -20,7 +21,7 @@ export interface PropertyCardData {
 }
 
 function currency(n: number): string {
-  return `R${Math.round(n).toLocaleString('en-ZA')}`;
+  return `R${formatSouthAfricanNumber(Math.round(n))}`;
 }
 
 // Adapted from reference/lovable-ui-reference's properties/index.tsx photographic card

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { RentSchedule } from '@propvault/types';
 import { RENT_SCHEDULE_STATUS_PRESENTATION } from '@propvault/ui';
+import { formatSouthAfricanNumber } from '@propvault/utils';
 import { AdminDataTable } from '@/components/ui/AdminDataTable';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Button } from '@/components/ui/Button';
@@ -67,7 +68,7 @@ function buildColumns(canPost: boolean, onIssued: () => void): ColumnDef<RentSch
     {
       header: 'Amount',
       accessorKey: 'amount',
-      cell: (info) => `R${(info.getValue() as number).toLocaleString('en-ZA')}`,
+      cell: (info) => `R${formatSouthAfricanNumber(info.getValue() as number)}`,
     },
     {
       header: 'Status',

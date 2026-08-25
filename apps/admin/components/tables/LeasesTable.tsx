@@ -5,6 +5,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import Link from 'next/link';
 import type { Lease } from '@propvault/types';
 import { LEASE_STATUS_PRESENTATION } from '@propvault/ui';
+import { formatSouthAfricanNumber } from '@propvault/utils';
 import { AdminDataTable } from '@/components/ui/AdminDataTable';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 
@@ -60,12 +61,12 @@ function buildColumns(showUnit: boolean): ColumnDef<LeaseRow, unknown>[] {
       header: 'Rent',
       accessorKey: 'rentAmount',
       cell: (info) =>
-        `R${(info.getValue() as number).toLocaleString('en-ZA')} / ${info.row.original.rentFrequency}`,
+        `R${formatSouthAfricanNumber(info.getValue() as number)} / ${info.row.original.rentFrequency}`,
     },
     {
       header: 'Deposit',
       accessorKey: 'depositAmount',
-      cell: (info) => `R${(info.getValue() as number).toLocaleString('en-ZA')}`,
+      cell: (info) => `R${formatSouthAfricanNumber(info.getValue() as number)}`,
     },
     {
       header: 'Status',

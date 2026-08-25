@@ -3,6 +3,7 @@
 import type { ColumnDef } from '@tanstack/react-table';
 import type { BankTransaction, RentSchedule } from '@propvault/types';
 import { BANK_TRANSACTION_MATCH_STATUS_PRESENTATION } from '@propvault/ui';
+import { formatSouthAfricanNumber } from '@propvault/utils';
 import { AdminDataTable } from '@/components/ui/AdminDataTable';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { MatchTransactionControl } from '@/components/accounting/MatchTransactionControl';
@@ -21,7 +22,7 @@ function buildColumns(
     {
       header: 'Amount',
       accessorKey: 'amount',
-      cell: (info) => `R${(info.getValue() as number).toLocaleString('en-ZA')}`,
+      cell: (info) => `R${formatSouthAfricanNumber(info.getValue() as number)}`,
     },
     {
       header: 'Status',
