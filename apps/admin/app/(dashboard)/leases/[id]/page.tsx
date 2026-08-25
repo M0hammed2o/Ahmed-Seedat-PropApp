@@ -228,11 +228,20 @@ function LeaseDetailView({
             }
             actions={
               canEdit ? (
-                <Link href={`/leases/${lease.id}/edit`}>
-                  <Button variant="secondary" size="sm">
-                    Edit
-                  </Button>
-                </Link>
+                <div className="flex gap-2">
+                  {lease.status === 'draft' ? (
+                    <Link href={`/leases/${lease.id}/prepare`}>
+                      <Button variant="primary" size="sm">
+                        Prepare lease
+                      </Button>
+                    </Link>
+                  ) : null}
+                  <Link href={`/leases/${lease.id}/edit`}>
+                    <Button variant="secondary" size="sm">
+                      Edit
+                    </Button>
+                  </Link>
+                </div>
               ) : undefined
             }
           />

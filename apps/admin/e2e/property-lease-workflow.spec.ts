@@ -1,6 +1,19 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type APIRequestContext } from '@playwright/test';
 import { BASE_URL } from '../playwright.config';
 import { setUpOrg, createProperty, createUnit, getUnitStatus } from './fixtures/orgWorkflow';
+
+// Minimal real PDF bytes -- just enough for the upload route's own MIME/malware-scan checks to
+// treat it as a genuine PDF (Phase P: manual completed-lease upload, reused here to get an
+// application-sourced draft lease past the new review/send/activation gate without needing a real
+// DOCX template + docxtemplater round trip in this test).
+async function uploadLeaseDocument(request: APIRequestContext, leaseId: string): Promise<void> {
+  const pdfBytes = Buffer.from('%PDF-1.4\n%mock lease document\n%%EOF');
+  const response = await request.post(`/api/v1/leases/${leaseId}/documents`, {
+    headers: { Origin: BASE_URL },
+    multipart: { file: { name: 'lease.pdf', mimeType: 'application/pdf', buffer: pdfBytes } },
+  });
+  expect(response.ok()).toBe(true);
+}
 
 // Workflow-integration pass (WORKLOG.md this date). Full-stack E2E coverage (real API, real local
 // Supabase, real RLS) for the property -> ownership -> unit -> application -> tenant -> lease ->
@@ -15,6 +28,13 @@ test.describe('property -> unit -> application -> tenant -> lease -> occupancy -
   test('the full happy-path chain works end to end, and occupancy/rent-schedule/deposit are correct at each step', async ({
     request,
   }) => {
+    // Longer than the 60s default (playwright.config.ts) -- this chain now runs the full
+    // review/send/activation gate (Phase L/R/S/W/X) in addition to everything after it, a
+    // genuinely longer sequence of real round trips than when the default timeout was set, not a
+    // sign of anything hanging (confirmed: every step here completes in well under a second
+    // individually).
+    test.setTimeout(120_000);
+
     const { orgId } = await setUpOrg(request, 'workflow-happy');
     const propertyId = await createProperty(request, orgId, 'Workflow Property');
 
@@ -74,6 +94,24 @@ test.describe('property -> unit -> application -> tenant -> lease -> occupancy -
       data: { rentAmount: 10000, depositAmount: 10000, startDate: '2026-01-01' },
     });
     expect(prepareResponse.ok()).toBe(true);
+
+    // An application-sourced lease additionally requires a document + review + send +
+    // acknowledgement (or staff-confirmed-signed) chain before activation (Phase L/R/S/W/X,
+    // migration 20260101000134) -- a manual lease never needs any of this (see the "manual draft
+    // lease" tests below, unaffected).
+    await uploadLeaseDocument(request, leaseId);
+    const reviewResponse = await request.post(`/api/v1/leases/${leaseId}/review`, {
+      headers: { Origin: BASE_URL },
+    });
+    expect(reviewResponse.ok()).toBe(true);
+    const sendResponse = await request.post(`/api/v1/leases/${leaseId}/send`, {
+      headers: { Origin: BASE_URL },
+    });
+    expect(sendResponse.ok()).toBe(true);
+    const confirmSignedResponse = await request.post(`/api/v1/leases/${leaseId}/confirm-signed`, {
+      headers: { Origin: BASE_URL },
+    });
+    expect(confirmSignedResponse.ok()).toBe(true);
 
     const activateResponse = await request.post(`/api/v1/leases/${leaseId}/activate`, {
       headers: { Origin: BASE_URL },
@@ -330,6 +368,10 @@ test.describe('property -> unit -> application -> tenant -> lease -> occupancy -
       headers: { Origin: BASE_URL },
       data: { rentAmount: 7000, depositAmount: 0, startDate: '2026-01-01' },
     });
+    await uploadLeaseDocument(request, decided.leaseId);
+    await request.post(`/api/v1/leases/${decided.leaseId}/review`, { headers: { Origin: BASE_URL } });
+    await request.post(`/api/v1/leases/${decided.leaseId}/send`, { headers: { Origin: BASE_URL } });
+    await request.post(`/api/v1/leases/${decided.leaseId}/confirm-signed`, { headers: { Origin: BASE_URL } });
     await request.post(`/api/v1/leases/${decided.leaseId}/activate`, {
       headers: { Origin: BASE_URL },
     });

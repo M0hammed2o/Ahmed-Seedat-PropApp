@@ -167,3 +167,141 @@ export function calculateOutstandingRentTotal(
     .filter((r) => r.status !== 'paid')
     .reduce((sum, r) => sum + Number(r.amount), 0);
 }
+
+// Lease preparation (Phase L/N, migration 20260101000134).
+
+export interface LeasePreparation {
+  leaseId: string;
+  orgId: string;
+  status: 'drafting' | 'reviewed' | 'sent';
+  templateId: string | null;
+  approvedOccupants: string | null;
+  parking: string | null;
+  utilities: string | null;
+  specialConditions: string | null;
+  rentalDueDay: number | null;
+  annualEscalationPct: number | null;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  sentBy: string | null;
+  sentAt: string | null;
+  tenantAcknowledgedAt: string | null;
+  staffConfirmedSignedAt: string | null;
+  staffConfirmedSignedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface LeasePreparationRow {
+  lease_id: string;
+  org_id: string;
+  status: string;
+  template_id: string | null;
+  approved_occupants: string | null;
+  parking: string | null;
+  utilities: string | null;
+  special_conditions: string | null;
+  rental_due_day: number | null;
+  annual_escalation_pct: number | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  sent_by: string | null;
+  sent_at: string | null;
+  tenant_acknowledged_at: string | null;
+  staff_confirmed_signed_at: string | null;
+  staff_confirmed_signed_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export function mapLeasePreparationRow(row: LeasePreparationRow): LeasePreparation {
+  return {
+    leaseId: row.lease_id,
+    orgId: row.org_id,
+    status: row.status as LeasePreparation['status'],
+    templateId: row.template_id,
+    approvedOccupants: row.approved_occupants,
+    parking: row.parking,
+    utilities: row.utilities,
+    specialConditions: row.special_conditions,
+    rentalDueDay: row.rental_due_day,
+    annualEscalationPct: row.annual_escalation_pct,
+    reviewedBy: row.reviewed_by,
+    reviewedAt: row.reviewed_at,
+    sentBy: row.sent_by,
+    sentAt: row.sent_at,
+    tenantAcknowledgedAt: row.tenant_acknowledged_at,
+    staffConfirmedSignedAt: row.staff_confirmed_signed_at,
+    staffConfirmedSignedBy: row.staff_confirmed_signed_by,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export interface LeaseDocument {
+  id: string;
+  leaseId: string;
+  orgId: string;
+  kind: 'generated' | 'uploaded';
+  status: 'draft' | 'issued' | 'superseded';
+  version: number;
+  templateId: string | null;
+  storagePath: string;
+  originalFileName: string | null;
+  mimeType: string;
+  fileSizeBytes: number;
+  generatedBy: string | null;
+  generatedAt: string | null;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  sentBy: string | null;
+  sentAt: string | null;
+  supersedesDocumentId: string | null;
+  createdAt: string;
+}
+
+interface LeaseDocumentRow {
+  id: string;
+  lease_id: string;
+  org_id: string;
+  kind: string;
+  status: string;
+  version: number;
+  template_id: string | null;
+  storage_path: string;
+  original_file_name: string | null;
+  mime_type: string;
+  file_size_bytes: number;
+  generated_by: string | null;
+  generated_at: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  sent_by: string | null;
+  sent_at: string | null;
+  supersedes_document_id: string | null;
+  created_at: string;
+}
+
+export function mapLeaseDocumentRow(row: LeaseDocumentRow): LeaseDocument {
+  return {
+    id: row.id,
+    leaseId: row.lease_id,
+    orgId: row.org_id,
+    kind: row.kind as LeaseDocument['kind'],
+    status: row.status as LeaseDocument['status'],
+    version: row.version,
+    templateId: row.template_id,
+    storagePath: row.storage_path,
+    originalFileName: row.original_file_name,
+    mimeType: row.mime_type,
+    fileSizeBytes: row.file_size_bytes,
+    generatedBy: row.generated_by,
+    generatedAt: row.generated_at,
+    reviewedBy: row.reviewed_by,
+    reviewedAt: row.reviewed_at,
+    sentBy: row.sent_by,
+    sentAt: row.sent_at,
+    supersedesDocumentId: row.supersedes_document_id,
+    createdAt: row.created_at,
+  };
+}

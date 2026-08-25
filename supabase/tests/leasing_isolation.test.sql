@@ -10,7 +10,7 @@
 -- chain still ends in exactly the same real-world state as before, just gated by an extra step.
 
 begin;
-select plan(19);
+select plan(24);
 
 insert into auth.users (id, email) values
   ('e1000000-0000-0000-0000-000000000001', 'leasing-agent-a@test.propertyvault.example'),
@@ -153,9 +153,54 @@ select set_config(
 update public.leases set rent_amount = 8500, deposit_amount = 8500, start_date = '2026-08-01'::date
 where id = current_setting('pgtap.li.draft_lease_id')::uuid;
 
+-- An application-sourced lease additionally requires the review-gate/send/acceptance chain
+-- (20260101000134) before activate_lease() will allow it -- a manual lease never touches any of
+-- this (see storage_property_scoping.test.sql / the e2e "manual lease" tests for that path).
+select throws_ok(
+  $$ select public.activate_lease(current_setting('pgtap.li.draft_lease_id')::uuid) $$,
+  'P0001',
+  'The lease must be sent to the tenant before it can be activated',
+  'an application-sourced draft lease cannot be activated before it has been reviewed and sent'
+);
+
+insert into public.lease_documents (lease_id, org_id, kind, status, version, storage_path, mime_type, file_size_bytes)
+values (
+  current_setting('pgtap.li.draft_lease_id')::uuid, 'aeaeaeae-0000-0000-0000-000000000001',
+  'uploaded', 'draft', 1, 'aeaeaeae-0000-0000-0000-000000000001/9e9e9e9e-0000-0000-0000-000000000001/lease-v1.pdf',
+  'application/pdf', 1024
+);
+
+select lives_ok(
+  $$ select public.acknowledge_lease_review(current_setting('pgtap.li.draft_lease_id')::uuid) $$,
+  'the review gate passes once tenant/rent/dates/document all exist'
+);
+
+select throws_ok(
+  $$ select public.activate_lease(current_setting('pgtap.li.draft_lease_id')::uuid) $$,
+  'P0001',
+  'The lease must be sent to the tenant before it can be activated',
+  'reviewed but not yet sent is still not enough to activate'
+);
+
+select lives_ok(
+  $$ select public.send_lease(current_setting('pgtap.li.draft_lease_id')::uuid) $$,
+  'the reviewed lease can be sent'
+);
+
+select throws_ok(
+  $$ select public.activate_lease(current_setting('pgtap.li.draft_lease_id')::uuid) $$,
+  'P0001',
+  'The tenant must acknowledge the lease (or staff must record a signed copy) before activation',
+  'sent but not yet acknowledged/signed is still not enough to activate'
+);
+
+update public.lease_preparations
+set staff_confirmed_signed_at = now(), staff_confirmed_signed_by = 'e1000000-0000-0000-0000-000000000001'
+where lease_id = current_setting('pgtap.li.draft_lease_id')::uuid;
+
 select lives_ok(
   $$ select public.activate_lease(current_setting('pgtap.li.draft_lease_id')::uuid) $$,
-  'Org A agent can activate the prepared draft lease'
+  'Org A agent can activate the prepared, reviewed, sent, and staff-confirmed-signed draft lease'
 );
 
 select is(
