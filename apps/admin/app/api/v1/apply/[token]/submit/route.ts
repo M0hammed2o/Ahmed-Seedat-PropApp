@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { applicationSelfServiceSubmitSchema } from '@propvault/validation';
-import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
+import { dispatchEmail } from '@/lib/emailDispatch';
 
 type RouteParams = { params: Promise<{ token: string }> };
 
@@ -51,6 +52,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       p_household_size: parsed.data.householdSize ?? null,
       p_applicant_notes: parsed.data.applicantNotes ?? null,
       p_popia_consent: parsed.data.popiaConsent,
+      p_whatsapp_consent: parsed.data.whatsappConsent,
+      p_whatsapp_phone: parsed.data.whatsappPhone ?? null,
     })
     .single();
 
@@ -68,6 +71,38 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       { error: { code: row.error_code ?? 'submission_refused', message: 'Your application could not be submitted.' } },
       { status },
     );
+  }
+
+  // Confirmation email (Phase G) -- best-effort, never blocks the submission response itself.
+  if (row.application_id && parsed.data.applicantEmail) {
+    const serviceClient = getServiceRoleClient();
+    const { data: application } = await serviceClient
+      .from('applications')
+      .select('org_id, organizations(trading_name, legal_name), units(unit_label, properties(nickname))')
+      .eq('id', row.application_id)
+      .maybeSingle();
+    const app = application as unknown as {
+      org_id: string;
+      organizations: { trading_name: string | null; legal_name: string } | null;
+      units: { unit_label: string; properties: { nickname: string } | null } | null;
+    } | null;
+    if (app) {
+      await dispatchEmail(serviceClient, {
+        orgId: app.org_id,
+        toAddress: parsed.data.applicantEmail,
+        templateName: 'application_submitted',
+        templateVars: {
+          orgName: app.organizations?.trading_name ?? app.organizations?.legal_name ?? 'The landlord',
+          propertyLabel: app.units?.properties?.nickname
+            ? `${app.units.properties.nickname} — ${app.units.unit_label}`
+            : (app.units?.unit_label ?? 'your rental'),
+          applyUrl: `${new URL(request.url).origin}/apply/${token}`,
+        },
+        relatedEntityType: 'applications',
+        relatedEntityId: row.application_id,
+        actorUserId: null,
+      });
+    }
   }
 
   return NextResponse.json({ applicationId: row.application_id });

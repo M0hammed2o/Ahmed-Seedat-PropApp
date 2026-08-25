@@ -1,6 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { applicationAccessTokenCreateSchema } from '@propvault/validation';
-import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
+import { writeAuditEvent } from '@/lib/audit';
+import { dispatchEmail } from '@/lib/emailDispatch';
+import { getAppUrl } from '@/lib/appUrl';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -66,6 +69,51 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
 
   const row = data as { token_id: string; token: string; expires_at: string };
+  const serviceClient = getServiceRoleClient();
+
+  const { data: application } = await supabase
+    .from('applications')
+    .select('org_id, applicant_email, organizations(trading_name, legal_name), units(unit_label, properties(nickname))')
+    .eq('id', id)
+    .maybeSingle();
+  const app = application as unknown as {
+    org_id: string;
+    applicant_email: string | null;
+    organizations: { trading_name: string | null; legal_name: string } | null;
+    units: { unit_label: string; properties: { nickname: string } | null } | null;
+  } | null;
+
+  if (app) {
+    await writeAuditEvent(serviceClient, {
+      orgId: app.org_id,
+      actorUserId: user.id,
+      actorType: 'user',
+      action: 'application.invitation_sent',
+      entityType: 'application_access_tokens',
+      entityId: row.token_id,
+      after: { applicationId: id, deliveryChannel: parsed.data.deliveryChannel },
+    });
+
+    if (parsed.data.deliveryChannel === 'email' && app.applicant_email) {
+      await dispatchEmail(serviceClient, {
+        orgId: app.org_id,
+        toAddress: app.applicant_email,
+        templateName: 'application_invitation',
+        templateVars: {
+          orgName: app.organizations?.trading_name ?? app.organizations?.legal_name ?? 'Your landlord',
+          propertyLabel: app.units?.properties?.nickname
+            ? `${app.units.properties.nickname} — ${app.units.unit_label}`
+            : (app.units?.unit_label ?? 'a rental'),
+          applyUrl: `${getAppUrl()}/apply/${row.token}`,
+          expiresAt: new Date(row.expires_at).toLocaleDateString('en-ZA'),
+        },
+        relatedEntityType: 'application_access_tokens',
+        relatedEntityId: row.token_id,
+        actorUserId: user.id,
+      });
+    }
+  }
+
   return NextResponse.json(
     { accessToken: { id: row.token_id, token: row.token, expiresAt: row.expires_at } },
     { status: 201 },

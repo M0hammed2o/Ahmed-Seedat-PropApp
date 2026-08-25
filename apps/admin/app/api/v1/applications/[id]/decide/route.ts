@@ -1,8 +1,10 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { applicationDecisionSchema } from '@propvault/validation';
-import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { requireOrgRole } from '@/lib/portfolio';
 import { mapApplicationRow } from '@/lib/leasing';
+import { writeAuditEvent } from '@/lib/audit';
+import { dispatchEmail } from '@/lib/emailDispatch';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -110,6 +112,28 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    const serviceClient = getServiceRoleClient();
+    await writeAuditEvent(serviceClient, {
+      orgId: existing.org_id,
+      actorUserId: user.id,
+      actorType: 'user',
+      action: 'application.declined',
+      entityType: 'applications',
+      entityId: id,
+      after: { reason: parsed.data.reason ?? null },
+    });
+    if (data.applicant_email) {
+      await dispatchEmail(serviceClient, {
+        orgId: existing.org_id,
+        toAddress: data.applicant_email,
+        templateName: 'application_declined',
+        templateVars: { reason: parsed.data.reason ?? null },
+        relatedEntityType: 'applications',
+        relatedEntityId: id,
+        actorUserId: user.id,
+      });
+    }
+
     return NextResponse.json({ application: mapApplicationRow(data) });
   }
 
@@ -135,6 +159,28 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       { error: { code: 'application_fetch_failed', message: refetchError.message } },
       { status: 500 },
     );
+  }
+
+  const serviceClient = getServiceRoleClient();
+  await writeAuditEvent(serviceClient, {
+    orgId: existing.org_id,
+    actorUserId: user.id,
+    actorType: 'user',
+    action: 'application.approved',
+    entityType: 'applications',
+    entityId: id,
+    after: { leaseId },
+  });
+  if (application.applicant_email) {
+    await dispatchEmail(serviceClient, {
+      orgId: existing.org_id,
+      toAddress: application.applicant_email,
+      templateName: 'application_approved',
+      templateVars: {},
+      relatedEntityType: 'applications',
+      relatedEntityId: id,
+      actorUserId: user.id,
+    });
   }
 
   return NextResponse.json({ application: mapApplicationRow(application), leaseId });

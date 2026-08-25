@@ -53,7 +53,17 @@ export type EmailTemplateName =
   // already password-capable Proplyst account, which provision_staff_member() activates
   // immediately with no password/activation step, so this is a notification, not an invitation.
   | 'staff_activation'
-  | 'staff_added_existing_user';
+  | 'staff_added_existing_user'
+  // Applicant->tenant->lease V1 continuation (WORKLOG.md 2026-08-25), Phase G/T: the applicant
+  // portal and lease-send events. Every one of these carries only a secure portal/token link, same
+  // "no sensitive detail before identity is established" discipline tenant_invitation already
+  // follows -- never the application/lease content itself.
+  | 'application_invitation'
+  | 'application_submitted'
+  | 'application_documents_requested'
+  | 'application_approved'
+  | 'application_declined'
+  | 'lease_ready';
 
 // Only categories with an existing notification_preferences row can be preference-gated
 // (DATABASE.md §7's closed enum has no 'billing'/'accounting' category) -- invoice/payment/
@@ -117,6 +127,17 @@ const TEMPLATE_SUBJECTS: Record<EmailTemplateName, (vars: Record<string, unknown
     `You've been added to ${v.orgName ?? 'an organization'} on ${branding.productName}`,
   staff_added_existing_user: (v) =>
     `You've been added to ${v.orgName ?? 'an organization'} on ${branding.productName}`,
+  application_invitation: (v) =>
+    `Complete your rental application for ${v.propertyLabel ?? 'your application'}`,
+  application_submitted: (v) =>
+    `We've received your application for ${v.propertyLabel ?? 'your rental'}`,
+  application_documents_requested: (v) =>
+    `Documents needed for your application — ${v.propertyLabel ?? 'your rental'}`,
+  application_approved: (v) =>
+    `Good news — your application for ${v.propertyLabel ?? 'your rental'} was approved`,
+  application_declined: (v) =>
+    `An update on your application for ${v.propertyLabel ?? 'your rental'}`,
+  lease_ready: (v) => `Your lease for ${v.propertyLabel ?? 'your rental'} is ready`,
 };
 
 // Plain-text bodies -- the required MIME text/plain fallback for every real send (never removed
@@ -168,6 +189,18 @@ const TEMPLATE_BODY: Record<EmailTemplateName, (vars: Record<string, unknown>) =
     `You've been added to ${v.orgName ?? 'an organization'} on ${branding.productName} as ${v.role ?? 'a team member'}. ${v.activateUrl ? `Set your password to activate your account: ${v.activateUrl}. ` : ''}${v.expiresAt ? `This link expires on ${v.expiresAt}. ` : ''}If you weren't expecting this, you can safely ignore this email.`,
   staff_added_existing_user: (v) =>
     `You've been added to ${v.orgName ?? 'an organization'} on ${branding.productName} as ${v.role ?? 'a team member'}. Sign in to ${branding.productName} with your existing account to access it.`,
+  application_invitation: (v) =>
+    `${v.orgName ?? 'The landlord'} has invited you to apply for ${v.propertyLabel ?? 'a rental'} on ${branding.productName}. ${v.applyUrl ? `Complete your application here: ${v.applyUrl}. ` : ''}${v.expiresAt ? `This link expires on ${v.expiresAt}. ` : ''}If you weren't expecting this, you can safely ignore this email.`,
+  application_submitted: (v) =>
+    `Thanks -- we've received your application for ${v.propertyLabel ?? 'your rental'}. ${v.orgName ?? 'The landlord'} will review it and be in touch. ${v.applyUrl ? `You can review or update your submitted details here: ${v.applyUrl}.` : ''}`,
+  application_documents_requested: (v) =>
+    `${v.orgName ?? 'The landlord'} needs additional or replacement documents for your application for ${v.propertyLabel ?? 'your rental'}. ${v.applyUrl ? `Upload them here: ${v.applyUrl}.` : ''}`,
+  application_approved: (v) =>
+    `Your application for ${v.propertyLabel ?? 'your rental'} has been approved. ${v.orgName ?? 'The landlord'} will be preparing your lease next and will send it to you once it's ready.`,
+  application_declined: (v) =>
+    `${v.orgName ?? 'The landlord'} has let us know your application for ${v.propertyLabel ?? 'your rental'} was not successful this time. ${v.reason ? `Reason given: ${v.reason}.` : ''}`,
+  lease_ready: (v) =>
+    `Your lease for ${v.propertyLabel ?? 'your rental'} is ready to review. ${v.leaseUrl ? `View it securely here: ${v.leaseUrl}.` : ''} Sign in to review the terms and confirm receipt.`,
 };
 
 /**
@@ -366,6 +399,50 @@ const TEMPLATE_HTML_CONTENT: Record<
     intro: `You've been added to ${v.orgName ?? 'an organization'} on ${branding.productName} as ${v.role ?? 'a team member'}.`,
     paragraphs: ['Sign in with your existing account to access it.'],
     cta: { label: `Sign in to ${branding.productName}`, url: `${appUrl}/login` },
+  }),
+  application_invitation: (v, _appUrl) => ({
+    eyebrow: 'Rental application',
+    heading: `Complete your application for ${v.propertyLabel ?? 'your rental'}`,
+    intro: `${v.orgName ?? 'The landlord'} has invited you to apply for ${v.propertyLabel ?? 'a rental'} on ${branding.productName}.`,
+    paragraphs: ["If you weren't expecting this, you can safely ignore this email."],
+    infoBox: v.expiresAt
+      ? { label: 'Expires', text: `This link expires on ${v.expiresAt}.` }
+      : undefined,
+    cta: v.applyUrl ? { label: 'Complete your application', url: String(v.applyUrl) } : undefined,
+  }),
+  application_submitted: (v, _appUrl) => ({
+    eyebrow: 'Application received',
+    heading: 'Thanks — we\'ve received your application',
+    intro: `Your application for ${v.propertyLabel ?? 'your rental'} has been submitted. ${v.orgName ?? 'The landlord'} will review it and be in touch.`,
+    cta: v.applyUrl ? { label: 'Review your application', url: String(v.applyUrl) } : undefined,
+  }),
+  application_documents_requested: (v, _appUrl) => ({
+    eyebrow: 'Documents needed',
+    heading: 'A document needs your attention',
+    intro: `${v.orgName ?? 'The landlord'} needs an additional or replacement document for your application for ${v.propertyLabel ?? 'your rental'}.`,
+    cta: v.applyUrl ? { label: 'Upload document', url: String(v.applyUrl) } : undefined,
+  }),
+  application_approved: (v, _appUrl) => ({
+    eyebrow: 'Application approved',
+    heading: 'Your application was approved',
+    intro: `Good news — your application for ${v.propertyLabel ?? 'your rental'} has been approved.`,
+    paragraphs: [
+      `${v.orgName ?? 'The landlord'} will be preparing your lease next and will send it to you once it's ready.`,
+    ],
+  }),
+  application_declined: (v, _appUrl) => ({
+    eyebrow: 'Application update',
+    heading: 'An update on your application',
+    intro: `${v.orgName ?? 'The landlord'} has let us know your application for ${v.propertyLabel ?? 'your rental'} was not successful this time.`,
+    paragraphs: v.reason ? [`Reason given: ${v.reason}`] : undefined,
+  }),
+  lease_ready: (v, _appUrl) => ({
+    eyebrow: 'Lease ready',
+    heading: `Your lease for ${v.propertyLabel ?? 'your rental'} is ready`,
+    intro: 'Your lease is ready for you to review. Sign in to view the terms and confirm receipt.',
+    // WHATSAPP.md §3's discipline again: a secure portal link only, never the lease document
+    // itself, a raw storage path, or a permanent signed URL embedded in the email.
+    cta: v.leaseUrl ? { label: 'Review your lease', url: String(v.leaseUrl) } : undefined,
   }),
 };
 

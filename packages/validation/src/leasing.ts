@@ -59,6 +59,9 @@ export const applicationSelfServiceSubmitSchema = z.object({
   householdSize: z.number().int().min(1).optional().nullable(),
   applicantNotes: z.string().max(2000).optional().nullable(),
   popiaConsent: z.boolean(),
+  // Affirmative WhatsApp opt-in (Phase H) -- distinct from POPIA consent, never inferred from it.
+  whatsappConsent: z.boolean().default(false),
+  whatsappPhone: z.string().max(30).optional().nullable(),
 });
 export type ApplicationSelfServiceSubmitInput = z.infer<typeof applicationSelfServiceSubmitSchema>;
 
