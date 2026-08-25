@@ -61,7 +61,17 @@ export async function resolveOnboardingProgress(
     supabase.from('properties').select('id', { count: 'exact', head: true }).eq('org_id', orgId),
     supabase.from('units').select('id', { count: 'exact', head: true }).eq('org_id', orgId),
     supabase.from('tenants').select('id', { count: 'exact', head: true }).eq('org_id', orgId),
-    supabase.from('leases').select('id', { count: 'exact', head: true }).eq('org_id', orgId),
+    // First-tenant-workflow predeploy pass (WORKLOG.md 2026-08-25), Phase 9: a real bug introduced
+    // earlier the same day by the approval-semantics fix -- approve_application() now creates a
+    // DRAFT lease immediately, so an unfiltered lease count would mark "Create your first lease"
+    // complete the moment an application is approved, before any lease was ever actually
+    // activated/sent/occupied. Restricted to status='active' so this step means what it always
+    // implied: a real, in-force tenancy exists, not merely a row in the leases table.
+    supabase
+      .from('leases')
+      .select('id', { count: 'exact', head: true })
+      .eq('org_id', orgId)
+      .eq('status', 'active'),
     supabase
       .from('organization_invites')
       .select('id', { count: 'exact', head: true })
