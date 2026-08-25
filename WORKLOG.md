@@ -1,5 +1,66 @@
 # Worklog
 
+## 2026-08-25 (continued further) — Applicant->tenant->lease V1: lease preparation + generation pass (PARTIAL, local only)
+
+Direct continuation of the same-day overnight pass below, per Mohammed's explicit "do not restart
+the audit, do not repeat completed work" instruction. Still 100% local (Docker Postgres/Supabase +
+local dev server) -- no production migration, no deploy, no real email/WhatsApp send. Full
+PASS/FAIL results in-conversation; summary for future sessions:
+
+**Completed and verified this continuation (78/78 pgTAP, full vitest, typecheck, lint, production
+build, and the full property-lease-workflow.spec.ts e2e suite all pass):**
+
+- **Applicant portal UI** (`/apply/:token`) built on top of the previous pass's token backend --
+  identity/contact/employment/household form, POPIA + a new **affirmative WhatsApp opt-in**
+  (`applicant_whatsapp_consents`, migration `20260101000135` -- deliberately not the existing
+  default-on `notification_preferences` model, which an applicant structurally can't use), and a
+  document-upload checklist.
+- **Application lifecycle emails** wired to real trigger points: `application_invitation` (token
+  issuance), `application_submitted` (self-service submit, idempotent across resubmission),
+  `application_approved`/`application_declined` (the decide route), each with its own audit event.
+- **Lease preparation** (migration `20260101000134`): `lease_preparations` (workflow stage +
+  commercial extras) and `lease_documents` (append-only generated/uploaded version history). New
+  RPCs `acknowledge_lease_review()`/`send_lease()` enforce the review gate and explicit-send rule
+  server-side. `activate_lease()` extended so an application-sourced lease additionally requires
+  having been sent AND tenant-acknowledged-or-staff-confirmed-signed -- manual leases untouched.
+- **Real DOCX-template merge** (`lib/leaseGeneration.ts`, `docxtemplater`+`pizzip`, finally actually
+  used after being installed two passes ago) -- required fields block generation rather than
+  inventing a value; unit-tested against real minimal DOCX fixtures. Manual PDF/DOCX lease upload
+  reuses the same version-history model. New `/leases/:id/prepare` UI: template picker, commercial
+  extras, generate/upload, document history with short-lived signed downloads, review checkbox,
+  send, and the two Phase-W acceptance paths (tenant portal acknowledgement, or staff recording a
+  signed copy) -- explicitly labelled as acknowledgement, never as a certified e-signature.
+- **Two real bugs found and fixed by the pgTAP suite itself, not by inspection:**
+  1. `leases_select_tenant_self` had no status filter at all -- since approval now assigns the
+     tenant to a *draft* lease immediately (this same day's earlier fix), a tenant could read that
+     draft's placeholder terms before staff ever reviewed or sent it. Fixed (migration
+     `20260101000136`) to require the lease be non-draft or actually sent.
+  2. That fix itself caused **infinite RLS recursion** (`leases` <-> `lease_preparations` policies
+     referencing each other) -- caught immediately by the pgTAP suite (`42P17`), fixed (migration
+     `20260101000137`) via a `SECURITY DEFINER` helper function, same technique
+     `caller_is_tenant_of_lease()` already relies on. Also caught, mid-session, that my own pgTAP
+     failure-detection grep pattern (`^not ok`) missed psql's leading whitespace and had been
+     silently reporting false "0 failures" all along -- fixed the detection, re-verified every
+     suite run after that point with the corrected pattern.
+  3. Root-caused and fixed a **pre-existing, unrelated E2E environment gap**: every test in
+     `property-lease-workflow.spec.ts` failed at property creation with `403
+     commercial_setup_required` -- reproduced identically on the file's own unmodified version via
+     `git stash`, confirming it predates this work. Fixed by having the `setUpOrg()` fixture call
+     `activate_trial_after_payment()` (the same RPC the real PayFast webhook calls) via the
+     service-role key the fixture already uses for test-user setup.
+
+**Not completed this continuation (real, disclosed gaps):** OCR extraction for applicant document
+types (ID/proof-of-address/payslip) and the corresponding raw/corrected/authoritative review UI;
+WhatsApp template registry entries for application/lease events (email-only this pass); dashboard/
+getting-started checklist real-data wiring; the full idempotency/security/audit test matrices beyond
+what the pgTAP/vitest/e2e suites above already exercise. `application_documents_requested` email
+template exists (code-ready) but has no route wired to trigger it yet -- there is no "request
+replacement document" staff action built.
+
+Two new migrations this continuation: `20260101000134` through `20260101000137`. Ten migrations
+total across both passes today (`20260101000128`-`20260101000137`), sequential, nothing before
+`20260101000127` touched. Six local commits total today, still unpushed.
+
 ## 2026-08-25 (continued) — Applicant->tenant->lease V1: overnight implementation pass (PARTIAL, local only)
 
 Unattended overnight implementation pass per Mohammed's instruction, working entirely against local
