@@ -3,7 +3,7 @@
 -- the units.status derivation trigger, and the one-active-lease-per-unit guard.
 
 begin;
-select plan(17);
+select plan(24);
 
 insert into auth.users (id, email) values
   ('f5000000-0000-0000-0000-000000000001', 'lwa-principal@test.propertyvault.example');
@@ -91,6 +91,16 @@ select is(
   'unit status derived to occupied by the trigger, not set manually'
 );
 
+-- Launch-hardening pass 2026-08-26 (migration 20260101000143): this lease's start_date
+-- ('2026-01-01') is a manual/imported lease more than 31 days in the past at activation time, so
+-- activate_lease()'s safety net must default rent_tracking_start_date to the first of the current
+-- month instead of silently backdating rent schedules all the way to start_date.
+select is(
+  (select rent_tracking_start_date from public.leases where id = current_setting('pgtap.lwa.lease_id')::uuid),
+  date_trunc('month', current_date)::date,
+  'activating a historical manual lease defaults rent_tracking_start_date to the current billing period'
+);
+
 -- generate_rent_schedules_for_lease() fills every period from start_date up to
 -- current_date+1month by default (not just the first) -- assert "at least one row exists" rather
 -- than a literal count, which would be brittle against the environment's current_date.
@@ -168,6 +178,81 @@ select is(
   (select status from public.units where id = current_setting('pgtap.lwa.unit_id')::uuid),
   'occupied'::public.unit_status,
   'unit is occupied again via the second lease'
+);
+
+-- === rent_tracking_start_date safety net: only fires for a historical manual lease with no
+-- explicit anchor already chosen -- a recent lease and an explicitly-pre-set anchor must both be
+-- left completely untouched (migration 20260101000143). ===
+insert into public.units (property_id, org_id, unit_label, status)
+select current_setting('pgtap.lwa.property_id')::uuid, id, 'U2', 'vacant'
+from public.organizations where legal_name = 'Lease Workflow Test Org';
+
+select set_config(
+  'pgtap.lwa.unit2_id',
+  (select id::text from public.units where property_id = current_setting('pgtap.lwa.property_id')::uuid and unit_label = 'U2'),
+  false
+);
+
+insert into public.leases (org_id, unit_id, start_date, rent_amount, status, source)
+select id, current_setting('pgtap.lwa.unit2_id')::uuid, (current_date - interval '5 days')::date, 9000, 'draft', 'manual'
+from public.organizations where legal_name = 'Lease Workflow Test Org';
+
+select set_config(
+  'pgtap.lwa.recent_lease_id',
+  (select id::text from public.leases where unit_id = current_setting('pgtap.lwa.unit2_id')::uuid),
+  false
+);
+
+select lives_ok(
+  $$ select public.assign_lease_tenant(current_setting('pgtap.lwa.recent_lease_id')::uuid, current_setting('pgtap.lwa.tenant_id')::uuid) $$,
+  'recent lease can be assigned the same tenant'
+);
+
+select lives_ok(
+  $$ select public.activate_lease(current_setting('pgtap.lwa.recent_lease_id')::uuid) $$,
+  'recent manual lease activates successfully'
+);
+
+select is(
+  (select rent_tracking_start_date from public.leases where id = current_setting('pgtap.lwa.recent_lease_id')::uuid),
+  null::date,
+  'a recent manual lease (start_date within 31 days) is not given a rent_tracking_start_date override'
+);
+
+insert into public.units (property_id, org_id, unit_label, status)
+select current_setting('pgtap.lwa.property_id')::uuid, id, 'U3', 'vacant'
+from public.organizations where legal_name = 'Lease Workflow Test Org';
+
+select set_config(
+  'pgtap.lwa.unit3_id',
+  (select id::text from public.units where property_id = current_setting('pgtap.lwa.property_id')::uuid and unit_label = 'U3'),
+  false
+);
+
+insert into public.leases (org_id, unit_id, start_date, rent_tracking_start_date, rent_amount, status, source)
+select id, current_setting('pgtap.lwa.unit3_id')::uuid, '2026-01-01', '2026-05-01', 11000, 'draft', 'manual'
+from public.organizations where legal_name = 'Lease Workflow Test Org';
+
+select set_config(
+  'pgtap.lwa.preset_lease_id',
+  (select id::text from public.leases where unit_id = current_setting('pgtap.lwa.unit3_id')::uuid),
+  false
+);
+
+select lives_ok(
+  $$ select public.assign_lease_tenant(current_setting('pgtap.lwa.preset_lease_id')::uuid, current_setting('pgtap.lwa.tenant_id')::uuid) $$,
+  'preset-anchor lease can be assigned the same tenant'
+);
+
+select lives_ok(
+  $$ select public.activate_lease(current_setting('pgtap.lwa.preset_lease_id')::uuid) $$,
+  'a historical lease with an explicitly pre-set rent_tracking_start_date activates successfully'
+);
+
+select is(
+  (select rent_tracking_start_date from public.leases where id = current_setting('pgtap.lwa.preset_lease_id')::uuid),
+  '2026-05-01'::date,
+  'an explicitly pre-set rent_tracking_start_date is never overwritten by the activation safety net'
 );
 
 select * from finish();

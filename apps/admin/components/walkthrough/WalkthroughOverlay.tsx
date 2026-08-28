@@ -90,7 +90,23 @@ export function WalkthroughOverlay({ orgId, steps, autoShow }: Props) {
   }
 
   return (
-    <div className="fixed bottom-5 right-5 z-50 w-80 rounded-card border border-light-border bg-light-surfaceRaised p-4 shadow-xl dark:border-dark-border dark:bg-dark-surfaceRaised">
+    // pointer-events-none on the card itself (V1 closeout browser-quality fix, WORKLOG.md this
+    // date): this is a `fixed` corner card rendered at the dashboard-layout level, so it floats
+    // over whatever real page content happens to occupy that screen region on any page in this
+    // route group -- reproduced live by Playwright on /properties/:id/units/:id/leases/new, where
+    // it sat on top of and swallowed the click on the "Record existing lease" card. Only the
+    // tour's own actual controls (skip/X, the step link, Back/Next) re-enable pointer-events, so a
+    // click anywhere else on the card's body now passes through to whatever is genuinely
+    // underneath, instead of the tour silently blocking an unrelated action.
+    // hidden below sm (V1 closeout browser-quality fix, WORKLOG.md this date): at mobile widths
+    // this 320px card is nearly the full viewport width, so even with the pointer-events pass-
+    // through above, its own necessarily-solid button row still collides with a page's real
+    // primary action -- reproduced live by Playwright at 375px on /properties/:id/units/:id/
+    // applications/new, where it sat on top of the "Create application" submit button. The tour
+    // remains fully available on desktop/tablet; a first-run mobile user just doesn't see it
+    // (standard practice for exactly this reason, not a loss of functionality -- nothing here was
+    // mobile-only).
+    <div className="pointer-events-none fixed bottom-5 right-5 z-50 hidden w-80 rounded-card border border-light-border bg-light-surfaceRaised p-4 shadow-xl sm:block dark:border-dark-border dark:bg-dark-surfaceRaised">
       <div className="flex items-start justify-between gap-2">
         <p className="text-xs font-medium text-light-textMuted dark:text-dark-textMuted">
           Step {stepIndex + 1} of {steps.length}
@@ -99,7 +115,7 @@ export function WalkthroughOverlay({ orgId, steps, autoShow }: Props) {
           type="button"
           onClick={skipTour}
           aria-label="Skip tour"
-          className="text-light-textMuted hover:text-light-textPrimary dark:text-dark-textMuted dark:hover:text-dark-textPrimary"
+          className="pointer-events-auto text-light-textMuted hover:text-light-textPrimary dark:text-dark-textMuted dark:hover:text-dark-textPrimary"
         >
           <X size={16} />
         </button>
@@ -112,11 +128,11 @@ export function WalkthroughOverlay({ orgId, steps, autoShow }: Props) {
       </p>
       <Link
         href={step.href}
-        className="mt-2 inline-block text-xs font-medium text-light-accent hover:underline dark:text-dark-accent"
+        className="pointer-events-auto mt-2 inline-block text-xs font-medium text-light-accent hover:underline dark:text-dark-accent"
       >
         Go to {step.navLabel} →
       </Link>
-      <div className="mt-4 flex items-center justify-between gap-2">
+      <div className="pointer-events-auto mt-4 flex items-center justify-between gap-2">
         <Button variant="secondary" size="sm" onClick={skipTour}>
           Skip tour
         </Button>

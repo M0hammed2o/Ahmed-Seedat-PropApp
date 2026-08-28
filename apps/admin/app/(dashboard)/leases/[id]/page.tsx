@@ -229,7 +229,13 @@ function LeaseDetailView({
             actions={
               canEdit ? (
                 <div className="flex gap-2">
-                  {lease.status === 'draft' ? (
+                  {/* V1 launch-completion pass, Section 8: Prepare/Send is the
+                      generate-document -> review -> send-for-signature workflow -- correct for a
+                      NEW application-approved lease, but a manual/imported lease's tenant has
+                      already physically signed outside Proplyst. Gated on source, not just status,
+                      so an imported lease never shows a re-signature path; LeaseActions below
+                      offers the direct upload+Activate path for it instead. */}
+                  {lease.status === 'draft' && lease.source === 'application_approved' ? (
                     <Link href={`/leases/${lease.id}/prepare`}>
                       <Button variant="primary" size="sm">
                         Prepare lease
@@ -254,15 +260,28 @@ function LeaseDetailView({
       <Panel title="Lease details">
         <dl className="grid grid-cols-2 gap-x-4 gap-y-5 text-sm lg:grid-cols-4">
           <div>
+            <dt className="text-light-textMuted dark:text-dark-textMuted">Lease type</dt>
+            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">
+              {lease.endDate ? 'Fixed term' : 'Ongoing / Month-to-month'}
+            </dd>
+          </div>
+          <div>
             <dt className="text-light-textMuted dark:text-dark-textMuted">Start date</dt>
             <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">
               {lease.startDate}
             </dd>
           </div>
           <div>
-            <dt className="text-light-textMuted dark:text-dark-textMuted">End date</dt>
-            <dd className="mt-0.5 text-light-textPrimary dark:text-dark-textPrimary">
-              {lease.endDate ?? 'Open-ended'}
+            {/* V1 launch-completion pass, Section 9: expiry shown prominently for a fixed-term
+                lease (it's the field that matters most); month-to-month states its own nature
+                explicitly rather than showing a blank/"Open-ended" label that reads like a gap. */}
+            <dt className="text-light-textMuted dark:text-dark-textMuted">
+              {lease.endDate ? 'Expiry date' : 'End date'}
+            </dt>
+            <dd
+              className={`mt-0.5 ${lease.endDate ? 'font-semibold text-light-statusNeedsReview dark:text-dark-statusNeedsReview' : 'text-light-textPrimary dark:text-dark-textPrimary'}`}
+            >
+              {lease.endDate ?? 'Ongoing / Month-to-month'}
             </dd>
           </div>
           <div>
@@ -327,6 +346,7 @@ function LeaseDetailView({
         status={lease.status}
         hasTenant={leaseTenants.length > 0}
         canEdit={canEdit}
+        source={lease.source === 'application_approved' ? 'application_approved' : 'manual'}
       />
 
       {/* Not wrapped in a Panel -- AdminDataTable (which RentScheduleTable/LeaseRentScheduleClient

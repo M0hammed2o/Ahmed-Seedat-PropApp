@@ -3,6 +3,7 @@ import { bankTransactionCreateSchema } from '@propvault/validation';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { requireOrgRole } from '@/lib/portfolio';
 import { mapBankTransactionRow } from '@/lib/accounting';
+import { safeErrorMessage } from '@/lib/safeError';
 
 /**
  * GET/POST /api/v1/bank-transactions (API_SPEC.md §6). POST here is plain transaction entry
@@ -35,7 +36,12 @@ export async function GET(request: NextRequest) {
   const { data, error } = await query;
   if (error) {
     return NextResponse.json(
-      { error: { code: 'bank_transactions_list_failed', message: error.message } },
+      {
+        error: {
+          code: 'bank_transactions_list_failed',
+          message: safeErrorMessage(error, 'Could not load bank transactions.', 'bankTransactions.list'),
+        },
+      },
       { status: 500 },
     );
   }
@@ -86,7 +92,12 @@ export async function POST(request: NextRequest) {
     .maybeSingle();
   if (bankAccountError) {
     return NextResponse.json(
-      { error: { code: 'bank_account_fetch_failed', message: bankAccountError.message } },
+      {
+        error: {
+          code: 'bank_account_fetch_failed',
+          message: safeErrorMessage(bankAccountError, 'Could not load this bank account.', 'bankTransactions.create.fetchBankAccount'),
+        },
+      },
       { status: 500 },
     );
   }
@@ -118,13 +129,29 @@ export async function POST(request: NextRequest) {
       amount: parsed.data.amount,
       description: parsed.data.description ?? null,
       reference: parsed.data.reference ?? null,
+      property_id: parsed.data.propertyId ?? null,
+      unit_id: parsed.data.unitId ?? null,
+      tenant_id: parsed.data.tenantId ?? null,
+      vendor_id: parsed.data.vendorId ?? null,
+      category: parsed.data.category ?? null,
+      document_id: parsed.data.documentId ?? null,
+      notes: parsed.data.notes ?? null,
     })
     .select('*')
     .single();
 
   if (error) {
     return NextResponse.json(
-      { error: { code: 'bank_transaction_create_failed', message: error.message } },
+      {
+        error: {
+          code: 'bank_transaction_create_failed',
+          message: safeErrorMessage(
+            error,
+            'Could not add this transaction. Please try again, or contact support if this continues.',
+            'bank_transactions insert',
+          ),
+        },
+      },
       { status: 500 },
     );
   }

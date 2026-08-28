@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapPaymentReportRow } from '@/lib/paymentReports';
+import { safeErrorMessage } from '@/lib/safeError';
 
 /**
  * GET /api/v1/payment-reports -- WhatsApp V1 completion pass, Phase B (WORKLOG.md this date). The
@@ -40,7 +41,12 @@ export async function GET(request: NextRequest) {
   const { data, error } = await query;
   if (error) {
     return NextResponse.json(
-      { error: { code: 'payment_reports_list_failed', message: error.message } },
+      {
+        error: {
+          code: 'payment_reports_list_failed',
+          message: safeErrorMessage(error, 'Could not load payment reports.', 'paymentReports.list'),
+        },
+      },
       { status: 500 },
     );
   }

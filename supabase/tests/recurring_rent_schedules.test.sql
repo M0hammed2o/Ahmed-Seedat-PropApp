@@ -5,7 +5,7 @@
 -- "org_id on every generated row matches the lease's own org_id", not an RLS denial test.
 
 begin;
-select plan(16);
+select plan(19);
 
 insert into public.organizations (id, legal_name, org_type)
 values
@@ -67,6 +67,17 @@ values ('d5d5d5d5-0000-0000-0000-000000000001', 'c2c2c2c2-0000-0000-0000-0000000
 insert into public.rent_schedules (org_id, lease_id, due_date, amount, status)
 values ('c2c2c2c2-0000-0000-0000-000000000001', 'd5d5d5d5-0000-0000-0000-000000000001',
         (current_date - interval '2 months')::date, 7000, 'pending');
+
+-- Lease 6 (Org A): a historical import -- legal start_date is 6 months ago, but
+-- rent_tracking_start_date overrides the generator's anchor to 1 month ago (launch-hardening
+-- pass 2026-08-26, migration 20260101000143). Proves the override is honoured instead of
+-- silently backdating schedules all the way to the real historical start_date.
+insert into public.units (id, property_id, org_id, unit_label, status)
+values ('caaaaaaa-0000-0000-0000-000000000001', 'c3c3c3c3-0000-0000-0000-000000000001', 'c1c1c1c1-0000-0000-0000-000000000001', 'Unit A5', 'occupied');
+insert into public.leases (id, org_id, unit_id, start_date, rent_tracking_start_date, end_date, rent_amount, status, source)
+values ('d6d6d6d6-0000-0000-0000-000000000001', 'c1c1c1c1-0000-0000-0000-000000000001',
+        'caaaaaaa-0000-0000-0000-000000000001', (current_date - interval '6 months')::date,
+        (current_date - interval '1 month')::date, null, 8000, 'active', 'manual');
 
 set local role service_role;
 
@@ -143,6 +154,26 @@ select is(
 select ok(
   (select count(*) from public.rent_schedules where lease_id = 'd4d4d4d4-0000-0000-0000-000000000001') > 1,
   'lease 4: a new pending row was generated alongside the preserved partial row'
+);
+
+-- === Lease 6: rent_tracking_start_date overrides start_date as the generation anchor ===
+select is(
+  public.generate_rent_schedules_for_lease('d6d6d6d6-0000-0000-0000-000000000001'::uuid, current_date),
+  2,
+  'lease 6: generates only 2 periods anchored on rent_tracking_start_date (1 month ago), not 6+ from the historical start_date'
+);
+
+select is(
+  (select min(due_date) from public.rent_schedules where lease_id = 'd6d6d6d6-0000-0000-0000-000000000001'),
+  (current_date - interval '1 month')::date,
+  'lease 6: earliest generated due_date matches the rent_tracking_start_date override, not start_date'
+);
+
+select is(
+  (select count(*) from public.rent_schedules
+     where lease_id = 'd6d6d6d6-0000-0000-0000-000000000001' and due_date < (current_date - interval '1 month')::date),
+  0::bigint,
+  'lease 6: no row generated before the override anchor, proving the historical start_date was ignored'
 );
 
 -- === Bulk generator: org isolation and full-portfolio sweep ===

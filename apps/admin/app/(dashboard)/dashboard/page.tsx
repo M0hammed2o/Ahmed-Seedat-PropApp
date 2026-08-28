@@ -3,11 +3,14 @@ import {
   ArrowUpRight,
   Banknote,
   Building2,
+  CircleCheck,
+  Clock,
   FileSignature,
   Home,
   Plus,
   Receipt,
   ShieldAlert,
+  TrendingUp,
   Users,
   Wrench,
 } from 'lucide-react';
@@ -24,8 +27,13 @@ import { PropertyMap, type MappableProperty } from '@/components/dashboard/Prope
 import { RecentActivityFeed, type ActivityItem } from '@/components/dashboard/RecentActivityFeed';
 import { PortfolioInsightsPanel } from '@/components/dashboard/PortfolioInsightsPanel';
 import { GettingStartedChecklist } from '@/components/dashboard/GettingStartedChecklist';
+import {
+  DashboardFiltersBar,
+  type DashboardPropertyOption,
+} from '@/components/dashboard/DashboardFiltersBar';
 import { resolvePortalSession } from '@/lib/orgSession';
 import { resolveOnboardingProgress, type OnboardingProgress } from '@/lib/onboarding';
+import { resolvePeriodRange, computeDashboardKpis, type DashboardPeriod } from '@/lib/dashboardKpis';
 
 // Owner Dashboard, rebuilt against reference/lovable-ui-reference's routes/index.tsx literal
 // structure (2026-08-04 Lovable-adoption batch, UI_INTEGRATION_PLAN.md) -- same KPI set, same
@@ -68,6 +76,19 @@ interface DashboardData {
   monthlyBilledDelta: number | null;
   outstandingRent: number;
   outstandingDelta: number | null;
+  /** Property/period filters pass (V1 launch-completion, this date): plain-language cash-flow
+   *  summary, scoped by the same property+period filters as monthlyBilled/outstandingRent above
+   *  (computeDashboardKpis, lib/dashboardKpis.ts). rentCollected/expensesTotal/netIncome/
+   *  paymentsAwaitingConfirmation are new; monthlyBilled/outstandingRent are the pre-existing
+   *  fields, now period-aware instead of hardcoded to "this calendar month." */
+  rentCollected: number;
+  expensesTotal: number;
+  netIncome: number;
+  paymentsAwaitingConfirmation: number;
+  periodLabel: string;
+  propertyOptions: DashboardPropertyOption[];
+  selectedPropertyId: string;
+  selectedPeriod: DashboardPeriod;
   openMaintenanceCount: number;
   expiringLeasesCount: number;
   revenueSeries: { month: string; billed: number; collected: number; expenses: number }[];
@@ -110,6 +131,14 @@ const DEMO_DATA: DashboardData = {
   monthlyBilledDelta: 1.8,
   outstandingRent: 6200,
   outstandingDelta: -2.1,
+  rentCollected: 84500,
+  expensesTotal: 7400,
+  netIncome: 77100,
+  paymentsAwaitingConfirmation: 2400,
+  periodLabel: 'August 2026',
+  propertyOptions: [{ id: 'demo-property-1', nickname: 'Sea Point Apartment' }],
+  selectedPropertyId: '',
+  selectedPeriod: 'this_month',
   openMaintenanceCount: 3,
   expiringLeasesCount: 2,
   revenueSeries: [
@@ -186,8 +215,22 @@ function greeting(): string {
   return 'Good evening';
 }
 
-export default async function DashboardPage() {
-  const data = ADMIN_DEMO_MODE ? DEMO_DATA : await loadData();
+type SearchParams = {
+  searchParams: Promise<{ propertyId?: string; period?: string; from?: string; to?: string }>;
+};
+
+const KNOWN_PERIODS: readonly DashboardPeriod[] = ['this_month', 'last_month', 'ytd', 'custom'];
+
+export default async function DashboardPage({ searchParams }: SearchParams) {
+  const { propertyId, period, from, to } = await searchParams;
+  const resolvedPeriod: DashboardPeriod = (KNOWN_PERIODS as readonly string[]).includes(
+    period ?? '',
+  )
+    ? (period as DashboardPeriod)
+    : 'this_month';
+  const filters = { propertyId: propertyId || undefined, period: resolvedPeriod, from, to };
+
+  const data = ADMIN_DEMO_MODE ? DEMO_DATA : await loadData(filters);
   const monthLabel = new Date().toLocaleDateString('en-ZA', { month: 'long', year: 'numeric' });
   // Real bug found and fixed 2026-08-04: showing the map when data.mappableProperties has entries
   // but no Mapbox token is configured rendered an empty box with a "Live" badge above it --
@@ -289,18 +332,46 @@ export default async function DashboardPage() {
           : 'Add property valuations',
     },
     {
-      label: 'Monthly rental income',
+      label: 'Expected rent',
       value: currency(data.monthlyBilled),
       delta: data.monthlyBilledDelta,
       icon: Banknote,
-      foot: `Billed for ${monthLabel}`,
+      foot: `Billed in ${data.periodLabel}`,
+    },
+    {
+      label: 'Rent collected',
+      value: currency(data.rentCollected),
+      delta: null, // Delta needs a prior-period comparable figure -- same "only for this_month, no filter" honesty rule as monthlyBilledDelta below.
+      icon: CircleCheck,
+      foot: `Received in ${data.periodLabel}`,
     },
     {
       label: 'Outstanding rent',
       value: currency(data.outstandingRent),
       delta: data.outstandingDelta,
       icon: ShieldAlert,
-      foot: 'Invoiced, not yet matched',
+      foot: `Unpaid as of ${data.periodLabel}`,
+    },
+    {
+      label: 'Expenses',
+      value: currency(data.expensesTotal),
+      delta: null,
+      icon: Receipt,
+      foot: `Recorded in ${data.periodLabel}`,
+    },
+    {
+      label: 'Net income',
+      value: currency(data.netIncome),
+      delta: null,
+      icon: TrendingUp,
+      foot: 'Rent collected minus expenses (cash basis)',
+    },
+    {
+      label: 'Payments awaiting confirmation',
+      value: currency(data.paymentsAwaitingConfirmation),
+      delta: null,
+      icon: Clock,
+      foot: 'Tenant-reported, not yet staff-confirmed',
     },
     {
       label: 'Occupancy rate',
@@ -348,11 +419,11 @@ export default async function DashboardPage() {
     <>
       <PageHeader
         title={`${greeting()}${data.displayFirstName ? `, ${data.displayFirstName}` : ''}`}
-        subtitle={`Here's how your portfolio is performing in ${monthLabel}.`}
+        subtitle={`Here's how your portfolio is performing in ${data.periodLabel}.`}
         actions={
           <>
             <span className="flex h-9 items-center rounded-xl border border-border bg-card px-3.5 text-[13px] font-medium text-muted-foreground">
-              {monthLabel}
+              {data.periodLabel}
             </span>
             <Link
               href="/properties/new"
@@ -363,6 +434,17 @@ export default async function DashboardPage() {
           </>
         }
       />
+
+      {/* Property/period filters pass (V1 launch-completion, this date): not shown in demo mode --
+          DEMO_DATA is a fixed fixture, and a functionally-inert filter bar over unfiltered demo
+          numbers would be misleading rather than helpful. */}
+      {!ADMIN_DEMO_MODE ? (
+        <DashboardFiltersBar
+          properties={data.propertyOptions}
+          selectedPropertyId={data.selectedPropertyId}
+          selectedPeriod={data.selectedPeriod}
+        />
+      ) : null}
 
       {data.orgId && data.onboardingProgress && !data.onboardingProgress.allDone ? (
         <GettingStartedChecklist orgId={data.orgId} progress={data.onboardingProgress} />
@@ -666,11 +748,17 @@ function currency(n: number, compact = false): string {
   }).format(n);
 }
 
-async function loadData(): Promise<DashboardData> {
+async function loadData(filters: {
+  propertyId?: string;
+  period: DashboardPeriod;
+  from?: string;
+  to?: string;
+}): Promise<DashboardData> {
   const supabase = await getServerSupabaseClient();
   const now = new Date();
   const in45Days = new Date(now.getTime() + 45 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const todayIso = now.toISOString().slice(0, 10);
+  const periodRange = resolvePeriodRange(filters.period, { from: filters.from, to: filters.to }, now);
 
   // V1 commercial onboarding pass: resolved independently of the RLS-scoped queries below (which
   // never needed an explicit org id at all) purely to drive the getting-started checklist -- a
@@ -701,6 +789,7 @@ async function loadData(): Promise<DashboardData> {
     unitsResult,
     rentSchedulesResult,
     expensesResult,
+    paymentReportsResult,
     maintenanceResult,
     auditResult,
     leasesResult,
@@ -713,7 +802,27 @@ async function loadData(): Promise<DashboardData> {
       .eq('status', 'active'),
     supabase.from('units').select('id, property_id, status'),
     supabase.from('rent_schedules').select('lease_id, due_date, amount, status'),
-    supabase.from('expenses').select('created_at, amount, status'),
+    // expenses carries property_id directly (unlike rent_schedules, which only has lease_id and
+    // needs the lease->unit->property join built below) -- the property filter applies here as a
+    // real server-side .eq(), not an in-memory filter.
+    (() => {
+      let q = supabase.from('expenses').select('created_at, amount, status, property_id');
+      if (filters.propertyId) q = q.eq('property_id', filters.propertyId);
+      return q;
+    })(),
+    // "Payments awaiting confirmation" -- payment_reports.status = 'reported' is the one real,
+    // queryable concept for a tenant-reported-but-not-yet-staff-confirmed payment (same status
+    // lib/ownerSummary.ts's own awaitingConfirmation bucket uses, never folded into rentCollected).
+    (() => {
+      let q = supabase
+        .from('payment_reports')
+        .select('amount, payment_date, property_id')
+        .eq('status', 'reported')
+        .gte('payment_date', periodRange.startIso)
+        .lte('payment_date', periodRange.endIso);
+      if (filters.propertyId) q = q.eq('property_id', filters.propertyId);
+      return q;
+    })(),
     supabase.from('maintenance_tickets').select('id, status').neq('status', 'completed'),
     supabase
       .from('audit_events')
@@ -743,6 +852,8 @@ async function loadData(): Promise<DashboardData> {
     throw new Error(`Failed to load rent schedule: ${rentSchedulesResult.error.message}`);
   if (expensesResult.error)
     throw new Error(`Failed to load expenses: ${expensesResult.error.message}`);
+  if (paymentReportsResult.error)
+    throw new Error(`Failed to load payment reports: ${paymentReportsResult.error.message}`);
   if (maintenanceResult.error)
     throw new Error(`Failed to load maintenance: ${maintenanceResult.error.message}`);
   if (leasesResult.error) throw new Error(`Failed to load leases: ${leasesResult.error.message}`);
@@ -764,16 +875,26 @@ async function loadData(): Promise<DashboardData> {
   const unitPropertyById = new Map(units.map((u) => [u.id, u.property_id]));
   const leaseByUnit = new Map(activeLeases.map((l) => [l.unit_id, l]));
 
+  // rent_schedules has no property_id column (only lease_id) -- the property filter is applied
+  // here in-memory via the same lease->unit->property join loadRecentPayments() already does
+  // below, rather than as a server-side .eq(). Every downstream figure (KPI tiles, the 9-month
+  // trend chart, the collections-mix donut) is derived from scopedRentSchedules, never the raw
+  // rentSchedules array, once a property is selected.
+  const leasePropertyById = new Map(leases.map((l) => [l.id, unitPropertyById.get(l.unit_id)]));
+  const scopedRentSchedules = filters.propertyId
+    ? rentSchedules.filter((r) => leasePropertyById.get(r.lease_id) === filters.propertyId)
+    : rentSchedules;
+
   const billedInMonth = (key: string) =>
-    rentSchedules
+    scopedRentSchedules
       .filter((r) => r.due_date.slice(0, 7) === key)
       .reduce((sum, r) => sum + Number(r.amount), 0);
   const collectedInMonth = (key: string) =>
-    rentSchedules
+    scopedRentSchedules
       .filter((r) => r.status === 'paid' && r.due_date.slice(0, 7) === key)
       .reduce((sum, r) => sum + Number(r.amount), 0);
   const outstandingAsOf = (key: string) =>
-    rentSchedules
+    scopedRentSchedules
       .filter(
         (r) =>
           (r.status === 'invoiced' || r.status === 'overdue' || r.status === 'partial') &&
@@ -781,15 +902,53 @@ async function loadData(): Promise<DashboardData> {
       )
       .reduce((sum, r) => sum + Number(r.amount), 0);
 
-  const monthlyBilled = billedInMonth(thisMonthKey);
-  const monthlyBilledLastMonth = billedInMonth(lastMonthKey);
-  const outstandingRent = outstandingAsOf(thisMonthKey);
-  const outstandingLastMonth = outstandingAsOf(lastMonthKey);
-
   const pctDelta = (curr: number, prev: number): number | null => {
     if (prev === 0) return null; // No honest percentage change to compute from a zero base.
     return Math.round(((curr - prev) / prev) * 1000) / 10;
   };
+
+  // Property/period filters pass (V1 launch-completion, this date): monthlyBilled/outstandingRent
+  // are now scoped to the selected period (periodRange) and property (scopedRentSchedules)
+  // instead of being hardcoded to "this calendar month, whole org." Deltas are only computed in
+  // the exact default view (period=this_month, no property filter) -- the one case with a
+  // well-defined "vs last month" comparable; any other period or property selection shows no
+  // arrow rather than a misleading one (same honesty rule pctDelta's own zero-base case follows).
+  const showDelta = filters.period === 'this_month' && !filters.propertyId;
+  const rentSchedulesInPeriod = scopedRentSchedules.filter(
+    (r) => r.due_date >= periodRange.startIso && r.due_date <= periodRange.endIso,
+  );
+  const rentSchedulesAsOfPeriodEnd = scopedRentSchedules.filter(
+    (r) => r.due_date <= periodRange.endIso,
+  );
+  const expensesInPeriod = expenses.filter(
+    (e) =>
+      e.created_at.slice(0, 10) >= periodRange.startIso &&
+      e.created_at.slice(0, 10) <= periodRange.endIso,
+  );
+  const paymentsAwaitingConfirmationTotal = (paymentReportsResult.data ?? []).reduce(
+    (sum, r) => sum + Number(r.amount),
+    0,
+  );
+
+  const kpis = computeDashboardKpis({
+    rentSchedulesInPeriod: rentSchedulesInPeriod.map((r) => ({
+      dueDate: r.due_date,
+      amount: r.amount,
+      status: r.status,
+    })),
+    rentSchedulesAsOfPeriodEnd: rentSchedulesAsOfPeriodEnd.map((r) => ({
+      dueDate: r.due_date,
+      amount: r.amount,
+      status: r.status,
+    })),
+    expensesInPeriod: expensesInPeriod.map((e) => ({ amount: e.amount, status: e.status })),
+    paymentsAwaitingConfirmation: paymentsAwaitingConfirmationTotal,
+  });
+
+  const monthlyBilled = kpis.expectedRent;
+  const outstandingRent = kpis.outstandingRent;
+  const monthlyBilledLastMonth = showDelta ? billedInMonth(lastMonthKey) : null;
+  const outstandingLastMonth = showDelta ? outstandingAsOf(lastMonthKey) : null;
 
   const revenueSeries = Array.from({ length: 9 }, (_, i) => {
     const d = new Date(now.getFullYear(), now.getMonth() - (8 - i), 1);
@@ -809,7 +968,9 @@ async function loadData(): Promise<DashboardData> {
     };
   });
 
-  const thisMonthSchedules = rentSchedules.filter((r) => r.due_date.slice(0, 7) === thisMonthKey);
+  const thisMonthSchedules = scopedRentSchedules.filter(
+    (r) => r.due_date.slice(0, 7) === thisMonthKey,
+  );
   const thisMonthBilledTotal = thisMonthSchedules.reduce((sum, r) => sum + Number(r.amount), 0);
   const collectionsMix =
     thisMonthBilledTotal > 0
@@ -891,9 +1052,19 @@ async function loadData(): Promise<DashboardData> {
     portfolioValue,
     portfolioValuedCount: valuedProperties.length,
     monthlyBilled,
-    monthlyBilledDelta: pctDelta(monthlyBilled, monthlyBilledLastMonth),
+    monthlyBilledDelta:
+      monthlyBilledLastMonth !== null ? pctDelta(monthlyBilled, monthlyBilledLastMonth) : null,
     outstandingRent,
-    outstandingDelta: pctDelta(outstandingRent, outstandingLastMonth),
+    outstandingDelta:
+      outstandingLastMonth !== null ? pctDelta(outstandingRent, outstandingLastMonth) : null,
+    rentCollected: kpis.rentCollected,
+    expensesTotal: kpis.expensesTotal,
+    netIncome: kpis.netIncome,
+    paymentsAwaitingConfirmation: kpis.paymentsAwaitingConfirmation,
+    periodLabel: periodRange.label,
+    propertyOptions: properties.map((p) => ({ id: p.id, nickname: p.nickname })),
+    selectedPropertyId: filters.propertyId ?? '',
+    selectedPeriod: filters.period,
     openMaintenanceCount: maintenanceResult.data?.length ?? 0,
     expiringLeasesCount: leases.filter(
       (l) =>

@@ -46,6 +46,20 @@ interface ApplicationWhatsAppContext {
   applicationId: string;
   propertyLabel: string;
   applyUrl?: string;
+  /** WhatsApp launch-completion pass (WORKLOG.md 2026-08-27): dispatchWhatsApp()'s own idempotency
+   * key is (relatedEntityType, relatedEntityId, templateName). Every call below defaulted
+   * relatedEntityId to applicationId -- correct for application_approved/application_declined
+   * (an application is decided exactly once, so applicationId-scoped idempotency is exactly what
+   * should suppress a duplicate on retry), but WRONG for application_invitation and
+   * application_documents_requested: a deliberate "Resend invitation" or a genuine second
+   * "request more documents" round for the same application is a real, intended new
+   * communication, not a retry -- and was being silently swallowed as 'already_sent' because it
+   * shared the same applicationId key as the first send. The email side (dispatchEmail call sites)
+   * already avoids this by using a fresh id (the new token's id, or a per-call random id) --
+   * this optional override lets the WhatsApp side match that same, already-correct pattern instead
+   * of inventing a different one. Falls back to applicationId when omitted, preserving the correct
+   * one-shot behaviour for approve/decline. */
+  dispatchId?: string;
 }
 
 async function dispatchIfEligible(
@@ -64,7 +78,7 @@ async function dispatchIfEligible(
     templateName,
     variables,
     relatedEntityType: 'applications',
-    relatedEntityId: ctx.applicationId,
+    relatedEntityId: ctx.dispatchId ?? ctx.applicationId,
     actorUserId: null,
   });
   return { ...result, eligibility };

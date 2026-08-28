@@ -3,6 +3,7 @@ import { propertyUpdateSchema } from '@propvault/validation';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapPropertyRow, requireOrgRole } from '@/lib/portfolio';
 import { getGeocodingProvider } from '@/lib/providers/geocoding';
+import { safeErrorMessage } from '@/lib/safeError';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -34,7 +35,12 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
   const { data, error } = await loadVisibleProperty(supabase, id);
   if (error) {
     return NextResponse.json(
-      { error: { code: 'property_fetch_failed', message: error.message } },
+      {
+        error: {
+          code: 'property_fetch_failed',
+          message: safeErrorMessage(error, 'Could not load this property.', 'properties/[id].fetch'),
+        },
+      },
       { status: 500 },
     );
   }
@@ -64,7 +70,12 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   const { data: existing, error: fetchError } = await loadVisibleProperty(supabase, id);
   if (fetchError) {
     return NextResponse.json(
-      { error: { code: 'property_fetch_failed', message: fetchError.message } },
+      {
+        error: {
+          code: 'property_fetch_failed',
+          message: safeErrorMessage(fetchError, 'Could not load this property.', 'properties/[id].fetchBeforeWrite'),
+        },
+      },
       { status: 500 },
     );
   }
@@ -139,7 +150,16 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
   if (error) {
     return NextResponse.json(
-      { error: { code: 'property_update_failed', message: error.message } },
+      {
+        error: {
+          code: 'property_update_failed',
+          message: safeErrorMessage(
+            error,
+            'Could not update this property. Please try again, or contact support if this continues.',
+            'properties/[id].update',
+          ),
+        },
+      },
       { status: 500 },
     );
   }
@@ -193,7 +213,12 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
   const { data: existing, error: fetchError } = await loadVisibleProperty(supabase, id);
   if (fetchError) {
     return NextResponse.json(
-      { error: { code: 'property_fetch_failed', message: fetchError.message } },
+      {
+        error: {
+          code: 'property_fetch_failed',
+          message: safeErrorMessage(fetchError, 'Could not load this property.', 'properties/[id].fetchBeforeWrite'),
+        },
+      },
       { status: 500 },
     );
   }
@@ -226,7 +251,16 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
 
   if (error) {
     return NextResponse.json(
-      { error: { code: 'property_archive_failed', message: error.message } },
+      {
+        error: {
+          code: 'property_archive_failed',
+          message: safeErrorMessage(
+            error,
+            'Could not archive this property. Please try again, or contact support if this continues.',
+            'properties/[id].archive',
+          ),
+        },
+      },
       { status: 500 },
     );
   }

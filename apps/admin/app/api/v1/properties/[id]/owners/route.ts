@@ -3,6 +3,7 @@ import { propertyOwnerAttachSchema } from '@propvault/validation';
 import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { requireOrgRole } from '@/lib/portfolio';
 import { writeAuditEvent } from '@/lib/audit';
+import { safeErrorMessage } from '@/lib/safeError';
 
 // Sibling of properties/[id]/route.ts and properties/[id]/units/route.ts — same `[id]`-not-
 // `[propId]` naming constraint applies (Next.js requires one slug name per path level).
@@ -38,7 +39,12 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
   const { data: property, error: fetchError } = await loadVisibleProperty(supabase, propertyId);
   if (fetchError) {
     return NextResponse.json(
-      { error: { code: 'property_fetch_failed', message: fetchError.message } },
+      {
+        error: {
+          code: 'property_fetch_failed',
+          message: safeErrorMessage(fetchError, 'Could not load this property.', 'propertyOwners.fetchProperty'),
+        },
+      },
       { status: 500 },
     );
   }
@@ -58,7 +64,12 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 
   if (error) {
     return NextResponse.json(
-      { error: { code: 'property_owners_list_failed', message: error.message } },
+      {
+        error: {
+          code: 'property_owners_list_failed',
+          message: safeErrorMessage(error, 'Could not load owners for this property.', 'propertyOwners.list'),
+        },
+      },
       { status: 500 },
     );
   }
@@ -113,7 +124,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   const { data: property, error: fetchError } = await loadVisibleProperty(supabase, propertyId);
   if (fetchError) {
     return NextResponse.json(
-      { error: { code: 'property_fetch_failed', message: fetchError.message } },
+      {
+        error: {
+          code: 'property_fetch_failed',
+          message: safeErrorMessage(fetchError, 'Could not load this property.', 'propertyOwners.fetchProperty'),
+        },
+      },
       { status: 500 },
     );
   }
@@ -174,7 +190,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
   if (ownerFetchError) {
     return NextResponse.json(
-      { error: { code: 'owner_fetch_failed', message: ownerFetchError.message } },
+      {
+        error: {
+          code: 'owner_fetch_failed',
+          message: safeErrorMessage(ownerFetchError, 'Could not load this owner.', 'propertyOwners.fetchOwner'),
+        },
+      },
       { status: 500 },
     );
   }
@@ -223,7 +244,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
   if (error) {
     return NextResponse.json(
-      { error: { code: 'property_owner_attach_failed', message: error.message } },
+      {
+        error: {
+          code: 'property_owner_attach_failed',
+          message: safeErrorMessage(
+            error,
+            'Could not add this owner to the property. Please try again, or contact support if this continues.',
+            'propertyOwners.attach',
+          ),
+        },
+      },
       { status: 500 },
     );
   }

@@ -6,6 +6,8 @@ import { resolveTenantSession } from '@/lib/tenantSession';
 import { scanUploadOrRespond } from '@/lib/uploadScan';
 import { writeAuditEvent } from '@/lib/audit';
 import { notifyOwnersOfPaymentReport, mapPaymentReportRow } from '@/lib/paymentReports';
+import { notifyPropertyStaff } from '@/lib/notify';
+import { safeErrorMessage } from '@/lib/safeError';
 
 const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024; // matches /api/v1/documents' own limit
 
@@ -139,7 +141,12 @@ export async function POST(request: NextRequest) {
       .upload(storagePath, buffer, { contentType: file.type, upsert: false });
     if (uploadError) {
       return NextResponse.json(
-        { error: { code: 'storage_upload_failed', message: uploadError.message } },
+        {
+          error: {
+            code: 'storage_upload_failed',
+            message: safeErrorMessage(uploadError, 'Could not upload your proof of payment.', 'tenantPortal.paymentReports.upload'),
+          },
+        },
         { status: 500 },
       );
     }
@@ -174,7 +181,12 @@ export async function POST(request: NextRequest) {
       await serviceClient.storage.from('documents').remove([storagePath]);
       return NextResponse.json(
         {
-          error: { code: 'document_create_failed', message: docError?.message ?? 'Upload failed.' },
+          error: {
+            code: 'document_create_failed',
+            message: docError
+              ? safeErrorMessage(docError, 'Could not save your proof of payment.', 'tenantPortal.paymentReports.documentCreate')
+              : 'Could not save your proof of payment.',
+          },
         },
         { status: 500 },
       );
@@ -205,7 +217,16 @@ export async function POST(request: NextRequest) {
   if (reportError || !report) {
     return NextResponse.json(
       {
-        error: { code: 'payment_report_create_failed', message: reportError?.message ?? 'Failed.' },
+        error: {
+          code: 'payment_report_create_failed',
+          message: reportError
+            ? safeErrorMessage(
+                reportError,
+                'Could not submit your payment report. Please try again, or contact your property manager if this continues.',
+                'tenantPortal.paymentReports.create',
+              )
+            : 'Could not submit your payment report. Please try again, or contact your property manager if this continues.',
+        },
       },
       { status: 500 },
     );
@@ -232,6 +253,21 @@ export async function POST(request: NextRequest) {
     tenantId: session.tenantId,
     paymentMethod,
     paymentDate,
+  });
+
+  // V1 launch-completion pass (WORKLOG.md this date): notify property staff (agent+) that a
+  // payment report is awaiting their confirm/reject decision (POST
+  // /api/v1/payment-reports/:id/{confirm,reject}). Fail-soft and after the primary insert has
+  // already succeeded, so it can never affect this route's success response. No excludeUserId --
+  // the actor is a tenant, never a staff member.
+  await notifyPropertyStaff(serviceClient, {
+    orgId: session.orgId,
+    propertyId: session.propertyId,
+    type: 'payment_awaiting_confirmation',
+    title: 'Payment awaiting confirmation',
+    body: `A tenant reported a ${new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(amount)} payment (${paymentMethod}) that needs review.`,
+    relatedEntityType: 'payment_report',
+    relatedEntityId: report.id,
   });
 
   // Android V1 commercial-launch pass (WORKLOG.md this date): was the raw snake_case insert

@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { createConfirmedTestUser } from './fixtures/testUser';
 import { generateTotpCode } from './fixtures/totp';
 import { completeLegalConsentAndProfile } from './fixtures/onboarding';
+import { createCommerciallyReadyOrganization } from './fixtures/orgWorkflow';
 import { BASE_URL } from '../playwright.config';
 
 // Real coverage for Stage 7's auth security work (commercial-launch execution plan,
@@ -55,14 +56,9 @@ test('a user can enroll TOTP MFA, then sign in with a real generated code', asyn
   // anything else, or the very next navigation would be gated to /legal-consent instead.
   await completeLegalConsentAndProfile(page.request);
 
-  // /settings lives under the (dashboard) route group, which requires an active org membership
-  // (redirects to onboarding otherwise, same check signup-and-onboarding.spec.ts's own account
-  // goes through) -- a brand-new account has none yet, so one is created first.
-  await page.goto('/onboarding/create-organization');
-  await page.waitForLoadState('networkidle');
-  await page.locator('input[autocomplete="organization"]').fill(`E2E MFA Test Org ${Date.now()}`);
-  await page.getByRole('button', { name: /create organization/i }).click();
-  await page.waitForURL(/\/dashboard/, { timeout: 30_000 });
+  // This test targets MFA, not commercial onboarding. Give its synthetic organization the same
+  // ready state the real PayFast completion webhook records, using the shared sanctioned fixture.
+  await createCommerciallyReadyOrganization(page.request, `E2E MFA Test Org ${Date.now()}`);
 
   await page.goto('/settings');
   await page.waitForLoadState('networkidle');

@@ -8,6 +8,11 @@ import {
   buildMaintenanceRequestUpdateVariables,
   buildLeaseExpiryReminderVariables,
   buildOwnerMonthlyPropertySummaryVariables,
+  buildApplicationInvitationVariables,
+  buildApplicationDocumentsRequestedVariables,
+  buildApplicationApprovedVariables,
+  buildApplicationDeclinedVariables,
+  buildLeaseReadyVariables,
 } from '../whatsappTemplateVariables';
 import { WHATSAPP_TEMPLATE_REGISTRY, isKnownWhatsAppTemplate } from '../whatsappTemplates';
 
@@ -164,6 +169,60 @@ describe('WhatsApp template variable builders -- exact order matches the real ap
   });
 });
 
+// WhatsApp launch-completion pass, variable-structure reconciliation (WORKLOG.md 2026-08-27):
+// Mohammed supplied the real approved Meta template documents for all 13 templates.
+// application_invitation and application_documents_requested were already correct
+// (organizationName, propertyLabel, url). application_approved/application_declined/lease_ready
+// were NOT -- their real approved bodies lead with the property/unit label, then the organisation
+// name, the reverse of what these builders returned before this pass. Fixed in
+// whatsappTemplateVariables.ts; these assertions now match the real Meta body text exactly, not
+// just this codebase's own internal consistency -- variableCountVerified is true in the registry
+// as of this pass on that basis.
+describe('applicant/lease WhatsApp template variable builders -- verified against the real approved Meta template text', () => {
+  it('application_invitation: organizationName, propertyLabel, applyUrl (3) -- "invited by {{1}} to apply for {{2}}... {{3}}"', () => {
+    const result = buildApplicationInvitationVariables({
+      organizationName: 'Acme Rentals',
+      propertyLabel: 'Property A — Unit 1',
+      applyUrl: 'https://x/apply/token',
+    });
+    expect(Object.keys(result)).toEqual(['organizationName', 'propertyLabel', 'applyUrl']);
+  });
+
+  it('application_documents_requested: organizationName, propertyLabel, applyUrl (3) -- "with {{1}} at {{2}}... {{3}}"', () => {
+    const result = buildApplicationDocumentsRequestedVariables({
+      organizationName: 'Acme Rentals',
+      propertyLabel: 'Property A — Unit 1',
+      applyUrl: 'https://x/apply/token',
+    });
+    expect(Object.keys(result)).toEqual(['organizationName', 'propertyLabel', 'applyUrl']);
+  });
+
+  it('application_approved: propertyLabel, organizationName (2) -- "application for {{1}} has been approved by {{2}}"', () => {
+    const result = buildApplicationApprovedVariables({
+      propertyLabel: 'Property A — Unit 1',
+      organizationName: 'Acme Rentals',
+    });
+    expect(Object.keys(result)).toEqual(['propertyLabel', 'organizationName']);
+  });
+
+  it('application_declined: propertyLabel, organizationName (2) -- "application for {{1}} through {{2}}"', () => {
+    const result = buildApplicationDeclinedVariables({
+      propertyLabel: 'Property A — Unit 1',
+      organizationName: 'Acme Rentals',
+    });
+    expect(Object.keys(result)).toEqual(['propertyLabel', 'organizationName']);
+  });
+
+  it('lease_ready: propertyLabel, organizationName, leaseUrl (3) -- "lease for {{1}} is ready for review from {{2}}... {{3}}"', () => {
+    const result = buildLeaseReadyVariables({
+      propertyLabel: 'Property A — Unit 1',
+      organizationName: 'Acme Rentals',
+      leaseUrl: 'https://x/my-lease',
+    });
+    expect(Object.keys(result)).toEqual(['propertyLabel', 'organizationName', 'leaseUrl']);
+  });
+});
+
 describe("builder output count matches the registry's own expectedVariableCount, for every template", () => {
   it.each([
     [
@@ -247,6 +306,26 @@ describe("builder output count matches the registry's own expectedVariableCount,
         upcomingLeaseExpiries: 'h',
         reportUrl: 'i',
       }),
+    ],
+    [
+      'application_invitation',
+      buildApplicationInvitationVariables({ organizationName: 'a', propertyLabel: 'b', applyUrl: 'c' }),
+    ],
+    [
+      'application_documents_requested',
+      buildApplicationDocumentsRequestedVariables({ organizationName: 'a', propertyLabel: 'b', applyUrl: 'c' }),
+    ],
+    [
+      'application_approved',
+      buildApplicationApprovedVariables({ organizationName: 'a', propertyLabel: 'b' }),
+    ],
+    [
+      'application_declined',
+      buildApplicationDeclinedVariables({ organizationName: 'a', propertyLabel: 'b' }),
+    ],
+    [
+      'lease_ready',
+      buildLeaseReadyVariables({ organizationName: 'a', propertyLabel: 'b', leaseUrl: 'c' }),
     ],
   ] as [string, Record<string, string>][])(
     '%s builder output length matches WHATSAPP_TEMPLATE_REGISTRY.expectedVariableCount',

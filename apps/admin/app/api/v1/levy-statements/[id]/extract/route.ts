@@ -5,6 +5,7 @@ import { canUseOcr } from '@/lib/subscriptionEntitlements';
 import { getDocumentIntelligenceProvider } from '@/lib/providers/documentIntelligence';
 import { parseLevyStatementLineItems } from '@/lib/levyStatementParsing';
 import { writeAuditEvent } from '@/lib/audit';
+import { safeErrorMessage } from '@/lib/safeError';
 
 const SIGNED_URL_TTL_SECONDS = 300; // matches GET /api/v1/documents/:id and .../documents/:id/extract
 
@@ -97,7 +98,16 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     .single();
   if (jobError) {
     return NextResponse.json(
-      { error: { code: 'extraction_job_create_failed', message: jobError.message } },
+      {
+        error: {
+          code: 'extraction_job_create_failed',
+          message: safeErrorMessage(
+            jobError,
+            'Could not start scanning this levy statement. Please try again, or contact support if this continues.',
+            `extraction_jobs.create(${id})`,
+          ),
+        },
+      },
       { status: 500 },
     );
   }

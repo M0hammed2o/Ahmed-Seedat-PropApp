@@ -9,6 +9,7 @@ import { buildTenantAccountInvitationVariables } from '@/lib/whatsappTemplateVar
 import { rateLimitOrRespond } from '@/lib/rateLimit';
 import { writeAuditEvent } from '@/lib/audit';
 import { getAppUrl } from '@/lib/appUrl';
+import { safeErrorMessage } from '@/lib/safeError';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -43,7 +44,16 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     .order('created_at', { ascending: false });
   if (error) {
     return NextResponse.json(
-      { error: { code: 'tenant_invitations_fetch_failed', message: error.message } },
+      {
+        error: {
+          code: 'tenant_invitations_fetch_failed',
+          message: safeErrorMessage(
+            error,
+            'Could not load invitations for this tenant. Please try again, or contact support if this continues.',
+            `tenant_invitations.fetch(${id})`,
+          ),
+        },
+      },
       { status: 500 },
     );
   }
@@ -74,7 +84,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     .maybeSingle();
   if (tenantError) {
     return NextResponse.json(
-      { error: { code: 'tenant_fetch_failed', message: tenantError.message } },
+      {
+        error: {
+          code: 'tenant_fetch_failed',
+          message: safeErrorMessage(
+            tenantError,
+            'Could not load this tenant. Please try again, or contact support if this continues.',
+            `tenants.fetch(${id})`,
+          ),
+        },
+      },
       { status: 500 },
     );
   }
@@ -143,7 +162,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   });
   if (rpcError) {
     return NextResponse.json(
-      { error: { code: 'tenant_invitation_create_failed', message: rpcError.message } },
+      {
+        error: {
+          code: 'tenant_invitation_create_failed',
+          message: safeErrorMessage(
+            rpcError,
+            'Could not create an invitation for this tenant. Please try again, or contact support if this continues.',
+            `create_tenant_invitation(${id})`,
+          ),
+        },
+      },
       { status: 500 },
     );
   }

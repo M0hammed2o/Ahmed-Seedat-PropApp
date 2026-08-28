@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { phoneVerificationRevokeSchema } from '@propvault/validation';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { safeErrorMessage } from '@/lib/safeError';
 
 /**
  * POST /api/v1/phone-verification/revoke -- WhatsApp V1 completion pass, Phase F. Thin wrapper
@@ -53,7 +54,16 @@ export async function POST(request: NextRequest) {
     .single();
   if (rpcError) {
     return NextResponse.json(
-      { error: { code: 'phone_verification_revoke_failed', message: rpcError.message } },
+      {
+        error: {
+          code: 'phone_verification_revoke_failed',
+          message: safeErrorMessage(
+            rpcError,
+            'Could not revoke this phone number. Please try again, or contact support if this continues.',
+            'revoke_verified_phone_number',
+          ),
+        },
+      },
       { status: 500 },
     );
   }

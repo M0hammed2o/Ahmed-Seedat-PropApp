@@ -7,6 +7,7 @@ import { dispatchEmail } from '@/lib/emailDispatch';
 import { dispatchWhatsApp, resolvePropertyLabel } from '@/lib/whatsappDispatch';
 import { buildMaintenanceRequestUpdateVariables } from '@/lib/whatsappTemplateVariables';
 import { getAppUrl } from '@/lib/appUrl';
+import { safeErrorMessage } from '@/lib/safeError';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -33,7 +34,12 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
   const { data, error } = await loadVisibleTicket(supabase, id);
   if (error) {
     return NextResponse.json(
-      { error: { code: 'maintenance_ticket_fetch_failed', message: error.message } },
+      {
+        error: {
+          code: 'maintenance_ticket_fetch_failed',
+          message: safeErrorMessage(error, 'Could not load this maintenance ticket.', 'maintenanceTickets.get'),
+        },
+      },
       { status: 500 },
     );
   }
@@ -69,7 +75,12 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   const { data: existing, error: fetchError } = await loadVisibleTicket(supabase, id);
   if (fetchError) {
     return NextResponse.json(
-      { error: { code: 'maintenance_ticket_fetch_failed', message: fetchError.message } },
+      {
+        error: {
+          code: 'maintenance_ticket_fetch_failed',
+          message: safeErrorMessage(fetchError, 'Could not load this maintenance ticket.', 'maintenanceTickets.update.fetch'),
+        },
+      },
       { status: 500 },
     );
   }
@@ -160,7 +171,16 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       );
     }
     return NextResponse.json(
-      { error: { code: 'maintenance_ticket_update_failed', message: error.message } },
+      {
+        error: {
+          code: 'maintenance_ticket_update_failed',
+          message: safeErrorMessage(
+            error,
+            'Could not update this maintenance ticket. Please try again, or contact support if this continues.',
+            'maintenanceTickets.update',
+          ),
+        },
+      },
       { status: 500 },
     );
   }

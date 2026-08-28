@@ -36,9 +36,11 @@ const MONTH_NAMES = [
 export function PropertyDocumentFolders({
   documents,
   categoryLabelById,
+  propertyId,
 }: {
   documents: DocumentForFolders[];
   categoryLabelById: Map<string, string>;
+  propertyId: string;
 }) {
   const byCategory = new Map<string, DocumentForFolders[]>();
   for (const doc of documents) {
@@ -69,7 +71,7 @@ export function PropertyDocumentFolders({
         ))}
       </div>
       <Link
-        href="/documents"
+        href={`/documents?propertyId=${propertyId}`}
         className="mt-4 inline-block text-[12px] font-medium text-primary hover:underline"
       >
         View all documents →

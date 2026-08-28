@@ -1,7 +1,7 @@
 import { redirect, notFound } from 'next/navigation';
 import { headers } from 'next/headers';
 import type { Metadata } from 'next';
-import { LayoutDashboard, Users, CreditCard, ScanLine, Activity, Mail } from 'lucide-react';
+import { LayoutDashboard, Users, CreditCard, ScanLine, Activity, Mail, Gift } from 'lucide-react';
 import { branding } from '@propvault/config';
 import { getAdminGateStatus } from '@/lib/auth';
 import { resolveAuthenticatedDestination } from '@/lib/destinationResolver';
@@ -36,6 +36,7 @@ const NAV_SECTIONS: NavSection[] = [
         icon: navIcon(CreditCard),
       },
       { href: '/platform-admin/processing', label: 'Processing', icon: navIcon(ScanLine) },
+      { href: '/platform-admin/referrals', label: 'Referrals', icon: navIcon(Gift) },
       { href: '/platform-admin/system', label: 'System', icon: navIcon(Activity) },
       {
         href: '/platform-admin/email-preview',

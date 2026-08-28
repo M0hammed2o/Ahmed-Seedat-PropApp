@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapDocumentRow } from '@/lib/documents';
+import { safeErrorMessage } from '@/lib/safeError';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -28,7 +29,16 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
   const { data, error } = await supabase.from('documents').select('*').eq('id', id).maybeSingle();
   if (error) {
     return NextResponse.json(
-      { error: { code: 'document_fetch_failed', message: error.message } },
+      {
+        error: {
+          code: 'document_fetch_failed',
+          message: safeErrorMessage(
+            error,
+            'Could not load this document. Please try again, or contact support if this continues.',
+            `documents.fetch(${id})`,
+          ),
+        },
+      },
       { status: 500 },
     );
   }
@@ -44,7 +54,16 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     .createSignedUrl(data.storage_path, SIGNED_URL_TTL_SECONDS);
   if (signError) {
     return NextResponse.json(
-      { error: { code: 'signed_url_failed', message: signError.message } },
+      {
+        error: {
+          code: 'signed_url_failed',
+          message: safeErrorMessage(
+            signError,
+            'Could not generate a download link for this document. Please try again, or contact support if this continues.',
+            `documents.createSignedUrl(${id})`,
+          ),
+        },
+      },
       { status: 500 },
     );
   }

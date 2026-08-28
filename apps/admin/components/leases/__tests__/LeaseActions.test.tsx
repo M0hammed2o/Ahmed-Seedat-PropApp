@@ -30,6 +30,7 @@ describe('LeaseActions', () => {
         status="draft"
         hasTenant={false}
         canEdit={false}
+        source="application_approved"
       />,
     );
     expect(container.firstChild).toBeNull();
@@ -37,7 +38,14 @@ describe('LeaseActions', () => {
 
   it('shows the tenant-assign panel and a disabled Activate button for a draft lease with no tenant', () => {
     render(
-      <LeaseActions leaseId="lease-1" orgId="org-1" status="draft" hasTenant={false} canEdit />,
+      <LeaseActions
+        leaseId="lease-1"
+        orgId="org-1"
+        status="draft"
+        hasTenant={false}
+        canEdit
+        source="application_approved"
+      />,
     );
     expect(screen.getByText('Assign tenant')).toBeTruthy();
     const activateButton = screen.getByRole('button', {
@@ -50,7 +58,16 @@ describe('LeaseActions', () => {
   });
 
   it('hides the tenant-assign panel and enables Activate for a draft lease that already has a tenant', () => {
-    render(<LeaseActions leaseId="lease-1" orgId="org-1" status="draft" hasTenant canEdit />);
+    render(
+      <LeaseActions
+        leaseId="lease-1"
+        orgId="org-1"
+        status="draft"
+        hasTenant
+        canEdit
+        source="application_approved"
+      />,
+    );
     expect(screen.queryByText('Assign tenant')).toBeNull();
     const activateButton = screen.getByRole('button', {
       name: 'Activate lease',
@@ -59,7 +76,16 @@ describe('LeaseActions', () => {
   });
 
   it('shows "Mark expired" and "Terminate" for an active lease, never the tenant-assign panel or Activate', () => {
-    render(<LeaseActions leaseId="lease-1" orgId="org-1" status="active" hasTenant canEdit />);
+    render(
+      <LeaseActions
+        leaseId="lease-1"
+        orgId="org-1"
+        status="active"
+        hasTenant
+        canEdit
+        source="application_approved"
+      />,
+    );
     expect(screen.getByText('Mark expired')).toBeTruthy();
     expect(screen.getByText('Terminate')).toBeTruthy();
     expect(screen.queryByText('Activate lease')).toBeNull();
@@ -68,8 +94,43 @@ describe('LeaseActions', () => {
 
   it('renders nothing for an already-ended lease (expired/terminated) -- no transitions left', () => {
     const { container } = render(
-      <LeaseActions leaseId="lease-1" orgId="org-1" status="terminated" hasTenant canEdit />,
+      <LeaseActions
+        leaseId="lease-1"
+        orgId="org-1"
+        status="terminated"
+        hasTenant
+        canEdit
+        source="application_approved"
+      />,
     );
     expect(container.firstChild).toBeNull();
+  });
+
+  it('V1 launch-completion pass: shows a signed-document upload panel (not the tenant-assign/Prepare workflow) for a manual draft lease -- no re-signature path', () => {
+    render(
+      <LeaseActions
+        leaseId="lease-1"
+        orgId="org-1"
+        status="draft"
+        hasTenant
+        canEdit
+        source="manual"
+      />,
+    );
+    expect(screen.getByText('Signed lease document')).toBeTruthy();
+  });
+
+  it('does not show the signed-document panel for an application-approved draft lease -- that flow goes through Prepare/Send instead', () => {
+    render(
+      <LeaseActions
+        leaseId="lease-1"
+        orgId="org-1"
+        status="draft"
+        hasTenant
+        canEdit
+        source="application_approved"
+      />,
+    );
+    expect(screen.queryByText('Signed lease document')).toBeNull();
   });
 });

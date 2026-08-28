@@ -5,6 +5,7 @@ import { requireOrgRole } from '@/lib/portfolio';
 import { mapApplicationRow } from '@/lib/leasing';
 import { parseListQuery, encodeCursor, beforeCursorFilter } from '@/lib/cursorPagination';
 import { writeAuditEvent } from '@/lib/audit';
+import { safeErrorMessage } from '@/lib/safeError';
 
 /** GET/POST /api/v1/applications (API_SPEC.md §4, TASKS.md M9). Same shape as owners/tenants. */
 export async function GET(request: NextRequest) {
@@ -40,7 +41,12 @@ export async function GET(request: NextRequest) {
   const { data, error } = await query;
   if (error) {
     return NextResponse.json(
-      { error: { code: 'applications_list_failed', message: error.message } },
+      {
+        error: {
+          code: 'applications_list_failed',
+          message: safeErrorMessage(error, 'Could not load applications.', 'applications.list'),
+        },
+      },
       { status: 500 },
     );
   }
@@ -121,7 +127,16 @@ export async function POST(request: NextRequest) {
 
   if (error) {
     return NextResponse.json(
-      { error: { code: 'application_create_failed', message: error.message } },
+      {
+        error: {
+          code: 'application_create_failed',
+          message: safeErrorMessage(
+            error,
+            'Could not create this application. Please try again, or contact support if this continues.',
+            'applications.create',
+          ),
+        },
+      },
       { status: 500 },
     );
   }
@@ -136,14 +151,15 @@ export async function POST(request: NextRequest) {
     after: { unitId: parsed.data.unitId, selfService: Boolean(parsed.data.selfService) },
   });
 
-  if (parsed.data.selfService) {
-    // Best-effort: the application itself was created successfully either way -- a seeding
-    // failure here shouldn't block the response, since staff can still open the application and
-    // the applicant-intake page tolerates zero requirements (nothing to upload yet, not an error).
-    await supabase.rpc('seed_default_application_document_requirements', {
-      p_application_id: data.id,
-    });
-  }
+  // Launch-hardening pass (WORKLOG.md 2026-08-26), Section 2: seeded unconditionally, not just
+  // for selfService: true. Any application created through the real product UI (which never sets
+  // selfService at all -- see ApplicationForm.tsx) can still be invited afterwards via the
+  // now-wired "Invite applicant" action, and an invited applicant with zero seeded requirements
+  // would land in the portal with nothing to upload. Best-effort: the application itself was
+  // created successfully either way -- a seeding failure here shouldn't block the response.
+  await supabase.rpc('seed_default_application_document_requirements', {
+    p_application_id: data.id,
+  });
 
   return NextResponse.json({ application: mapApplicationRow(data) }, { status: 201 });
 }

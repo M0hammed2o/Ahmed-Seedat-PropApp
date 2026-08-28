@@ -16,7 +16,7 @@ const SUPABASE_URL = 'http://127.0.0.1:54321';
 // service-role key the other fixtures in this file already use for admin-API test setup
 // (testUser.ts) -- the same "seed via API, test everything after via real UI/API" boundary, not a
 // new kind of shortcut.
-async function activateTrialForTests(orgId: string): Promise<void> {
+export async function activateTrialForTests(orgId: string): Promise<void> {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!serviceRoleKey) {
     throw new Error('SUPABASE_SERVICE_ROLE_KEY is not set -- cannot activate trial for E2E setup.');
@@ -36,6 +36,23 @@ async function activateTrialForTests(orgId: string): Promise<void> {
   }
 }
 
+/** Creates an organization through the real API, then gives that synthetic E2E organization the
+ * same commercially-ready state that the real PayFast completion webhook records in production. */
+export async function createCommerciallyReadyOrganization(
+  request: APIRequestContext,
+  legalName: string,
+): Promise<string> {
+  const orgResponse = await request.post('/api/v1/organizations', {
+    headers: { Origin: BASE_URL },
+    data: { legalName, orgType: 'agency' },
+  });
+  expect(orgResponse.ok()).toBe(true);
+  const org = (await orgResponse.json()) as { id: string };
+
+  await activateTrialForTests(org.id);
+  return org.id;
+}
+
 // Shared setup for the property/lease workflow E2E specs (workflow-integration pass,
 // WORKLOG.md this date). Every one of these calls goes through the real API (not a direct
 // Supabase client), same posture as onboarding.spec.ts -- exercises the real
@@ -46,12 +63,34 @@ export interface WorkflowOrg {
   orgId: string;
 }
 
+/** POST /api/v1/auth/signin is rate-limited at 10 attempts per 60s per-IP (packages/config's
+ * RATE_LIMITS.loginAttemptsPerMinute, a real, intentional security control -- SECURITY.md's
+ * credential-stuffing mitigation, never to be weakened for test convenience). This fixture is
+ * called by nearly every spec in this suite; a full one-worker sequential run legitimately does
+ * enough real password sign-ins from this machine's single local IP to occasionally cross that
+ * real limit within its fixed 60s window -- reproduced live (v1 pre-deployment closeout,
+ * WORKLOG.md this date): property-compliance-workflow.spec.ts's setUpOrg() calls got a real 429
+ * partway through a full-suite run, never in isolation. The fix is the same one any correctly-
+ * behaving rate-limited HTTP client uses -- back off and retry -- not raising or bypassing the
+ * limit itself; check_rate_limit()'s fixed window means a retry after the window's remaining time
+ * always succeeds once the count resets to 1. */
 async function signIn(request: APIRequestContext, email: string, password: string) {
-  const response = await request.post('/api/v1/auth/signin', {
-    headers: { Origin: BASE_URL },
-    data: { email, password },
-  });
-  expect(response.ok()).toBe(true);
+  const maxAttempts = 5;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const response = await request.post('/api/v1/auth/signin', {
+      headers: { Origin: BASE_URL },
+      data: { email, password },
+    });
+    if (response.status() !== 429) {
+      expect(response.ok()).toBe(true);
+      return;
+    }
+    if (attempt === maxAttempts) {
+      expect(response.ok()).toBe(true);
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 15_000));
+  }
 }
 
 /** Creates a confirmed user, completes consent/profile, and creates a fresh organization -- the
@@ -61,16 +100,12 @@ export async function setUpOrg(request: APIRequestContext, label: string): Promi
   await signIn(request, user.email, user.password);
   await completeLegalConsentAndProfile(request);
 
-  const orgResponse = await request.post('/api/v1/organizations', {
-    headers: { Origin: BASE_URL },
-    data: { legalName: `E2E ${label} Org ${Date.now()}`, orgType: 'agency' },
-  });
-  expect(orgResponse.ok()).toBe(true);
-  const org = await orgResponse.json();
+  const orgId = await createCommerciallyReadyOrganization(
+    request,
+    `E2E ${label} Org ${Date.now()}`,
+  );
 
-  await activateTrialForTests(org.id as string);
-
-  return { user, orgId: org.id as string };
+  return { user, orgId };
 }
 
 export async function createProperty(

@@ -23,6 +23,7 @@ import {
   formatSummaryMonthLabel,
 } from './ownerSummary';
 import { reconcilePortfolioInsights } from './portfolioIntelligence';
+import { notifyPropertyStaff } from './notify';
 
 /**
  * Daily system-job consolidation (WORKLOG.md this date). The ONE place each scheduled job's real
@@ -401,6 +402,36 @@ async function resolvePrimaryTenantContact(
   return { phone: tenant.phone, userId: tenant.user_id, fullName: tenant.full_name };
 }
 
+// V1 launch-completion pass (WORKLOG.md this date): the overdue/expiring RPC rows below
+// (rent_schedules_overdue_unreminded/leases_expiring_unreminded) carry lease_id/unit_id but not
+// property_id directly -- resolvePropertyLabelForLease/resolvePropertyLabelForUnit (whatsappDispatch.ts)
+// already do the same join for a display label; these two mirror that join to get the raw
+// property_id needed for notifyPropertyStaff()'s property_access scoping.
+async function resolvePropertyIdForLease(
+  serviceClient: SupabaseClient,
+  leaseId: string,
+): Promise<string | null> {
+  const { data } = await serviceClient
+    .from('leases')
+    .select('units(property_id)')
+    .eq('id', leaseId)
+    .maybeSingle();
+  const unit = (data as unknown as { units: { property_id: string } | null } | null)?.units;
+  return unit?.property_id ?? null;
+}
+
+async function resolvePropertyIdForUnit(
+  serviceClient: SupabaseClient,
+  unitId: string,
+): Promise<string | null> {
+  const { data } = await serviceClient
+    .from('units')
+    .select('property_id')
+    .eq('id', unitId)
+    .maybeSingle();
+  return (data as { property_id: string } | null)?.property_id ?? null;
+}
+
 export async function runPaymentAndLeaseReminderJob(
   serviceClient: SupabaseClient,
 ): Promise<PaymentAndLeaseReminderJobResult> {
@@ -480,6 +511,20 @@ export async function runPaymentAndLeaseReminderJob(
         relatedEntityId: row.id,
         actorUserId: null,
       });
+
+      // Notify property staff (agent+) alongside the tenant's WhatsApp notice -- reuses this same
+      // per-row iteration over rent_schedules_overdue_unreminded() (only unreminded rows) as its
+      // "don't spam every cron run" guard, exactly like the WhatsApp send above; both are stamped
+      // by the single overdue_notice_sent_at update below, so this fires at most once per schedule.
+      await notifyPropertyStaff(serviceClient, {
+        orgId: row.org_id,
+        propertyId: await resolvePropertyIdForLease(serviceClient, row.lease_id),
+        type: 'rent_overdue',
+        title: 'Rent overdue',
+        body: `${tenant?.fullName ?? 'A tenant'} at ${propertyLabel} has overdue rent for ${formatPaymentPeriod(row.due_date)}.`,
+        relatedEntityType: 'rent_schedule',
+        relatedEntityId: row.id,
+      });
     } catch (err) {
       console.error('[whatsappDispatch] rent_overdue_notice dispatch failed', err);
     }
@@ -511,6 +556,19 @@ export async function runPaymentAndLeaseReminderJob(
         relatedEntityType: 'lease:expiry_reminder',
         relatedEntityId: row.id,
         actorUserId: null,
+      });
+
+      // Notify property staff (agent+) alongside the tenant's WhatsApp reminder -- reuses this
+      // same per-row iteration over leases_expiring_unreminded() (only unreminded rows) as its
+      // "don't spam every cron run" guard, stamped once by expiry_reminder_sent_at below.
+      await notifyPropertyStaff(serviceClient, {
+        orgId: row.org_id,
+        propertyId: await resolvePropertyIdForUnit(serviceClient, row.unit_id),
+        type: 'lease_expiring',
+        title: 'Lease expiring soon',
+        body: `${tenant?.fullName ?? 'A tenant'}'s lease at ${propertyLabel} expires on ${new Date(row.end_date).toLocaleDateString('en-ZA')}.`,
+        relatedEntityType: 'lease',
+        relatedEntityId: row.id,
       });
     } catch (err) {
       console.error('[whatsappDispatch] lease_expiry_reminder dispatch failed', err);

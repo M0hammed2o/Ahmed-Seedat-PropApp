@@ -5,6 +5,7 @@ import { mapPropertyRow, requireOrgRole } from '@/lib/portfolio';
 import { mayCreateProperty } from '@/lib/subscriptionEntitlements';
 import { getGeocodingProvider } from '@/lib/providers/geocoding';
 import { parseListQuery, encodeCursor, beforeCursorFilter } from '@/lib/cursorPagination';
+import { safeErrorMessage } from '@/lib/safeError';
 
 /**
  * GET /api/v1/properties — list properties across every org the caller belongs to
@@ -44,7 +45,12 @@ export async function GET(request: NextRequest) {
   const { data, error } = await query;
   if (error) {
     return NextResponse.json(
-      { error: { code: 'properties_list_failed', message: error.message } },
+      {
+        error: {
+          code: 'properties_list_failed',
+          message: safeErrorMessage(error, 'Could not load properties.', 'properties.list'),
+        },
+      },
       { status: 500 },
     );
   }
@@ -193,7 +199,16 @@ export async function POST(request: NextRequest) {
       );
     }
     return NextResponse.json(
-      { error: { code: 'property_create_failed', message: createError.message } },
+      {
+        error: {
+          code: 'property_create_failed',
+          message: safeErrorMessage(
+            createError,
+            'Could not create this property. Please try again, or contact support if this continues.',
+            'properties.create',
+          ),
+        },
+      },
       { status: 500 },
     );
   }
@@ -205,7 +220,12 @@ export async function POST(request: NextRequest) {
     .single();
   if (error) {
     return NextResponse.json(
-      { error: { code: 'property_fetch_failed', message: error.message } },
+      {
+        error: {
+          code: 'property_fetch_failed',
+          message: safeErrorMessage(error, 'Could not load this property.', 'properties.fetchAfterCreate'),
+        },
+      },
       { status: 500 },
     );
   }

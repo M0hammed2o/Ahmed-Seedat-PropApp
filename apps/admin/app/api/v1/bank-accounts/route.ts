@@ -3,6 +3,7 @@ import { bankAccountCreateSchema } from '@propvault/validation';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { requireOrgRole } from '@/lib/portfolio';
 import { mapBankAccountRow } from '@/lib/accounting';
+import { safeErrorMessage } from '@/lib/safeError';
 
 /** GET/POST /api/v1/bank-accounts (API_SPEC.md §6). Accountant+ throughout. */
 export async function GET(request: NextRequest) {
@@ -26,7 +27,12 @@ export async function GET(request: NextRequest) {
   const { data, error } = await query;
   if (error) {
     return NextResponse.json(
-      { error: { code: 'bank_accounts_list_failed', message: error.message } },
+      {
+        error: {
+          code: 'bank_accounts_list_failed',
+          message: safeErrorMessage(error, 'Could not load bank accounts.', 'bankAccounts.list'),
+        },
+      },
       { status: 500 },
     );
   }
@@ -98,7 +104,16 @@ export async function POST(request: NextRequest) {
 
   if (error) {
     return NextResponse.json(
-      { error: { code: 'bank_account_create_failed', message: error.message } },
+      {
+        error: {
+          code: 'bank_account_create_failed',
+          message: safeErrorMessage(
+            error,
+            'Could not create this bank account. Please try again, or contact support if this continues.',
+            'bankAccounts.create',
+          ),
+        },
+      },
       { status: 500 },
     );
   }

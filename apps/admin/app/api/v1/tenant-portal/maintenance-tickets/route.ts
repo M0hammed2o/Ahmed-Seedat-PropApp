@@ -4,6 +4,8 @@ import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/se
 import { resolveTenantSession } from '@/lib/tenantSession';
 import { mapMaintenanceTicketRow } from '@/lib/operations';
 import { writeAuditEvent } from '@/lib/audit';
+import { notifyPropertyStaff } from '@/lib/notify';
+import { safeErrorMessage } from '@/lib/safeError';
 
 /**
  * POST /api/v1/tenant-portal/maintenance-tickets (V1 scope correction, 2026-08-01 -- DECISIONS.md).
@@ -79,7 +81,12 @@ export async function POST(request: NextRequest) {
     .eq('tenant_id', tenantRow.id);
   if (leaseTenantError) {
     return NextResponse.json(
-      { error: { code: 'lease_lookup_failed', message: leaseTenantError.message } },
+      {
+        error: {
+          code: 'lease_lookup_failed',
+          message: safeErrorMessage(leaseTenantError, 'Could not verify your lease.', 'tenantPortal.maintenanceTickets.leaseLookup'),
+        },
+      },
       { status: 500 },
     );
   }
@@ -120,7 +127,16 @@ export async function POST(request: NextRequest) {
 
   if (error) {
     return NextResponse.json(
-      { error: { code: 'maintenance_ticket_create_failed', message: error.message } },
+      {
+        error: {
+          code: 'maintenance_ticket_create_failed',
+          message: safeErrorMessage(
+            error,
+            'Could not submit your maintenance request. Please try again, or contact your property manager if this continues.',
+            'tenantPortal.maintenanceTickets.create',
+          ),
+        },
+      },
       { status: 500 },
     );
   }
@@ -137,6 +153,20 @@ export async function POST(request: NextRequest) {
     entityType: 'maintenance_tickets',
     entityId: data.id,
     after: { propertyId: data.property_id, unitId: data.unit_id, priority: data.priority },
+  });
+
+  // V1 launch-completion pass (WORKLOG.md this date): notify property staff (agent+) that a
+  // tenant reported a real issue. Fail-soft and after the primary insert has already succeeded,
+  // so it can never affect this route's success response. No excludeUserId -- the actor here is
+  // a tenant, never a staff member, so there is no self-notification to skip.
+  await notifyPropertyStaff(getServiceRoleClient(), {
+    orgId: tenantRow.org_id,
+    propertyId: data.property_id,
+    type: 'maintenance_ticket_created',
+    title: 'New maintenance request',
+    body: `A tenant reported: ${parsed.data.summary}`,
+    relatedEntityType: 'maintenance_ticket',
+    relatedEntityId: data.id,
   });
 
   return NextResponse.json({ maintenanceTicket: mapMaintenanceTicketRow(data) }, { status: 201 });

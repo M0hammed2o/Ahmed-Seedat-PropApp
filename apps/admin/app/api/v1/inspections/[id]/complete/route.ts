@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { requireOrgRole } from '@/lib/portfolio';
 import { mapInspectionRow } from '@/lib/operations';
+import { safeErrorMessage } from '@/lib/safeError';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -32,7 +33,16 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     .maybeSingle();
   if (inspectionError) {
     return NextResponse.json(
-      { error: { code: 'inspection_fetch_failed', message: inspectionError.message } },
+      {
+        error: {
+          code: 'inspection_fetch_failed',
+          message: safeErrorMessage(
+            inspectionError,
+            'Could not load this inspection. Please try again, or contact support if this continues.',
+            `inspections.fetch(${id})`,
+          ),
+        },
+      },
       { status: 500 },
     );
   }
@@ -94,7 +104,16 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
 
   if (error) {
     return NextResponse.json(
-      { error: { code: 'inspection_complete_failed', message: error.message } },
+      {
+        error: {
+          code: 'inspection_complete_failed',
+          message: safeErrorMessage(
+            error,
+            'Could not complete this inspection. Please try again, or contact support if this continues.',
+            `inspections.complete(${id})`,
+          ),
+        },
+      },
       { status: 500 },
     );
   }

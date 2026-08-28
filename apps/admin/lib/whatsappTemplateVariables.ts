@@ -150,10 +150,20 @@ export function buildOwnerMonthlyPropertySummaryVariables(input: {
 }
 
 // First-tenant-workflow predeploy pass (WORKLOG.md 2026-08-25), Phase 6/21: applicant/lease event
-// variable builders. None of these templates are approved yet (whatsappTemplates.ts,
-// approved: false) -- dispatchWhatsApp() refuses the real Meta call regardless, but the variable
-// order is still fixed here now so the eventual real submission has one already-correct,
-// already-tested source of truth to match against, not a guess made after the fact.
+// variable builders, originally written against a proposed/unsubmitted structure.
+//
+// WhatsApp launch-completion pass, variable-structure reconciliation (WORKLOG.md 2026-08-27):
+// Mohammed supplied the real approved Meta template documents (all 13, "Templates 1-13"). Reconciled
+// every one of the 5 applicant/lease builders below against the real approved body text --
+// application_invitation and application_documents_requested were already correct
+// (organizationName, propertyLabel, [url]). application_approved, application_declined, and
+// lease_ready were NOT: the real approved bodies all lead with the property/unit label, THEN the
+// organisation name ("Your application for {{1}} [property] has been approved by {{2}} [org]"),
+// the exact reverse of what these three builders returned. Object.values() insertion order is the
+// only thing that determines what a real recipient actually sees (MetaWhatsAppProvider sends
+// positionally) -- this was a real, would-have-shipped-wrong bug, not a style preference, caught
+// before any real send. All 8 non-applicant templates were also re-checked against the same
+// document and confirmed already correct (no changes).
 
 export function buildApplicationInvitationVariables(input: {
   organizationName: string;
@@ -179,28 +189,36 @@ export function buildApplicationDocumentsRequestedVariables(input: {
   };
 }
 
+/** Real approved body: "Your application for {{1}} has been approved by {{2}}." -- property/unit
+ * label FIRST, organisation name second (the reverse of application_invitation/
+ * application_documents_requested's own order -- verified directly against Meta's template text,
+ * not assumed consistent across templates). */
 export function buildApplicationApprovedVariables(input: {
-  organizationName: string;
   propertyLabel: string;
+  organizationName: string;
 }): Record<string, string> {
-  return { organizationName: input.organizationName, propertyLabel: input.propertyLabel };
+  return { propertyLabel: input.propertyLabel, organizationName: input.organizationName };
 }
 
+/** Real approved body: "...application for {{1}} through {{2}}." -- property/unit label first,
+ * organisation name second, same order as application_approved. */
 export function buildApplicationDeclinedVariables(input: {
-  organizationName: string;
   propertyLabel: string;
+  organizationName: string;
 }): Record<string, string> {
-  return { organizationName: input.organizationName, propertyLabel: input.propertyLabel };
+  return { propertyLabel: input.propertyLabel, organizationName: input.organizationName };
 }
 
+/** Real approved body: "Your lease for {{1}} is ready for review from {{2}}." -- property/unit
+ * label first, organisation name second, then the review URL. */
 export function buildLeaseReadyVariables(input: {
-  organizationName: string;
   propertyLabel: string;
+  organizationName: string;
   leaseUrl: string;
 }): Record<string, string> {
   return {
-    organizationName: input.organizationName,
     propertyLabel: input.propertyLabel,
+    organizationName: input.organizationName,
     leaseUrl: input.leaseUrl,
   };
 }

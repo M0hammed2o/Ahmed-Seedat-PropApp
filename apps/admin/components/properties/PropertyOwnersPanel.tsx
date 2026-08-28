@@ -6,6 +6,7 @@ import { OWNER_TYPES } from '@propvault/types';
 import { Button } from '@/components/ui/Button';
 import { Panel } from '@/components/ui/Panel';
 import { safeJson } from '@/lib/safeJson';
+import { getBrowserSupabaseClient } from '@/lib/supabase/client';
 
 // Stage 5: property ownership is part of property setup, not just schema/API (property_owners,
 // GET/POST /api/v1/properties/:id/owners already existed and worked -- migration 20260101000022 /
@@ -16,6 +17,19 @@ import { safeJson } from '@/lib/safeJson';
 // Shared-access architecture pass (WORKLOG.md this date): adds account-linking status per owner
 // (Invite / Resend / Revoke), backed by owner_invitations (migration 20260101000083). Never links
 // an account by email match alone -- every action here goes through the invitation/token RPCs.
+//
+// Relationship-management pass (WORKLOG.md this date): adds (1) a "Yes, I own this property"
+// self-owner path -- prefills the create-owner sub-form from the signed-in user's own session
+// (getBrowserSupabaseClient().auth.getUser(), same established client-side pattern as
+// LinkedAccountsPanel) and, after the owner + relationship rows are created, automatically calls
+// the existing /api/v1/owners/:id/link-self route (the same one "This is me" below already calls)
+// so the user doesn't need a second confirmation click; fails soft if self-linking doesn't
+// succeed (e.g. email mismatch) since the owner/relationship rows are still valid either way; (2)
+// inline "Edit %" per row, reusing the existing POST upsert (ownerId + ownershipPct only, no
+// owner name/email required); (3) "Remove" per row -- DELETE
+// /api/v1/properties/:id/owners/:ownerId, a new sub-route that removes only the property_owners
+// relationship row, never the owners identity row, confirmed via window.confirm same as
+// LeaseOccupantsPanel's destructive-action pattern.
 
 interface PropertyOwnerRow {
   ownerId: string;
@@ -53,13 +67,21 @@ export function PropertyOwnersPanel({
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [mode, setMode] = useState<'existing' | 'new'>('existing');
+  const [mode, setMode] = useState<'existing' | 'new' | 'self'>('existing');
   const [selectedOwnerId, setSelectedOwnerId] = useState('');
   const [pct, setPct] = useState('');
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newPhone, setNewPhone] = useState('');
   const [newOwnerType, setNewOwnerType] = useState<OwnerType>('individual');
+  const [currentUser, setCurrentUser] = useState<{ email: string | null; name: string | null } | null>(
+    null,
+  );
+  const [selfLinkNote, setSelfLinkNote] = useState<string | null>(null);
+  const [editingOwnerId, setEditingOwnerId] = useState<string | null>(null);
+  const [editPct, setEditPct] = useState('');
+  const [editBusy, setEditBusy] = useState(false);
+  const [removeBusyOwnerId, setRemoveBusyOwnerId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const [ownersRes, allOwnersRes] = await Promise.all([
@@ -80,8 +102,47 @@ export function PropertyOwnersPanel({
     load();
   }, [load]);
 
+  // Self-owner prefill source: the signed-in user's own auth session, fetched client-side the same
+  // way LinkedAccountsPanel does (getBrowserSupabaseClient().auth.getUser()) plus a profiles lookup
+  // for a display name (profiles_select_own RLS already permits reading one's own row). Only
+  // fetched when this staff member can actually manage owners -- the add-owner panel below doesn't
+  // render otherwise.
+  useEffect(() => {
+    if (!canManage) return;
+    let cancelled = false;
+    (async () => {
+      const supabase = getBrowserSupabaseClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user || cancelled) return;
+      let name = (user.user_metadata?.full_name as string | undefined) ?? null;
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('display_name')
+        .eq('id', user.id)
+        .maybeSingle();
+      if (profile?.display_name) name = profile.display_name;
+      if (!cancelled) setCurrentUser({ email: user.email ?? null, name });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [canManage]);
+
   const totalPct = rows.reduce((sum, r) => sum + Number(r.ownershipPct), 0);
   const unassignedOwners = allOwners.filter((o) => !rows.some((r) => r.ownerId === o.id));
+
+  function selectSelfMode() {
+    setMode('self');
+    setError(null);
+    setSelfLinkNote(null);
+    setNewOwnerType('individual');
+    setNewName(currentUser?.name ?? '');
+    setNewEmail(currentUser?.email ?? '');
+    setNewPhone('');
+    setPct('100');
+  }
 
   async function attachOwner(ownerId: string) {
     const response = await fetch(`/api/v1/properties/${propertyId}/owners`, {
@@ -137,6 +198,26 @@ export function PropertyOwnersPanel({
         }
         const ok = await attachOwner(createBody.owner.id);
         if (!ok) return;
+
+        // Self-owner flow: the owner + relationship rows above already exist regardless of what
+        // happens next -- self-linking is a convenience on top, so any failure here fails soft
+        // (a note, not `error`) and the existing "This is me" button in the list below remains
+        // available manually (canSelfLink is recomputed by the reload right after this).
+        if (mode === 'self') {
+          const linkResponse = await fetch(`/api/v1/owners/${createBody.owner.id}/link-self`, {
+            method: 'POST',
+          });
+          if (!linkResponse.ok) {
+            const linkBody = await safeJson(linkResponse);
+            setSelfLinkNote(
+              `Owner and ownership share saved, but automatic self-linking didn’t complete${
+                linkBody.error?.message ? ` (${linkBody.error.message})` : ''
+              }. You can still use "This is me" below.`,
+            );
+          } else {
+            setSelfLinkNote(null);
+          }
+        }
       }
       setSelectedOwnerId('');
       setPct('');
@@ -146,6 +227,73 @@ export function PropertyOwnersPanel({
       await load();
     } finally {
       setBusy(false);
+    }
+  }
+
+  function startEditPct(row: PropertyOwnerRow) {
+    setEditingOwnerId(row.ownerId);
+    setEditPct(String(row.ownershipPct));
+    setError(null);
+  }
+
+  function cancelEditPct() {
+    setEditingOwnerId(null);
+    setEditPct('');
+  }
+
+  async function saveEditPct(ownerId: string) {
+    const pctNum = Number(editPct);
+    if (!editPct || Number.isNaN(pctNum) || pctNum <= 0 || pctNum > 100) {
+      setError('Enter an ownership percentage between 0 and 100.');
+      return;
+    }
+    setEditBusy(true);
+    setError(null);
+    try {
+      // Reuses the same POST upsert the "Add an owner" form uses -- keyed on (property_id,
+      // owner_id), so re-posting an existing owner_id with a new percentage is the update path.
+      // Only ownerId + ownershipPct are required (propertyOwnerAttachSchema), no owner name/email.
+      const response = await fetch(`/api/v1/properties/${propertyId}/owners`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ownerId, ownershipPct: pctNum }),
+      });
+      const body = await safeJson(response);
+      if (!response.ok) {
+        setError(body.error?.message ?? 'Failed to update ownership percentage.');
+        return;
+      }
+      setEditingOwnerId(null);
+      setEditPct('');
+      await load();
+    } finally {
+      setEditBusy(false);
+    }
+  }
+
+  async function removeOwner(row: PropertyOwnerRow) {
+    const name = row.owner?.name ?? 'this owner';
+    if (
+      !window.confirm(
+        `Remove ${name} from this property's ownership? This does not delete the owner record itself -- it stays available to attach to this or another property later.`,
+      )
+    ) {
+      return;
+    }
+    setError(null);
+    setRemoveBusyOwnerId(row.ownerId);
+    try {
+      const response = await fetch(`/api/v1/properties/${propertyId}/owners/${row.ownerId}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        const body = await safeJson(response);
+        setError(body.error?.message ?? 'Failed to remove this owner from the property.');
+        return;
+      }
+      await load();
+    } finally {
+      setRemoveBusyOwnerId(null);
     }
   }
 
@@ -169,14 +317,45 @@ export function PropertyOwnersPanel({
             {rows.map((r) => (
               <li
                 key={r.ownerId}
-                className="flex items-center justify-between gap-3 py-2.5 text-sm"
+                className="flex flex-wrap items-center justify-between gap-3 py-2.5 text-sm"
               >
                 <span className="min-w-0 truncate text-foreground">
                   {r.owner?.name ?? 'Unknown owner'}
                 </span>
-                <span className="tabular shrink-0 font-semibold text-foreground">
-                  {r.ownershipPct}%
-                </span>
+                {editingOwnerId === r.ownerId ? (
+                  <div className="flex shrink-0 items-center gap-1">
+                    <input
+                      type="number"
+                      min={0.01}
+                      max={100}
+                      step={0.01}
+                      value={editPct}
+                      onChange={(e) => setEditPct(e.target.value)}
+                      className="w-20 rounded-md border border-light-border bg-transparent px-2 py-1 text-xs text-light-textPrimary dark:border-dark-border dark:text-dark-textPrimary"
+                    />
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      type="button"
+                      disabled={editBusy}
+                      onClick={() => saveEditPct(r.ownerId)}
+                    >
+                      {editBusy ? 'Saving…' : 'Save'}
+                    </Button>
+                    <Button size="sm" type="button" disabled={editBusy} onClick={cancelEditPct}>
+                      Cancel
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className="tabular font-semibold text-foreground">{r.ownershipPct}%</span>
+                    {canManage ? (
+                      <Button size="sm" type="button" onClick={() => startEditPct(r)}>
+                        Edit %
+                      </Button>
+                    ) : null}
+                  </div>
+                )}
                 <div className="shrink-0">
                   <OwnerAccountStatus
                     ownerId={r.ownerId}
@@ -187,6 +366,17 @@ export function PropertyOwnersPanel({
                     onLinked={load}
                   />
                 </div>
+                {canManage ? (
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    type="button"
+                    disabled={removeBusyOwnerId === r.ownerId}
+                    onClick={() => removeOwner(r)}
+                  >
+                    {removeBusyOwnerId === r.ownerId ? 'Removing…' : 'Remove'}
+                  </Button>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -205,12 +395,24 @@ export function PropertyOwnersPanel({
 
       {canManage ? (
         <Panel title="Add an owner">
-          <div className="mb-3 flex gap-2">
+          <div className="mb-3 flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant={mode === 'self' ? 'primary' : 'secondary'}
+              type="button"
+              onClick={selectSelfMode}
+            >
+              Yes, I own this property
+            </Button>
             <Button
               size="sm"
               variant={mode === 'existing' ? 'primary' : 'secondary'}
               type="button"
-              onClick={() => setMode('existing')}
+              onClick={() => {
+                setMode('existing');
+                setError(null);
+                setSelfLinkNote(null);
+              }}
             >
               Select existing owner
             </Button>
@@ -218,11 +420,28 @@ export function PropertyOwnersPanel({
               size="sm"
               variant={mode === 'new' ? 'primary' : 'secondary'}
               type="button"
-              onClick={() => setMode('new')}
+              onClick={() => {
+                setMode('new');
+                setError(null);
+                setSelfLinkNote(null);
+              }}
             >
               Create new owner
             </Button>
           </div>
+
+          {mode === 'self' ? (
+            <p className="mb-3 text-xs text-muted-foreground">
+              We’ve prefilled your own name and email below. Confirm the ownership percentage and
+              save -- we’ll automatically link this owner record to your account too.
+            </p>
+          ) : null}
+
+          {selfLinkNote ? (
+            <p className="mb-3 text-xs text-light-statusNeedsReview dark:text-dark-statusNeedsReview">
+              {selfLinkNote}
+            </p>
+          ) : null}
 
           <form onSubmit={submit} className="max-w-md space-y-3">
             {mode === 'existing' ? (

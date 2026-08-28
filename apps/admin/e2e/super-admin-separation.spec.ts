@@ -22,7 +22,7 @@ test.describe('Super Admin separation', () => {
     // No TOTP factor exists yet, so /api/v1/auth/signin completes sign-in directly
     // (mfaRequired: false) -- but the resulting session is still only AAL1, and
     // getAdminSession() now requires AAL2 to ever return non-null.
-    await page.waitForURL(/\/platform-admin\/mfa-setup/, { timeout: 15_000 });
+    await page.waitForURL(/\/platform-admin\/mfa-setup/, { timeout: 30_000 });
     // First-ever visit to this route in a freshly started dev server -- dev-mode Turbopack
     // compiles it on demand. Confirmed live (not assumed): the failure screenshot before this
     // fix showed a blank page with Next.js's own "Rendering..." dev-mode badge in the corner,

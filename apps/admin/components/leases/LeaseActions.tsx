@@ -17,9 +17,10 @@ interface LeaseActionsProps {
   status: LeaseStatus;
   hasTenant: boolean;
   canEdit: boolean;
+  source: 'manual' | 'application_approved';
 }
 
-export function LeaseActions({ leaseId, orgId, status, hasTenant, canEdit }: LeaseActionsProps) {
+export function LeaseActions({ leaseId, orgId, status, hasTenant, canEdit, source }: LeaseActionsProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -69,8 +70,12 @@ export function LeaseActions({ leaseId, orgId, status, hasTenant, canEdit }: Lea
   const showTenantPicker = status === 'draft' && !hasTenant;
   const showActivate = status === 'draft';
   const showEnd = status === 'active';
+  // V1 launch-completion pass, Section 8: a manual/imported lease has no Prepare/Send workflow
+  // (gated out on the detail page for source !== 'application_approved') -- this is where it
+  // retains its already-signed document instead, directly, no re-signature step.
+  const showDocumentUpload = status === 'draft' && source === 'manual';
 
-  if (!showTenantPicker && !showActivate && !showEnd) return null;
+  if (!showTenantPicker && !showActivate && !showEnd && !showDocumentUpload) return null;
 
   return (
     <div className="space-y-4">
@@ -89,6 +94,10 @@ export function LeaseActions({ leaseId, orgId, status, hasTenant, canEdit }: Lea
           setError={setError}
           onAssigned={() => router.refresh()}
         />
+      ) : null}
+
+      {showDocumentUpload ? (
+        <SignedDocumentPanel leaseId={leaseId} busy={busy} setBusy={setBusy} setError={setError} />
       ) : null}
 
       {showActivate ? (
@@ -132,6 +141,88 @@ export function LeaseActions({ leaseId, orgId, status, hasTenant, canEdit }: Lea
         </Panel>
       ) : null}
     </div>
+  );
+}
+
+interface LeaseDocumentSummary {
+  id: string;
+  originalFileName: string | null;
+  createdAt: string;
+}
+
+function SignedDocumentPanel({
+  leaseId,
+  busy,
+  setBusy,
+  setError,
+}: {
+  leaseId: string;
+  busy: boolean;
+  setBusy: (b: boolean) => void;
+  setError: (e: string | null) => void;
+}) {
+  const router = useRouter();
+  const [latest, setLatest] = useState<LeaseDocumentSummary | null>(null);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    fetch(`/api/v1/leases/${leaseId}/documents`)
+      .then((res) => res.json())
+      .then((body) => setLatest(body.leaseDocuments?.[0] ?? null))
+      .catch(() => setLatest(null))
+      .finally(() => setLoaded(true));
+  }, [leaseId]);
+
+  async function upload(file: File) {
+    setBusy(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.set('file', file);
+      const response = await fetch(`/api/v1/leases/${leaseId}/documents`, {
+        method: 'POST',
+        body: formData,
+      });
+      const body = await response.json();
+      if (!response.ok) {
+        setError(body.error?.message ?? 'Failed to upload the signed lease document.');
+        return;
+      }
+      setLatest(body.leaseDocument);
+      router.refresh();
+    } catch {
+      setError('Failed to upload the signed lease document — check your connection and try again.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Panel title="Signed lease document">
+      {!loaded ? (
+        <p className="text-xs text-light-textMuted dark:text-dark-textMuted">Loading…</p>
+      ) : latest ? (
+        <p className="text-xs text-light-textMuted dark:text-dark-textMuted">
+          Attached: {latest.originalFileName ?? 'signed lease document'}. Uploading a new file
+          replaces it.
+        </p>
+      ) : (
+        <p className="text-xs text-light-textMuted dark:text-dark-textMuted">
+          No signed lease document attached yet — this lease can still be activated without one,
+          but attaching the already-signed copy keeps a durable record.
+        </p>
+      )}
+      <input
+        type="file"
+        accept="application/pdf,.docx"
+        disabled={busy}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) void upload(file);
+        }}
+        className="mt-2 block text-xs text-light-textMuted dark:text-dark-textMuted"
+      />
+    </Panel>
   );
 }
 

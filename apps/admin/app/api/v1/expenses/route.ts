@@ -5,6 +5,7 @@ import { requireOrgRole } from '@/lib/portfolio';
 import { mapExpenseRow } from '@/lib/accounting';
 import { parseListQuery, encodeCursor, beforeCursorFilter } from '@/lib/cursorPagination';
 import { writeAuditEvent } from '@/lib/audit';
+import { safeErrorMessage } from '@/lib/safeError';
 
 /**
  * GET/POST /api/v1/expenses (API_SPEC.md §6, TASKS.md M14). POST here only creates a 'pending'
@@ -46,7 +47,12 @@ export async function GET(request: NextRequest) {
   const { data, error } = await query;
   if (error) {
     return NextResponse.json(
-      { error: { code: 'expenses_list_failed', message: error.message } },
+      {
+        error: {
+          code: 'expenses_list_failed',
+          message: safeErrorMessage(error, 'Could not load expenses.', 'expenses.list'),
+        },
+      },
       { status: 500 },
     );
   }
@@ -116,10 +122,14 @@ export async function POST(request: NextRequest) {
     .insert({
       org_id: parsed.data.orgId,
       property_id: parsed.data.propertyId,
+      unit_id: parsed.data.unitId ?? null,
       vendor_id: parsed.data.vendorId ?? null,
       category: parsed.data.category,
       amount: parsed.data.amount,
       document_id: parsed.data.documentId ?? null,
+      reference_number: parsed.data.referenceNumber ?? null,
+      invoice_date: parsed.data.invoiceDate ?? null,
+      notes: parsed.data.notes ?? null,
       status: 'pending',
     })
     .select('*')
@@ -127,7 +137,16 @@ export async function POST(request: NextRequest) {
 
   if (error) {
     return NextResponse.json(
-      { error: { code: 'expense_create_failed', message: error.message } },
+      {
+        error: {
+          code: 'expense_create_failed',
+          message: safeErrorMessage(
+            error,
+            'Could not create this expense. Please try again, or contact support if this continues.',
+            'expenses.insert',
+          ),
+        },
+      },
       { status: 500 },
     );
   }
@@ -144,10 +163,12 @@ export async function POST(request: NextRequest) {
     entityId: data.id,
     after: {
       propertyId: data.property_id,
+      unitId: data.unit_id,
       vendorId: data.vendor_id,
       category: data.category,
       amount: data.amount,
       status: data.status,
+      documentId: data.document_id,
     },
   });
 

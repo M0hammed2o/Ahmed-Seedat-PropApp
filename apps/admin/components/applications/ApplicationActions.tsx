@@ -125,6 +125,8 @@ export function ApplicationActions({
         onSaved={() => router.refresh()}
       />
 
+      <InvitationPanel application={application} canAct={canAct} />
+
       {canAct ? (
         <>
           <DocumentRequirementsPanel applicationId={application.id} />
@@ -346,6 +348,149 @@ function DecisionPanel({
 const inputClass =
   'mt-1 block w-full rounded-md border border-light-border bg-transparent px-3 py-2 text-sm text-light-textPrimary dark:border-dark-border dark:text-dark-textPrimary';
 
+interface AccessTokenStatus {
+  deliveryChannel: 'email' | 'whatsapp' | 'manual';
+  destinationHint: string | null;
+  expiresAt: string;
+  lastAccessedAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+  isCurrent: boolean;
+}
+
+// Launch-hardening pass (WORKLOG.md 2026-08-26), Section 2: previously nothing in the UI ever
+// called POST .../access-tokens (the only place a token is created and an invitation email
+// dispatched) -- every application created through the real product UI silently never invited its
+// applicant. This panel is the fix: shows real, derived invitation status (never invited / sent /
+// opened / expired / delivery not configured) and wires Invite/Resend to the existing, already-
+// correct route -- no new backend logic, just making an orphaned capability reachable.
+function InvitationPanel({ application, canAct }: { application: Application; canAct: boolean }) {
+  const [status, setStatus] = useState<{
+    accessToken: AccessTokenStatus | null;
+    email: { status: string } | null;
+  } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  async function loadStatus() {
+    try {
+      const response = await fetch(`/api/v1/applications/${application.id}/access-tokens`);
+      const body = await response.json();
+      setStatus(response.ok ? body : { accessToken: null, email: null });
+    } catch {
+      setStatus({ accessToken: null, email: null });
+    }
+  }
+
+  useEffect(() => {
+    void loadStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [application.id]);
+
+  async function invite(isResend: boolean) {
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch(`/api/v1/applications/${application.id}/access-tokens`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          deliveryChannel: 'email',
+          destinationHint: application.applicantEmail ?? undefined,
+        }),
+      });
+      const body = await response.json();
+      if (!response.ok) {
+        setError(body.error?.message ?? 'Failed to send invitation.');
+        return;
+      }
+      if (body.email && body.email.deliveryConfigured === false) {
+        setNotice(
+          'Invitation link created, but no real email provider is configured in this environment — nothing was actually sent.',
+        );
+      } else if (body.email?.sent) {
+        setNotice(isResend ? 'Invitation resent.' : 'Invitation sent.');
+      } else {
+        setNotice(
+          'Invitation link created, but the email could not be queued — check the applicant has a valid email address on file.',
+        );
+      }
+      await loadStatus();
+    } catch {
+      setError('Failed — check your connection and try again.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (status === null) return null;
+
+  const token = status.accessToken;
+  const hasEmail = Boolean(application.applicantEmail);
+  const expired = token ? new Date(token.expiresAt).getTime() < Date.now() : false;
+  const emailFailed = status.email?.status === 'failed' || status.email?.status === 'bounced';
+
+  let label: string;
+  let tone: 'muted' | 'success' | 'warning' | 'danger';
+  if (!token) {
+    label = 'Not yet invited';
+    tone = 'muted';
+  } else if (token.revokedAt && token.isCurrent === false) {
+    label = 'Previous invitation replaced';
+    tone = 'muted';
+  } else if (expired) {
+    label = 'Invitation link expired';
+    tone = 'warning';
+  } else if (emailFailed) {
+    label = 'Invitation email failed to send';
+    tone = 'danger';
+  } else if (token.lastAccessedAt) {
+    label = `Applicant opened the link ${new Date(token.lastAccessedAt).toLocaleString('en-ZA')}`;
+    tone = 'success';
+  } else {
+    label = 'Invitation sent — awaiting applicant';
+    tone = 'muted';
+  }
+
+  const toneClass = {
+    muted: 'text-light-textMuted dark:text-dark-textMuted',
+    success: 'text-light-statusPaid dark:text-dark-statusPaid',
+    warning: 'text-light-statusNeedsReview dark:text-dark-statusNeedsReview',
+    danger: 'text-light-danger dark:text-dark-danger',
+  }[tone];
+
+  return (
+    <div className="rounded-lg border border-light-border p-4 dark:border-dark-border">
+      <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+        Applicant invitation
+      </h2>
+      {error ? <p className="mt-1 text-xs text-light-danger dark:text-dark-danger">{error}</p> : null}
+      {notice ? (
+        <p className="mt-1 text-xs text-light-statusPaid dark:text-dark-statusPaid">{notice}</p>
+      ) : null}
+      <p className={`mt-2 text-xs ${toneClass}`}>{label}</p>
+      {token?.destinationHint ? (
+        <p className="mt-0.5 text-xs text-light-textMuted dark:text-dark-textMuted">
+          Sent to {token.destinationHint}
+        </p>
+      ) : null}
+      {canAct ? (
+        hasEmail ? (
+          <Button className="mt-3" size="sm" disabled={busy} onClick={() => invite(Boolean(token))}>
+            {busy ? 'Sending…' : token ? 'Resend invitation' : 'Invite applicant'}
+          </Button>
+        ) : (
+          <p className="mt-2 text-xs text-light-textMuted dark:text-dark-textMuted">
+            Add an applicant email address before inviting.
+          </p>
+        )
+      ) : null}
+    </div>
+  );
+}
+
 interface DocumentRequirementRow {
   id: string;
   requirementKey: string;
@@ -353,12 +498,25 @@ interface DocumentRequirementRow {
   isRequired: boolean;
   status: 'requested' | 'uploaded' | 'reviewed' | 'accepted' | 'rejected';
   rejectionReason: string | null;
+  documentId: string | null;
+  uploadedAt: string | null;
+  originalFileName: string | null;
+  reviewedAt: string | null;
+  ocr: { overallConfidence: number; fieldCount: number; reviewedAt: string | null } | null;
 }
 
-// Phase 12 (first-tenant-workflow predeploy pass, WORKLOG.md 2026-08-25): staff-facing "Request
-// documents" action -- selects which requirement(s) to (re)request, with an optional message, and
-// notifies the applicant. Idempotent by state (POST /request-documents route.ts) -- selecting an
-// already-'requested' item and submitting again is a harmless no-op, not a duplicate notification.
+const REQUIREMENT_STATUS_LABEL: Record<DocumentRequirementRow['status'], string> = {
+  requested: 'Missing — requested',
+  uploaded: 'Uploaded — awaiting review',
+  reviewed: 'Reviewed',
+  accepted: 'Accepted',
+  rejected: 'Needs correction',
+};
+
+// Launch-hardening pass (WORKLOG.md 2026-08-26), Section 3: previously this panel could only
+// *request* documents -- it never showed staff what the applicant actually uploaded, when, or
+// whether OCR had extracted anything from it, and had no way to accept/reject a document. Now
+// combines the full per-requirement review surface with the existing "Request documents" action.
 function DocumentRequirementsPanel({ applicationId }: { applicationId: string }) {
   const [requirements, setRequirements] = useState<DocumentRequirementRow[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -367,12 +525,59 @@ function DocumentRequirementsPanel({ applicationId }: { applicationId: string })
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  async function loadRequirements() {
+    try {
+      const res = await fetch(`/api/v1/applications/${applicationId}/document-requirements`);
+      const body = await res.json();
+      setRequirements(body.requirements ?? []);
+    } catch {
+      setRequirements([]);
+    }
+  }
+
   useEffect(() => {
-    fetch(`/api/v1/applications/${applicationId}/document-requirements`)
-      .then((res) => res.json())
-      .then((body) => setRequirements(body.requirements ?? []))
-      .catch(() => setRequirements([]));
+    void loadRequirements();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [applicationId]);
+
+  async function viewDocument(documentId: string) {
+    setError(null);
+    try {
+      const res = await fetch(`/api/v1/documents/${documentId}`);
+      const body = await res.json();
+      if (!res.ok || !body.signedUrl) {
+        setError(body.error?.message ?? 'Could not open this document.');
+        return;
+      }
+      window.open(body.signedUrl, '_blank', 'noopener,noreferrer');
+    } catch {
+      setError('Could not open this document — check your connection and try again.');
+    }
+  }
+
+  async function review(requirementId: string, status: 'accepted' | 'rejected', rejectionReason?: string) {
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const res = await fetch(`/api/v1/applications/${applicationId}/document-requirements/${requirementId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status, rejectionReason: rejectionReason ?? null }),
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        setError(body.error?.message ?? 'Could not update this document.');
+        return;
+      }
+      setNotice(status === 'accepted' ? 'Document accepted.' : 'Marked as needing correction.');
+      await loadRequirements();
+    } catch {
+      setError('Failed — check your connection and try again.');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   if (requirements.length === 0) return null;
 
@@ -408,6 +613,7 @@ function DocumentRequirementsPanel({ applicationId }: { applicationId: string })
       );
       setSelected(new Set());
       setMessage('');
+      await loadRequirements();
     } catch {
       setError('Failed — check your connection and try again.');
     } finally {
@@ -418,28 +624,76 @@ function DocumentRequirementsPanel({ applicationId }: { applicationId: string })
   return (
     <div className="rounded-lg border border-light-border p-4 dark:border-dark-border">
       <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
-        Request documents
+        Applicant documents
       </h2>
       {error ? <p className="mt-1 text-xs text-light-danger dark:text-dark-danger">{error}</p> : null}
       {notice ? (
         <p className="mt-1 text-xs text-light-statusPaid dark:text-dark-statusPaid">{notice}</p>
       ) : null}
-      <ul className="mt-2 space-y-1">
+      <ul className="mt-2 space-y-3">
         {requirements.map((r) => (
-          <li key={r.id} className="flex items-center gap-2 text-xs text-light-textSecondary dark:text-dark-textSecondary">
-            <input
-              type="checkbox"
-              checked={selected.has(r.requirementKey)}
-              onChange={() => toggle(r.requirementKey)}
-            />
-            <span>
-              {r.label} — <span className="text-light-textMuted dark:text-dark-textMuted">{r.status}</span>
-            </span>
+          <li key={r.id} className="rounded-md border border-light-border p-3 dark:border-dark-border">
+            <div className="flex items-center justify-between gap-2">
+              <label className="flex items-center gap-2 text-xs text-light-textSecondary dark:text-dark-textSecondary">
+                <input type="checkbox" checked={selected.has(r.requirementKey)} onChange={() => toggle(r.requirementKey)} />
+                <span className="font-medium text-light-textPrimary dark:text-dark-textPrimary">
+                  {r.label}
+                  {r.isRequired ? '' : ' (optional)'}
+                </span>
+              </label>
+              <span className="text-xs text-light-textMuted dark:text-dark-textMuted">
+                {REQUIREMENT_STATUS_LABEL[r.status]}
+              </span>
+            </div>
+
+            {r.rejectionReason ? (
+              <p className="mt-1 text-xs text-light-danger dark:text-dark-danger">{r.rejectionReason}</p>
+            ) : null}
+
+            {r.documentId ? (
+              <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-light-textMuted dark:text-dark-textMuted">
+                {r.uploadedAt ? (
+                  <span>Uploaded {new Date(r.uploadedAt).toLocaleString('en-ZA')}</span>
+                ) : null}
+                <button
+                  type="button"
+                  className="text-light-accent underline dark:text-dark-accent"
+                  onClick={() => viewDocument(r.documentId!)}
+                >
+                  View {r.originalFileName ?? 'document'}
+                </button>
+                {r.ocr ? (
+                  <span>
+                    OCR: {r.ocr.fieldCount} field{r.ocr.fieldCount === 1 ? '' : 's'} extracted, {Math.round(r.ocr.overallConfidence * 100)}% confidence
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
+
+            {r.documentId && (r.status === 'uploaded' || r.status === 'reviewed') ? (
+              <div className="mt-2 flex gap-2">
+                <Button size="sm" disabled={busy} onClick={() => review(r.id, 'accepted')}>
+                  Accept
+                </Button>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  disabled={busy}
+                  onClick={() => {
+                    const reason = window.prompt('Why does this document need correction?');
+                    if (reason === null) return;
+                    void review(r.id, 'rejected', reason);
+                  }}
+                >
+                  Needs correction
+                </Button>
+              </div>
+            ) : null}
           </li>
         ))}
       </ul>
-      <label className="mt-2 block text-xs">
-        <span className="text-light-textMuted dark:text-dark-textMuted">Message to applicant (optional)</span>
+      <label className="mt-3 block text-xs">
+        <span className="text-light-textMuted dark:text-dark-textMuted">Message to applicant (optional, for requested documents above)</span>
         <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={2} className={inputClass} />
       </label>
       <Button className="mt-2" size="sm" disabled={busy || selected.size === 0} onClick={submit}>

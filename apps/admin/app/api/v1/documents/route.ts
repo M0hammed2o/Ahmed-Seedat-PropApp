@@ -7,6 +7,7 @@ import { requireOrgRole, requirePropertyAccess } from '@/lib/portfolio';
 import { mapDocumentRow } from '@/lib/documents';
 import { parseListQuery, encodeCursor, beforeCursorFilter } from '@/lib/cursorPagination';
 import { scanUploadOrRespond } from '@/lib/uploadScan';
+import { safeErrorMessage } from '@/lib/safeError';
 
 const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024; // 25MB, matches the storage bucket's own file_size_limit
 
@@ -54,7 +55,16 @@ export async function GET(request: NextRequest) {
   const { data, error } = await query;
   if (error) {
     return NextResponse.json(
-      { error: { code: 'documents_list_failed', message: error.message } },
+      {
+        error: {
+          code: 'documents_list_failed',
+          message: safeErrorMessage(
+            error,
+            'Could not load documents. Please try again, or contact support if this continues.',
+            'documents.list',
+          ),
+        },
+      },
       { status: 500 },
     );
   }
@@ -199,7 +209,16 @@ export async function POST(request: NextRequest) {
     .upload(storagePath, buffer, { contentType: file.type, upsert: false });
   if (uploadError) {
     return NextResponse.json(
-      { error: { code: 'storage_upload_failed', message: uploadError.message } },
+      {
+        error: {
+          code: 'storage_upload_failed',
+          message: safeErrorMessage(
+            uploadError,
+            'Could not upload this document. Please try again, or contact support if this continues.',
+            `documents.storageUpload(${storagePath})`,
+          ),
+        },
+      },
       { status: 500 },
     );
   }
@@ -231,7 +250,16 @@ export async function POST(request: NextRequest) {
     // also fails, never a security issue since it's still org-scoped by path).
     await supabase.storage.from('documents').remove([storagePath]);
     return NextResponse.json(
-      { error: { code: 'document_create_failed', message: error.message } },
+      {
+        error: {
+          code: 'document_create_failed',
+          message: safeErrorMessage(
+            error,
+            'Could not save this document. Please try again, or contact support if this continues.',
+            `documents.create(${storagePath})`,
+          ),
+        },
+      },
       { status: 500 },
     );
   }

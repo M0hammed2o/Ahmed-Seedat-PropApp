@@ -9,6 +9,71 @@ import { getAppUrl } from '@/lib/appUrl';
 type RouteParams = { params: Promise<{ id: string }> };
 
 /**
+ * GET /api/v1/applications/:id/access-tokens (launch-hardening pass, WORKLOG.md 2026-08-26,
+ * Section 2: staff previously had zero visibility into whether an applicant had ever been
+ * invited -- the only place a token/email was created was a route nothing in the UI called).
+ * Returns the most recent token (active or not) plus the delivery status of its invitation email,
+ * so the UI can show "Invitation sent" / "Awaiting applicant" / "Applicant opened the link" /
+ * "Invitation failed" / "Never invited" without ever exposing the token itself.
+ */
+export async function GET(_request: NextRequest, { params }: RouteParams) {
+  const { id } = await params;
+  const supabase = await getServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json(
+      { error: { code: 'unauthenticated', message: 'Sign in required.' } },
+      { status: 401 },
+    );
+  }
+
+  const { data: token, error } = await supabase
+    .from('application_access_tokens')
+    .select('id, delivery_channel, destination_hint, expires_at, last_accessed_at, revoked_at, created_at')
+    .eq('application_id', id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    return NextResponse.json(
+      { error: { code: 'access_token_fetch_failed', message: 'Could not load invitation status.' } },
+      { status: 500 },
+    );
+  }
+  if (!token) {
+    return NextResponse.json({ accessToken: null, email: null });
+  }
+
+  let email: { status: string } | null = null;
+  if (token.delivery_channel === 'email') {
+    const { data: emailRow } = await supabase
+      .from('email_messages')
+      .select('status')
+      .eq('related_entity_type', 'application_access_tokens')
+      .eq('related_entity_id', token.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    email = emailRow ? { status: emailRow.status } : null;
+  }
+
+  return NextResponse.json({
+    accessToken: {
+      deliveryChannel: token.delivery_channel,
+      destinationHint: token.destination_hint,
+      expiresAt: token.expires_at,
+      lastAccessedAt: token.last_accessed_at,
+      revokedAt: token.revoked_at,
+      createdAt: token.created_at,
+      isCurrent: token.revoked_at === null,
+    },
+    email,
+  });
+}
+
+/**
  * POST /api/v1/applications/:id/access-tokens (Phase 4, migration 20260101000132). Issues (or
  * re-issues, revoking any prior active one) the secure applicant-intake link. RLS on
  * application_access_tokens + create_application_access_token()'s own internal check both already
@@ -63,6 +128,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     .single();
 
   if (error) {
+    // error.message here is the RPC's own raise-exception text (e.g. "Caller does not have
+    // permission to invite this applicant" or "Application not found") -- deliberately not
+    // resolved via the shared safeguard below, since these are already friendly, intentional
+    // application-level messages, not raw driver/constraint text.
     return NextResponse.json(
       { error: { code: 'access_token_create_failed', message: error.message } },
       { status: 400 },
@@ -71,6 +140,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
   const row = data as { token_id: string; token: string; expires_at: string };
   const serviceClient = getServiceRoleClient();
+  let emailResult: { sent: boolean; deliveryConfigured: boolean } | null = null;
 
   const { data: application } = await supabase
     .from('applications')
@@ -96,7 +166,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     });
 
     if (parsed.data.deliveryChannel === 'email' && app.applicant_email) {
-      await dispatchEmail(serviceClient, {
+      emailResult = await dispatchEmail(serviceClient, {
         orgId: app.org_id,
         toAddress: app.applicant_email,
         templateName: 'application_invitation',
@@ -122,6 +192,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       await dispatchApplicationInvitationWhatsApp(serviceClient, {
         orgId: app.org_id,
         applicationId: id,
+        // Same fresh-per-call id the email dispatch above already uses (row.token_id) -- a
+        // "Resend invitation" issues a brand new token, and must be able to send a new WhatsApp
+        // message too, not be silently swallowed by dispatchWhatsApp's own already-sent guard
+        // keyed on the (unchanged) applicationId (WORKLOG.md 2026-08-27).
+        dispatchId: row.token_id,
         propertyLabel: app.units?.properties?.nickname
           ? `${app.units.properties.nickname} — ${app.units.unit_label}`
           : (app.units?.unit_label ?? 'a rental'),
@@ -131,7 +206,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
 
   return NextResponse.json(
-    { accessToken: { id: row.token_id, token: row.token, expiresAt: row.expires_at } },
+    {
+      accessToken: { id: row.token_id, token: row.token, expiresAt: row.expires_at },
+      email: emailResult,
+    },
     { status: 201 },
   );
 }

@@ -1,9 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { maintenanceTicketCreateSchema } from '@propvault/validation';
-import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { requireOrgRole } from '@/lib/portfolio';
 import { mapMaintenanceTicketRow } from '@/lib/operations';
 import { parseListQuery, encodeCursor, beforeCursorFilter } from '@/lib/cursorPagination';
+import { notifyPropertyStaff } from '@/lib/notify';
+import { safeErrorMessage } from '@/lib/safeError';
 
 /**
  * GET/POST /api/v1/maintenance-tickets (API_SPEC.md §5, TASKS.md M13). This route is staff-only --
@@ -46,7 +48,12 @@ export async function GET(request: NextRequest) {
   const { data, error } = await query;
   if (error) {
     return NextResponse.json(
-      { error: { code: 'maintenance_tickets_list_failed', message: error.message } },
+      {
+        error: {
+          code: 'maintenance_tickets_list_failed',
+          message: safeErrorMessage(error, 'Could not load maintenance tickets.', 'maintenanceTickets.list'),
+        },
+      },
       { status: 500 },
     );
   }
@@ -145,10 +152,34 @@ export async function POST(request: NextRequest) {
       );
     }
     return NextResponse.json(
-      { error: { code: 'maintenance_ticket_create_failed', message: error.message } },
+      {
+        error: {
+          code: 'maintenance_ticket_create_failed',
+          message: safeErrorMessage(
+            error,
+            'Could not create this maintenance ticket. Please try again, or contact support if this continues.',
+            'maintenanceTickets.create',
+          ),
+        },
+      },
       { status: 500 },
     );
   }
+
+  // V1 launch-completion pass (WORKLOG.md this date): notify other property staff that a
+  // colleague logged a ticket. Fail-soft (notifyPropertyStaff never throws) and after the
+  // primary insert has already succeeded, so it can never affect this route's success response.
+  // excludeUserId skips the creating staff member -- they already know they just filed it.
+  await notifyPropertyStaff(getServiceRoleClient(), {
+    orgId: parsed.data.orgId,
+    propertyId: parsed.data.propertyId,
+    type: 'maintenance_ticket_created',
+    title: 'New maintenance request',
+    body: `A maintenance request was logged: ${parsed.data.summary}`,
+    relatedEntityType: 'maintenance_ticket',
+    relatedEntityId: data.id,
+    excludeUserId: user.id,
+  });
 
   return NextResponse.json({ maintenanceTicket: mapMaintenanceTicketRow(data) }, { status: 201 });
 }

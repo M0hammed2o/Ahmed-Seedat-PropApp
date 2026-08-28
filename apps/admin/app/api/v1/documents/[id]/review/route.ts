@@ -4,6 +4,7 @@ import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/se
 import { requireOrgRole, requirePropertyAccess } from '@/lib/portfolio';
 import { mapExtractionResultRow } from '@/lib/documents';
 import { writeAuditEvent } from '@/lib/audit';
+import { safeErrorMessage } from '@/lib/safeError';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -34,7 +35,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     .maybeSingle();
   if (documentError) {
     return NextResponse.json(
-      { error: { code: 'document_fetch_failed', message: documentError.message } },
+      {
+        error: {
+          code: 'document_fetch_failed',
+          message: safeErrorMessage(
+            documentError,
+            'Could not load this document. Please try again, or contact support if this continues.',
+            `documents.fetch(${id})`,
+          ),
+        },
+      },
       { status: 500 },
     );
   }
@@ -100,7 +110,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     .maybeSingle();
   if (jobError) {
     return NextResponse.json(
-      { error: { code: 'extraction_job_fetch_failed', message: jobError.message } },
+      {
+        error: {
+          code: 'extraction_job_fetch_failed',
+          message: safeErrorMessage(
+            jobError,
+            'Could not load the extraction status for this document. Please try again, or contact support if this continues.',
+            `extraction_jobs.fetch(${id})`,
+          ),
+        },
+      },
       { status: 500 },
     );
   }
@@ -124,7 +143,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     .single();
   if (error) {
     return NextResponse.json(
-      { error: { code: 'review_update_failed', message: error.message } },
+      {
+        error: {
+          code: 'review_update_failed',
+          message: safeErrorMessage(
+            error,
+            'Could not confirm this review. Please try again, or contact support if this continues.',
+            `extraction_results.review(${id})`,
+          ),
+        },
+      },
       { status: 500 },
     );
   }

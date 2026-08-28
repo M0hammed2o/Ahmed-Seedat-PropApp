@@ -59,7 +59,7 @@ test.describe('root domain (/) routing', () => {
     // Re-visiting '/' directly while authenticated must redirect through the resolver again, not
     // show the public landing page to a signed-in user.
     await page.goto('/');
-    await page.waitForURL(/\/onboarding\/create-organization/, { timeout: 15_000 });
+    await page.waitForURL(/\/onboarding\/choose-plan/, { timeout: 15_000 });
   });
 
   test('a normal signed-in user cannot reach the platform-admin route', async ({ page }) => {

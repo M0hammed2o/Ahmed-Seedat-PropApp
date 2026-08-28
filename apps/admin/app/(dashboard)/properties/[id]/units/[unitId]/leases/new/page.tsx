@@ -1,38 +1,65 @@
+import Link from 'next/link';
 import { redirect, notFound } from 'next/navigation';
-import { LeaseForm } from '@/components/leases/LeaseForm';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { Panel } from '@/components/ui/Panel';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { resolvePortalSession, findActiveMembership, canWriteOrgRecords } from '@/lib/orgSession';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 type RouteParams = { params: Promise<{ id: string; unitId: string }> };
 
-// GET /properties/:id/units/:unitId/leases/new -- leases are always created from a unit's own
-// context (leaseCreateSchema requires unitId; there is no unit-picker on a top-level /leases/new
-// route). Mirrors properties/[id]/units/new/page.tsx's role-gate-then-redirect pattern.
-export default async function NewLeasePage({ params }: RouteParams) {
+/**
+ * GET /properties/:id/units/:unitId/leases/new (V1 launch-completion pass, Section 5): distinguish
+ * "Create new lease" (the existing Prepare Lease workflow, moved unchanged to .../leases/new/prepare)
+ * from "Record existing lease" (a tenancy already signed outside Proplyst, .../leases/new/existing).
+ */
+export default async function NewLeaseChoicePage({ params }: RouteParams) {
   const { id: propertyId, unitId } = await params;
 
-  if (ADMIN_DEMO_MODE) {
-    if (propertyId !== 'demo-property-1' || unitId !== 'demo-unit-1') notFound();
-    return <LeaseForm mode="create" orgId="demo-org-1" unitId={unitId} propertyId={propertyId} />;
+  if (!ADMIN_DEMO_MODE) {
+    const session = await resolvePortalSession();
+    if (!session) redirect('/login');
+
+    const supabase = await getServerSupabaseClient();
+    const { data: unit, error } = await supabase
+      .from('units')
+      .select('id, org_id')
+      .eq('id', unitId)
+      .eq('property_id', propertyId)
+      .maybeSingle();
+    if (error) throw new Error(`Failed to load unit: ${error.message}`);
+    if (!unit) notFound();
+
+    const membership = findActiveMembership(session, unit.org_id);
+    const canCreate = membership && canWriteOrgRecords(membership.role);
+    if (!canCreate) redirect(`/properties/${propertyId}/units/${unitId}`);
   }
 
-  const session = await resolvePortalSession();
-  if (!session) redirect('/login');
+  return (
+    <div className="space-y-6 animate-rise">
+      <PageHeader title="Add lease" subtitle="How do you want to add this lease?" />
 
-  const supabase = await getServerSupabaseClient();
-  const { data: unit, error } = await supabase
-    .from('units')
-    .select('id, org_id, property_id')
-    .eq('id', unitId)
-    .eq('property_id', propertyId)
-    .maybeSingle();
-  if (error) throw new Error(`Failed to load unit: ${error.message}`);
-  if (!unit) notFound();
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Link href={`/properties/${propertyId}/units/${unitId}/leases/new/prepare`}>
+          <Panel bodyClassName="p-5" className="h-full transition-shadow hover:shadow-lift">
+            <h3 className="font-display text-base font-semibold text-foreground">Create new lease</h3>
+            <p className="mt-1.5 text-[13px] text-muted-foreground">
+              Start a brand-new lease for this unit — commercial terms, generate the document,
+              send it to the tenant for review, and get it signed through Proplyst.
+            </p>
+          </Panel>
+        </Link>
 
-  const membership = findActiveMembership(session, unit.org_id);
-  const canCreate = membership && canWriteOrgRecords(membership.role);
-  if (!canCreate) redirect(`/properties/${propertyId}/units/${unitId}`);
-
-  return <LeaseForm mode="create" orgId={unit.org_id} unitId={unitId} propertyId={propertyId} />;
+        <Link href={`/properties/${propertyId}/units/${unitId}/leases/new/existing`}>
+          <Panel bodyClassName="p-5" className="h-full transition-shadow hover:shadow-lift">
+            <h3 className="font-display text-base font-semibold text-foreground">Record existing lease</h3>
+            <p className="mt-1.5 text-[13px] text-muted-foreground">
+              Importing an existing portfolio? Record a tenancy that was already agreed and
+              signed outside Proplyst — no re-signature, no "ready for review" notice.
+            </p>
+          </Panel>
+        </Link>
+      </div>
+    </div>
+  );
 }

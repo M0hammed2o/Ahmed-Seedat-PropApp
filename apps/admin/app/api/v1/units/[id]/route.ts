@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { unitUpdateSchema } from '@propvault/validation';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapUnitRow, requireOrgRole } from '@/lib/portfolio';
+import { safeErrorMessage } from '@/lib/safeError';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -28,7 +29,16 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
   const { data, error } = await loadVisibleUnit(supabase, id);
   if (error) {
     return NextResponse.json(
-      { error: { code: 'unit_fetch_failed', message: error.message } },
+      {
+        error: {
+          code: 'unit_fetch_failed',
+          message: safeErrorMessage(
+            error,
+            'Could not load this unit. Please try again, or contact support if this continues.',
+            `units.fetch(${id})`,
+          ),
+        },
+      },
       { status: 500 },
     );
   }
@@ -58,7 +68,16 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   const { data: existing, error: fetchError } = await loadVisibleUnit(supabase, id);
   if (fetchError) {
     return NextResponse.json(
-      { error: { code: 'unit_fetch_failed', message: fetchError.message } },
+      {
+        error: {
+          code: 'unit_fetch_failed',
+          message: safeErrorMessage(
+            fetchError,
+            'Could not load this unit. Please try again, or contact support if this continues.',
+            `units.fetch(${id})`,
+          ),
+        },
+      },
       { status: 500 },
     );
   }
@@ -129,7 +148,16 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         .maybeSingle();
       if (activeLeaseError) {
         return NextResponse.json(
-          { error: { code: 'unit_lease_check_failed', message: activeLeaseError.message } },
+          {
+            error: {
+              code: 'unit_lease_check_failed',
+              message: safeErrorMessage(
+                activeLeaseError,
+                "Could not verify this unit's lease status. Please try again, or contact support if this continues.",
+                `units.checkActiveLease(${id})`,
+              ),
+            },
+          },
           { status: 500 },
         );
       }
@@ -178,7 +206,16 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
   if (error) {
     return NextResponse.json(
-      { error: { code: 'unit_update_failed', message: error.message } },
+      {
+        error: {
+          code: 'unit_update_failed',
+          message: safeErrorMessage(
+            error,
+            'Could not update this unit. Please try again, or contact support if this continues.',
+            `units.update(${id})`,
+          ),
+        },
+      },
       { status: 500 },
     );
   }

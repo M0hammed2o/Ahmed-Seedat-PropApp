@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import type { Application } from '@propvault/types';
 import { ApplicationsFilterClient } from '@/components/tables/ApplicationsFilterClient';
 import { AdminMetricCard } from '@/components/ui/AdminMetricCard';
@@ -57,7 +58,15 @@ export default async function ApplicationsPage() {
     <div className="space-y-5 animate-rise">
       <PageHeader
         title="Applications"
-        subtitle="Every rental application across your portfolio. Applications are submitted from a unit."
+        subtitle="Every rental application across your portfolio."
+        actions={
+          <Link
+            href="/applications/new"
+            className="flex h-9 items-center gap-1.5 rounded-xl bg-primary px-3.5 text-[13px] font-semibold text-primary-foreground"
+          >
+            + New application
+          </Link>
+        }
       />
 
       <div className="grid grid-cols-4 gap-4">

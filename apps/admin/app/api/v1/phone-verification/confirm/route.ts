@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { phoneVerificationConfirmSchema } from '@propvault/validation';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { safeErrorMessage } from '@/lib/safeError';
 
 /**
  * POST /api/v1/phone-verification/confirm -- WhatsApp V1 completion pass, Phase F. Thin wrapper
@@ -53,7 +54,16 @@ export async function POST(request: NextRequest) {
     .single();
   if (rpcError) {
     return NextResponse.json(
-      { error: { code: 'phone_verification_confirm_failed', message: rpcError.message } },
+      {
+        error: {
+          code: 'phone_verification_confirm_failed',
+          message: safeErrorMessage(
+            rpcError,
+            'Could not confirm this verification code. Please try again, or contact support if this continues.',
+            'confirm_phone_verification',
+          ),
+        },
+      },
       { status: 500 },
     );
   }

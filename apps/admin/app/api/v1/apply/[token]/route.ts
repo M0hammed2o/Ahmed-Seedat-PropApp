@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { safeErrorMessage } from '@/lib/safeError';
 
 type RouteParams = { params: Promise<{ token: string }> };
 
@@ -43,7 +44,12 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 
   if (error) {
     return NextResponse.json(
-      { error: { code: 'application_lookup_failed', message: error.message } },
+      {
+        error: {
+          code: 'application_lookup_failed',
+          message: safeErrorMessage(error, 'Could not load this application link.', 'apply.lookup'),
+        },
+      },
       { status: 500 },
     );
   }

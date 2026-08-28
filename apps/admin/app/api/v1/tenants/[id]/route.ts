@@ -3,6 +3,7 @@ import { tenantUpdateSchema } from '@propvault/validation';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { requireOrgRole } from '@/lib/portfolio';
 import { mapTenantRow } from '@/lib/leasing';
+import { safeErrorMessage } from '@/lib/safeError';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -29,7 +30,16 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
   const { data, error } = await loadVisibleTenant(supabase, id);
   if (error) {
     return NextResponse.json(
-      { error: { code: 'tenant_fetch_failed', message: error.message } },
+      {
+        error: {
+          code: 'tenant_fetch_failed',
+          message: safeErrorMessage(
+            error,
+            'Could not load this tenant. Please try again, or contact support if this continues.',
+            `tenants.fetch(${id})`,
+          ),
+        },
+      },
       { status: 500 },
     );
   }
@@ -59,7 +69,16 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   const { data: existing, error: fetchError } = await loadVisibleTenant(supabase, id);
   if (fetchError) {
     return NextResponse.json(
-      { error: { code: 'tenant_fetch_failed', message: fetchError.message } },
+      {
+        error: {
+          code: 'tenant_fetch_failed',
+          message: safeErrorMessage(
+            fetchError,
+            'Could not load this tenant. Please try again, or contact support if this continues.',
+            `tenants.fetch(${id})`,
+          ),
+        },
+      },
       { status: 500 },
     );
   }
@@ -122,7 +141,16 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
   if (error) {
     return NextResponse.json(
-      { error: { code: 'tenant_update_failed', message: error.message } },
+      {
+        error: {
+          code: 'tenant_update_failed',
+          message: safeErrorMessage(
+            error,
+            'Could not update this tenant. Please try again, or contact support if this continues.',
+            `tenants.update(${id})`,
+          ),
+        },
+      },
       { status: 500 },
     );
   }

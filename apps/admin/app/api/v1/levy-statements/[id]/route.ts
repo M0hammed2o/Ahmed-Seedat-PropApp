@@ -3,6 +3,7 @@ import { levyStatementUpdateSchema } from '@propvault/validation';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { requireOrgRole } from '@/lib/portfolio';
 import { mapLevyStatementLineItemRow, mapLevyStatementRow } from '@/lib/compliance';
+import { safeErrorMessage } from '@/lib/safeError';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -26,7 +27,16 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     .maybeSingle();
   if (error) {
     return NextResponse.json(
-      { error: { code: 'levy_statement_fetch_failed', message: error.message } },
+      {
+        error: {
+          code: 'levy_statement_fetch_failed',
+          message: safeErrorMessage(
+            error,
+            'Could not load this levy statement. Please try again, or contact support if this continues.',
+            `levy_statements.fetch(${id})`,
+          ),
+        },
+      },
       { status: 500 },
     );
   }
@@ -44,7 +54,16 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     .order('sort_order', { ascending: true });
   if (lineItemsError) {
     return NextResponse.json(
-      { error: { code: 'line_items_fetch_failed', message: lineItemsError.message } },
+      {
+        error: {
+          code: 'line_items_fetch_failed',
+          message: safeErrorMessage(
+            lineItemsError,
+            'Could not load the line items for this levy statement. Please try again, or contact support if this continues.',
+            `levy_statement_line_items.fetch(${id})`,
+          ),
+        },
+      },
       { status: 500 },
     );
   }
@@ -134,7 +153,16 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     .single();
   if (error) {
     return NextResponse.json(
-      { error: { code: 'levy_statement_update_failed', message: error.message } },
+      {
+        error: {
+          code: 'levy_statement_update_failed',
+          message: safeErrorMessage(
+            error,
+            'Could not update this levy statement. Please try again, or contact support if this continues.',
+            `levy_statements.update(${id})`,
+          ),
+        },
+      },
       { status: 500 },
     );
   }

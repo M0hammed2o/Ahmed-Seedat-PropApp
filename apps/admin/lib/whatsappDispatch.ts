@@ -216,7 +216,12 @@ export interface DispatchWhatsAppInput {
 export interface DispatchWhatsAppResult {
   sent: boolean;
   reason?:
-    'no_phone' | 'invalid_phone' | 'preference_disabled' | 'already_sent' | 'template_not_approved';
+    | 'no_phone'
+    | 'invalid_phone'
+    | 'preference_disabled'
+    | 'already_sent'
+    | 'template_not_approved'
+    | 'send_failed';
   whatsappMessageId?: string;
   /** False whenever this dispatch went through MockWhatsAppProvider (no WHATSAPP_ACCESS_TOKEN/
    * WHATSAPP_PHONE_NUMBER_ID/WHATSAPP_WEBHOOK_SECRET configured) -- mirrors
@@ -294,42 +299,64 @@ export async function dispatchWhatsApp(
     return { sent: false, reason: 'template_not_approved', deliveryConfigured };
   }
 
-  const provider = getWhatsAppProvider();
-  const result = await provider.sendTemplateMessage({
-    to: toNumber,
-    templateName: input.templateName,
-    variables: input.variables,
-    orgId: input.orgId,
-  });
+  // Launch-completion pass (WORKLOG.md 2026-08-27): flipping a template's `approved` flag to true
+  // makes this the first moment a REAL Meta API call can happen for it -- before that, the
+  // template_not_approved short-circuit above meant sendTemplateMessage() was never actually
+  // reached. A network failure calling Meta, or a genuine whatsapp_messages insert failure, must
+  // never throw up into the caller: every dispatch call site fires this AFTER its own core
+  // business action (approve/decline/send/invite) has already succeeded and committed --
+  // an uncaught exception here would turn a successful approval into a misleading 500 to the
+  // staff member, not roll back anything real, just lie about the outcome. Fail soft, once,
+  // centrally, for every current and future caller of this single dispatch function.
+  try {
+    const provider = getWhatsAppProvider();
+    const result = await provider.sendTemplateMessage({
+      to: toNumber,
+      templateName: input.templateName,
+      variables: input.variables,
+      orgId: input.orgId,
+    });
 
-  const { data: message, error: insertError } = await serviceClient
-    .from('whatsapp_messages')
-    .insert({
-      org_id: input.orgId,
-      direction: 'outbound',
-      to_number: toNumber,
-      from_number: PLATFORM_WHATSAPP_NUMBER,
-      related_entity_type: input.relatedEntityType,
-      related_entity_id: input.relatedEntityId,
-      template_name: input.templateName,
-      status: 'queued',
-      provider_message_id: result.providerMessageId,
-    })
-    .select('id')
-    .single();
-  if (insertError) throw new Error(insertError.message);
+    const { data: message, error: insertError } = await serviceClient
+      .from('whatsapp_messages')
+      .insert({
+        org_id: input.orgId,
+        direction: 'outbound',
+        to_number: toNumber,
+        from_number: PLATFORM_WHATSAPP_NUMBER,
+        related_entity_type: input.relatedEntityType,
+        related_entity_id: input.relatedEntityId,
+        template_name: input.templateName,
+        status: 'queued',
+        provider_message_id: result.providerMessageId,
+      })
+      .select('id')
+      .single();
+    if (insertError) throw new Error(insertError.message);
 
-  await writeAuditEvent(serviceClient, {
-    orgId: input.orgId,
-    actorUserId: input.actorUserId,
-    actorType: input.actorUserId ? 'user' : 'system',
-    action: 'whatsapp_sent',
-    entityType: input.relatedEntityType,
-    entityId: input.relatedEntityId,
-    after: { templateName: input.templateName, toNumber, status: 'queued' },
-  });
+    await writeAuditEvent(serviceClient, {
+      orgId: input.orgId,
+      actorUserId: input.actorUserId,
+      actorType: input.actorUserId ? 'user' : 'system',
+      action: 'whatsapp_sent',
+      entityType: input.relatedEntityType,
+      entityId: input.relatedEntityId,
+      after: { templateName: input.templateName, toNumber, status: 'queued' },
+    });
 
-  return { sent: true, whatsappMessageId: message.id, deliveryConfigured };
+    return { sent: true, whatsappMessageId: message.id, deliveryConfigured };
+  } catch (err) {
+    // Real cause (provider payload, network error, DB error) logged server-side only -- never
+    // surfaced to the caller/end user, matching this pass's "no provider error payloads to users"
+    // rule.
+    console.error('[dispatchWhatsApp] send failed', {
+      templateName: input.templateName,
+      relatedEntityType: input.relatedEntityType,
+      relatedEntityId: input.relatedEntityId,
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return { sent: false, reason: 'send_failed', deliveryConfigured };
+  }
 }
 
 // V1 communications productionisation (WORKLOG.md this date): closes TECHNICAL_DEBT_REGISTER.md

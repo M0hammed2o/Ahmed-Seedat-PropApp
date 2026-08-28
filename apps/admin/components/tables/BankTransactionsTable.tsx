@@ -1,7 +1,7 @@
 'use client';
 
 import type { ColumnDef } from '@tanstack/react-table';
-import type { BankTransaction, RentSchedule } from '@propvault/types';
+import type { BankTransaction, RentSchedule, Expense } from '@propvault/types';
 import { BANK_TRANSACTION_MATCH_STATUS_PRESENTATION } from '@propvault/ui';
 import { formatSouthAfricanNumber } from '@propvault/utils';
 import { AdminDataTable } from '@/components/ui/AdminDataTable';
@@ -11,6 +11,7 @@ import { MatchTransactionControl } from '@/components/accounting/MatchTransactio
 function buildColumns(
   canPost: boolean,
   rentScheduleCandidates: RentSchedule[],
+  pendingExpenseCandidates: Expense[],
 ): ColumnDef<BankTransaction, unknown>[] {
   const columns: ColumnDef<BankTransaction, unknown>[] = [
     { header: 'Date', accessorKey: 'transactionDate' },
@@ -47,7 +48,8 @@ function buildColumns(
         info.row.original.matchStatus === 'unmatched' ? (
           <MatchTransactionControl
             bankTransactionId={info.row.original.id}
-            candidates={rentScheduleCandidates}
+            rentScheduleCandidates={rentScheduleCandidates}
+            pendingExpenseCandidates={pendingExpenseCandidates}
           />
         ) : null,
     });
@@ -60,16 +62,18 @@ export function BankTransactionsTable({
   data,
   canPost,
   rentScheduleCandidates,
+  pendingExpenseCandidates,
 }: {
   data: BankTransaction[];
   canPost: boolean;
   rentScheduleCandidates: RentSchedule[];
+  pendingExpenseCandidates: Expense[];
 }) {
   return (
     <AdminDataTable
       emptyMessage="No transactions yet"
       data={data}
-      columns={buildColumns(canPost, rentScheduleCandidates)}
+      columns={buildColumns(canPost, rentScheduleCandidates, pendingExpenseCandidates)}
     />
   );
 }

@@ -6,6 +6,7 @@ import { requireOrgRole } from '@/lib/portfolio';
 import { mapApplicationRow } from '@/lib/leasing';
 import { writeAuditEvent } from '@/lib/audit';
 import { dispatchEmail } from '@/lib/emailDispatch';
+import { safeErrorMessage } from '@/lib/safeError';
 import {
   dispatchApplicationApprovedWhatsApp,
   dispatchApplicationDeclinedWhatsApp,
@@ -51,7 +52,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     .maybeSingle();
   if (fetchError) {
     return NextResponse.json(
-      { error: { code: 'application_fetch_failed', message: fetchError.message } },
+      {
+        error: {
+          code: 'application_fetch_failed',
+          message: safeErrorMessage(fetchError, 'Could not load this application.', 'applications/[id]/decide.fetch'),
+        },
+      },
       { status: 500 },
     );
   }
@@ -122,7 +128,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     if (error) {
       return NextResponse.json(
-        { error: { code: 'decline_failed', message: error.message } },
+        {
+          error: {
+            code: 'decline_failed',
+            message: safeErrorMessage(
+              error,
+              'Could not decline this application. Please try again, or contact support if this continues.',
+              'applications/[id]/decide.decline',
+            ),
+          },
+        },
         { status: 500 },
       );
     }
@@ -164,7 +179,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
   if (approveError) {
     return NextResponse.json(
-      { error: { code: 'approval_failed', message: approveError.message } },
+      {
+        error: {
+          code: 'approval_failed',
+          message: safeErrorMessage(
+            approveError,
+            'Could not approve this application. Please try again, or contact support if this continues.',
+            'applications/[id]/decide.approve',
+          ),
+        },
+      },
       { status: 500 },
     );
   }
@@ -176,7 +200,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     .single();
   if (refetchError) {
     return NextResponse.json(
-      { error: { code: 'application_fetch_failed', message: refetchError.message } },
+      {
+        error: {
+          code: 'application_fetch_failed',
+          message: safeErrorMessage(refetchError, 'Could not reload this application.', 'applications/[id]/decide.refetch'),
+        },
+      },
       { status: 500 },
     );
   }

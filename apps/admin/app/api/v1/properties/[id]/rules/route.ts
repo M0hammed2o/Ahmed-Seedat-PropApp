@@ -3,6 +3,7 @@ import { propertyRuleCreateSchema } from '@propvault/validation';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { requireOrgRole } from '@/lib/portfolio';
 import { mapPropertyRuleRow, mapPropertyRuleVersionRow } from '@/lib/compliance';
+import { safeErrorMessage } from '@/lib/safeError';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -53,7 +54,16 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     .order('created_at', { ascending: false });
   if (rulesError) {
     return NextResponse.json(
-      { error: { code: 'rules_fetch_failed', message: rulesError.message } },
+      {
+        error: {
+          code: 'rules_fetch_failed',
+          message: safeErrorMessage(
+            rulesError,
+            'Could not load rules for this property. Please try again, or contact support if this continues.',
+            `property_rules.fetch(${id})`,
+          ),
+        },
+      },
       { status: 500 },
     );
   }

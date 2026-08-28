@@ -4,6 +4,7 @@ import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { requireOrgRole } from '@/lib/portfolio';
 import { mapTenantRow } from '@/lib/leasing';
 import { parseListQuery, encodeCursor, beforeCursorFilter } from '@/lib/cursorPagination';
+import { safeErrorMessage } from '@/lib/safeError';
 
 /**
  * GET/POST /api/v1/tenants (API_SPEC.md §4, TASKS.md M8). Same shape as
@@ -42,7 +43,12 @@ export async function GET(request: NextRequest) {
   const { data, error } = await query;
   if (error) {
     return NextResponse.json(
-      { error: { code: 'tenants_list_failed', message: error.message } },
+      {
+        error: {
+          code: 'tenants_list_failed',
+          message: safeErrorMessage(error, 'Could not load tenants.', 'tenants.list'),
+        },
+      },
       { status: 500 },
     );
   }
@@ -120,7 +126,16 @@ export async function POST(request: NextRequest) {
 
   if (error) {
     return NextResponse.json(
-      { error: { code: 'tenant_create_failed', message: error.message } },
+      {
+        error: {
+          code: 'tenant_create_failed',
+          message: safeErrorMessage(
+            error,
+            'Could not create this tenant. Please try again, or contact support if this continues.',
+            'tenants.create',
+          ),
+        },
+      },
       { status: 500 },
     );
   }

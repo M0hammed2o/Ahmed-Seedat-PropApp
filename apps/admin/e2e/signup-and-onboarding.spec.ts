@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { createConfirmedTestUser } from './fixtures/testUser';
 import { completeLegalConsentAndProfile } from './fixtures/onboarding';
+import { activateTrialForTests } from './fixtures/orgWorkflow';
 
 // Real critical-path coverage (TESTING.md §7's "org signup -> property creation" opening leg) --
 // against the real local Supabase instance, never demo mode. Seeds a pre-confirmed account via
@@ -11,6 +12,7 @@ import { completeLegalConsentAndProfile } from './fixtures/onboarding';
 // a brand-new org's principal to '/overview' (Super Admin only), which throws FORBIDDEN for an
 // ordinary customer -- fixed to '/dashboard' in the same change. Left in as regression coverage.
 test('a new user can log in, create an organization, and create a property', async ({ page }) => {
+  test.setTimeout(120_000);
   const user = await createConfirmedTestUser('onboarding');
 
   await page.goto('/login');
@@ -46,7 +48,20 @@ test('a new user can log in, create an organization, and create a property', asy
 
   const orgName = `E2E Test Org ${Date.now()}`;
   await page.locator('input[autocomplete="organization"]').fill(orgName);
+  const orgCreationResponsePromise = page.waitForResponse(
+    (response) =>
+      response.url().endsWith('/api/v1/organizations') && response.request().method() === 'POST',
+  );
   await page.getByRole('button', { name: /create organization/i }).click();
+  const orgCreationResponse = await orgCreationResponsePromise;
+  expect(orgCreationResponse.ok()).toBe(true);
+  const org = (await orgCreationResponse.json()) as { id: string };
+
+  // The real UI creation above intentionally lands on commercial setup. This test's next target
+  // is property creation, so activate only this synthetic org through the sanctioned E2E fixture
+  // that invokes the same database RPC as the real PayFast completion webhook.
+  await activateTrialForTests(org.id);
+  await page.goto('/dashboard');
 
   // The bug this test caught: this used to hang on '/overview' (a thrown FORBIDDEN error), never
   // reaching '/dashboard' at all. A generous timeout: dev-mode Turbopack compiles each route on
@@ -57,7 +72,13 @@ test('a new user can log in, create an organization, and create a property', asy
   await expect(page.getByText(orgName, { exact: false }).first()).toBeVisible();
 
   await page.goto('/properties/new');
-  await page.waitForLoadState('networkidle');
+  // Not networkidle: reproduced live (v1 pre-deployment closeout, WORKLOG.md this date) hanging
+  // to its full test timeout late in a long-running dev-server session (never in isolation, and
+  // never on this exact same page/wait pattern earlier in the same run, at
+  // property-workflow-ui.spec.ts's own "address autocomplete" test) -- a real app's dev server
+  // legitimately never goes fully network-idle (HMR websocket, etc.), so waiting for a concrete,
+  // meaningful element is both more reliable and faster than waiting on that heuristic.
+  await expect(page.getByLabel('Property name')).toBeVisible({ timeout: 30_000 });
   const propertyName = `E2E Test Property ${Date.now()}`;
   await page.getByLabel('Property name').fill(propertyName);
   await page.getByLabel('Address line 1').fill('1 Test Street');

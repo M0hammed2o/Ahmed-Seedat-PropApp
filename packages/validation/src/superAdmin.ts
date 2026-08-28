@@ -112,6 +112,31 @@ export const ownerPortfolioGrantCreateSchema = z.object({
 });
 export type OwnerPortfolioGrantCreateInput = z.infer<typeof ownerPortfolioGrantCreateSchema>;
 
+// Referral attribution (V1 launch-completion pass) -- Platform Admin partner management +
+// correction routes (apps/admin/app/api/v1/admin/referral-partners/**,
+// apps/admin/app/api/v1/admin/referral-attributions/**). Deliberately no commission/payout/rate
+// fields anywhere here -- that's explicit V1.1 scope.
+export const referralPartnerCreateSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(200),
+  referralCode: z.string().min(1, 'Referral code is required').max(60),
+});
+export type ReferralPartnerCreateInput = z.infer<typeof referralPartnerCreateSchema>;
+
+export const referralPartnerUpdateSchema = z.object({
+  active: z.boolean(),
+});
+export type ReferralPartnerUpdateInput = z.infer<typeof referralPartnerUpdateSchema>;
+
+// PATCH /api/v1/admin/referral-attributions/:orgId -- the only sanctioned way to change an
+// organization's attribution after signup. Both fields optional/nullable independently: a
+// correction may set a resolved partner, clear it back to null, set/replace the fallback name, or
+// clear it -- whatever combination the admin actually intends is exactly what's written.
+export const referralAttributionCorrectionSchema = z.object({
+  referralPartnerId: z.string().uuid('referralPartnerId must be a valid UUID').nullable().optional(),
+  fallbackReferrerName: z.string().max(200).nullable().optional(),
+});
+export type ReferralAttributionCorrectionInput = z.infer<typeof referralAttributionCorrectionSchema>;
+
 export const planCreateSchema = z.object({
   code: z.string().min(1).max(40),
   name: z.string().min(1).max(200),

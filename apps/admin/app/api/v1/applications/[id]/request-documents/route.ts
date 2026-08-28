@@ -152,6 +152,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   await dispatchApplicationDocumentsRequestedWhatsApp(serviceClient, {
     orgId: application.org_id,
     applicationId: id,
+    // Same fresh dispatchId the email send above already uses -- a genuine second "request more
+    // documents" round for this application must not be silently swallowed by dispatchWhatsApp's
+    // already-sent guard keyed on the (unchanged) applicationId (WORKLOG.md 2026-08-27).
+    dispatchId,
     propertyLabel,
   });
 

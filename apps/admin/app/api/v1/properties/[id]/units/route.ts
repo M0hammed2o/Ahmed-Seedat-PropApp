@@ -3,6 +3,7 @@ import { unitSchema } from '@propvault/validation';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapUnitRow, requireOrgRole } from '@/lib/portfolio';
 import { parseListQuery, encodeCursor, beforeCursorFilter } from '@/lib/cursorPagination';
+import { safeErrorMessage } from '@/lib/safeError';
 
 // Folder is named `[id]` (not `[propId]`) because Next.js requires sibling dynamic segments at
 // the same path level to share one slug name — this directory is a sibling of
@@ -39,7 +40,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   const { data: property, error: fetchError } = await loadVisibleProperty(supabase, propertyId);
   if (fetchError) {
     return NextResponse.json(
-      { error: { code: 'property_fetch_failed', message: fetchError.message } },
+      {
+        error: {
+          code: 'property_fetch_failed',
+          message: safeErrorMessage(fetchError, 'Could not load this property.', 'properties/[id]/units.fetchProperty'),
+        },
+      },
       { status: 500 },
     );
   }
@@ -68,7 +74,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   const { data, error } = await query;
   if (error) {
     return NextResponse.json(
-      { error: { code: 'units_list_failed', message: error.message } },
+      {
+        error: {
+          code: 'units_list_failed',
+          message: safeErrorMessage(error, 'Could not load units.', 'properties/[id]/units.list'),
+        },
+      },
       { status: 500 },
     );
   }
@@ -100,7 +111,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   const { data: property, error: fetchError } = await loadVisibleProperty(supabase, propertyId);
   if (fetchError) {
     return NextResponse.json(
-      { error: { code: 'property_fetch_failed', message: fetchError.message } },
+      {
+        error: {
+          code: 'property_fetch_failed',
+          message: safeErrorMessage(fetchError, 'Could not load this property.', 'properties/[id]/units.fetchProperty'),
+        },
+      },
       { status: 500 },
     );
   }
@@ -165,7 +181,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
   if (error) {
     return NextResponse.json(
-      { error: { code: 'unit_create_failed', message: error.message } },
+      {
+        error: {
+          code: 'unit_create_failed',
+          message: safeErrorMessage(
+            error,
+            'Could not create this unit. Please try again, or contact support if this continues.',
+            'properties/[id]/units.create',
+          ),
+        },
+      },
       { status: 500 },
     );
   }

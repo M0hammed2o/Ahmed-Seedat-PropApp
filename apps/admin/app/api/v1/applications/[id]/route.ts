@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapApplicationRow } from '@/lib/leasing';
+import { safeErrorMessage } from '@/lib/safeError';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -30,7 +31,12 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     .maybeSingle();
   if (error) {
     return NextResponse.json(
-      { error: { code: 'application_fetch_failed', message: error.message } },
+      {
+        error: {
+          code: 'application_fetch_failed',
+          message: safeErrorMessage(error, 'Could not load this application.', 'applications/[id].fetch'),
+        },
+      },
       { status: 500 },
     );
   }

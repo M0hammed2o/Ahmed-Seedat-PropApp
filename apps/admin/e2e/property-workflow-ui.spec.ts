@@ -17,11 +17,18 @@ test.describe('dashboard zero-properties onboarding', () => {
 
     await page.goto('/dashboard');
     await page.waitForLoadState('networkidle');
-    await expect(page.getByText('Welcome to Proplyst')).toBeVisible();
-    await expect(
-      page.getByText('Add your first property to start tracking your portfolio.'),
-    ).toBeVisible();
-    await expect(page.getByRole('link', { name: /add your first property/i })).toBeVisible();
+    const welcomePanel = page.getByRole('heading', { name: 'Welcome to Proplyst' }).locator('..');
+    await expect(welcomePanel).toBeVisible();
+    await expect(welcomePanel.getByText(/Let's set up your property portfolio/)).toBeVisible();
+    await expect(welcomePanel.getByRole('link', { name: /invite your team/i })).toHaveAttribute(
+      'href',
+      '/organization/staff',
+    );
+    await expect(page.getByRole('button', { name: /getting started/i })).toBeVisible();
+    await expect(page.getByRole('link', { name: /add your first property/i })).toHaveAttribute(
+      'href',
+      '/properties/new',
+    );
 
     await createProperty(page.request, orgId, 'First Property');
 
@@ -68,10 +75,36 @@ test.describe('property setup guidance', () => {
       data: { orgId, propertyId, unitId, applicantName: 'Guidance Applicant' },
     });
 
-    await page.request.post('/api/v1/leases', {
+    const tenantResponse = await page.request.post('/api/v1/tenants', {
+      headers: { Origin: BASE_URL },
+      data: { orgId, fullName: 'Guidance Tenant' },
+    });
+    expect(tenantResponse.ok()).toBe(true);
+    const tenant = await tenantResponse.json();
+
+    const leaseResponse = await page.request.post('/api/v1/leases', {
       headers: { Origin: BASE_URL },
       data: { orgId, unitId, startDate: '2026-01-01', rentAmount: 5000, depositAmount: 0 },
     });
+    expect(leaseResponse.ok()).toBe(true);
+    const lease = await leaseResponse.json();
+
+    const assignmentResponse = await page.request.post(
+      `/api/v1/leases/${lease.lease.id}/tenants`,
+      {
+        headers: { Origin: BASE_URL },
+        data: { tenantId: tenant.tenant.id, isPrimary: true },
+      },
+    );
+    expect(assignmentResponse.ok()).toBe(true);
+
+    // V1 only considers an in-force lease complete; a newly-created draft must keep the setup
+    // guidance visible until it has a tenant and passes the real activation constraints.
+    const activationResponse = await page.request.post(
+      `/api/v1/leases/${lease.lease.id}/activate`,
+      { headers: { Origin: BASE_URL } },
+    );
+    expect(activationResponse.ok()).toBe(true);
 
     await page.goto(`/properties/${propertyId}`);
     await page.waitForLoadState('networkidle');

@@ -44,6 +44,18 @@ export const applicationAccessTokenCreateSchema = z.object({
 });
 export type ApplicationAccessTokenCreateInput = z.infer<typeof applicationAccessTokenCreateSchema>;
 
+// PATCH /api/v1/applications/:id/document-requirements/:requirementId -- launch-hardening pass
+// (WORKLOG.md 2026-08-26), Section 3: staff review action (Accept / Needs correction) on an
+// uploaded applicant document. 'requested'/'uploaded' are never valid targets here -- those are
+// states the applicant-upload/staff-request flows own, not a manual staff override.
+export const applicationDocumentRequirementReviewSchema = z.object({
+  status: z.enum(['reviewed', 'accepted', 'rejected']),
+  rejectionReason: z.string().max(1000).optional().nullable(),
+});
+export type ApplicationDocumentRequirementReviewInput = z.infer<
+  typeof applicationDocumentRequirementReviewSchema
+>;
+
 // POST /api/v1/apply/:token/submit -- submit_application_by_token() (migration 20260101000132).
 // Public (token-authenticated, not session-authenticated) -- every field here maps 1:1 to a
 // whitelisted column the RPC itself updates, nothing more.
@@ -114,6 +126,12 @@ export const leaseCreateSchema = z.object({
   endDate: z.string().optional().nullable(),
   rentAmount: z.number().positive('Rent amount must be greater than zero'),
   depositAmount: z.number().min(0).default(0),
+  // V1 launch-completion pass, Section 7: an explicit rent-tracking anchor set at creation time
+  // for a "Record existing lease" import (Current billing period / Lease start date / Custom
+  // date, staff-chosen). Never the legal start_date -- see migration 20260101000143's own comment
+  // on the column. Optional: a normal new-lease creation (Prepare Lease flow) omits it entirely,
+  // leaving activate_lease()'s own safety-net default untouched.
+  rentTrackingStartDate: z.string().optional().nullable(),
 });
 export type LeaseCreateInput = z.infer<typeof leaseCreateSchema>;
 

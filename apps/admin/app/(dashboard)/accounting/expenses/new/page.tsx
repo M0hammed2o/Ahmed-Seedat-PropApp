@@ -37,5 +37,39 @@ export default async function NewExpensePage() {
     .order('nickname', { ascending: true });
   if (error) throw new Error(`Failed to load properties: ${error.message}`);
 
-  return <ExpenseForm orgId={activeOrg.orgId} properties={data ?? []} />;
+  // V1 launch-completion pass: units across the whole org (client-side filtered by whichever
+  // property ExpenseForm's own picker selects, same NewApplicationPicker.tsx pattern), the org's
+  // active vendors (existing Vendors module, reused as-is), and the 'receipt' document category
+  // id the optional evidence upload tags its document with.
+  const [{ data: units, error: unitsError }, { data: vendors, error: vendorsError }, { data: receiptCategory }] =
+    await Promise.all([
+      supabase
+        .from('units')
+        .select('id, property_id, unit_label')
+        .eq('org_id', activeOrg.orgId)
+        .order('unit_label', { ascending: true }),
+      supabase
+        .from('vendors')
+        .select('id, name')
+        .eq('org_id', activeOrg.orgId)
+        .eq('status', 'active')
+        .order('name', { ascending: true }),
+      supabase.from('document_categories').select('id').eq('slug', 'receipt').maybeSingle(),
+    ]);
+  if (unitsError) throw new Error(`Failed to load units: ${unitsError.message}`);
+  if (vendorsError) throw new Error(`Failed to load vendors: ${vendorsError.message}`);
+
+  return (
+    <ExpenseForm
+      orgId={activeOrg.orgId}
+      properties={data ?? []}
+      units={(units ?? []).map((u) => ({
+        id: u.id,
+        propertyId: u.property_id,
+        unitLabel: u.unit_label,
+      }))}
+      vendors={(vendors ?? []).map((v) => ({ id: v.id, label: v.name }))}
+      receiptCategoryId={receiptCategory?.id ?? null}
+    />
+  );
 }

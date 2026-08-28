@@ -3,6 +3,7 @@ import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/se
 import { requireOrgRole } from '@/lib/portfolio';
 import { mapTenantInvitationRow } from '@/lib/tenantInvitations';
 import { writeAuditEvent } from '@/lib/audit';
+import { safeErrorMessage } from '@/lib/safeError';
 
 type RouteParams = { params: Promise<{ id: string; invitationId: string }> };
 
@@ -29,7 +30,16 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     .maybeSingle();
   if (fetchError) {
     return NextResponse.json(
-      { error: { code: 'tenant_invitation_fetch_failed', message: fetchError.message } },
+      {
+        error: {
+          code: 'tenant_invitation_fetch_failed',
+          message: safeErrorMessage(
+            fetchError,
+            'Could not load this invitation. Please try again, or contact support if this continues.',
+            `tenant_invitations.fetch(${invitationId})`,
+          ),
+        },
+      },
       { status: 500 },
     );
   }
@@ -73,7 +83,16 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     .single();
   if (error) {
     return NextResponse.json(
-      { error: { code: 'tenant_invitation_revoke_failed', message: error.message } },
+      {
+        error: {
+          code: 'tenant_invitation_revoke_failed',
+          message: safeErrorMessage(
+            error,
+            'Could not revoke this invitation. Please try again, or contact support if this continues.',
+            `tenant_invitations.revoke(${invitationId})`,
+          ),
+        },
+      },
       { status: 500 },
     );
   }

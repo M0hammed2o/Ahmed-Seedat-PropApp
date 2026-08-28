@@ -104,8 +104,14 @@ test.describe('applicant portal (real browser)', () => {
 
     // === Scan it (mock OCR) and apply a suggested value ===
     await idRow.getByRole('button', { name: 'Scan document' }).click();
-    await expect(idRow.getByText(/OCR result: Mock Applicant/)).toBeVisible({ timeout: 15000 });
-    await expect(idRow.getByText(/Confidence: \d+%/)).toBeVisible();
+    const fullNameResult = idRow.getByText('OCR result: Mock Applicant', { exact: true });
+    await expect(fullNameResult).toBeVisible({ timeout: 15000 });
+    // An ID scan legitimately returns multiple field suggestions, each with its own confidence.
+    // Scope this assertion to the full-name suggestion instead of matching every confidence label
+    // in the document row (the date-of-birth suggestion has its own, separate confidence).
+    await expect(
+      fullNameResult.locator('..').getByText(/^Confidence: \d+%$/),
+    ).toBeVisible();
     await idRow.getByRole('button', { name: 'Use this value' }).first().click();
 
     // The applied value now appears in the form's Full legal name field.

@@ -3,6 +3,7 @@ import { leaseUpdateSchema } from '@propvault/validation';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { requireOrgRole } from '@/lib/portfolio';
 import { mapLeaseRow } from '@/lib/leasing';
+import { safeErrorMessage } from '@/lib/safeError';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -29,7 +30,12 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
   const { data, error } = await loadVisibleLease(supabase, id);
   if (error) {
     return NextResponse.json(
-      { error: { code: 'lease_fetch_failed', message: error.message } },
+      {
+        error: {
+          code: 'lease_fetch_failed',
+          message: safeErrorMessage(error, 'Could not load this lease.', 'leases/[id].fetch'),
+        },
+      },
       { status: 500 },
     );
   }
@@ -59,7 +65,12 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   const { data: existing, error: fetchError } = await loadVisibleLease(supabase, id);
   if (fetchError) {
     return NextResponse.json(
-      { error: { code: 'lease_fetch_failed', message: fetchError.message } },
+      {
+        error: {
+          code: 'lease_fetch_failed',
+          message: safeErrorMessage(fetchError, 'Could not load this lease.', 'leases/[id].fetchBeforeWrite'),
+        },
+      },
       { status: 500 },
     );
   }
@@ -117,7 +128,16 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
   if (error) {
     return NextResponse.json(
-      { error: { code: 'lease_update_failed', message: error.message } },
+      {
+        error: {
+          code: 'lease_update_failed',
+          message: safeErrorMessage(
+            error,
+            'Could not update this lease. Please try again, or contact support if this continues.',
+            'leases/[id].update',
+          ),
+        },
+      },
       { status: 500 },
     );
   }

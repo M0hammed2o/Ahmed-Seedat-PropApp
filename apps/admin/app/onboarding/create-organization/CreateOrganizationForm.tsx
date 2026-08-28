@@ -94,6 +94,38 @@ export function CreateOrganizationForm() {
           <option value="agency">Agency — properties for other owners</option>
         </select>
 
+        <div className="mt-6 rounded-lg border border-light-border p-3 dark:border-dark-border">
+          <p className="text-xs font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+            Were you referred by someone? (optional)
+          </p>
+          <p className="mt-1 text-xs text-light-textSecondary dark:text-dark-textSecondary">
+            Entirely optional — this never blocks or delays creating your organization, even if the
+            code doesn't match anything.
+          </p>
+
+          <label className="mt-3 block text-xs text-light-textSecondary dark:text-dark-textSecondary">
+            Referral code (optional)
+          </label>
+          <input
+            type="text"
+            autoComplete="off"
+            placeholder="e.g. JANE2024"
+            className="mt-1 w-full rounded-lg border border-light-border bg-transparent px-3 py-2 text-sm text-light-textPrimary outline-none focus:border-light-accent/40 focus:ring-4 focus:ring-light-accent/10 dark:border-dark-border dark:text-dark-textPrimary dark:focus:border-dark-accent/40 dark:focus:ring-dark-accent/10"
+            {...register('referralCode')}
+          />
+
+          <label className="mt-3 block text-xs text-light-textSecondary dark:text-dark-textSecondary">
+            Or the referrer's name (optional)
+          </label>
+          <input
+            type="text"
+            autoComplete="off"
+            placeholder="e.g. Jane Smith"
+            className="mt-1 w-full rounded-lg border border-light-border bg-transparent px-3 py-2 text-sm text-light-textPrimary outline-none focus:border-light-accent/40 focus:ring-4 focus:ring-light-accent/10 dark:border-dark-border dark:text-dark-textPrimary dark:focus:border-dark-accent/40 dark:focus:ring-dark-accent/10"
+            {...register('referrerName')}
+          />
+        </div>
+
         {submitError ? (
           <p className="mt-3 text-sm text-light-danger dark:text-dark-danger">{submitError}</p>
         ) : null}

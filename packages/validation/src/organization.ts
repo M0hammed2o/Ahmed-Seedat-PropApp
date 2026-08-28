@@ -9,6 +9,11 @@ import {
 export const createOrganizationSchema = z.object({
   legalName: z.string().min(1, 'Legal name is required').max(200),
   orgType: z.enum(ORGANIZATION_TYPES).default('owner_managed'),
+  // Referral attribution (V1 launch-completion pass) -- both fields entirely optional and never
+  // required. An invalid/unknown referralCode must never block or fail signup -- see POST
+  // /api/v1/organizations, which resolves-or-falls-back-or-skips, never rejects on this input.
+  referralCode: z.string().trim().max(60).optional(),
+  referrerName: z.string().trim().max(200).optional(),
 });
 export type CreateOrganizationInput = z.infer<typeof createOrganizationSchema>;
 

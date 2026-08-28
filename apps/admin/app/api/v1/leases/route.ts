@@ -4,6 +4,7 @@ import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { requireOrgRole } from '@/lib/portfolio';
 import { mapLeaseRow } from '@/lib/leasing';
 import { parseListQuery, encodeCursor, beforeCursorFilter } from '@/lib/cursorPagination';
+import { safeErrorMessage } from '@/lib/safeError';
 
 /**
  * GET/POST /api/v1/leases (API_SPEC.md §4, TASKS.md M10). POST here is the *manual* creation path
@@ -45,7 +46,12 @@ export async function GET(request: NextRequest) {
   const { data, error } = await query;
   if (error) {
     return NextResponse.json(
-      { error: { code: 'leases_list_failed', message: error.message } },
+      {
+        error: {
+          code: 'leases_list_failed',
+          message: safeErrorMessage(error, 'Could not load leases.', 'leases.list'),
+        },
+      },
       { status: 500 },
     );
   }
@@ -119,6 +125,7 @@ export async function POST(request: NextRequest) {
       end_date: parsed.data.endDate ?? null,
       rent_amount: parsed.data.rentAmount,
       deposit_amount: parsed.data.depositAmount,
+      rent_tracking_start_date: parsed.data.rentTrackingStartDate ?? null,
       source: 'manual',
       status: 'draft',
     })
@@ -127,7 +134,16 @@ export async function POST(request: NextRequest) {
 
   if (error) {
     return NextResponse.json(
-      { error: { code: 'lease_create_failed', message: error.message } },
+      {
+        error: {
+          code: 'lease_create_failed',
+          message: safeErrorMessage(
+            error,
+            'Could not record this lease. Please try again, or contact support if this continues.',
+            'leases.create',
+          ),
+        },
+      },
       { status: 500 },
     );
   }

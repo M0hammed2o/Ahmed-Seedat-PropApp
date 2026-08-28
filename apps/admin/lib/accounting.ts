@@ -101,12 +101,16 @@ interface ExpenseRow {
   id: string;
   org_id: string;
   property_id: string;
+  unit_id: string | null;
   vendor_id: string | null;
   category: string;
   amount: number;
   status: string;
   document_id: string | null;
   journal_entry_id: string | null;
+  reference_number: string | null;
+  invoice_date: string | null;
+  notes: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -116,12 +120,16 @@ export function mapExpenseRow(row: ExpenseRow): Expense {
     id: row.id,
     orgId: row.org_id,
     propertyId: row.property_id,
+    unitId: row.unit_id,
     vendorId: row.vendor_id,
     category: row.category,
     amount: row.amount,
     status: row.status as Expense['status'],
     documentId: row.document_id,
     journalEntryId: row.journal_entry_id,
+    referenceNumber: row.reference_number,
+    invoiceDate: row.invoice_date,
+    notes: row.notes,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -162,6 +170,14 @@ interface BankTransactionRow {
   matched_rent_schedule_id: string | null;
   match_status: string;
   created_at: string;
+  property_id: string | null;
+  unit_id: string | null;
+  tenant_id: string | null;
+  vendor_id: string | null;
+  category: string | null;
+  document_id: string | null;
+  notes: string | null;
+  expense_id: string | null;
 }
 
 export function mapBankTransactionRow(row: BankTransactionRow): BankTransaction {
@@ -172,6 +188,14 @@ export function mapBankTransactionRow(row: BankTransactionRow): BankTransaction 
     amount: row.amount,
     description: row.description,
     reference: row.reference,
+    propertyId: row.property_id,
+    unitId: row.unit_id,
+    tenantId: row.tenant_id,
+    vendorId: row.vendor_id,
+    category: row.category,
+    documentId: row.document_id,
+    notes: row.notes,
+    expenseId: row.expense_id,
     matchedJournalEntryId: row.matched_journal_entry_id,
     matchedRentScheduleId: row.matched_rent_schedule_id,
     matchStatus: row.match_status as BankTransaction['matchStatus'],

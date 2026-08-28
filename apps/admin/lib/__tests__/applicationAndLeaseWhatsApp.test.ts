@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import {
   checkApplicantWhatsAppEligibility,
@@ -13,9 +13,23 @@ import {
 // requested, application_approved, application_declined, lease_ready). Same real-local-Supabase
 // pattern as whatsappDispatch.test.ts -- no real WhatsApp send anywhere in this file:
 // MockWhatsAppProvider is what runs whenever WHATSAPP_ACCESS_TOKEN/PHONE_NUMBER_ID/WEBHOOK_SECRET
-// aren't set (the default in this test environment), and the one describe block that DOES stub
-// those env vars (to prove the unapproved-template gate) never reaches the provider at all --
-// dispatchWhatsApp() returns 'template_not_approved' BEFORE calling getWhatsAppProvider().
+// aren't set (the default in this test environment).
+//
+// WhatsApp launch-completion pass, variable-structure reconciliation (WORKLOG.md 2026-08-27): all
+// 5 of these templates are now approved (Mohammed's real Meta template documents, confirmed and
+// reconciled) -- this file originally had a "template-approval gate" describe block per event
+// (plus one for lease_ready) proving dispatchWhatsApp() returned 'template_not_approved' BEFORE
+// ever calling getWhatsAppProvider(), by stubbing fake-but-present Meta credentials. That premise
+// is now false for these 5 specific templates (they're genuinely approved), so those blocks are
+// removed here rather than left asserting a stale, now-incorrect expectation. The safety property
+// they proved (an unapproved template is blocked before any provider call) is still real,
+// still-tested production logic -- it now has dedicated unit coverage instead, via a scoped
+// registry spy, in whatsappDispatch.failureHandling.test.ts (not tied to these 5 template names,
+// which can never be used to exercise that path again now that they're all approved). The
+// successful-send case these old blocks would have degenerated into testing is already covered by
+// the "eligible... MockWhatsAppProvider" describe block directly above, and the equivalent
+// "does not send twice" test right above the removed lease_ready block -- so no coverage was lost,
+// only a now-inapplicable scenario removed.
 //
 // dispatchLeaseReadyWhatsApp() (unlike the applicationNotifications.ts functions above, which
 // take a serviceClient parameter) calls getServiceRoleClient() internally, which validates these
@@ -267,74 +281,6 @@ describeIfSupabase('applicant/lease WhatsApp events (real local Supabase integra
       expect(count).toBe(2);
     });
   });
-
-  describe('template-approval gate -- template_not_approved, no real Meta API call', () => {
-    beforeEach(async () => {
-      await serviceClient.from('applicant_whatsapp_consents').insert({
-        application_id: applicationId,
-        org_id: orgId,
-        phone: '+27821234567',
-        opted_in_at: new Date().toISOString(),
-      });
-      // Simulates a REAL production Meta credential configuration (deliveryConfigured: true) --
-      // dispatchWhatsApp() must refuse the send at the registry-check line, before ever calling
-      // getWhatsAppProvider()/a real Meta endpoint, for a template this codebase has not yet
-      // submitted/had approved (whatsappTemplates.ts: approved: false for all 5 of these).
-      vi.stubEnv('WHATSAPP_ACCESS_TOKEN', 'test-fake-token');
-      vi.stubEnv('WHATSAPP_PHONE_NUMBER_ID', 'test-fake-phone-id');
-      vi.stubEnv('WHATSAPP_WEBHOOK_SECRET', 'test-fake-webhook-secret');
-    });
-
-    afterEach(() => {
-      vi.unstubAllEnvs();
-    });
-
-    it('dispatchApplicationApprovedWhatsApp reports template_not_approved and writes no whatsapp_messages row', async () => {
-      const result = await dispatchApplicationApprovedWhatsApp(serviceClient, {
-        orgId,
-        applicationId,
-        propertyLabel: 'WhatsApp Test Property — U1',
-      });
-      expect(result.eligibility.eligible).toBe(true); // consent was fine -- the block is template approval, not eligibility
-      expect(result.sent).toBe(false);
-      expect(result.reason).toBe('template_not_approved');
-      expect(result.deliveryConfigured).toBe(true);
-
-      const { data: messages } = await serviceClient.from('whatsapp_messages').select('id').eq('org_id', orgId);
-      expect(messages).toEqual([]);
-    });
-
-    it('dispatchApplicationDeclinedWhatsApp reports template_not_approved and writes no whatsapp_messages row', async () => {
-      const result = await dispatchApplicationDeclinedWhatsApp(serviceClient, {
-        orgId,
-        applicationId,
-        propertyLabel: 'WhatsApp Test Property — U1',
-      });
-      expect(result.sent).toBe(false);
-      expect(result.reason).toBe('template_not_approved');
-    });
-
-    it('dispatchApplicationInvitationWhatsApp reports template_not_approved (would be unreachable in practice -- no consent can exist at invite time -- but the gate holds regardless)', async () => {
-      const result = await dispatchApplicationInvitationWhatsApp(serviceClient, {
-        orgId,
-        applicationId,
-        propertyLabel: 'WhatsApp Test Property — U1',
-        applyUrl: 'https://proplyst.co.za/apply/fake-token',
-      });
-      expect(result.sent).toBe(false);
-      expect(result.reason).toBe('template_not_approved');
-    });
-
-    it('dispatchApplicationDocumentsRequestedWhatsApp reports template_not_approved', async () => {
-      const result = await dispatchApplicationDocumentsRequestedWhatsApp(serviceClient, {
-        orgId,
-        applicationId,
-        propertyLabel: 'WhatsApp Test Property — U1',
-      });
-      expect(result.sent).toBe(false);
-      expect(result.reason).toBe('template_not_approved');
-    });
-  });
 });
 
 describeIfSupabase('dispatchLeaseReadyWhatsApp (real local Supabase integration, mock provider)', () => {
@@ -477,25 +423,5 @@ describeIfSupabase('dispatchLeaseReadyWhatsApp (real local Supabase integration,
       .select('id', { count: 'exact', head: true })
       .eq('org_id', orgId);
     expect(count).toBe(1);
-  });
-
-  it('reports template_not_approved (not a real send) once Meta credentials are configured, since lease_ready is not yet approved', async () => {
-    await serviceClient.from('applicant_whatsapp_consents').insert({
-      application_id: applicationId,
-      org_id: orgId,
-      phone: '+27821234567',
-      opted_in_at: new Date().toISOString(),
-    });
-    vi.stubEnv('WHATSAPP_ACCESS_TOKEN', 'test-fake-token');
-    vi.stubEnv('WHATSAPP_PHONE_NUMBER_ID', 'test-fake-phone-id');
-    vi.stubEnv('WHATSAPP_WEBHOOK_SECRET', 'test-fake-webhook-secret');
-
-    const { dispatchLeaseReadyWhatsApp } = await import('../leaseNotifications');
-    const result = await dispatchLeaseReadyWhatsApp(leaseId);
-    expect(result.eligible).toBe(true);
-    expect(result.sent).toBe(false);
-    expect('reason' in result && result.reason).toBe('template_not_approved');
-
-    vi.unstubAllEnvs();
   });
 });

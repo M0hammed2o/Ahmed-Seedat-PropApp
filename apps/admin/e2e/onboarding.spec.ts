@@ -1,6 +1,7 @@
 import { test, expect, type APIRequestContext } from '@playwright/test';
 import { createConfirmedTestUser } from './fixtures/testUser';
 import { completeLegalConsentAndProfile } from './fixtures/onboarding';
+import { createCommerciallyReadyOrganization } from './fixtures/orgWorkflow';
 import { BASE_URL } from '../playwright.config';
 
 // Production signup/onboarding (WORKLOG.md this date). Real HTTP/browser requests against the
@@ -166,13 +167,12 @@ test.describe('routing precedence with MFA', () => {
     // (added this stage) would redirect to /legal-consent instead of rendering the org form.
     await completeLegalConsentAndProfile(page.request);
 
-    await page.goto('/onboarding/create-organization');
-    await page.waitForLoadState('networkidle');
-    await page
-      .locator('input[autocomplete="organization"]')
-      .fill(`E2E Onboarding MFA-order Org ${Date.now()}`);
-    await page.getByRole('button', { name: /create organization/i }).click();
-    await page.waitForURL(/\/dashboard/, { timeout: 30_000 });
+    // This precedence check is not a billing test. Set up its synthetic organization with the
+    // shared sanctioned equivalent of a completed real PayFast trial activation.
+    await createCommerciallyReadyOrganization(
+      page.request,
+      `E2E Onboarding MFA-order Org ${Date.now()}`,
+    );
 
     await page.goto('/settings');
     await page.waitForLoadState('networkidle');

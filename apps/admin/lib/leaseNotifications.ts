@@ -18,7 +18,16 @@ import { getAppUrl } from '@/lib/appUrl';
  * dispatchEmail's own (relatedEntityType, relatedEntityId, templateName) check, so a resend of an
  * already-sent lease never double-emails. Returns a result even when there's no primary tenant
  * email on file (sent: false, reason: 'no_address') rather than throwing -- the lease send itself
- * must not fail just because notification couldn't be delivered. */
+ * must not fail just because notification couldn't be delivered.
+ *
+ * WhatsApp launch-completion pass (WORKLOG.md 2026-08-27): mirrors dispatchLeaseReadyWhatsApp's
+ * own source_application_id gate below, which this email version was missing -- an imported
+ * existing tenancy (source: 'manual', no source_application_id) already has a physically signed
+ * lease; "Your lease is ready for signature" is factually wrong for it, not just an unapproved
+ * WhatsApp template. send_lease() itself does not reject a manual lease (its own approval check is
+ * skipped when source_application_id is null), so this gate is the only thing standing between the
+ * existing "Prepare lease" UI (currently shown for every draft lease regardless of source) and a
+ * genuinely misleading email reaching an already-signed tenant. */
 export async function dispatchLeaseReadyEmail(
   _sessionClient: SupabaseClient,
   leaseId: string,
@@ -27,11 +36,16 @@ export async function dispatchLeaseReadyEmail(
 
   const { data: lease, error: leaseError } = await serviceClient
     .from('leases')
-    .select('id, org_id, unit_id, organizations(trading_name, legal_name), units(unit_label, property_id, properties(nickname))')
+    .select(
+      'id, org_id, unit_id, source_application_id, organizations(trading_name, legal_name), units(unit_label, property_id, properties(nickname))',
+    )
     .eq('id', leaseId)
     .maybeSingle();
   if (leaseError || !lease) {
     return { sent: false, reason: 'no_address', deliveryConfigured: false };
+  }
+  if (!lease.source_application_id) {
+    return { sent: false, reason: 'not_applicable', deliveryConfigured: false };
   }
 
   const { data: leaseTenant } = await serviceClient

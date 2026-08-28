@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { applicationSelfServiceSubmitSchema } from '@propvault/validation';
 import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { dispatchEmail } from '@/lib/emailDispatch';
+import { safeErrorMessage } from '@/lib/safeError';
 
 type RouteParams = { params: Promise<{ token: string }> };
 
@@ -59,7 +60,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
   if (error) {
     return NextResponse.json(
-      { error: { code: 'submission_failed', message: error.message } },
+      {
+        error: {
+          code: 'submission_failed',
+          message: safeErrorMessage(
+            error,
+            'Could not submit your application. Please try again, or contact the property manager if this continues.',
+            'apply.submit',
+          ),
+        },
+      },
       { status: 500 },
     );
   }

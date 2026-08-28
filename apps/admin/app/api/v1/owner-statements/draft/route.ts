@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { ownerStatementDraftSchema } from '@propvault/validation';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapOwnerStatementRow } from '@/lib/accounting';
+import { safeErrorMessage } from '@/lib/safeError';
 
 /**
  * POST /api/v1/owner-statements/draft (API_SPEC.md §6: "month-scoped batch draft, evidenced:
@@ -53,7 +54,16 @@ export async function POST(request: NextRequest) {
 
   if (rpcError) {
     return NextResponse.json(
-      { error: { code: 'owner_statement_draft_failed', message: rpcError.message } },
+      {
+        error: {
+          code: 'owner_statement_draft_failed',
+          message: safeErrorMessage(
+            rpcError,
+            'Could not generate owner statements for this period. Please try again, or contact support if this continues.',
+            `generate_owner_statements(org=${parsed.data.orgId})`,
+          ),
+        },
+      },
       { status: 422 },
     );
   }

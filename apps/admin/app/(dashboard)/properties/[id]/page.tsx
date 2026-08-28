@@ -1,14 +1,16 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import type { MaintenanceTicket, Property } from '@propvault/types';
+import type { Application, MaintenanceTicket, Property } from '@propvault/types';
 import { PROPERTY_TYPE_LABELS, PROPERTY_STATUS_PRESENTATION } from '@propvault/ui';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapPropertyRow, mapUnitRow } from '@/lib/portfolio';
 import { mapMaintenanceTicketRow } from '@/lib/operations';
+import { mapApplicationRow } from '@/lib/leasing';
 import { resolvePortalSession, findActiveMembership, canWriteOrgRecords } from '@/lib/orgSession';
 import { MapPin } from 'lucide-react';
 import { UnitsTable, type UnitRow } from '@/components/tables/UnitsTable';
 import { MaintenanceTable } from '@/components/tables/MaintenanceTable';
+import { ApplicationsTable } from '@/components/tables/ApplicationsTable';
 import { Avatar } from '@/components/ui/Avatar';
 import { Panel } from '@/components/ui/Panel';
 import { Pill, statusTone } from '@/components/ui/Pill';
@@ -21,14 +23,20 @@ import { PropertyManagementPanel } from '@/components/properties/PropertyManagem
 import { PropertyDocumentFolders } from '@/components/properties/PropertyDocumentFolders';
 import { PropertyOwnersPanel } from '@/components/properties/PropertyOwnersPanel';
 import { resolveCoverPhotoRow, signCoverPhotoUrl } from '@/lib/propertyPhotos';
+import { resolvePeriodRange, computeDashboardKpis, type DashboardPeriod } from '@/lib/dashboardKpis';
+import { PropertyAccountingFilterBar } from '@/components/properties/PropertyAccountingFilterBar';
 
-type RouteParams = { params: Promise<{ id: string }> };
+type RouteParams = {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ period?: string; from?: string; to?: string }>;
+};
 
 interface PropertyTenant {
   id: string;
   fullName: string;
   unitLabel: string;
   rentAmount: number;
+  leaseStatus: 'active' | 'draft';
 }
 
 interface PropertyDocument {
@@ -44,6 +52,32 @@ interface PropertyDocument {
 interface PropertyAccounting {
   incomeYtd: number;
   expensesYtd: number;
+}
+
+interface PropertyRecentTransaction {
+  id: string;
+  transactionDate: string;
+  amount: number;
+  description: string | null;
+  kind: 'rent' | 'expense';
+}
+
+// V1 pre-deployment closeout, Section 1: the property Accounting tab's period-filtered detail.
+// Deliberately reuses resolvePeriodRange()/computeDashboardKpis() from lib/dashboardKpis.ts --
+// the SAME pure functions the portfolio dashboard uses -- with every query scoped to this one
+// property_id, so property and portfolio totals are guaranteed to reconcile by construction (same
+// math, same status sets, same period boundaries), never a second, independently-derived
+// calculation.
+interface PropertyAccountingDetail {
+  period: DashboardPeriod;
+  periodLabel: string;
+  expectedRent: number;
+  rentCollected: number;
+  outstandingRent: number;
+  expensesTotal: number;
+  netIncome: number;
+  paymentsAwaitingConfirmation: number;
+  recentTransactions: PropertyRecentTransaction[];
 }
 
 const DEMO_PROPERTY: Property = {
@@ -109,11 +143,16 @@ const DEMO_TICKETS: MaintenanceTicket[] = [
 ];
 
 const DEMO_TENANTS: PropertyTenant[] = [
-  { id: 'demo-tenant-1', fullName: 'Naledi Khumalo', unitLabel: 'Unit 1', rentAmount: 12500 },
+  { id: 'demo-tenant-1', fullName: 'Naledi Khumalo', unitLabel: 'Unit 1', rentAmount: 12500, leaseStatus: 'active' },
 ];
 
-export default async function PropertyDetailPage({ params }: RouteParams) {
+export default async function PropertyDetailPage({ params, searchParams }: RouteParams) {
   const { id } = await params;
+  const { period: periodParam, from, to } = await searchParams;
+  const period: DashboardPeriod =
+    periodParam === 'last_month' || periodParam === 'ytd' || periodParam === 'custom'
+      ? periodParam
+      : 'this_month';
 
   if (ADMIN_DEMO_MODE) {
     if (id !== 'demo-property-1') notFound();
@@ -123,9 +162,21 @@ export default async function PropertyDetailPage({ params }: RouteParams) {
         units={DEMO_UNITS}
         maintenanceTickets={DEMO_TICKETS}
         tenants={DEMO_TENANTS}
+        applications={[]}
         documents={[]}
         categoryLabelById={new Map()}
         accounting={{ incomeYtd: 62500, expensesYtd: 4200 }}
+        accountingDetail={{
+          period: 'this_month',
+          periodLabel: 'This month',
+          expectedRent: 12500,
+          rentCollected: 12500,
+          outstandingRent: 0,
+          expensesTotal: 4200,
+          netIncome: 8300,
+          paymentsAwaitingConfirmation: 0,
+          recentTransactions: [],
+        }}
         canManage
         coverPhotoUrl={null}
         setupProgress={{
@@ -190,12 +241,15 @@ export default async function PropertyDetailPage({ params }: RouteParams) {
     .select('id, slug, label');
   const categoryLabelById = new Map((categoryRows ?? []).map((c) => [c.id, c.label]));
 
-  const [tenants, accounting, coverPhotoUrl, setupProgress] = await Promise.all([
-    loadPropertyTenants(supabase, units),
-    loadPropertyAccounting(supabase, units),
-    loadCoverPhotoUrl(supabase, id),
-    loadSetupProgress(supabase, id, units, property.estimatedValue !== null),
-  ]);
+  const [tenants, applications, accounting, accountingDetail, coverPhotoUrl, setupProgress] =
+    await Promise.all([
+      loadPropertyTenants(supabase, units),
+      loadPropertyApplications(supabase, units),
+      loadPropertyAccounting(supabase, units),
+      loadPropertyAccountingDetail(supabase, id, units, period, { from, to }),
+      loadCoverPhotoUrl(supabase, id),
+      loadSetupProgress(supabase, id, units, property.estimatedValue !== null),
+    ]);
 
   const session = await resolvePortalSession();
   const membership = session ? findActiveMembership(session, property.orgId) : undefined;
@@ -207,14 +261,155 @@ export default async function PropertyDetailPage({ params }: RouteParams) {
       units={units}
       maintenanceTickets={maintenanceTickets}
       tenants={tenants}
+      applications={applications}
       documents={documents}
       categoryLabelById={categoryLabelById}
       accounting={accounting}
+      accountingDetail={accountingDetail}
       canManage={canManage}
       coverPhotoUrl={coverPhotoUrl}
       setupProgress={setupProgress}
     />
   );
+}
+
+// V1 pre-deployment closeout, Section 1: property-scoped, period-filtered accounting detail for
+// the Accounting tab. Reuses the exact same rent_schedules/expenses/payment_reports sources and
+// resolvePeriodRange()/computeDashboardKpis() pure functions the portfolio dashboard already uses
+// (lib/dashboardKpis.ts) -- scoped to this one property_id via the same lease->unit->property join
+// pattern dashboard/page.tsx's own loadData() already established, so selecting this property on
+// the portfolio dashboard and viewing this tab must always show identical figures.
+async function loadPropertyAccountingDetail(
+  supabase: Awaited<ReturnType<typeof getServerSupabaseClient>>,
+  propertyId: string,
+  units: UnitRow[],
+  period: DashboardPeriod,
+  custom: { from?: string; to?: string },
+): Promise<PropertyAccountingDetail> {
+  const periodRange = resolvePeriodRange(period, custom, new Date());
+  const unitIds = units.map((u) => u.id);
+
+  // Rent-schedule figures genuinely need a unit -> lease chain to exist -- but expenses and
+  // payment_reports are scoped directly by property_id (queried below unconditionally) and have
+  // nothing to do with units. A property can legitimately have recorded expenses (e.g.
+  // pre-tenancy setup costs) before any unit exists yet; a property-wide early return here used
+  // to zero those out too, which is wrong -- only the unit-dependent leaseIds lookup is skipped.
+  const { data: leases } =
+    unitIds.length > 0
+      ? await supabase.from('leases').select('id').in('unit_id', unitIds)
+      : { data: [] as { id: string }[] };
+  const leaseIds = (leases ?? []).map((l) => l.id);
+
+  const [{ data: allSchedules }, { data: expenses }, { data: paymentReports }] = await Promise.all([
+    leaseIds.length > 0
+      ? supabase
+          .from('rent_schedules')
+          .select('id, lease_id, amount, status, due_date')
+          .in('lease_id', leaseIds)
+      : Promise.resolve({ data: [] as { id: string; lease_id: string; amount: number; status: string; due_date: string }[] }),
+    supabase
+      .from('expenses')
+      .select('amount, status, created_at')
+      .eq('property_id', propertyId)
+      .gte('created_at', periodRange.startIso)
+      .lte('created_at', periodRange.endIso),
+    supabase
+      .from('payment_reports')
+      .select('amount')
+      .eq('property_id', propertyId)
+      .eq('status', 'reported')
+      .gte('payment_date', periodRange.startIso)
+      .lte('payment_date', periodRange.endIso),
+  ]);
+
+  const schedules = allSchedules ?? [];
+  const rentSchedulesInPeriod = schedules.filter(
+    (r) => r.due_date >= periodRange.startIso && r.due_date <= periodRange.endIso,
+  );
+  const rentSchedulesAsOfPeriodEnd = schedules.filter((r) => r.due_date <= periodRange.endIso);
+
+  const kpis = computeDashboardKpis({
+    rentSchedulesInPeriod: rentSchedulesInPeriod.map((r) => ({
+      dueDate: r.due_date,
+      amount: r.amount,
+      status: r.status,
+    })),
+    rentSchedulesAsOfPeriodEnd: rentSchedulesAsOfPeriodEnd.map((r) => ({
+      dueDate: r.due_date,
+      amount: r.amount,
+      status: r.status,
+    })),
+    expensesInPeriod: (expenses ?? []).map((e) => ({ amount: e.amount, status: e.status })),
+    paymentsAwaitingConfirmation: (paymentReports ?? []).reduce(
+      (sum, r) => sum + Number(r.amount),
+      0,
+    ),
+  });
+
+  // Recent relevant transactions: matched bank_transactions for this property's own rent
+  // schedules or expenses -- authoritative match data (matched_rent_schedule_id / expense_id),
+  // never the informational bank_transactions.property_id tag alone (migration 20260101000146's
+  // own comment: that tag is "never read by" the matching functions, i.e. not authoritative).
+  const scheduleIds = new Set(schedules.map((s) => s.id));
+  const { data: propertyExpenseIds } = await supabase
+    .from('expenses')
+    .select('id')
+    .eq('property_id', propertyId);
+  const expenseIdSet = new Set((propertyExpenseIds ?? []).map((e) => e.id));
+
+  const { data: recentTxns } = await supabase
+    .from('bank_transactions')
+    .select('id, amount, transaction_date, description, matched_rent_schedule_id, expense_id')
+    .eq('match_status', 'matched')
+    .order('transaction_date', { ascending: false })
+    .limit(30);
+
+  const recentTransactions: PropertyRecentTransaction[] = (recentTxns ?? [])
+    .filter(
+      (t) =>
+        (t.matched_rent_schedule_id && scheduleIds.has(t.matched_rent_schedule_id)) ||
+        (t.expense_id && expenseIdSet.has(t.expense_id)),
+    )
+    .slice(0, 8)
+    .map((t) => ({
+      id: t.id,
+      transactionDate: t.transaction_date,
+      amount: Number(t.amount),
+      description: t.description,
+      kind: t.matched_rent_schedule_id ? 'rent' : 'expense',
+    }));
+
+  return {
+    period,
+    periodLabel: periodRange.label,
+    expectedRent: kpis.expectedRent,
+    rentCollected: kpis.rentCollected,
+    outstandingRent: kpis.outstandingRent,
+    expensesTotal: kpis.expensesTotal,
+    netIncome: kpis.netIncome,
+    paymentsAwaitingConfirmation: kpis.paymentsAwaitingConfirmation,
+    recentTransactions,
+  };
+}
+
+// V1 launch-completion pass, Section 2: Applications as a first-class property workflow --
+// applications belonging to units under this property, same mapApplicationRow the portfolio-level
+// /applications page and application detail page already use (no parallel application shape).
+async function loadPropertyApplications(
+  supabase: Awaited<ReturnType<typeof getServerSupabaseClient>>,
+  units: UnitRow[],
+): Promise<Application[]> {
+  if (units.length === 0) return [];
+  const { data, error } = await supabase
+    .from('applications')
+    .select('*')
+    .in(
+      'unit_id',
+      units.map((u) => u.id),
+    )
+    .order('created_at', { ascending: false });
+  if (error) throw new Error(`Failed to load applications: ${error.message}`);
+  return (data ?? []).map(mapApplicationRow);
 }
 
 export interface SetupProgress {
@@ -248,8 +443,16 @@ async function loadSetupProgress(
           .select('id', { count: 'exact', head: true })
           .in('unit_id', unitIds)
       : Promise.resolve({ count: 0 }),
+    // Launch-hardening pass (WORKLOG.md 2026-08-26), Section 13: unfiltered lease count marked
+    // this checklist item done the instant an application was approved (a draft lease, same root
+    // cause as loadPropertyTenants() above) -- "Lease" should mean a real, in-force tenancy, not
+    // a row in the leases table.
     unitIds.length > 0
-      ? supabase.from('leases').select('id', { count: 'exact', head: true }).in('unit_id', unitIds)
+      ? supabase
+          .from('leases')
+          .select('id', { count: 'exact', head: true })
+          .in('unit_id', unitIds)
+          .eq('status', 'active')
       : Promise.resolve({ count: 0 }),
     supabase
       .from('documents')
@@ -291,11 +494,19 @@ async function loadPropertyTenants(
 ): Promise<PropertyTenant[]> {
   if (units.length === 0) return [];
   const unitIds = units.map((u) => u.id);
+  // Launch-hardening pass (WORKLOG.md 2026-08-26), Section 12: this filter used to be
+  // .eq('status', 'active') only, which predates approve_application() creating a DRAFT lease on
+  // approval (migration 20260101000131) -- a tenant converted from an approved applicant sat on a
+  // draft lease and was invisible here, showing "Tenants (0)" while the Tenants list page (no
+  // lease join at all) already showed them. Draft leases are now included so the tenant is
+  // visible and the count is honest; 'expired'/'terminated' stay excluded (a former tenant is not
+  // a current or pending one). Each row keeps its own lease status so the UI can visually
+  // distinguish "pending" from "active" rather than implying an unconfirmed occupancy.
   const { data: leases } = await supabase
     .from('leases')
-    .select('id, unit_id, rent_amount')
+    .select('id, unit_id, rent_amount, status')
     .in('unit_id', unitIds)
-    .eq('status', 'active');
+    .in('status', ['active', 'draft']);
   if (!leases || leases.length === 0) return [];
   const leaseIds = leases.map((l) => l.id);
   const { data: leaseTenants } = await supabase
@@ -312,6 +523,7 @@ async function loadPropertyTenants(
   const unitLabelById = new Map(units.map((u) => [u.id, u.unitLabel]));
   const unitByLease = new Map(leases.map((l) => [l.id, l.unit_id]));
   const rentByLease = new Map(leases.map((l) => [l.id, l.rent_amount]));
+  const statusByLease = new Map(leases.map((l) => [l.id, l.status as 'active' | 'draft']));
 
   return (leaseTenants ?? [])
     .map((lt) => {
@@ -321,9 +533,13 @@ async function loadPropertyTenants(
         fullName: tenantNameById.get(lt.tenant_id) ?? 'Unknown tenant',
         unitLabel: (unitId && unitLabelById.get(unitId)) || '—',
         rentAmount: Number(rentByLease.get(lt.lease_id) ?? 0),
+        leaseStatus: statusByLease.get(lt.lease_id) ?? 'draft',
       };
     })
-    .filter((t, i, arr) => arr.findIndex((x) => x.id === t.id) === i);
+    .filter((t, i, arr) => arr.findIndex((x) => x.id === t.id) === i)
+    // Active occupants first, pending tenants after -- matches "current occupant" being the
+    // primary thing a landlord looks for on this tab.
+    .sort((a, b) => (a.leaseStatus === b.leaseStatus ? 0 : a.leaseStatus === 'active' ? -1 : 1));
 }
 
 // Real year-to-date income/expenses for this property's own leases -- income from paid
@@ -378,9 +594,11 @@ function PropertyDetailView({
   units,
   maintenanceTickets,
   tenants,
+  applications,
   documents,
   categoryLabelById,
   accounting,
+  accountingDetail,
   canManage,
   coverPhotoUrl,
   setupProgress,
@@ -389,9 +607,11 @@ function PropertyDetailView({
   units: UnitRow[];
   maintenanceTickets: MaintenanceTicket[];
   tenants: PropertyTenant[];
+  applications: Application[];
   documents: PropertyDocument[];
   categoryLabelById: Map<string, string>;
   accounting: PropertyAccounting;
+  accountingDetail: PropertyAccountingDetail;
   canManage: boolean;
   coverPhotoUrl: string | null;
   setupProgress: SetupProgress;
@@ -410,6 +630,22 @@ function PropertyDetailView({
       className="flex h-9 items-center gap-1.5 rounded-xl bg-primary px-3.5 text-[13px] font-semibold text-primary-foreground"
     >
       + Report issue
+    </Link>
+  );
+  const newApplicationAction = (
+    <Link
+      href={`/applications/new?propertyId=${property.id}`}
+      className="flex h-9 items-center gap-1.5 rounded-xl bg-primary px-3.5 text-[13px] font-semibold text-primary-foreground"
+    >
+      + New application
+    </Link>
+  );
+  const addExistingTenantAction = (
+    <Link
+      href="/tenants/new"
+      className="flex h-9 items-center gap-1.5 rounded-xl border border-border px-3.5 text-[13px] font-semibold text-foreground"
+    >
+      + Add existing tenant
     </Link>
   );
 
@@ -563,13 +799,22 @@ function PropertyDetailView({
                           initials={initialsFor(t.fullName)}
                           className="h-10 w-10 text-[13px]"
                         />
-                        <div className="min-w-0">
-                          <p className="truncate font-semibold text-foreground">{t.fullName}</p>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="truncate font-semibold text-foreground">{t.fullName}</p>
+                            {t.leaseStatus === 'draft' ? (
+                              <span className="shrink-0 rounded-full bg-light-statusNeedsReview/10 px-2 py-0.5 text-[10px] font-semibold text-light-statusNeedsReview dark:bg-dark-statusNeedsReview/10 dark:text-dark-statusNeedsReview">
+                                Pending lease
+                              </span>
+                            ) : null}
+                          </div>
                           <p className="text-[11px] text-muted-foreground">{t.unitLabel}</p>
                         </div>
                       </div>
                       <div className="mt-4 flex items-center justify-between text-[12px]">
-                        <span className="text-muted-foreground">Monthly rent</span>
+                        <span className="text-muted-foreground">
+                          {t.leaseStatus === 'draft' ? 'Proposed rent' : 'Monthly rent'}
+                        </span>
                         <span className="tabular font-semibold text-foreground">
                           {currency(t.rentAmount)}
                         </span>
@@ -578,10 +823,32 @@ function PropertyDetailView({
                   ))}
                 </div>
               ) : (
-                <p className="panel py-8 text-center text-sm text-muted-foreground">
-                  No tenants linked to this property yet.
-                </p>
+                <div className="panel py-8 text-center">
+                  <p className="text-sm text-muted-foreground">
+                    No tenants linked to this property yet.
+                  </p>
+                  {canManage ? (
+                    <div className="mt-4 flex items-center justify-center gap-2">
+                      {newApplicationAction}
+                      {addExistingTenantAction}
+                    </div>
+                  ) : null}
+                </div>
               ),
+          },
+          {
+            label: `Applications (${applications.length})`,
+            content: (
+              <div>
+                {canManage && applications.length > 0 ? (
+                  <div className="mb-3 flex justify-end">{newApplicationAction}</div>
+                ) : null}
+                <ApplicationsTable
+                  data={applications}
+                  emptyAction={canManage ? newApplicationAction : undefined}
+                />
+              </div>
+            ),
           },
           {
             label: 'Ownership',
@@ -612,6 +879,7 @@ function PropertyDetailView({
                 <PropertyDocumentFolders
                   documents={documents}
                   categoryLabelById={categoryLabelById}
+                  propertyId={property.id}
                 />
               ) : (
                 <div className="panel py-8 text-center">
@@ -619,7 +887,7 @@ function PropertyDetailView({
                     No documents uploaded for this property yet.
                   </p>
                   <Link
-                    href="/documents/new"
+                    href={`/documents/new?propertyId=${property.id}`}
                     className="mt-2 inline-block text-[12px] font-medium text-primary hover:underline"
                   >
                     Upload a document →
@@ -645,22 +913,82 @@ function PropertyDetailView({
           {
             label: 'Accounting',
             content: (
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Panel bodyClassName="p-5">
-                  <p className="text-[11px] text-muted-foreground">Income YTD</p>
-                  <p className="tabular mt-1 font-display text-xl font-bold text-foreground">
-                    {currency(accounting.incomeYtd)}
-                  </p>
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <PropertyAccountingFilterBar selectedPeriod={accountingDetail.period} />
+                  <span className="text-[12px] text-muted-foreground">
+                    {accountingDetail.periodLabel}
+                  </span>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <Panel bodyClassName="p-5">
+                    <p className="text-[11px] text-muted-foreground">Expected rent</p>
+                    <p className="tabular mt-1 font-display text-xl font-bold text-foreground">
+                      {currency(accountingDetail.expectedRent)}
+                    </p>
+                  </Panel>
+                  <Panel bodyClassName="p-5">
+                    <p className="text-[11px] text-muted-foreground">Rent collected</p>
+                    <p className="tabular mt-1 font-display text-xl font-bold text-foreground">
+                      {currency(accountingDetail.rentCollected)}
+                    </p>
+                  </Panel>
+                  <Panel bodyClassName="p-5">
+                    <p className="text-[11px] text-muted-foreground">Outstanding rent</p>
+                    <p className="tabular mt-1 font-display text-xl font-bold text-light-statusOverdue dark:text-dark-statusOverdue">
+                      {currency(accountingDetail.outstandingRent)}
+                    </p>
+                  </Panel>
+                  <Panel bodyClassName="p-5">
+                    <p className="text-[11px] text-muted-foreground">Expenses</p>
+                    <p className="tabular mt-1 font-display text-xl font-bold text-foreground">
+                      {currency(accountingDetail.expensesTotal)}
+                    </p>
+                  </Panel>
+                  <Panel bodyClassName="p-5">
+                    <p className="text-[11px] text-muted-foreground">Net property income</p>
+                    <p
+                      className={`tabular mt-1 font-display text-xl font-bold ${accountingDetail.netIncome >= 0 ? 'text-light-statusPaid dark:text-dark-statusPaid' : 'text-light-statusOverdue dark:text-dark-statusOverdue'}`}
+                    >
+                      {currency(accountingDetail.netIncome)}
+                    </p>
+                  </Panel>
+                  <Panel bodyClassName="p-5">
+                    <p className="text-[11px] text-muted-foreground">Payments awaiting confirmation</p>
+                    <p className="tabular mt-1 font-display text-xl font-bold text-light-statusNeedsReview dark:text-dark-statusNeedsReview">
+                      {currency(accountingDetail.paymentsAwaitingConfirmation)}
+                    </p>
+                  </Panel>
+                </div>
+
+                <Panel title="Recent relevant transactions">
+                  {accountingDetail.recentTransactions.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      No matched transactions for this property yet.
+                    </p>
+                  ) : (
+                    <ul className="divide-y divide-light-border dark:divide-dark-border">
+                      {accountingDetail.recentTransactions.map((t) => (
+                        <li key={t.id} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0 text-sm">
+                          <span className="min-w-0 truncate text-foreground">
+                            {t.description ?? (t.kind === 'rent' ? 'Rent payment' : 'Expense payment')}
+                          </span>
+                          <span className="shrink-0 text-[12px] text-muted-foreground">
+                            {new Date(t.transactionDate).toLocaleDateString('en-ZA')}
+                          </span>
+                          <span className="tabular shrink-0 font-medium text-foreground">
+                            {currency(t.amount)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </Panel>
-                <Panel bodyClassName="p-5">
-                  <p className="text-[11px] text-muted-foreground">Expenses YTD</p>
-                  <p className="tabular mt-1 font-display text-xl font-bold text-foreground">
-                    {currency(accounting.expensesYtd)}
-                  </p>
-                </Panel>
+
                 <Link
                   href="/accounting/rent-due"
-                  className="col-span-2 text-[12px] font-medium text-primary hover:underline"
+                  className="inline-block text-[12px] font-medium text-primary hover:underline"
                 >
                   View full accounting →
                 </Link>

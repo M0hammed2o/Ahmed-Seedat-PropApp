@@ -51,6 +51,7 @@ export default async function ApplicationDetailPage({ params }: RouteParams) {
       <ApplicationDetailView
         application={DEMO_APPLICATION}
         canAct
+        workflow={{ invited: true, documentsComplete: true, hasLease: false }}
         propertyName="Sea Point Apartment"
         unitLabel="Unit 1"
       />
@@ -82,13 +83,102 @@ export default async function ApplicationDetailPage({ params }: RouteParams) {
     unitLabel = unit?.unit_label ?? null;
   }
 
+  const workflow = ADMIN_DEMO_MODE
+    ? { invited: true, documentsComplete: true, hasLease: false }
+    : await loadWorkflowStageData(supabase, application.id);
+
   return (
     <ApplicationDetailView
       application={application}
       canAct={canAct}
       propertyName={propertyName}
       unitLabel={unitLabel}
+      workflow={workflow}
     />
+  );
+}
+
+interface ApplicationWorkflowData {
+  invited: boolean;
+  documentsComplete: boolean;
+  hasLease: boolean;
+}
+
+// V1 launch-completion pass, Section 3: workflow indicator. Every signal here is a real,
+// authoritative fact already queryable elsewhere in the app (access tokens, document
+// requirements, leases) -- "Review" has no dedicated DB flag of its own (screening_status/
+// 'reviewing' is dormant, no V1 UI path ever sets it) so it is deliberately NOT given a false
+// independent signal; the indicator component below marks it complete only once Decision is,
+// since a real decision cannot have happened without staff having reviewed what was submitted --
+// never invented state ahead of that.
+async function loadWorkflowStageData(
+  supabase: Awaited<ReturnType<typeof getServerSupabaseClient>>,
+  applicationId: string,
+): Promise<ApplicationWorkflowData> {
+  const [{ count: tokenCount }, { data: requirements }, { count: leaseCount }] = await Promise.all([
+    supabase
+      .from('application_access_tokens')
+      .select('id', { count: 'exact', head: true })
+      .eq('application_id', applicationId),
+    supabase
+      .from('application_document_requirements')
+      .select('status, is_required')
+      .eq('application_id', applicationId),
+    supabase
+      .from('leases')
+      .select('id', { count: 'exact', head: true })
+      .eq('source_application_id', applicationId),
+  ]);
+
+  const requiredRows = (requirements ?? []).filter((r) => r.is_required);
+  const documentsComplete =
+    requiredRows.length > 0 && requiredRows.every((r) => r.status === 'accepted' || r.status === 'reviewed');
+
+  return {
+    invited: (tokenCount ?? 0) > 0,
+    documentsComplete,
+    hasLease: (leaseCount ?? 0) > 0,
+  };
+}
+
+// Ordered stages, each complete only from the authoritative signals above -- never inferred from
+// UI navigation or optimistic client state.
+function ApplicationWorkflowIndicator({
+  application,
+  workflow,
+}: {
+  application: Application;
+  workflow: ApplicationWorkflowData;
+}) {
+  const decided = application.decidedAt !== null;
+  const stages = [
+    { label: 'Invitation', done: workflow.invited },
+    { label: 'Applicant details', done: application.status !== 'invited' },
+    { label: 'Documents', done: workflow.documentsComplete },
+    { label: 'Review', done: decided },
+    { label: 'Decision', done: decided },
+    { label: 'Lease', done: workflow.hasLease },
+  ];
+
+  return (
+    <div className="panel flex flex-wrap items-center gap-x-1 gap-y-2 px-4 py-3">
+      {stages.map((stage, i) => (
+        <div key={stage.label} className="flex items-center gap-1">
+          <span
+            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ${
+              stage.done
+                ? 'bg-light-statusPaid/15 text-light-statusPaid dark:bg-dark-statusPaid/15 dark:text-dark-statusPaid'
+                : 'bg-light-textMuted/10 text-light-textMuted dark:bg-dark-textMuted/10 dark:text-dark-textMuted'
+            }`}
+          >
+            {stage.done ? '✓' : ''} {stage.label}
+          </span>
+          {i < stages.length - 1 ? (
+            <span className="text-muted-foreground">→</span>
+          ) : null}
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -97,11 +187,13 @@ function ApplicationDetailView({
   canAct,
   propertyName,
   unitLabel,
+  workflow,
 }: {
   application: Application;
   canAct: boolean;
   propertyName: string | null;
   unitLabel: string | null;
+  workflow: ApplicationWorkflowData;
 }) {
   return (
     <div className="space-y-6 animate-rise">
@@ -119,6 +211,8 @@ function ApplicationDetailView({
           />
         </div>
       </div>
+
+      <ApplicationWorkflowIndicator application={application} workflow={workflow} />
 
       <Panel title="Applicant details">
         <dl className="grid grid-cols-2 gap-x-4 gap-y-5 text-sm lg:grid-cols-4">

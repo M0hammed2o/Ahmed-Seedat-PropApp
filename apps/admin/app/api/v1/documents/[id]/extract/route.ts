@@ -6,6 +6,7 @@ import { canUseOcr } from '@/lib/subscriptionEntitlements';
 import { getDocumentIntelligenceProvider } from '@/lib/providers/documentIntelligence';
 import { mapExtractionResultRow } from '@/lib/documents';
 import { writeAuditEvent } from '@/lib/audit';
+import { safeErrorMessage } from '@/lib/safeError';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -53,7 +54,16 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     .maybeSingle();
   if (documentError) {
     return NextResponse.json(
-      { error: { code: 'document_fetch_failed', message: documentError.message } },
+      {
+        error: {
+          code: 'document_fetch_failed',
+          message: safeErrorMessage(
+            documentError,
+            'Could not load this document. Please try again, or contact support if this continues.',
+            `documents.fetch(${id})`,
+          ),
+        },
+      },
       { status: 500 },
     );
   }
@@ -134,7 +144,16 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     .single();
   if (jobError) {
     return NextResponse.json(
-      { error: { code: 'extraction_job_create_failed', message: jobError.message } },
+      {
+        error: {
+          code: 'extraction_job_create_failed',
+          message: safeErrorMessage(
+            jobError,
+            'Could not start document scanning. Please try again, or contact support if this continues.',
+            `extraction_jobs.create(${id})`,
+          ),
+        },
+      },
       { status: 500 },
     );
   }
@@ -147,7 +166,13 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       {
         error: {
           code: 'signed_url_failed',
-          message: signedUrlError?.message ?? 'Could not create a signed URL for this document.',
+          message: signedUrlError
+            ? safeErrorMessage(
+                signedUrlError,
+                'Could not prepare this document for scanning. Please try again, or contact support if this continues.',
+                `documents.createSignedUrl(${id})`,
+              )
+            : 'Could not prepare this document for scanning. Please try again, or contact support if this continues.',
         },
       },
       { status: 500 },

@@ -113,7 +113,7 @@ test.describe('Email confirmation (cross-device-safe rewrite)', () => {
 
     // No existing org/tenant/owner identity yet -- resolveAuthenticatedDestination() sends a
     // brand-new confirmed customer to onboarding, not a dashboard that doesn't exist for them yet.
-    await page.waitForURL(/\/onboarding\/create-organization|\/dashboard/, { timeout: 15_000 });
+    await page.waitForURL(/\/onboarding\/choose-plan|\/dashboard/, { timeout: 15_000 });
 
     // Clear the session (sign-out in this app is client-side only, supabase.auth.signOut() via
     // AppShell.tsx -- clearing cookies directly is the equivalent, standard Playwright way to

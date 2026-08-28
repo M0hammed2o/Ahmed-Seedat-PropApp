@@ -1,11 +1,11 @@
 import Link from 'next/link';
-import type { BankTransaction, RentSchedule } from '@propvault/types';
+import type { BankTransaction, RentSchedule, Expense } from '@propvault/types';
 import { BankTransactionsFilterClient } from '@/components/tables/BankTransactionsFilterClient';
 import { AdminMetricCard } from '@/components/ui/AdminMetricCard';
 import { Button } from '@/components/ui/Button';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
-import { mapBankTransactionRow } from '@/lib/accounting';
+import { mapBankTransactionRow, mapExpenseRow } from '@/lib/accounting';
 import {
   resolvePortalSession,
   findActiveMembership,
@@ -25,6 +25,14 @@ const DEMO_TRANSACTIONS: BankTransaction[] = [
     matchedRentScheduleId: null,
     matchStatus: 'unmatched',
     createdAt: '2026-08-01T00:00:00Z',
+    propertyId: null,
+    unitId: null,
+    tenantId: null,
+    vendorId: null,
+    category: null,
+    documentId: null,
+    notes: null,
+    expenseId: null,
   },
 ];
 
@@ -53,6 +61,7 @@ export default async function BankTransactionsPage() {
   const candidates: RentSchedule[] = ADMIN_DEMO_MODE
     ? DEMO_RENT_SCHEDULE
     : await loadRentScheduleCandidates();
+  const pendingExpenses: Expense[] = ADMIN_DEMO_MODE ? [] : await loadPendingExpenseCandidates();
   const canPost = ADMIN_DEMO_MODE ? true : await resolveCanPost();
 
   const unmatched = transactions.filter((t) => t.matchStatus === 'unmatched').length;
@@ -79,6 +88,7 @@ export default async function BankTransactionsPage() {
         transactions={transactions}
         canPost={canPost}
         rentScheduleCandidates={candidates}
+        pendingExpenseCandidates={pendingExpenses}
       />
     </div>
   );
@@ -116,6 +126,25 @@ async function loadRentScheduleCandidates(): Promise<RentSchedule[]> {
     status: row.status as RentSchedule['status'],
     generatedAt: row.generated_at,
   }));
+}
+
+// Candidates for the "Expense" matching destination (migration 20260101000146) -- only
+// status='pending' expenses are eligible, matching match_bank_transaction_to_expense()'s own
+// guard (it re-checks this server-side regardless; this is just what's offered in the picker).
+async function loadPendingExpenseCandidates(): Promise<Expense[]> {
+  const session = await resolvePortalSession();
+  const activeOrg = session?.organizations.find((m) => m.status === 'active');
+  if (!activeOrg) return [];
+
+  const supabase = await getServerSupabaseClient();
+  const { data, error } = await supabase
+    .from('expenses')
+    .select('*')
+    .eq('org_id', activeOrg.orgId)
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false });
+  if (error) throw new Error(`Failed to load pending expenses: ${error.message}`);
+  return (data ?? []).map(mapExpenseRow);
 }
 
 async function resolveCanPost(): Promise<boolean> {

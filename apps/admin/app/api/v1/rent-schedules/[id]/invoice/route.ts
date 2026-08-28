@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { mapInvoiceRow } from '@/lib/accounting';
 import { dispatchEmail } from '@/lib/emailDispatch';
+import { safeErrorMessage } from '@/lib/safeError';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -32,7 +33,16 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
 
   if (invoiceError) {
     return NextResponse.json(
-      { error: { code: 'invoice_failed', message: invoiceError.message } },
+      {
+        error: {
+          code: 'invoice_failed',
+          message: safeErrorMessage(
+            invoiceError,
+            'Could not create an invoice for this rent schedule. Please try again, or contact support if this continues.',
+            `invoice_rent_schedule(${id})`,
+          ),
+        },
+      },
       { status: 500 },
     );
   }
@@ -44,7 +54,16 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     .single();
   if (fetchError) {
     return NextResponse.json(
-      { error: { code: 'invoice_fetch_failed', message: fetchError.message } },
+      {
+        error: {
+          code: 'invoice_fetch_failed',
+          message: safeErrorMessage(
+            fetchError,
+            'The invoice was created, but could not be loaded. Please refresh, or contact support if this continues.',
+            `invoices.fetch(${invoiceId})`,
+          ),
+        },
+      },
       { status: 500 },
     );
   }

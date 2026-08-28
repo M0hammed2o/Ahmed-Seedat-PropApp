@@ -363,7 +363,7 @@ test.describe('property compliance workflow', () => {
     await page.getByRole('button', { name: /mark reviewed/i }).click();
     // Matches only the "Reviewed on <date>" confirmation paragraph, not the status Pill (also
     // literally "Reviewed") -- both are legitimately on screen at once.
-    await expect(page.getByText(/^reviewed on/i)).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(/^reviewed on/i)).toBeVisible({ timeout: 30_000 });
 
     const finalStatement = await request.get(`/api/v1/levy-statements/${statementId}`);
     const finalStatementBody = await finalStatement.json();

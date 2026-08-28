@@ -1,7 +1,63 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createOrganizationSchema } from '@propvault/validation';
-import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { resolvePortalSession } from '@/lib/orgSession';
+import { safeErrorMessage } from '@/lib/safeError';
+
+/**
+ * Best-effort referral attribution (V1 launch-completion pass, WORKLOG.md this date) -- runs
+ * AFTER create_organization() has already committed, using the SERVICE-ROLE client (this table
+ * has no client-facing RLS policy at all, matching public.admin_users' isolation pattern). Never
+ * throws: any failure here is logged server-side only and must never surface as an org-creation
+ * failure to the caller -- referral tracking is a nice-to-have, not part of the signup contract.
+ *
+ * Resolution: an unknown/invalid/inactive code is NOT an error -- it just fails to resolve a
+ * partner, and the row is still written with referral_partner_id null so a fallback name (if any)
+ * is preserved. If neither a code nor a name was supplied, no row is written at all (this is
+ * genuinely optional). `ON CONFLICT (org_id) DO NOTHING` makes a retried/duplicate signup request
+ * a no-op rather than a duplicate or silent overwrite of an already-set attribution.
+ */
+async function attributeReferralBestEffort(
+  orgId: string,
+  referralCode: string | undefined,
+  referrerName: string | undefined,
+) {
+  if (!referralCode && !referrerName) return;
+
+  try {
+    const serviceClient = getServiceRoleClient();
+    const normalizedCode = referralCode ? referralCode.trim().toLowerCase() : null;
+
+    let referralPartnerId: string | null = null;
+    if (normalizedCode) {
+      const { data: partner } = await serviceClient
+        .from('referral_partners')
+        .select('id')
+        .eq('referral_code', normalizedCode)
+        .eq('active', true)
+        .maybeSingle();
+      referralPartnerId = partner?.id ?? null;
+    }
+
+    // upsert(..., { ignoreDuplicates: true }) compiles to a real `insert ... on conflict (org_id)
+    // do nothing` -- a retried/duplicate signup request is a silent no-op, never a duplicate row
+    // and never an overwrite of an already-set attribution (org_id is the primary key).
+    const { error } = await serviceClient.from('organization_referral_attributions').upsert(
+      {
+        org_id: orgId,
+        referral_partner_id: referralPartnerId,
+        referral_code_used: normalizedCode,
+        fallback_referrer_name: referralPartnerId ? null : (referrerName?.trim() ?? null),
+      },
+      { onConflict: 'org_id', ignoreDuplicates: true },
+    );
+    if (error) {
+      console.error('[referral] failed to write organization_referral_attributions row', error.message);
+    }
+  } catch (err) {
+    console.error('[referral] unexpected error attributing referral', err);
+  }
+}
 
 /**
  * POST /api/v1/organizations — org signup (API_SPEC.md §2, TASKS.md M4).
@@ -81,10 +137,24 @@ export async function POST(request: NextRequest) {
       );
     }
     return NextResponse.json(
-      { error: { code: 'organization_create_failed', message: error.message } },
+      {
+        error: {
+          code: 'organization_create_failed',
+          message: safeErrorMessage(
+            error,
+            'Could not create your organization. Please try again, or contact support if this continues.',
+            'create_organization',
+          ),
+        },
+      },
       { status: 500 },
     );
   }
+
+  // Referral attribution (V1 launch-completion pass) -- fires only after create_organization()
+  // has actually committed; never awaited into the error path above, and never able to change the
+  // response returned to the caller either way (see attributeReferralBestEffort's own comment).
+  await attributeReferralBestEffort(orgId as string, parsed.data.referralCode, parsed.data.referrerName);
 
   return NextResponse.json({ id: orgId, legalName: parsed.data.legalName }, { status: 201 });
 }

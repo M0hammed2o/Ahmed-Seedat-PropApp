@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { safeErrorMessage } from '@/lib/safeError';
 
 /** GET /api/v1/rent-schedules?status=overdue (API_SPEC.md §6). Read-only; created only via approve_application(). */
 export async function GET(request: NextRequest) {
@@ -25,7 +26,12 @@ export async function GET(request: NextRequest) {
   const { data, error } = await query;
   if (error) {
     return NextResponse.json(
-      { error: { code: 'rent_schedules_list_failed', message: error.message } },
+      {
+        error: {
+          code: 'rent_schedules_list_failed',
+          message: safeErrorMessage(error, 'Could not load rent schedules.', 'rentSchedules.list'),
+        },
+      },
       { status: 500 },
     );
   }

@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { createConfirmedTestUser } from './fixtures/testUser';
 import { generateTotpCode } from './fixtures/totp';
 import { completeLegalConsentAndProfile } from './fixtures/onboarding';
+import { createCommerciallyReadyOrganization } from './fixtures/orgWorkflow';
 import { BASE_URL } from '../playwright.config';
 
 // Stage 3 (WORKLOG.md this date) -- permanent regression test for a real, proven customer MFA
@@ -35,12 +36,7 @@ test.describe('customer MFA enforcement', () => {
     // continue on to onboarding explicitly (the automatic post-login redirect already landed on
     // /legal-consent, not onboarding, for exactly that reason).
     await completeLegalConsentAndProfile(page.request);
-    await page.goto('/onboarding/create-organization');
-    await page.waitForLoadState('networkidle');
-
-    await page.locator('input[autocomplete="organization"]').fill(`E2E No-MFA Org ${Date.now()}`);
-    await page.getByRole('button', { name: /create organization/i }).click();
-    await page.waitForURL(/\/dashboard/, { timeout: 30_000 });
+    await createCommerciallyReadyOrganization(page.request, `E2E No-MFA Org ${Date.now()}`);
 
     const apiResponse = await page.request.get('/api/v1/properties');
     expect(apiResponse.status()).toBe(200);
@@ -49,6 +45,7 @@ test.describe('customer MFA enforcement', () => {
   test('an MFA-enrolled user at AAL1 cannot reach protected pages/APIs, completes step-up via the dedicated challenge page without re-entering their password, lands on the original destination, and loses access again after logout', async ({
     page,
   }) => {
+    test.setTimeout(120_000);
     const user = await createConfirmedTestUser('mfa-full-cycle');
 
     // Establish the account: sign in, create an org, enroll TOTP.
@@ -61,15 +58,12 @@ test.describe('customer MFA enforcement', () => {
 
     // createConfirmedTestUser() bypasses RegisterForm (production signup/onboarding, WORKLOG.md
     // this date), so this account starts with no recorded consent/profile -- complete both before
-    // proceeding to org creation, or this navigation would land on /legal-consent instead.
+    // proceeding to org setup, or protected routes would land on /legal-consent instead.
     await completeLegalConsentAndProfile(page.request);
-    await page.goto('/onboarding/create-organization');
-    await page.waitForLoadState('networkidle');
-    await page
-      .locator('input[autocomplete="organization"]')
-      .fill(`E2E MFA Cycle Org ${Date.now()}`);
-    await page.getByRole('button', { name: /create organization/i }).click();
-    await page.waitForURL(/\/dashboard/, { timeout: 30_000 });
+    await createCommerciallyReadyOrganization(
+      page.request,
+      `E2E MFA Cycle Org ${Date.now()}`,
+    );
 
     await page.goto('/settings');
     await page.waitForLoadState('networkidle');

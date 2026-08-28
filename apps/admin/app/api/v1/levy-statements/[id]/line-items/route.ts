@@ -4,6 +4,7 @@ import { levyStatementLineItemSchema } from '@propvault/validation';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { requireOrgRole } from '@/lib/portfolio';
 import { mapLevyStatementLineItemRow } from '@/lib/compliance';
+import { safeErrorMessage } from '@/lib/safeError';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -93,7 +94,16 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     .eq('statement_id', id);
   if (deleteError) {
     return NextResponse.json(
-      { error: { code: 'line_items_replace_failed', message: deleteError.message } },
+      {
+        error: {
+          code: 'line_items_replace_failed',
+          message: safeErrorMessage(
+            deleteError,
+            'Could not save the line items for this statement. Please try again, or contact support if this continues.',
+            `levy_statement_line_items.delete(${id})`,
+          ),
+        },
+      },
       { status: 500 },
     );
   }
@@ -120,7 +130,16 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     .select('*');
   if (insertError) {
     return NextResponse.json(
-      { error: { code: 'line_items_replace_failed', message: insertError.message } },
+      {
+        error: {
+          code: 'line_items_replace_failed',
+          message: safeErrorMessage(
+            insertError,
+            'Could not save the line items for this statement. Please try again, or contact support if this continues.',
+            `levy_statement_line_items.insert(${id})`,
+          ),
+        },
+      },
       { status: 500 },
     );
   }

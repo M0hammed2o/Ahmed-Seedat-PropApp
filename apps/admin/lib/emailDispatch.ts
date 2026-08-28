@@ -475,7 +475,7 @@ export interface DispatchEmailInput {
 
 export interface DispatchEmailResult {
   sent: boolean;
-  reason?: 'no_address' | 'suppressed' | 'preference_disabled' | 'already_sent';
+  reason?: 'no_address' | 'suppressed' | 'preference_disabled' | 'already_sent' | 'not_applicable';
   emailMessageId?: string;
   /** False whenever this dispatch went through MockEmailProvider (no RESEND_API_KEY/
    * RESEND_FROM_ADDRESS configured) -- `sent: true` alone was previously indistinguishable from

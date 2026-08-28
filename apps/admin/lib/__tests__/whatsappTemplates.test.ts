@@ -13,13 +13,16 @@ import {
 // reflects that real, explicit confirmation (never silently defaults true on its own), and that
 // an unrecognized name still fails safe regardless.
 //
-// First-tenant-workflow predeploy pass (WORKLOG.md 2026-08-25), Phase 6/21: 5 new applicant/lease
-// templates were added to the registry, all correctly `approved: false, variableCountVerified:
-// false` (none have been created/submitted in Meta Business Manager yet) -- the registry is no
-// longer "exactly 8, all approved," it's "8 real + verified, plus 5 proposed + unapproved." Split
-// below so each group's own invariant stays independently testable.
+// WhatsApp launch-completion pass (WORKLOG.md 2026-08-27, two updates same day):
+// (1) Mohammed confirmed in Meta WhatsApp Manager that the 5 applicant/lease templates are now
+//     ALSO Active/Approved -- all 13 registered templates are approved now.
+// (2) Mohammed then supplied the real approved Meta template documents for all 13 (the exact body
+//     text, variable samples, and category for each). Every template's expectedVariableCount/order
+//     was reconciled against that document -- all 13 are now variableCountVerified: true, on equal
+//     footing. (Reconciliation found and fixed a real order bug in 3 of the 5 applicant/lease
+//     builders -- see whatsappTemplateVariables.ts's own comments.)
 
-const APPROVED_PRODUCTION_TEMPLATES = [
+const ALL_TEMPLATES = [
   'maintenance_request_update',
   'payment_received_confirmation',
   'tenant_account_invitation',
@@ -28,9 +31,6 @@ const APPROVED_PRODUCTION_TEMPLATES = [
   'rent_overdue_notice',
   'lease_expiry_reminder',
   'owner_monthly_property_summary',
-] as const;
-
-const PROPOSED_UNAPPROVED_TEMPLATES = [
   'application_invitation',
   'application_documents_requested',
   'application_approved',
@@ -38,23 +38,30 @@ const PROPOSED_UNAPPROVED_TEMPLATES = [
   'lease_ready',
 ] as const;
 
+const UTILITY_TEMPLATES = [
+  'maintenance_request_update',
+  'payment_received_confirmation',
+  'tenant_account_invitation',
+  'payment_confirmation_required',
+  'rent_payment_reminder',
+  'rent_overdue_notice',
+  'lease_expiry_reminder',
+  'owner_monthly_property_summary',
+  'application_documents_requested',
+  'application_approved',
+  'application_declined',
+  'lease_ready',
+] as const;
+
 describe('WHATSAPP_TEMPLATE_REGISTRY', () => {
-  it("every one of the 8 real templates is approved, per Mohammed's direct 2026-08-17 confirmation", () => {
-    for (const name of APPROVED_PRODUCTION_TEMPLATES) {
+  it('every one of the 13 registered templates is approved, per direct confirmation (8: 2026-08-17, 5 applicant/lease: 2026-08-27)', () => {
+    for (const name of ALL_TEMPLATES) {
       expect(WHATSAPP_TEMPLATE_REGISTRY[name].approved, `${name} should be approved`).toBe(true);
     }
   });
 
-  it('every one of the 5 proposed applicant/lease templates is NOT approved -- none has been submitted to Meta yet', () => {
-    for (const name of PROPOSED_UNAPPROVED_TEMPLATES) {
-      expect(WHATSAPP_TEMPLATE_REGISTRY[name].approved, `${name} should not be approved`).toBe(
-        false,
-      );
-    }
-  });
-
-  it('every one of the 8 real templates has a positive expectedVariableCount and is variableCountVerified, per the real Meta export Mohammed reviewed 2026-08-17', () => {
-    for (const name of APPROVED_PRODUCTION_TEMPLATES) {
+  it('every one of the 13 registered templates has a positive expectedVariableCount and is variableCountVerified, per the real Meta template document Mohammed supplied', () => {
+    for (const name of ALL_TEMPLATES) {
       const def = WHATSAPP_TEMPLATE_REGISTRY[name];
       expect(
         def.expectedVariableCount,
@@ -64,16 +71,16 @@ describe('WHATSAPP_TEMPLATE_REGISTRY', () => {
     }
   });
 
-  it('every one of the 5 proposed templates has a positive expectedVariableCount but is NOT variableCountVerified (proposed counts, never confirmed against a real Meta export)', () => {
-    for (const name of PROPOSED_UNAPPROVED_TEMPLATES) {
-      const def = WHATSAPP_TEMPLATE_REGISTRY[name];
+  it('application_invitation is classified Marketing in Meta -- confirmed, not an error, and not a reason to rename/replace the template', () => {
+    expect(WHATSAPP_TEMPLATE_REGISTRY.application_invitation.metaCategory).toBe('marketing');
+  });
+
+  it('every other registered template is classified Utility in Meta', () => {
+    for (const name of UTILITY_TEMPLATES) {
       expect(
-        def.expectedVariableCount,
-        `${name} should have a positive variable count`,
-      ).toBeGreaterThan(0);
-      expect(def.variableCountVerified, `${name} should not be variableCountVerified`).toBe(
-        false,
-      );
+        WHATSAPP_TEMPLATE_REGISTRY[name].metaCategory,
+        `${name} should be classified utility`,
+      ).toBe('utility');
     }
   });
 
@@ -83,10 +90,8 @@ describe('WHATSAPP_TEMPLATE_REGISTRY', () => {
     }
   });
 
-  it('registers exactly the 8 real production templates plus the 5 proposed applicant/lease templates', () => {
-    expect(Object.keys(WHATSAPP_TEMPLATE_REGISTRY).sort()).toEqual(
-      [...APPROVED_PRODUCTION_TEMPLATES, ...PROPOSED_UNAPPROVED_TEMPLATES].sort(),
-    );
+  it('registers exactly these 13 templates -- no more, no fewer', () => {
+    expect(Object.keys(WHATSAPP_TEMPLATE_REGISTRY).sort()).toEqual([...ALL_TEMPLATES].sort());
   });
 });
 
@@ -95,7 +100,7 @@ describe('isKnownWhatsAppTemplate', () => {
     expect(isKnownWhatsAppTemplate('tenant_account_invitation')).toBe(true);
   });
 
-  it('recognizes a proposed (not yet approved) template name too -- known and approved are separate questions', () => {
+  it('recognizes an applicant/lease template name too', () => {
     expect(isKnownWhatsAppTemplate('application_invitation')).toBe(true);
   });
 
@@ -107,15 +112,9 @@ describe('isKnownWhatsAppTemplate', () => {
 });
 
 describe('isWhatsAppTemplateApproved', () => {
-  it('returns true for every one of the 8 real templates, per direct confirmation 2026-08-17', () => {
-    for (const name of APPROVED_PRODUCTION_TEMPLATES) {
+  it('returns true for every one of the 13 registered templates', () => {
+    for (const name of ALL_TEMPLATES) {
       expect(isWhatsAppTemplateApproved(name)).toBe(true);
-    }
-  });
-
-  it('returns false for every one of the 5 proposed applicant/lease templates -- known but not approved', () => {
-    for (const name of PROPOSED_UNAPPROVED_TEMPLATES) {
-      expect(isWhatsAppTemplateApproved(name)).toBe(false);
     }
   });
 

@@ -121,6 +121,16 @@ export interface BankTransaction {
   matchedRentScheduleId: string | null;
   matchStatus: BankTransactionMatchStatus;
   createdAt: string;
+  // V1 launch-completion pass (migration 20260101000146): optional manual tags plus the second
+  // real matching destination (Expense), alongside the existing rent-schedule matching above.
+  propertyId: string | null;
+  unitId: string | null;
+  tenantId: string | null;
+  vendorId: string | null;
+  category: string | null;
+  documentId: string | null;
+  notes: string | null;
+  expenseId: string | null;
 }
 
 export interface Invoice {
@@ -142,12 +152,16 @@ export interface Expense {
   id: string;
   orgId: string;
   propertyId: string;
+  unitId: string | null;
   vendorId: string | null;
   category: string;
   amount: number;
   status: ExpenseStatus;
   documentId: string | null;
   journalEntryId: string | null;
+  referenceNumber: string | null;
+  invoiceDate: string | null;
+  notes: string | null;
   createdAt: string;
   updatedAt: string;
 }

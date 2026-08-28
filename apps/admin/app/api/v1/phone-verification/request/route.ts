@@ -4,6 +4,7 @@ import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/se
 import { resolveEntityContactInfo } from '@/lib/phoneVerification';
 import { dispatchEmail } from '@/lib/emailDispatch';
 import { rateLimitOrRespond } from '@/lib/rateLimit';
+import { safeErrorMessage } from '@/lib/safeError';
 
 /**
  * POST /api/v1/phone-verification/request -- WhatsApp V1 completion pass, Phase F (WORKLOG.md
@@ -66,7 +67,16 @@ export async function POST(request: NextRequest) {
     .single();
   if (rpcError) {
     return NextResponse.json(
-      { error: { code: 'phone_verification_request_failed', message: rpcError.message } },
+      {
+        error: {
+          code: 'phone_verification_request_failed',
+          message: safeErrorMessage(
+            rpcError,
+            'Could not start phone verification. Please try again, or contact support if this continues.',
+            'request_phone_verification',
+          ),
+        },
+      },
       { status: 500 },
     );
   }
