@@ -129,6 +129,43 @@ describe('PayFastBillingGatewayProvider', () => {
       });
       expect(new URL(result.checkoutUrl).searchParams.get('frequency')).toBe('6');
     });
+
+    // R0-to-R5 revision (WORKLOG.md this date): the once-off card-verification fee charged now
+    // (`amount`) must never leak into or get confused with the plan's own recurring price
+    // (`recurring_amount`) -- these are two genuinely separate PayFast fields, and mixing them up
+    // would either overcharge the customer today or undercharge every renewal after the trial.
+    // Parametrized across all three tiers x both billing cycles, matching exactly what
+    // startTrialActivationCheckout() can request in production -- "do not assume annual behaviour"
+    // applies here too, so it's exercised explicitly rather than inferred from the monthly case.
+    const PLAN_PRICES: Array<{ planCode: string; billingCycle: 'monthly' | 'annual'; amount: number }> = [
+      { planCode: 'starter_monthly', billingCycle: 'monthly', amount: 299 },
+      { planCode: 'professional_monthly', billingCycle: 'monthly', amount: 699 },
+      { planCode: 'business_monthly', billingCycle: 'monthly', amount: 1999 },
+      { planCode: 'starter_annual', billingCycle: 'annual', amount: 299 * 12 * 0.85 },
+      { planCode: 'professional_annual', billingCycle: 'annual', amount: 699 * 12 * 0.85 },
+      { planCode: 'business_annual', billingCycle: 'annual', amount: 1999 * 12 * 0.85 },
+    ];
+    for (const { planCode, billingCycle, amount } of PLAN_PRICES) {
+      it(`keeps the R5 verification fee separate from the ${planCode} recurring amount`, async () => {
+        const provider = new PayFastBillingGatewayProvider(CONFIG);
+        const result = await provider.createSubscription({
+          orgId: 'org-1',
+          providerCustomerId: 'cust-1',
+          planCode,
+          amount,
+          initialAmount: 5,
+          billingDate: '2026-09-28',
+          currency: 'ZAR',
+          billingCycle,
+          idempotencyKey: `checkout-org-1-${planCode}`,
+        });
+        const params = new URL(result.checkoutUrl).searchParams;
+        expect(params.get('amount')).toBe('5.00');
+        expect(params.get('recurring_amount')).toBe(amount.toFixed(2));
+        expect(params.get('recurring_amount')).not.toBe(params.get('amount'));
+        expect(params.get('frequency')).toBe(billingCycle === 'annual' ? '6' : '3');
+      });
+    }
   });
 
   describe('verifyWebhookSignature', () => {

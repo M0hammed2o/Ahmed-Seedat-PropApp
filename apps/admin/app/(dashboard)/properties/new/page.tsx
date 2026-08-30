@@ -1,11 +1,11 @@
 import { redirect } from 'next/navigation';
-import { NewPropertyForm } from '@/components/properties/NewPropertyForm';
+import { PropertyForm } from '@/components/properties/PropertyForm';
 import { resolvePortalSession, findActiveMembership, canWriteOrgRecords } from '@/lib/orgSession';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 export default async function NewPropertyPage() {
   if (ADMIN_DEMO_MODE) {
-    return <NewPropertyForm orgId="demo-org-1" />;
+    return <PropertyForm mode="create" orgId="demo-org-1" />;
   }
 
   const session = await resolvePortalSession();
@@ -21,5 +21,5 @@ export default async function NewPropertyPage() {
     findActiveMembership(session, activeOrg.orgId) && canWriteOrgRecords(activeOrg.role);
   if (!canCreate) redirect('/properties');
 
-  return <NewPropertyForm orgId={activeOrg.orgId} />;
+  return <PropertyForm mode="create" orgId={activeOrg.orgId} />;
 }

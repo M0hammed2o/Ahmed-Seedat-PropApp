@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { UNIT_STATUSES, OWNER_TYPES, OWNER_INVITATION_DELIVERY_CHANNELS } from '@propvault/types';
+import { UNIT_SETTABLE_STATUSES, OWNER_TYPES, OWNER_INVITATION_DELIVERY_CHANNELS } from '@propvault/types';
 
 // Units API (apps/admin/app/api/v1/properties/:propId/units, /api/v1/units/:id — API_SPEC.md §3,
 // TASKS.md M6). propertyId/orgId are always taken from the URL/session, never from this body —
@@ -10,7 +10,7 @@ export const unitSchema = z.object({
   bathrooms: z.number().min(0).max(50).optional().nullable(),
   sizeSqm: z.number().positive().max(1_000_000).optional().nullable(),
   marketRent: z.number().min(0).optional().nullable(),
-  status: z.enum(UNIT_STATUSES).optional(),
+  status: z.enum(UNIT_SETTABLE_STATUSES).optional(),
 });
 export type UnitInput = z.infer<typeof unitSchema>;
 

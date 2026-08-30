@@ -12,6 +12,7 @@ import {
   Wrench,
   ClipboardCheck,
   Receipt,
+  FileStack,
   Wallet,
   Landmark,
   ArrowLeftRight,
@@ -81,6 +82,7 @@ const NAV_SECTIONS: NavSection[] = [
     label: 'Finance',
     items: [
       { href: '/accounting', label: 'Accounting', icon: navIcon(PieChart) },
+      { href: '/accounting/invoices', label: 'Invoices', icon: navIcon(FileStack) },
       { href: '/accounting/rent-due', label: 'Rent Due', icon: navIcon(Receipt) },
       { href: '/accounting/expenses', label: 'Expenses', icon: navIcon(Wallet) },
       { href: '/accounting/bank-accounts', label: 'Bank Accounts', icon: navIcon(Landmark) },

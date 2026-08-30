@@ -128,6 +128,41 @@ export function mapLeaseRow(row: LeaseRow): Lease {
   };
 }
 
+// Tenant/occupancy V1 pass: shared "which lease is THE current one" rule, extracted from
+// tenants/[id]/page.tsx's own original inline sort (a tenant can have multiple leases over time --
+// lease_tenants is a many-to-many join, DATABASE.md §4 -- this is deliberately the single place
+// that rule lives now that both the tenant list AND detail pages need it, not two copies that could
+// drift). Active wins outright; among non-active leases (or between two actives, which
+// activate_lease() itself already prevents at the DB level), the most recently STARTED one is
+// "current" and everything else is history.
+export function pickCurrentLease<T extends { status: string; startDate: string }>(
+  leases: T[],
+): { current: T | null; history: T[] } {
+  const sorted = [...leases].sort((a, b) => {
+    if (a.status === 'active' && b.status !== 'active') return -1;
+    if (b.status === 'active' && a.status !== 'active') return 1;
+    return new Date(b.startDate).getTime() - new Date(a.startDate).getTime();
+  });
+  const [current = null, ...history] = sorted;
+  return { current, history };
+}
+
+// Tenant/occupancy V1 pass: the tenant list/detail pages' shared "current tenancy" shape --
+// property/unit context plus the lease fields those pages actually display. Kept minimal (not the
+// full `Lease` type) since this is a read-only display projection, not a domain entity.
+export interface TenancyContext {
+  leaseId: string;
+  leaseStatus: string;
+  startDate: string;
+  endDate: string | null;
+  rentAmount: number;
+  rentFrequency: string;
+  unitId: string;
+  unitLabel: string;
+  propertyId: string;
+  propertyNickname: string;
+}
+
 interface RentScheduleRow {
   id: string;
   org_id: string;

@@ -5,7 +5,7 @@ import { Search } from 'lucide-react';
 import type { UnitStatus } from '@propvault/types';
 import { UnitsTable, type UnitRow } from '@/components/tables/UnitsTable';
 
-const STATUSES: readonly UnitStatus[] = ['vacant', 'occupied', 'maintenance'];
+const STATUSES: readonly UnitStatus[] = ['vacant', 'occupied', 'maintenance', 'archived'];
 
 // Adapted from reference/lovable-ui-reference's units/index.tsx status-tab + search bar literal
 // structure (2026-08-04 Lovable-adoption batch, UI_INTEGRATION_PLAN.md) -- client-side filter
@@ -16,12 +16,24 @@ const STATUSES: readonly UnitStatus[] = ['vacant', 'occupied', 'maintenance'];
 // fake "Previous 1 2 Next" pagination footer is also omitted: this page has no real pagination
 // (every unit loads in one query), so clickable page-number buttons that go nowhere would be a
 // fabricated affordance; a real "Showing X of Y" count replaces it instead.
-export function UnitsFilterClient({ units }: { units: UnitRow[] }) {
+export function UnitsFilterClient({
+  units,
+  showProperty = true,
+}: {
+  units: UnitRow[];
+  showProperty?: boolean;
+}) {
   const [status, setStatus] = useState<UnitStatus | 'all'>('all');
   const [query, setQuery] = useState('');
 
+  // Property/unit lifecycle pass (WORKLOG.md this date): "default listings show ACTIVE only" --
+  // for units that means the "all" tab means "all non-archived", with an explicit "archived" tab
+  // (added to STATUSES above) to see them on request. Individual vacant/occupied/maintenance tabs
+  // are unaffected.
   const counts = useMemo(() => {
-    const byStatus: Record<string, number> = { all: units.length };
+    const byStatus: Record<string, number> = {
+      all: units.filter((u) => u.status !== 'archived').length,
+    };
     for (const s of STATUSES) byStatus[s] = units.filter((u) => u.status === s).length;
     return byStatus;
   }, [units]);
@@ -30,7 +42,7 @@ export function UnitsFilterClient({ units }: { units: UnitRow[] }) {
     () =>
       units.filter(
         (u) =>
-          (status === 'all' || u.status === status) &&
+          (status === 'all' ? u.status !== 'archived' : u.status === status) &&
           (u.unitLabel + (u.propertyNickname ?? '')).toLowerCase().includes(query.toLowerCase()),
       ),
     [units, status, query],
@@ -78,7 +90,7 @@ export function UnitsFilterClient({ units }: { units: UnitRow[] }) {
         </div>
       </div>
 
-      <UnitsTable data={filtered} showProperty emptyMessage="No units match this filter" />
+      <UnitsTable data={filtered} showProperty={showProperty} emptyMessage="No units match this filter" />
 
       <p className="text-[12px] text-muted-foreground">
         Showing {filtered.length} of {units.length} units

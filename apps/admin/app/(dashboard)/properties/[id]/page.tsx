@@ -9,6 +9,7 @@ import { mapApplicationRow } from '@/lib/leasing';
 import { resolvePortalSession, findActiveMembership, canWriteOrgRecords } from '@/lib/orgSession';
 import { MapPin } from 'lucide-react';
 import { UnitsTable, type UnitRow } from '@/components/tables/UnitsTable';
+import { UnitsFilterClient } from '@/components/units/UnitsFilterClient';
 import { MaintenanceTable } from '@/components/tables/MaintenanceTable';
 import { ApplicationsTable } from '@/components/tables/ApplicationsTable';
 import { Avatar } from '@/components/ui/Avatar';
@@ -25,6 +26,7 @@ import { PropertyOwnersPanel } from '@/components/properties/PropertyOwnersPanel
 import { resolveCoverPhotoRow, signCoverPhotoUrl } from '@/lib/propertyPhotos';
 import { resolvePeriodRange, computeDashboardKpis, type DashboardPeriod } from '@/lib/dashboardKpis';
 import { PropertyAccountingFilterBar } from '@/components/properties/PropertyAccountingFilterBar';
+import { PropertyActionsPanel } from '@/components/properties/PropertyActionsPanel';
 
 type RouteParams = {
   params: Promise<{ id: string }>;
@@ -178,6 +180,7 @@ export default async function PropertyDetailPage({ params, searchParams }: Route
           recentTransactions: [],
         }}
         canManage
+        isPrincipal
         coverPhotoUrl={null}
         setupProgress={{
           hasOwnership: true,
@@ -254,6 +257,7 @@ export default async function PropertyDetailPage({ params, searchParams }: Route
   const session = await resolvePortalSession();
   const membership = session ? findActiveMembership(session, property.orgId) : undefined;
   const canManage = Boolean(membership && canWriteOrgRecords(membership.role));
+  const isPrincipal = membership?.role === 'principal';
 
   return (
     <PropertyDetailView
@@ -267,6 +271,7 @@ export default async function PropertyDetailPage({ params, searchParams }: Route
       accounting={accounting}
       accountingDetail={accountingDetail}
       canManage={canManage}
+      isPrincipal={isPrincipal}
       coverPhotoUrl={coverPhotoUrl}
       setupProgress={setupProgress}
     />
@@ -600,6 +605,7 @@ function PropertyDetailView({
   accounting,
   accountingDetail,
   canManage,
+  isPrincipal,
   coverPhotoUrl,
   setupProgress,
 }: {
@@ -613,6 +619,7 @@ function PropertyDetailView({
   accounting: PropertyAccounting;
   accountingDetail: PropertyAccountingDetail;
   canManage: boolean;
+  isPrincipal: boolean;
   coverPhotoUrl: string | null;
   setupProgress: SetupProgress;
 }) {
@@ -723,6 +730,15 @@ function PropertyDetailView({
         </div>
       </div>
 
+      {canManage ? (
+        <PropertyActionsPanel
+          propertyId={property.id}
+          nickname={property.nickname}
+          status={property.status}
+          isPrincipal={isPrincipal}
+        />
+      ) : null}
+
       {canManage ? <SetupProgressPanel progress={setupProgress} /> : null}
 
       {canManage ? (
@@ -783,7 +799,11 @@ function PropertyDetailView({
                 {canManage && units.length > 0 ? (
                   <div className="mb-3 flex justify-end">{addUnitAction}</div>
                 ) : null}
-                <UnitsTable data={units} emptyAction={canManage ? addUnitAction : undefined} />
+                {units.length > 0 ? (
+                  <UnitsFilterClient units={units} showProperty={false} />
+                ) : (
+                  <UnitsTable data={units} emptyAction={canManage ? addUnitAction : undefined} />
+                )}
               </div>
             ),
           },

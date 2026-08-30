@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { TRIAL_ACTIVATION_CARD_VERIFICATION_FEE_ZAR } from '@propvault/config';
 import { startTrialActivationCheckout, processBillingWebhookEvent } from '../billing';
 
 // Real integration test against the local Supabase instance, same pattern as billing.test.ts --
@@ -80,7 +81,7 @@ describeIfSupabase('trial-activation checkout (real local Supabase integration)'
     expect(org!.commercial_setup_completed_at).toBeNull();
   });
 
-  it('startTrialActivationCheckout creates a R0 pending payment and does not itself start the trial', async () => {
+  it('startTrialActivationCheckout creates a pending card-verification-fee payment and does not itself start the trial', async () => {
     const result = await startTrialActivationCheckout(serviceClient, {
       orgId,
       principalUserId,
@@ -97,7 +98,10 @@ describeIfSupabase('trial-activation checkout (real local Supabase integration)'
       .single();
     expect(payment!.status).toBe('pending');
     expect(payment!.purpose).toBe('trial_activation');
-    expect(Number(payment!.amount)).toBe(0);
+    // The once-off card-verification fee, never the plan's recurring price -- a R0.00 amount here
+    // reliably failed PayFast's own card-authorization step in live production testing (see
+    // TRIAL_ACTIVATION_CARD_VERIFICATION_FEE_ZAR's own comment).
+    expect(Number(payment!.amount)).toBe(TRIAL_ACTIVATION_CARD_VERIFICATION_FEE_ZAR);
 
     const { data: org } = await serviceClient
       .from('organizations')
@@ -140,7 +144,7 @@ describeIfSupabase('trial-activation checkout (real local Supabase integration)'
     expect(payment!.status).toBe('pending');
   });
 
-  it('a verified R0 payment_succeeded callback activates the trial, sets commercial_setup_completed_at, and persists a payment method', async () => {
+  it('a verified card-verification-fee payment_succeeded callback activates the trial, sets commercial_setup_completed_at, and persists a payment method', async () => {
     const checkout = await startTrialActivationCheckout(serviceClient, {
       orgId,
       principalUserId,
@@ -154,7 +158,7 @@ describeIfSupabase('trial-activation checkout (real local Supabase integration)'
       type: 'payment_succeeded',
       providerReference: checkout.providerSubscriptionId,
       orgId,
-      amount: 0,
+      amount: TRIAL_ACTIVATION_CARD_VERIFICATION_FEE_ZAR,
       currency: 'ZAR',
       providerSubscriptionToken: `token-${orgId}`,
     });
@@ -183,11 +187,24 @@ describeIfSupabase('trial-activation checkout (real local Supabase integration)'
 
     const { data: payment } = await serviceClient
       .from('subscription_payments')
-      .select('status, paid_at')
+      .select('status, paid_at, subscription_id')
       .eq('id', checkout.subscriptionPaymentId)
       .single();
     expect(payment!.status).toBe('paid');
     expect(payment!.paid_at).not.toBeNull();
+
+    // The card-verification-fee success must not pull the subscription's own billing dates
+    // forward -- next_payment_date/current_period_end stay anchored to the 30-day trial end set
+    // at checkout time, so the selected plan's recurring amount is only ever charged then.
+    const { data: sub } = await serviceClient
+      .from('organization_subscriptions')
+      .select('status, next_payment_date, current_period_end')
+      .eq('id', payment!.subscription_id)
+      .single();
+    expect(sub!.status).toBe('trial');
+    expect(sub!.next_payment_date).toBe(sub!.current_period_end);
+    const nextPaymentDate = new Date(sub!.next_payment_date!).getTime();
+    expect(Math.abs(nextPaymentDate - expected)).toBeLessThan(24 * 60 * 60 * 1000);
 
     const { data: paymentMethods } = await serviceClient
       .from('payment_methods')
@@ -206,7 +223,7 @@ describeIfSupabase('trial-activation checkout (real local Supabase integration)'
     expect(trialUsage![0].principal_user_id).toBe(principalUserId);
   });
 
-  it('a duplicate/retried R0 callback does not reset or extend the trial clock', async () => {
+  it('a duplicate/retried card-verification-fee callback does not reset or extend the trial clock', async () => {
     const checkout = await startTrialActivationCheckout(serviceClient, {
       orgId,
       principalUserId,
@@ -220,7 +237,7 @@ describeIfSupabase('trial-activation checkout (real local Supabase integration)'
       type: 'payment_succeeded',
       providerReference: checkout.providerSubscriptionId,
       orgId,
-      amount: 0,
+      amount: TRIAL_ACTIVATION_CARD_VERIFICATION_FEE_ZAR,
       currency: 'ZAR',
     });
 
@@ -269,31 +286,33 @@ describeIfSupabase('trial-activation checkout (real local Supabase integration)'
         type: 'payment_succeeded',
         providerReference: checkout.providerSubscriptionId,
         orgId,
-        amount: 0,
+        amount: TRIAL_ACTIVATION_CARD_VERIFICATION_FEE_ZAR,
         currency: 'ZAR',
       }),
       signatureHeader: 'test-signature',
     });
 
     // Payment amount semantics (V1 commercial onboarding pass): the trial-activation row must
-    // permanently show R0 -- never mutated to the plan price -- since R0 is genuinely all that
-    // was ever collected for it. A customer must never see "R299 paid" for the date they paid R0.
+    // permanently show the card-verification fee -- never mutated to the plan price -- since that
+    // fee is genuinely all that was ever collected for it. A customer must never see "R299 paid"
+    // for the date they paid the once-off verification fee.
     const { data: trialRow } = await serviceClient
       .from('subscription_payments')
       .select('amount, status, purpose')
       .eq('id', checkout.subscriptionPaymentId)
       .single();
-    expect(Number(trialRow!.amount)).toBe(0);
+    expect(Number(trialRow!.amount)).toBe(TRIAL_ACTIVATION_CARD_VERIFICATION_FEE_ZAR);
     expect(trialRow!.status).toBe('paid');
     expect(trialRow!.purpose).toBe('trial_activation');
 
-    // A real financial event (R0 collected) gets a real invoice too, not silently skipped.
+    // A real financial event (the verification fee collected) gets a real invoice too, not
+    // silently skipped.
     const { data: trialInvoice } = await serviceClient
       .from('subscription_invoices')
       .select('total, subtotal')
       .eq('subscription_payment_id', checkout.subscriptionPaymentId)
       .maybeSingle();
-    expect(Number(trialInvoice!.total)).toBe(0);
+    expect(Number(trialInvoice!.total)).toBe(TRIAL_ACTIVATION_CARD_VERIFICATION_FEE_ZAR);
 
     // The real recurring charge, 30 days later, on the SAME provider_reference/m_payment_id --
     // PayFast echoes it unchanged for the life of the subscription. Must fall through to the
@@ -320,13 +339,13 @@ describeIfSupabase('trial-activation checkout (real local Supabase integration)'
       .single();
     expect(org!.status).toBe('active');
 
-    // The R0 row is still exactly as it was -- untouched by the later real charge.
+    // The card-verification-fee row is still exactly as it was -- untouched by the later real charge.
     const { data: trialRowAfter } = await serviceClient
       .from('subscription_payments')
       .select('amount, status')
       .eq('id', checkout.subscriptionPaymentId)
       .single();
-    expect(Number(trialRowAfter!.amount)).toBe(0);
+    expect(Number(trialRowAfter!.amount)).toBe(TRIAL_ACTIVATION_CARD_VERIFICATION_FEE_ZAR);
     expect(trialRowAfter!.status).toBe('paid');
 
     // The real R299 charge is a SEPARATE row, correctly recording what was ACTUALLY collected.
@@ -337,7 +356,7 @@ describeIfSupabase('trial-activation checkout (real local Supabase integration)'
       .order('created_at', { ascending: true });
     expect(allPayments).toHaveLength(2);
     expect(allPayments![0]!.id).toBe(checkout.subscriptionPaymentId);
-    expect(Number(allPayments![0]!.amount)).toBe(0);
+    expect(Number(allPayments![0]!.amount)).toBe(TRIAL_ACTIVATION_CARD_VERIFICATION_FEE_ZAR);
     const realCharge = allPayments![1]!;
     expect(realCharge.id).not.toBe(checkout.subscriptionPaymentId);
     expect(Number(realCharge.amount)).toBe(299);
@@ -368,7 +387,7 @@ describeIfSupabase('trial-activation checkout (real local Supabase integration)'
         type: 'payment_succeeded',
         providerReference: checkout.providerSubscriptionId,
         orgId,
-        amount: 0,
+        amount: TRIAL_ACTIVATION_CARD_VERIFICATION_FEE_ZAR,
         currency: 'ZAR',
       }),
       signatureHeader: 'test-signature',
@@ -456,7 +475,7 @@ describeIfSupabase('trial-activation checkout (real local Supabase integration)'
         type: 'payment_failed',
         providerReference: checkout.providerSubscriptionId,
         orgId,
-        amount: 0,
+        amount: TRIAL_ACTIVATION_CARD_VERIFICATION_FEE_ZAR,
         currency: 'ZAR',
       }),
       signatureHeader: 'test-signature',

@@ -58,6 +58,37 @@ describe('renderEmailTemplate', () => {
     expect(result.bodyHtml).toContain('R5,000.00');
   });
 
+  // R0-to-R5 revision (WORKLOG.md this date): subscription_activated is shared by a genuine
+  // paid-plan activation (no trialEndsAt var -- handleTrialActivationWebhookEvent never dispatches
+  // this case) and a free-trial activation after the once-off card-verification fee succeeds
+  // (trialEndsAt present). The two must read differently -- a trial customer must never be told
+  // their "subscription is now active" the same way a fully-paid customer is, since the real
+  // subscription fee hasn't been charged yet.
+  it('subscription_activated mentions the free trial and next billing date/amount when trialEndsAt is present', () => {
+    const result = renderEmailTemplate('subscription_activated', {
+      planName: 'Professional',
+      legalName: 'Acme Property Co',
+      trialEndsAt: '28 September 2026',
+      recurringAmount: 'R699.00',
+    });
+    expect(result.subject).toMatch(/free trial/i);
+    expect(result.bodyText).toMatch(/free trial/i);
+    expect(result.bodyText).toContain('28 September 2026');
+    expect(result.bodyText).toContain('R699.00');
+    expect(result.bodyHtml).toContain('28 September 2026');
+    expect(result.bodyHtml).toContain('R699.00');
+  });
+
+  it('subscription_activated reads as a normal paid activation when trialEndsAt is absent', () => {
+    const result = renderEmailTemplate('subscription_activated', {
+      planName: 'Professional',
+      legalName: 'Acme Property Co',
+    });
+    expect(result.subject).not.toMatch(/free trial/i);
+    expect(result.bodyText).not.toMatch(/free trial/i);
+    expect(result.bodyText).toContain('subscription is now active');
+  });
+
   it('escapes an HTML-injection attempt in a template variable inside bodyHtml, but leaves bodyText as plain text', () => {
     const malicious = '<img src=x onerror=alert(1)>Evil Properties';
     const result = renderEmailTemplate('tenant_invitation', {

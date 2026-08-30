@@ -7,14 +7,25 @@ import { resolvePortalSession, findActiveMembership, canWriteOrgRecords } from '
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 type RouteParams = { params: Promise<{ id: string; unitId: string }> };
+type SearchParams = { searchParams: Promise<{ tenantId?: string }> };
 
 /**
  * GET /properties/:id/units/:unitId/leases/new (V1 launch-completion pass, Section 5): distinguish
  * "Create new lease" (the existing Prepare Lease workflow, moved unchanged to .../leases/new/prepare)
  * from "Record existing lease" (a tenancy already signed outside Proplyst, .../leases/new/existing).
+ *
+ * Tenant/occupancy V1 pass: an optional `?tenantId=` (set when arriving here right after Add
+ * Tenant) is forwarded ONLY to "Record existing lease" -- that flow already has a tenant picker to
+ * pre-select into (RecordExistingLeaseForm), matching the internal/offline-tenant workflow this
+ * was built for. "Create new lease" is the digital applicant-style flow and has no equivalent
+ * pre-selection concept, so it's left exactly as it was.
  */
-export default async function NewLeaseChoicePage({ params }: RouteParams) {
+export default async function NewLeaseChoicePage({ params, searchParams }: RouteParams & SearchParams) {
   const { id: propertyId, unitId } = await params;
+  const { tenantId } = await searchParams;
+  const existingHref = tenantId
+    ? `/properties/${propertyId}/units/${unitId}/leases/new/existing?tenantId=${tenantId}`
+    : `/properties/${propertyId}/units/${unitId}/leases/new/existing`;
 
   if (!ADMIN_DEMO_MODE) {
     const session = await resolvePortalSession();
@@ -50,7 +61,7 @@ export default async function NewLeaseChoicePage({ params }: RouteParams) {
           </Panel>
         </Link>
 
-        <Link href={`/properties/${propertyId}/units/${unitId}/leases/new/existing`}>
+        <Link href={existingHref}>
           <Panel bodyClassName="p-5" className="h-full transition-shadow hover:shadow-lift">
             <h3 className="font-display text-base font-semibold text-foreground">Record existing lease</h3>
             <p className="mt-1.5 text-[13px] text-muted-foreground">

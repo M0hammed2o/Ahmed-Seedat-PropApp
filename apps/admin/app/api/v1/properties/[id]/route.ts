@@ -195,7 +195,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 /**
  * DELETE = archive, never a hard delete (API_SPEC.md §3: "DELETE = archive, never hard-delete") —
  * a property has bills/leases/documents that must survive its removal from the active portfolio
- * view.
+ * view. Thin wrapper over archive_property() (migration 20260101000149) -- all role checks and
+ * the active-lease guard live in that RPC, same shape as hard_delete_property/restore_unit.
  */
 export async function DELETE(_request: NextRequest, { params }: RouteParams) {
   const { id } = await params;
@@ -210,45 +211,33 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
     );
   }
 
-  const { data: existing, error: fetchError } = await loadVisibleProperty(supabase, id);
-  if (fetchError) {
+  // Visibility check via RLS-scoped read first, same "404 not 403 for a hidden row" convention as
+  // GET/PATCH above -- archive_property() is SECURITY DEFINER and would otherwise return a
+  // permission error (not a 404) for a cross-org id, leaking that the id exists somewhere.
+  const { data: visible, error: visibilityError } = await loadVisibleProperty(supabase, id);
+  if (visibilityError) {
     return NextResponse.json(
       {
         error: {
           code: 'property_fetch_failed',
-          message: safeErrorMessage(fetchError, 'Could not load this property.', 'properties/[id].fetchBeforeWrite'),
+          message: safeErrorMessage(
+            visibilityError,
+            'Could not load this property.',
+            'properties/[id].archive.visibility',
+          ),
         },
       },
       { status: 500 },
     );
   }
-  if (!existing) {
+  if (!visible) {
     return NextResponse.json(
       { error: { code: 'not_found', message: 'Property not found.' } },
       { status: 404 },
     );
   }
 
-  const canWrite = await requireOrgRole(supabase, existing.org_id, 'agent');
-  if (!canWrite) {
-    return NextResponse.json(
-      {
-        error: {
-          code: 'forbidden',
-          message: 'You do not have permission to archive this property.',
-        },
-      },
-      { status: 403 },
-    );
-  }
-
-  const { data, error } = await supabase
-    .from('properties')
-    .update({ status: 'archived' })
-    .eq('id', id)
-    .select('*')
-    .single();
-
+  const { error } = await supabase.rpc('archive_property', { p_property_id: id });
   if (error) {
     return NextResponse.json(
       {
@@ -257,11 +246,19 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
           message: safeErrorMessage(
             error,
             'Could not archive this property. Please try again, or contact support if this continues.',
-            'properties/[id].archive',
+            'properties/[id].archive.rpc',
           ),
         },
       },
-      { status: 500 },
+      { status: 409 },
+    );
+  }
+
+  const { data, error: fetchError } = await loadVisibleProperty(supabase, id);
+  if (fetchError || !data) {
+    return NextResponse.json(
+      { error: { code: 'not_found', message: 'Property not found.' } },
+      { status: 404 },
     );
   }
 

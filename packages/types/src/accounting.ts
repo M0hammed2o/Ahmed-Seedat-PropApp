@@ -136,6 +136,7 @@ export interface BankTransaction {
 export interface Invoice {
   id: string;
   orgId: string;
+  invoiceNumber: string;
   leaseId: string;
   tenantId: string;
   period: string;

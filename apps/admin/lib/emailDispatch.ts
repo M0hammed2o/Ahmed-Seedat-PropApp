@@ -116,7 +116,9 @@ const TEMPLATE_SUBJECTS: Record<EmailTemplateName, (vars: Record<string, unknown
   compliance_requirement_overdue: (v) =>
     `Overdue: ${v.ruleTitle ?? 'a rule'} for ${v.propertyLabel ?? 'your rental'}`,
   subscription_activated: (v) =>
-    `Your ${branding.productName} subscription is active — welcome to ${v.planName ?? 'your plan'}`,
+    v.trialEndsAt
+      ? `Your ${branding.productName} free trial is active — welcome to ${v.planName ?? 'your plan'}`
+      : `Your ${branding.productName} subscription is active — welcome to ${v.planName ?? 'your plan'}`,
   plan_upgraded: (v) => `You've upgraded to the ${v.planName ?? 'new'} plan`,
   plan_downgrade_scheduled: (v) => `Your plan change to ${v.planName ?? 'a new plan'} is scheduled`,
   subscription_cancelled: () => `Your ${branding.productName} subscription has been cancelled`,
@@ -174,7 +176,9 @@ const TEMPLATE_BODY: Record<EmailTemplateName, (vars: Record<string, unknown>) =
   compliance_requirement_overdue: (v) =>
     `${v.ruleTitle ?? 'A rule'} for ${v.propertyLabel ?? 'your rental'} was due ${v.dueAt ?? 'recently'} and is now overdue. Please sign in to ${branding.productName} to review and acknowledge it.`,
   subscription_activated: (v) =>
-    `Your ${branding.productName} subscription is now active on the ${v.planName ?? ''} plan. You have full access to ${v.legalName ? `${v.legalName}'s` : "your organization's"} workspace.`,
+    v.trialEndsAt
+      ? `Your card has been verified and your 30-day free trial of ${branding.productName} is now active on the ${v.planName ?? ''} plan. You have full access to ${v.legalName ? `${v.legalName}'s` : "your organization's"} workspace. Your trial ends on ${v.trialEndsAt}${v.recurringAmount ? `, when your subscription will be billed at ${v.recurringAmount}` : ''}. Cancel any time before then and you won't be charged.`
+      : `Your ${branding.productName} subscription is now active on the ${v.planName ?? ''} plan. You have full access to ${v.legalName ? `${v.legalName}'s` : "your organization's"} workspace.`,
   plan_upgraded: (v) =>
     `Your subscription has been upgraded to ${v.planName ?? 'a new plan'}, effective immediately. ${v.amountDueNow ? `An amount of ${v.amountDueNow} was charged for the remainder of this billing period. ` : ''}From your next renewal, you'll be charged ${v.nextRenewalAmount ?? 'the new plan price'}.`,
   plan_downgrade_scheduled: (v) =>
@@ -331,15 +335,30 @@ const TEMPLATE_HTML_CONTENT: Record<
     intro: `${v.ruleTitle ?? 'A rule'} for ${v.propertyLabel ?? 'your rental'} was due ${v.dueAt ?? 'recently'} and is now overdue.`,
     cta: { label: 'Review and acknowledge', url: `${appUrl}/compliance` },
   }),
-  subscription_activated: (v, appUrl) => ({
-    eyebrow: 'Subscription active',
-    heading: `Welcome to ${v.planName ?? 'your plan'}`,
-    intro: `Your ${branding.productName} subscription is now active${v.legalName ? ` for ${v.legalName}` : ''}.`,
-    paragraphs: [
-      'You now have full access to your workspace, including every feature included in your plan.',
-    ],
-    cta: { label: 'Go to dashboard', url: `${appUrl}/dashboard` },
-  }),
+  subscription_activated: (v, appUrl) =>
+    v.trialEndsAt
+      ? {
+          eyebrow: 'Free trial active',
+          heading: `Welcome to ${v.planName ?? 'your plan'}`,
+          intro: `Your card has been verified and your 30-day free trial${v.legalName ? ` for ${v.legalName}` : ''} is now active.`,
+          paragraphs: [
+            'You now have full access to your workspace, including every feature included in your plan.',
+          ],
+          infoBox: {
+            label: 'Trial ends',
+            text: `${v.trialEndsAt}${v.recurringAmount ? ` — your subscription will then be billed at ${v.recurringAmount}` : ''}. Cancel any time before then and you won't be charged.`,
+          },
+          cta: { label: 'Go to dashboard', url: `${appUrl}/dashboard` },
+        }
+      : {
+          eyebrow: 'Subscription active',
+          heading: `Welcome to ${v.planName ?? 'your plan'}`,
+          intro: `Your ${branding.productName} subscription is now active${v.legalName ? ` for ${v.legalName}` : ''}.`,
+          paragraphs: [
+            'You now have full access to your workspace, including every feature included in your plan.',
+          ],
+          cta: { label: 'Go to dashboard', url: `${appUrl}/dashboard` },
+        },
   plan_upgraded: (v, appUrl) => ({
     eyebrow: 'Plan upgraded',
     heading: `You've upgraded to ${v.planName ?? 'a new plan'}`,

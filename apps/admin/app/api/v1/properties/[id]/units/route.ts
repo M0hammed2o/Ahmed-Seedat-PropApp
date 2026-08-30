@@ -21,7 +21,7 @@ async function loadVisibleProperty(
   supabase: Awaited<ReturnType<typeof getServerSupabaseClient>>,
   propertyId: string,
 ) {
-  return supabase.from('properties').select('id, org_id').eq('id', propertyId).maybeSingle();
+  return supabase.from('properties').select('id, org_id, status').eq('id', propertyId).maybeSingle();
 }
 
 export async function GET(request: NextRequest, { params }: RouteParams) {
@@ -137,6 +137,22 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         },
       },
       { status: 403 },
+    );
+  }
+
+  // Final local hardening pass (WORKLOG.md this date), Objective 2 Step 6 finding: an archived
+  // property is not an active portfolio entity -- new operational records (starting with units,
+  // the root of every other new-tenancy path) must not be creatable against it. Restore the
+  // property first.
+  if (property.status === 'archived') {
+    return NextResponse.json(
+      {
+        error: {
+          code: 'property_archived',
+          message: 'This property is archived and cannot receive new units. Restore the property first.',
+        },
+      },
+      { status: 409 },
     );
   }
 

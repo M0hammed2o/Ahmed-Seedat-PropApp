@@ -3,8 +3,9 @@
 import type { ReactNode } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import Link from 'next/link';
-import type { Tenant } from '@propvault/types';
-import { TENANT_STATUS_PRESENTATION } from '@propvault/ui';
+import { LEASE_STATUS_PRESENTATION } from '@propvault/ui';
+import type { TenantWithTenancy } from '@/app/(dashboard)/tenants/page';
+import { PORTAL_STATUS_TONE } from '@/lib/tenantPortalStatus';
 import { AdminDataTable } from '@/components/ui/AdminDataTable';
 import { Avatar } from '@/components/ui/Avatar';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -16,7 +17,11 @@ function initialsFor(name: string): string {
   return (words[0]![0]! + words[1]![0]!).toUpperCase();
 }
 
-const columns: ColumnDef<Tenant, unknown>[] = [
+function currency(n: number): string {
+  return `R${Math.round(n).toLocaleString('en-ZA')}`;
+}
+
+const columns: ColumnDef<TenantWithTenancy, unknown>[] = [
   {
     header: 'Name',
     accessorKey: 'fullName',
@@ -34,41 +39,95 @@ const columns: ColumnDef<Tenant, unknown>[] = [
     ),
   },
   {
-    header: 'Email',
-    accessorKey: 'email',
-    cell: (info) => (info.getValue() as string | null) ?? '—',
+    header: 'Property',
+    id: 'property',
+    accessorFn: (row) => row.tenancy?.propertyNickname ?? '',
+    cell: (info) => {
+      const tenancy = info.row.original.tenancy;
+      if (!tenancy) return <span className="text-light-textMuted dark:text-dark-textMuted">—</span>;
+      return (
+        <Link
+          href={`/properties/${tenancy.propertyId}`}
+          className="hover:underline"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {tenancy.propertyNickname}
+        </Link>
+      );
+    },
   },
   {
-    header: 'Phone',
-    accessorKey: 'phone',
-    cell: (info) => (info.getValue() as string | null) ?? '—',
+    header: 'Unit',
+    id: 'unit',
+    accessorFn: (row) => row.tenancy?.unitLabel ?? '',
+    cell: (info) => {
+      const tenancy = info.row.original.tenancy;
+      if (!tenancy) return <span className="text-light-textMuted dark:text-dark-textMuted">—</span>;
+      return (
+        <Link
+          href={`/properties/${tenancy.propertyId}/units/${tenancy.unitId}`}
+          className="hover:underline"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {tenancy.unitLabel}
+        </Link>
+      );
+    },
   },
   {
-    header: 'Status',
-    accessorKey: 'status',
-    cell: (info) => (
-      <StatusBadge presentation={TENANT_STATUS_PRESENTATION[info.getValue() as Tenant['status']]} />
-    ),
-  },
-  {
-    header: 'Account',
-    accessorKey: 'userId',
-    // A compact list-level signal only -- distinguishing "not invited" from "invitation pending"
-    // needs a tenant_invitations join this list query doesn't do; the full 4-state picture (Not
-    // invited/Pending/Sent/Failed/Account linked) already lives on the tenant detail page's
-    // TenantInvitationPanel, which this links to.
-    cell: (info) =>
-      info.getValue() ? (
-        <span className="text-xs font-medium text-light-statusPaid dark:text-dark-statusPaid">
-          Account linked
+    header: 'Rent',
+    id: 'rent',
+    accessorFn: (row) => row.tenancy?.rentAmount ?? 0,
+    cell: (info) => {
+      const tenancy = info.row.original.tenancy;
+      if (!tenancy) return <span className="text-light-textMuted dark:text-dark-textMuted">—</span>;
+      return (
+        <span className="tabular">
+          {currency(tenancy.rentAmount)}
+          <span className="text-[11px] text-light-textMuted dark:text-dark-textMuted">
+            {tenancy.rentFrequency === 'monthly' ? '/mo' : `/${tenancy.rentFrequency}`}
+          </span>
         </span>
-      ) : (
-        <span className="text-xs text-light-textMuted dark:text-dark-textMuted">No account</span>
-      ),
+      );
+    },
+  },
+  {
+    header: 'Lease',
+    id: 'leaseStatus',
+    accessorFn: (row) => row.tenancy?.leaseStatus ?? '',
+    cell: (info) => {
+      const tenancy = info.row.original.tenancy;
+      if (!tenancy)
+        return <span className="text-light-textMuted dark:text-dark-textMuted">No lease</span>;
+      return (
+        <StatusBadge
+          presentation={LEASE_STATUS_PRESENTATION[tenancy.leaseStatus as keyof typeof LEASE_STATUS_PRESENTATION]}
+        />
+      );
+    },
+  },
+  {
+    header: 'Portal',
+    id: 'portalStatus',
+    accessorFn: (row) => row.portalStatus.label,
+    cell: (info) => {
+      const portalStatus = info.row.original.portalStatus;
+      return (
+        <span className={`text-xs font-medium ${PORTAL_STATUS_TONE[portalStatus.status]}`}>
+          {portalStatus.label}
+        </span>
+      );
+    },
   },
 ];
 
-export function TenantsTable({ data, emptyAction }: { data: Tenant[]; emptyAction?: ReactNode }) {
+export function TenantsTable({
+  data,
+  emptyAction,
+}: {
+  data: TenantWithTenancy[];
+  emptyAction?: ReactNode;
+}) {
   return (
     <AdminDataTable
       emptyMessage="No tenants yet"

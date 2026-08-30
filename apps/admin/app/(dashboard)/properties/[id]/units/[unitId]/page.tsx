@@ -5,6 +5,7 @@ import { UNIT_STATUS_PRESENTATION } from '@propvault/ui';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapUnitRow } from '@/lib/portfolio';
 import { mapLeaseRow, mapApplicationRow } from '@/lib/leasing';
+import { Users } from 'lucide-react';
 import { mapInspectionRow } from '@/lib/operations';
 import { resolvePortalSession, findActiveMembership, canWriteOrgRecords } from '@/lib/orgSession';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -14,6 +15,7 @@ import { Panel } from '@/components/ui/Panel';
 import { LeasesTable, type LeaseRow } from '@/components/tables/LeasesTable';
 import { ApplicationsTable } from '@/components/tables/ApplicationsTable';
 import { InspectionsTable } from '@/components/tables/InspectionsTable';
+import { UnitActionsPanel } from '@/components/units/UnitActionsPanel';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 type RouteParams = { params: Promise<{ id: string; unitId: string }> };
@@ -114,6 +116,9 @@ export default async function UnitDetailPage({ params }: RouteParams) {
         inspections={DEMO_INSPECTIONS}
         propertyId={propertyId}
         canEdit
+        isPrincipal
+        activeLeaseId="demo-lease-1"
+        currentTenants={[{ id: 'demo-tenant-1', fullName: 'Naledi Khumalo' }]}
       />
     );
   }
@@ -160,6 +165,26 @@ export default async function UnitDetailPage({ params }: RouteParams) {
   const session = await resolvePortalSession();
   const membership = session ? findActiveMembership(session, unit.orgId) : undefined;
   const canEdit = Boolean(membership && canWriteOrgRecords(membership.role));
+  const isPrincipal = membership?.role === 'principal';
+
+  // Tenant/occupancy V1 pass: "on an occupied unit, show the current tenant(s)" -- previously
+  // this page deliberately omitted tenant identity (its own prior comment: "Tenants... are
+  // managed from their own pages"). Only the ACTIVE lease's tenants qualify -- occupancy still
+  // derives purely from lease status (sync_unit_status_from_lease trigger,
+  // 20260101000079), never from this display.
+  const activeLease = leases.find((l) => l.status === 'active');
+  let currentTenants: { id: string; fullName: string }[] = [];
+  if (activeLease) {
+    const { data: leaseTenantRows, error: ltError } = await supabase
+      .from('lease_tenants')
+      .select('tenants(id, full_name)')
+      .eq('lease_id', activeLease.id);
+    if (ltError) throw new Error(`Failed to load current tenant: ${ltError.message}`);
+    currentTenants = ((leaseTenantRows ?? []) as unknown as { tenants: { id: string; full_name: string } | null }[])
+      .map((r) => r.tenants)
+      .filter((t): t is NonNullable<typeof t> => t !== null)
+      .map((t) => ({ id: t.id, fullName: t.full_name }));
+  }
 
   return (
     <UnitDetailView
@@ -169,6 +194,9 @@ export default async function UnitDetailPage({ params }: RouteParams) {
       inspections={inspections}
       propertyId={propertyId}
       canEdit={canEdit}
+      isPrincipal={isPrincipal}
+      activeLeaseId={activeLease?.id ?? null}
+      currentTenants={currentTenants}
     />
   );
 }
@@ -180,6 +208,9 @@ function UnitDetailView({
   inspections,
   propertyId,
   canEdit,
+  isPrincipal,
+  activeLeaseId = null,
+  currentTenants = [],
 }: {
   unit: {
     id: string;
@@ -188,13 +219,16 @@ function UnitDetailView({
     bathrooms: number | null;
     sizeSqm: number | null;
     marketRent: number | null;
-    status: 'vacant' | 'occupied' | 'maintenance';
+    status: 'vacant' | 'occupied' | 'maintenance' | 'archived';
   };
   leases: LeaseRow[];
   applications: Application[];
   inspections: Inspection[];
   propertyId: string;
   canEdit: boolean;
+  isPrincipal: boolean;
+  activeLeaseId?: string | null;
+  currentTenants?: { id: string; fullName: string }[];
 }) {
   const addLeaseAction = (
     <Link href={`/properties/${propertyId}/units/${unit.id}/leases/new`}>
@@ -247,6 +281,41 @@ function UnitDetailView({
           <StatusBadge presentation={UNIT_STATUS_PRESENTATION[unit.status]} />
         </div>
       </div>
+
+      {canEdit ? (
+        <UnitActionsPanel
+          unitId={unit.id}
+          unitLabel={unit.unitLabel}
+          status={unit.status}
+          isPrincipal={isPrincipal}
+          propertyId={propertyId}
+        />
+      ) : null}
+
+      {currentTenants.length > 0 ? (
+        <Panel title="Current tenant" bodyClassName="p-4">
+          <ul className="space-y-2">
+            {currentTenants.map((t) => (
+              <li key={t.id} className="flex items-center justify-between gap-3">
+                <span className="flex items-center gap-2 text-sm text-light-textPrimary dark:text-dark-textPrimary">
+                  <Users className="h-4 w-4 shrink-0 text-light-textMuted dark:text-dark-textMuted" aria-hidden="true" />
+                  {t.fullName}
+                </span>
+                <span className="flex items-center gap-3 text-xs">
+                  <Link href={`/tenants/${t.id}`} className="text-light-accent hover:underline dark:text-dark-accent">
+                    View tenant
+                  </Link>
+                  {activeLeaseId ? (
+                    <Link href={`/leases/${activeLeaseId}`} className="text-light-accent hover:underline dark:text-dark-accent">
+                      View lease
+                    </Link>
+                  ) : null}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      ) : null}
 
       <Panel title="Unit details">
         <dl className="grid grid-cols-2 gap-x-4 gap-y-5 text-sm lg:grid-cols-4">
@@ -320,8 +389,7 @@ function UnitDetailView({
       </div>
 
       <p className="text-xs text-light-textMuted dark:text-dark-textMuted">
-        Tenants assigned to this unit's leases and maintenance history are managed from their own
-        pages.
+        Maintenance history for this unit's tenants is managed from their own pages.
       </p>
     </div>
   );

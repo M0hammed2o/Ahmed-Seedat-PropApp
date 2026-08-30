@@ -206,6 +206,7 @@ export function mapBankTransactionRow(row: BankTransactionRow): BankTransaction 
 interface InvoiceRow {
   id: string;
   org_id: string;
+  invoice_number: string;
   lease_id: string;
   tenant_id: string;
   period: string;
@@ -222,6 +223,7 @@ export function mapInvoiceRow(row: InvoiceRow): Invoice {
   return {
     id: row.id,
     orgId: row.org_id,
+    invoiceNumber: row.invoice_number,
     leaseId: row.lease_id,
     tenantId: row.tenant_id,
     period: row.period,

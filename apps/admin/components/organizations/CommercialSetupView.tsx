@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { TRIAL_ACTIVATION_CARD_VERIFICATION_FEE_ZAR } from '@propvault/config';
 import { Button } from '@/components/ui/Button';
 import { Panel } from '@/components/ui/Panel';
 
@@ -27,13 +28,25 @@ function formatMoney(amount: number, currency: string) {
   return `${currency === 'ZAR' ? 'R' : currency + ' '}${amount.toLocaleString('en-ZA', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 }
 
+// Cents-accurate, matching the "R0.00"/PayFast-receipt convention this once-off fee is shown in
+// elsewhere -- unlike the plan-price formatMoney() above, a fee amount should never round away its
+// decimals for display.
+const CARD_VERIFICATION_FEE_LABEL = `R${TRIAL_ACTIVATION_CARD_VERIFICATION_FEE_ZAR.toFixed(2)}`;
+
 /**
  * Commercial plan restructure -- the minimum production-safe UI for the mandatory plan +
  * payment-method setup step (Phase 7). Deliberately narrow in scope: plan tier + billing
  * interval selection, a summary, and a single CTA that hands off to PayFast's own hosted
  * checkout page (no card fields collected here -- see startTrialActivationCheckout's own
  * comment). Everything the server actually charges is resolved server-side from planTier +
- * interval alone; nothing here is trusted as a price.
+ * interval alone; nothing here is trusted as a price -- CARD_VERIFICATION_FEE_LABEL below is
+ * display-only, always matching TRIAL_ACTIVATION_CARD_VERIFICATION_FEE_ZAR (the value the server
+ * actually sends PayFast), never itself the source of truth for what gets charged.
+ *
+ * R0-to-R5 revision (WORKLOG.md this date): a R0.00 once-off charge reliably failed PayFast's own
+ * card-authorization step on live production traffic (see TRIAL_ACTIVATION_CARD_VERIFICATION_FEE_ZAR's
+ * own comment for the evidence); this view now discloses the real once-off verification fee instead
+ * of implying the trial itself starts with a R0 charge.
  */
 export function CommercialSetupView({ orgId, plans }: Props) {
   const [tier, setTier] = useState<PlanTier>('professional');
@@ -147,13 +160,14 @@ export function CommercialSetupView({ orgId, plans }: Props) {
 
         <Panel>
           <p className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
-            A valid payment method is required to start your 30-day free trial.
+            30-day free trial
           </p>
           <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
-            You will not be charged the subscription fee until the trial ends, unless otherwise
-            required by the provider&apos;s verification flow. Your trial runs until{' '}
+            A once-off {CARD_VERIFICATION_FEE_LABEL} card verification fee is charged when you
+            register your payment method. Your Proplyst subscription remains free for the first 30
+            days. Your selected subscription fee will only be charged when your trial ends, on{' '}
             <strong>{trialEndDate}</strong>. Cancel any time before then and you won&apos;t be
-            charged.
+            charged the subscription fee.
           </p>
           <label className="mt-4 flex items-start gap-2 text-sm text-light-textSecondary dark:text-dark-textSecondary">
             <input
@@ -162,9 +176,9 @@ export function CommercialSetupView({ orgId, plans }: Props) {
               onChange={(e) => setConsent(e.target.checked)}
               className="mt-0.5"
             />
-            I authorize Proplyst to securely store this payment method with our payment provider
-            and to bill it automatically each billing cycle after my free trial ends, until I
-            cancel.
+            I authorize the once-off {CARD_VERIFICATION_FEE_LABEL} card verification charge, and I
+            authorize Proplyst to securely store this payment method with our payment provider and
+            to bill it automatically each billing cycle after my free trial ends, until I cancel.
           </label>
         </Panel>
       </div>
@@ -187,14 +201,33 @@ export function CommercialSetupView({ orgId, plans }: Props) {
             </dd>
           </div>
           <div className="flex justify-between">
-            <dt className="text-light-textSecondary dark:text-dark-textSecondary">Due today</dt>
+            <dt className="text-light-textSecondary dark:text-dark-textSecondary">
+              Card verification fee
+            </dt>
+            <dd className="text-light-textPrimary dark:text-dark-textPrimary">
+              {CARD_VERIFICATION_FEE_LABEL} once-off
+            </dd>
+          </div>
+          <div className="flex justify-between">
+            <dt className="text-light-textSecondary dark:text-dark-textSecondary">
+              Subscription due today
+            </dt>
             <dd className="text-light-textPrimary dark:text-dark-textPrimary">R0.00</dd>
           </div>
           <div className="flex justify-between">
             <dt className="text-light-textSecondary dark:text-dark-textSecondary">
-              First billing date
+              First subscription billing date
             </dt>
             <dd className="text-light-textPrimary dark:text-dark-textPrimary">{trialEndDate}</dd>
+          </div>
+          <div className="flex justify-between">
+            <dt className="text-light-textSecondary dark:text-dark-textSecondary">
+              Recurring subscription
+            </dt>
+            <dd className="text-light-textPrimary dark:text-dark-textPrimary">
+              {selectedPlan ? formatMoney(Number(selectedPlan.base_price), selectedPlan.currency) : '—'}
+              {interval === 'monthly' ? '/mo' : '/yr'}
+            </dd>
           </div>
         </dl>
 
@@ -208,7 +241,9 @@ export function CommercialSetupView({ orgId, plans }: Props) {
           disabled={!consent || !selectedPlan || submitting}
           onClick={handleStartTrial}
         >
-          {submitting ? 'Redirecting to PayFast…' : 'Add payment method & start free trial'}
+          {submitting
+            ? 'Redirecting to PayFast…'
+            : `Pay ${CARD_VERIFICATION_FEE_LABEL} & start 30-day free trial`}
         </Button>
       </Panel>
     </div>

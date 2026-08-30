@@ -43,3 +43,17 @@ export const RATE_LIMITS = {
 } as const;
 
 export const BIOMETRIC_LOCK_DEFAULT_TIMEOUT_SECONDS = 60;
+
+// Commercial onboarding, R0-to-R5 revision (WORKLOG.md this date): controlled live PayFast
+// production testing established that a R0.00 initial subscription amount reliably fails PayFast's
+// own card-authorization step (error 06, occurring AFTER a real FNB 3D Secure approval, before any
+// ITN reaches Proplyst) on this merchant/acquirer path -- reproduced twice, including after the
+// card's own issuer-side limits were raised, ruling out a card-configuration cause. A R1.00 amount
+// was separately rejected outright by PayFast before card entry ("subscription amount is outside
+// the limits set by the merchant or PayFast") -- R5.00 is PayFast's own documented minimum for any
+// non-zero subscription amount. A real R5.00 checkout with the same card completed end-to-end:
+// 3D Secure approved, PayFast tokenised the card, a genuine ITN reached Proplyst, the payment
+// method and provider subscription token were both persisted. This is charged ONCE, to verify the
+// card genuinely works -- it is not the first subscription payment; the selected plan's recurring
+// amount is only ever charged when the 30-day trial ends (see startTrialActivationCheckout()).
+export const TRIAL_ACTIVATION_CARD_VERIFICATION_FEE_ZAR = 5;

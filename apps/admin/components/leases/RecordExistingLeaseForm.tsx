@@ -69,15 +69,23 @@ export function RecordExistingLeaseForm({
   unitId,
   unitLabel,
   tenants,
+  initialTenantId,
 }: {
   orgId: string;
   propertyId: string;
   unitId: string;
   unitLabel: string;
   tenants: TenantOption[];
+  /** Tenant/occupancy V1 pass: pre-selects the primary tenant when arriving here right after Add
+   *  Tenant (via ?tenantId=). Ignored if the id isn't in `tenants` (e.g. a stale/tampered link). */
+  initialTenantId?: string;
 }) {
   const router = useRouter();
-  const [form, setForm] = useState<FormState>(EMPTY_STATE);
+  const [form, setForm] = useState<FormState>(() =>
+    initialTenantId && tenants.some((t) => t.id === initialTenantId)
+      ? { ...EMPTY_STATE, primaryTenantId: initialTenantId }
+      : EMPTY_STATE,
+  );
   const [file, setFile] = useState<File | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [submitting, setSubmitting] = useState(false);

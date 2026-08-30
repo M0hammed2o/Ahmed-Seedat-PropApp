@@ -1,5 +1,74 @@
 # Worklog
 
+## 2026-08-30 — Property editing, property/unit archive-vs-delete lifecycle, and landlord rent invoicing (V1, local only)
+
+Continuation from manual dashboard testing gaps found after the R5 billing pass and the
+tenant/internal-management pass (both preserved intact throughout, confirmed via `git status`
+before and after). 100% local (Docker Postgres/Supabase + local dev server) -- no production
+migration, no deploy, no real email/WhatsApp send, no commit/push. Full PASS/FAIL results
+in-conversation; summary for future sessions:
+
+**Audit findings that shaped scope (read before building):**
+- Property edit already had full backend support (`PATCH /api/v1/properties/:id`) -- only the UI
+  was missing. Property archive (`DELETE` = archive, never hard-delete, `API_SPEC.md` §3) also
+  already existed, missing only the active-lease-blocks-archive guard and any hard-delete path.
+- **Empirically proved** (not assumed) that `audit_events`' immutable-trigger + `NO ACTION` FK to
+  `properties.id` makes permanent property deletion architecturally impossible for any property
+  that ever had a unit (or other `property_id`-bearing, audit-tracked row) created under it, even
+  after that row is later cleanly removed -- `get_property_deletion_blockers()` now checks this
+  first, with a clear message, instead of surfacing a raw FK-violation error.
+- `public.invoices` (migration `20260101000037`/`38`) is already the authoritative tenant-rent
+  invoice entity, fully separate from SaaS `subscription_invoices` -- no new invoice table was
+  needed. Found and fixed a real, pre-existing bug: `POST /api/v1/rent-schedules/:id/invoice`
+  auto-emailed the tenant on every issuance with no opt-out, which directly conflicts with the
+  internal (no-portal, no-email) tenant model just shipped.
+
+**Built:**
+- Migration `20260101000148`: `unit_status` gains `'archived'`; `invoices` gains a real
+  `invoice_number` column (`INV-######`, sequence-backed); `get_property_deletion_blockers()`/
+  `hard_delete_property()`/`get_unit_deletion_blockers()`/`hard_delete_unit()`/`archive_unit()`/
+  `restore_unit()` -- principal + owner-level property access required for permanent delete,
+  agent + property-manager-or-owner for archive/restore, every raised message using the
+  `safeErrorMessage()` allowlist convention.
+- Migration `20260101000149`: `archive_property()`/`restore_property()` -- moves the
+  active-lease-blocks-archive guard from inline TypeScript (the original route) into SQL, matching
+  `archive_unit()`'s shape exactly and making it independently RPC-testable; preserves the required
+  exact user-facing message (`"<nickname> cannot be archived because Unit <label> has an active
+  lease..."`).
+- New API routes: property `restore`/`hard-delete`/`deletion-eligibility`; unit
+  `archive`/`restore`/`hard-delete`/`deletion-eligibility`; `POST /api/v1/invoices/:id/send` (the
+  ONE place that ever emails a tenant an invoice, separate from issuance -- an internal tenant with
+  no email returns a clear 409, never an error from a null-address no-op).
+- UI: `PropertyForm` (edit mode) + `/properties/:id/edit`; `PropertyActionsPanel`
+  (edit/archive/restore, typed-confirmation permanent-delete panel shown only when the
+  eligibility endpoint says so); `UnitActionsPanel` (same shape, unit-scoped); Active/Archived/All
+  status filter on the properties list (`?status=`) and units list/property-detail units tab
+  (client-side, `UnitsFilterClient`); `/accounting/invoices` (new "Invoices" nav item under
+  Finance) -- Invoice #/Tenant/Property/Unit/Description/Issue date/Due date/Amount/Paid/Balance/
+  Status columns, Property/Unit/Tenant/Status/date-range filters + search, paid/balance computed
+  from the same `rent_schedules` + matched `bank_transactions`/`cash_receipts` totals the Rent Due
+  page already uses (never a second, competing total), display status pulled out as a pure,
+  directly-tested function (`lib/invoicing.ts`) rather than left inline.
+- `UNIT_STATUSES` split into `UNIT_SETTABLE_STATUSES` (create/update schema) vs the full display
+  set (now includes `'archived'`) -- closes a real gap where a generic PATCH could otherwise have
+  set `status: 'archived'` directly, bypassing `archive_unit()`'s own lease guard.
+
+**Verified:** typecheck/lint/production build all pass; 59 tests pass total -- the pre-existing R5
+(`billing.trialActivation.test.ts`) and tenant-internal-management regression suites (23, unchanged
+outcome) plus four new real local-Supabase integration suites written this pass:
+`propertyLifecycle.test.ts` (15), `unitLifecycle.test.ts` (7), `invoicingRpc.test.ts` (9) +
+`invoicing.test.ts` (5, pure-function). All new tests passed on their first real run against local
+Supabase.
+
+**Known residual gap, not fixed this pass:** the property/unit archive-or-hard-delete RPC routes
+call their RPC directly without a prior RLS-scoped visibility SELECT (unlike the plain GET routes),
+so a cross-org caller gets `insufficient_permission` rather than the `API_SPEC.md` §0 convention of
+a uniform 404 -- a minor existence-leak inconsistency with the read-path routes, not a data-access
+bypass (the RPC's own role check still fully blocks the action). `invoices`/`rent_schedules`/
+`expenses` RLS remain org-wide-visible-to-any-viewer+ (no property-scoped narrowing) -- confirmed
+this is pre-existing, consistent architecture across the whole Finance module already, not a gap
+introduced here.
+
 ## 2026-08-25 (continued further) — Applicant->tenant->lease V1: lease preparation + generation pass (PARTIAL, local only)
 
 Direct continuation of the same-day overnight pass below, per Mohammed's explicit "do not restart

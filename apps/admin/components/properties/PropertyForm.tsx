@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import type { PropertyType } from '@propvault/types';
+import type { Property, PropertyType } from '@propvault/types';
 import { PROPERTY_TYPES } from '@propvault/types';
 import { PROPERTY_TYPE_LABELS } from '@propvault/ui';
 import { Button } from '@/components/ui/Button';
@@ -15,8 +15,18 @@ import {
 
 // DESIGN_SYSTEM.md "Forms" -- standard inputs, label above field, inline field_errors sourced
 // directly from the API response (never a separately-invented client-side validation message).
-// propertyType uses a native <select>, not the segmented-control pattern, since it has 6 options
+// propertyType uses a native <select>, not the segmented-control pattern, since it has 6+ options
 // -- over the design system's own stated ≤5 threshold for a segmented control.
+//
+// Property lifecycle pass (WORKLOG.md this date): renamed from NewPropertyForm.tsx (create-only)
+// to also support edit mode, same mode='create'|'edit' shape TenantForm.tsx/UnitForm.tsx already
+// use. The PATCH backend (apps/admin/app/api/v1/properties/[id]/route.ts) already existed and
+// already enforced RLS/property-scoped-staff permissions -- this is the first UI to actually call
+// it for anything beyond the single estimated_value field ValuationForm.tsx already covered.
+// `org_id`/`owner_user_id`/`status`/`estimated_value*`/coordinates are deliberately NOT editable
+// here: status changes go through the dedicated archive/restore/delete actions (property detail
+// page), estimated_value stays ValuationForm's own narrow responsibility, and org_id/owner_user_id
+// are not client-settable by the PATCH endpoint at all (confirmed by reading its schema).
 
 interface FormState {
   nickname: string;
@@ -31,28 +41,37 @@ interface FormState {
   notes: string;
 }
 
-const EMPTY_STATE: FormState = {
-  nickname: '',
-  addressLine1: '',
-  addressLine2: '',
-  suburb: '',
-  city: '',
-  province: '',
-  postalCode: '',
-  propertyType: 'house',
-  municipalAccountNumber: '',
-  notes: '',
-};
+function toFormState(property?: Property): FormState {
+  return {
+    nickname: property?.nickname ?? '',
+    addressLine1: property?.addressLine1 ?? '',
+    addressLine2: property?.addressLine2 ?? '',
+    suburb: property?.suburb ?? '',
+    city: property?.city ?? '',
+    province: property?.province ?? '',
+    postalCode: property?.postalCode ?? '',
+    propertyType: property?.propertyType ?? 'house',
+    municipalAccountNumber: property?.municipalAccountNumber ?? '',
+    notes: property?.notes ?? '',
+  };
+}
 
-export function NewPropertyForm({ orgId }: { orgId: string }) {
+interface PropertyFormProps {
+  mode: 'create' | 'edit';
+  orgId: string;
+  property?: Property;
+}
+
+export function PropertyForm({ mode, orgId, property }: PropertyFormProps) {
   const router = useRouter();
-  const [form, setForm] = useState<FormState>(EMPTY_STATE);
+  const [form, setForm] = useState<FormState>(() => toFormState(property));
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // RELEASE A P0 fix: true when the API rejected the create because the org's plan property limit
   // was reached (`error.upgradeRequired`, apps/admin/app/api/v1/properties/route.ts) -- renders an
-  // "Upgrade plan" link instead of leaving the customer at a dead end.
+  // "Upgrade plan" link instead of leaving the customer at a dead end. Create-mode only -- editing
+  // an existing property never hits the plan-limit check.
   const [upgradeRequired, setUpgradeRequired] = useState(false);
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
@@ -77,34 +96,37 @@ export function NewPropertyForm({ orgId }: { orgId: string }) {
     setFieldErrors({});
     setUpgradeRequired(false);
     try {
-      const response = await fetch('/api/v1/properties', {
-        method: 'POST',
+      const url = mode === 'create' ? '/api/v1/properties' : `/api/v1/properties/${property!.id}`;
+      const basePayload = {
+        nickname: form.nickname,
+        addressLine1: form.addressLine1,
+        addressLine2: form.addressLine2 || null,
+        suburb: form.suburb || null,
+        city: form.city,
+        province: form.province || null,
+        postalCode: form.postalCode || null,
+        propertyType: form.propertyType,
+        municipalAccountNumber: form.municipalAccountNumber || null,
+        notes: form.notes || null,
+      };
+      const payload =
+        mode === 'create' ? { orgId, country: 'ZA', ...basePayload } : basePayload;
+      const response = await fetch(url, {
+        method: mode === 'create' ? 'POST' : 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orgId,
-          nickname: form.nickname,
-          addressLine1: form.addressLine1,
-          addressLine2: form.addressLine2 || null,
-          suburb: form.suburb || null,
-          city: form.city,
-          province: form.province || null,
-          postalCode: form.postalCode || null,
-          country: 'ZA',
-          propertyType: form.propertyType,
-          municipalAccountNumber: form.municipalAccountNumber || null,
-          notes: form.notes || null,
-        }),
+        body: JSON.stringify(payload),
       });
       const body = await response.json();
       if (!response.ok) {
         setFieldErrors(body.error?.field_errors ?? {});
-        setError(body.error?.message ?? 'Failed to create property.');
+        setError(body.error?.message ?? `Failed to ${mode === 'create' ? 'create' : 'update'} property.`);
         setUpgradeRequired(body.error?.upgradeRequired === true);
         return;
       }
       router.push(`/properties/${body.property.id}`);
+      router.refresh();
     } catch {
-      setError('Failed to create property -- check your connection and try again.');
+      setError(`Failed to ${mode === 'create' ? 'create' : 'save'} property -- check your connection and try again.`);
     } finally {
       setSubmitting(false);
     }
@@ -112,7 +134,7 @@ export function NewPropertyForm({ orgId }: { orgId: string }) {
 
   return (
     <div className="space-y-6 animate-rise">
-      <PageHeader title="Add property" />
+      <PageHeader title={mode === 'create' ? 'Add property' : `Edit ${property?.nickname}`} />
 
       <Panel className="max-w-xl">
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -224,9 +246,12 @@ export function NewPropertyForm({ orgId }: { orgId: string }) {
 
           <div className="flex gap-2 pt-2">
             <Button type="submit" variant="primary" disabled={submitting}>
-              {submitting ? 'Creating…' : 'Create property'}
+              {submitting ? 'Saving…' : mode === 'create' ? 'Create property' : 'Save changes'}
             </Button>
-            <Button type="button" onClick={() => router.push('/properties')}>
+            <Button
+              type="button"
+              onClick={() => router.push(mode === 'create' ? '/properties' : `/properties/${property!.id}`)}
+            >
               Cancel
             </Button>
           </div>

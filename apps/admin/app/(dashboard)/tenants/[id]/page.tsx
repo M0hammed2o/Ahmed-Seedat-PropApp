@@ -15,9 +15,14 @@ import {
   MAINTENANCE_STATUS_PRESENTATION,
 } from '@propvault/ui';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
-import { mapTenantRow, mapLeaseRow, mapRentScheduleRow } from '@/lib/leasing';
+import { mapTenantRow, mapLeaseRow, mapRentScheduleRow, pickCurrentLease } from '@/lib/leasing';
 import { mapMaintenanceTicketRow } from '@/lib/operations';
 import { mapTenantInvitationRow } from '@/lib/tenantInvitations';
+import {
+  deriveTenantPortalStatus,
+  PORTAL_STATUS_TONE,
+  type TenantPortalStatusResult,
+} from '@/lib/tenantPortalStatus';
 import { resolvePortalSession, findActiveMembership, canWriteOrgRecords } from '@/lib/orgSession';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Avatar } from '@/components/ui/Avatar';
@@ -50,7 +55,9 @@ type RouteParams = { params: Promise<{ id: string }> };
 
 interface LeaseContext {
   lease: Lease;
+  unitId: string | null;
   unitLabel: string | null;
+  propertyId: string | null;
   propertyNickname: string | null;
 }
 
@@ -88,9 +95,13 @@ const DEMO_LEASE_CONTEXT: LeaseContext = {
     createdAt: '2025-08-24T00:00:00Z',
     updatedAt: '2025-08-24T00:00:00Z',
   },
+  unitId: 'demo-unit-1',
   unitLabel: 'Unit 1',
+  propertyId: 'demo-property-1',
   propertyNickname: 'Sea Point Apartment',
 };
+
+const DEMO_TENANCY_HISTORY: LeaseContext[] = [];
 
 const DEMO_RENT_SCHEDULES: RentSchedule[] = [
   {
@@ -156,7 +167,9 @@ export default async function TenantDetailPage({ params }: RouteParams) {
         canEdit
         canInvite
         invitations={DEMO_INVITATIONS}
+        portalStatus={{ status: 'not_invited', label: 'Not invited' }}
         leaseContext={DEMO_LEASE_CONTEXT}
+        tenancyHistory={DEMO_TENANCY_HISTORY}
         rentSchedules={DEMO_RENT_SCHEDULES}
         maintenanceTickets={DEMO_MAINTENANCE_TICKETS}
         demoMode
@@ -175,6 +188,10 @@ export default async function TenantDetailPage({ params }: RouteParams) {
   const canEdit = Boolean(membership && canWriteOrgRecords(membership.role));
 
   const canInvite = Boolean(membership && canWriteOrgRecords(membership.role));
+  // tenant_invitations SELECT RLS is agent+ only (20260101000059) -- same floor as canInvite, so
+  // this stays gated exactly like before; a viewer-role caller genuinely cannot see invitation
+  // rows at the database level, so portalStatus for them can only ever resolve from
+  // tenant.userId (Active vs Not invited), same limit the page already had pre-this-pass.
   let invitations: TenantInvitation[] = [];
   if (canInvite) {
     const { data: inviteRows, error: inviteError } = await supabase
@@ -185,8 +202,17 @@ export default async function TenantDetailPage({ params }: RouteParams) {
     if (inviteError) throw new Error(`Failed to load tenant invitations: ${inviteError.message}`);
     invitations = (inviteRows ?? []).map(mapTenantInvitationRow);
   }
+  const portalStatus = deriveTenantPortalStatus(
+    tenant.userId,
+    invitations.map((i) => ({
+      acceptedAt: i.acceptedAt,
+      revokedAt: i.revokedAt,
+      expiresAt: i.expiresAt,
+      createdAt: i.createdAt,
+    })),
+  );
 
-  const leaseContext = await loadLeaseContext(id);
+  const { current: leaseContext, history: tenancyHistory } = await loadTenancy(id);
 
   let rentSchedules: RentSchedule[] = [];
   if (leaseContext) {
@@ -215,7 +241,9 @@ export default async function TenantDetailPage({ params }: RouteParams) {
       canEdit={canEdit}
       canInvite={canInvite}
       invitations={invitations}
+      portalStatus={portalStatus}
       leaseContext={leaseContext}
+      tenancyHistory={tenancyHistory}
       rentSchedules={rentSchedules}
       maintenanceTickets={maintenanceTickets}
     />
@@ -223,44 +251,51 @@ export default async function TenantDetailPage({ params }: RouteParams) {
 }
 
 // A tenant can have multiple leases over time (lease_tenants is a many-to-many join, TASKS.md M10)
-// -- this picks the one lease the detail page's Lease/Payments tabs actually describe: the active
-// one if there is one, otherwise the most recently started. Full per-lease history (every lease,
-// not just this one) is Leases' own vertical slice (routes/leases), not duplicated here.
-async function loadLeaseContext(tenantId: string): Promise<LeaseContext | null> {
+// -- pickCurrentLease (lib/leasing.ts, shared with the tenant list page) picks the one lease the
+// Lease/Payments tabs describe: the active one if there is one, otherwise the most recently
+// started. Every OTHER lease this tenant has ever held is now surfaced as "Tenancy history"
+// below, rather than silently discarded -- "do not overwrite historical tenancy information."
+async function loadTenancy(
+  tenantId: string,
+): Promise<{ current: LeaseContext | null; history: LeaseContext[] }> {
   const supabase = await getServerSupabaseClient();
   const { data, error } = await supabase
     .from('lease_tenants')
-    .select('leases(*, units(unit_label, properties(nickname)))')
+    .select('leases(*, units(id, unit_label, properties(id, nickname)))')
     .eq('tenant_id', tenantId);
   if (error) throw new Error(`Failed to load leases: ${error.message}`);
 
-  const rows = (data ?? []) as unknown as {
-    leases:
-      | (Record<string, unknown> & {
-          status: string;
-          start_date: string;
-          units: { unit_label: string; properties: { nickname: string } | null } | null;
-        })
-      | null;
-  }[];
-
+  type LeaseRow = Record<string, unknown> & {
+    id: string;
+    status: string;
+    start_date: string;
+    units: {
+      id: string;
+      unit_label: string;
+      properties: { id: string; nickname: string } | null;
+    } | null;
+  };
+  const rows = (data ?? []) as unknown as { leases: LeaseRow | null }[];
   const candidates = rows
     .map((r) => r.leases)
-    .filter((l): l is NonNullable<typeof l> => l !== null);
-  candidates.sort((a, b) => {
-    if (a.status === 'active' && b.status !== 'active') return -1;
-    if (b.status === 'active' && a.status !== 'active') return 1;
-    return new Date(b.start_date).getTime() - new Date(a.start_date).getTime();
-  });
+    .filter((l): l is LeaseRow => l !== null)
+    .map((l) => ({ ...l, startDate: l.start_date }));
 
-  const leaseRow = candidates[0];
-  if (!leaseRow) return null;
+  const toContext = (row: (typeof candidates)[number]): LeaseContext => {
+    const { units, startDate: _startDate, ...pureLeaseRow } = row;
+    return {
+      lease: mapLeaseRow(pureLeaseRow as unknown as Parameters<typeof mapLeaseRow>[0]),
+      unitId: units?.id ?? null,
+      unitLabel: units?.unit_label ?? null,
+      propertyId: units?.properties?.id ?? null,
+      propertyNickname: units?.properties?.nickname ?? null,
+    };
+  };
 
-  const { units, ...pureLeaseRow } = leaseRow;
+  const { current, history } = pickCurrentLease(candidates);
   return {
-    lease: mapLeaseRow(pureLeaseRow as unknown as Parameters<typeof mapLeaseRow>[0]),
-    unitLabel: units?.unit_label ?? null,
-    propertyNickname: units?.properties?.nickname ?? null,
+    current: current ? toContext(current) : null,
+    history: history.map(toContext),
   };
 }
 
@@ -269,7 +304,9 @@ function TenantDetailView({
   canEdit,
   canInvite = false,
   invitations = [],
+  portalStatus,
   leaseContext,
+  tenancyHistory,
   rentSchedules,
   maintenanceTickets,
   demoMode = false,
@@ -278,7 +315,9 @@ function TenantDetailView({
   canEdit: boolean;
   canInvite?: boolean;
   invitations?: TenantInvitation[];
+  portalStatus: TenantPortalStatusResult;
   leaseContext: LeaseContext | null;
+  tenancyHistory: LeaseContext[];
   rentSchedules: RentSchedule[];
   maintenanceTickets: MaintenanceTicket[];
   demoMode?: boolean;
@@ -320,16 +359,30 @@ function TenantDetailView({
                 {tenant.fullName}
               </h1>
               <p className="truncate text-[13px] text-light-textMuted dark:text-dark-textMuted">
-                {leaseContext
-                  ? [leaseContext.unitLabel, leaseContext.propertyNickname]
-                      .filter(Boolean)
-                      .join(' · ')
-                  : 'No active lease'}
+                {leaseContext && leaseContext.propertyId && leaseContext.unitId ? (
+                  <>
+                    <Link href={`/properties/${leaseContext.propertyId}`} className="hover:underline">
+                      {leaseContext.propertyNickname}
+                    </Link>
+                    {' · '}
+                    <Link
+                      href={`/properties/${leaseContext.propertyId}/units/${leaseContext.unitId}`}
+                      className="hover:underline"
+                    >
+                      {leaseContext.unitLabel}
+                    </Link>
+                  </>
+                ) : (
+                  'No active lease'
+                )}
                 {' · tenant since '}
                 {longDate(tenant.createdAt)}
               </p>
-              <div className="mt-1">
+              <div className="mt-1 flex flex-wrap items-center gap-2">
                 <StatusBadge presentation={TENANT_STATUS_PRESENTATION[tenant.status]} />
+                <span className={`text-xs font-medium ${PORTAL_STATUS_TONE[portalStatus.status]}`}>
+                  Portal: {portalStatus.label}
+                </span>
               </div>
               <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-light-textMuted dark:text-dark-textMuted">
                 {tenant.email ? (
@@ -376,11 +429,10 @@ function TenantDetailView({
         ) : null}
       </Panel>
 
-      {tenant.userId ? (
-        <p className="text-xs text-light-statusPaid dark:text-dark-statusPaid">
-          This tenant's portal account is linked and active.
-        </p>
-      ) : canInvite ? (
+      {/* Portal status itself is always shown in the header badge above -- this panel is only the
+          ACTION (send/resend/revoke an invitation), gated to canInvite same as before. A tenant
+          who already has an account needs no action here at all. */}
+      {!tenant.userId && canInvite ? (
         <TenantInvitationPanel
           tenantId={tenant.id}
           hasEmail={Boolean(tenant.email)}
@@ -430,9 +482,37 @@ function TenantDetailView({
         </div>
       </div>
 
+      {tenancyHistory.length > 0 ? (
+        <Panel title={`Tenancy history (${tenancyHistory.length})`} bodyClassName="p-0">
+          <ul className="divide-y divide-light-border dark:divide-dark-border">
+            {tenancyHistory.map((h) => (
+              <li key={h.lease.id} className="flex items-center justify-between gap-3 px-5 py-3.5 text-[13px]">
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-light-textPrimary dark:text-dark-textPrimary">
+                    {h.propertyId && h.unitId ? (
+                      <Link href={`/properties/${h.propertyId}/units/${h.unitId}`} className="hover:underline">
+                        {[h.propertyNickname, h.unitLabel].filter(Boolean).join(' · ')}
+                      </Link>
+                    ) : (
+                      [h.propertyNickname, h.unitLabel].filter(Boolean).join(' · ') || '—'
+                    )}
+                  </p>
+                  <p className="text-[11px] text-light-textMuted dark:text-dark-textMuted">
+                    {longDate(h.lease.startDate)} – {h.lease.endDate ? longDate(h.lease.endDate) : 'ongoing'}
+                    {' · '}
+                    {currency(h.lease.rentAmount)}/{h.lease.rentFrequency}
+                  </p>
+                </div>
+                <StatusBadge presentation={LEASE_STATUS_PRESENTATION[h.lease.status]} />
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      ) : null}
+
       <p className="text-xs text-light-textMuted dark:text-dark-textMuted">
-        This tab shows only the tenant's current or most recent lease — full lease history across
-        the portfolio lives on the Leases page.
+        The Lease tab above shows only the tenant's current or most recent tenancy — every earlier
+        tenancy for this tenant is preserved in Tenancy history above, never overwritten.
       </p>
     </div>
   );

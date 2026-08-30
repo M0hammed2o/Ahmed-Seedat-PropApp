@@ -1,6 +1,7 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { BillingGatewayProvider, BillingWebhookEvent } from '@propvault/types';
+import { TRIAL_ACTIVATION_CARD_VERIFICATION_FEE_ZAR } from '@propvault/config';
 import { getBillingGatewayProvider } from './providers/billing';
 import { dispatchEmail, type EmailTemplateName } from './emailDispatch';
 
@@ -306,12 +307,14 @@ export interface StartTrialActivationCheckoutResult {
 /**
  * Commercial plan restructure -- the one entry point for a brand-new, not-yet-set-up
  * organization's principal to select a plan tier + billing interval and hand off to PayFast to
- * register a real, verifiable payment method. Charges nothing now (createSubscription's
- * initialAmount: 0, billingDate 30 days out defers the real first recurring charge) -- and never
- * starts the trial itself: activate_trial_after_payment() only ever runs from
- * processBillingWebhookEvent's trial-activation branch below, once PayFast's own verified ITN
- * confirms the payment method actually works. Matches this file's own established principle
- * ("never trust the checkout-initiation response as proof of payment") applied to trial
+ * register a real, verifiable payment method. Charges TRIAL_ACTIVATION_CARD_VERIFICATION_FEE_ZAR
+ * once, now (createSubscription's initialAmount, billingDate 30 days out defers the real first
+ * recurring charge to plan.base_price) -- a once-off card-verification fee, not the first
+ * subscription payment (see that constant's own comment for the live PayFast evidence a R0.00
+ * initial amount does not). Never starts the trial itself: activate_trial_after_payment() only
+ * ever runs from processBillingWebhookEvent's trial-activation branch below, once PayFast's own
+ * verified ITN confirms the payment method actually works. Matches this file's own established
+ * principle ("never trust the checkout-initiation response as proof of payment") applied to trial
  * activation, not just paid activation.
  *
  * Deliberately does not accept a planId or amount from the caller (Phase 6, server-authoritative
@@ -378,7 +381,7 @@ export async function startTrialActivationCheckout(
     providerCustomerId: customer.providerCustomerId,
     planCode: plan.code,
     amount: Number(plan.base_price),
-    initialAmount: 0,
+    initialAmount: TRIAL_ACTIVATION_CARD_VERIFICATION_FEE_ZAR,
     billingDate,
     currency: plan.currency,
     billingCycle: plan.billing_cycle,
@@ -401,7 +404,7 @@ export async function startTrialActivationCheckout(
     .insert({
       org_id: org.id,
       subscription_id: orgSubscription.id,
-      amount: 0,
+      amount: TRIAL_ACTIVATION_CARD_VERIFICATION_FEE_ZAR,
       currency: plan.currency,
       status: 'pending',
       provider_reference: subscription.providerSubscriptionId,
@@ -656,9 +659,10 @@ async function handleTrialActivationWebhookEvent(
     .update({ status: 'paid', paid_at: new Date().toISOString() })
     .eq('id', payment.id);
 
-  // A real financial event (card verified, R0 collected) deserves a real invoice/receipt --
-  // create_subscription_invoice_for_payment() (migration 20260101000108) reads this row's own
-  // amount directly, which is correctly 0 now that it's never mutated; logged, not thrown, on
+  // A real financial event (card verified, the once-off verification fee collected) deserves a
+  // real invoice/receipt -- create_subscription_invoice_for_payment() (migration 20260101000108)
+  // reads this row's own amount directly, which correctly stays at whatever was actually charged
+  // (TRIAL_ACTIVATION_CARD_VERIFICATION_FEE_ZAR) since it's never mutated; logged, not thrown, on
   // failure, matching the identical try/catch posture the main payment_succeeded branch below
   // already uses for the same call.
   try {
@@ -678,11 +682,28 @@ async function handleTrialActivationWebhookEvent(
       .select('legal_name, trial_ends_at')
       .eq('id', orgId)
       .single();
+    const { data: subRow } = await serviceClient
+      .from('organization_subscriptions')
+      .select('plan_id')
+      .eq('id', payment.subscription_id)
+      .maybeSingle();
+    const { data: planRow } = subRow
+      ? await serviceClient
+          .from('plans')
+          .select('name, base_price, currency')
+          .eq('id', subRow.plan_id)
+          .maybeSingle()
+      : { data: null };
     await dispatchEmail(serviceClient, {
       orgId,
       toAddress: toEmail,
       templateName: 'subscription_activated',
-      templateVars: { legalName: orgRow?.legal_name, trialEndsAt: orgRow?.trial_ends_at },
+      templateVars: {
+        legalName: orgRow?.legal_name,
+        planName: planRow?.name,
+        trialEndsAt: orgRow?.trial_ends_at,
+        recurringAmount: planRow ? formatMoney(Number(planRow.base_price), planRow.currency) : undefined,
+      },
       relatedEntityType: `billing_event:${event.providerEventId}`,
       relatedEntityId: orgId,
       actorUserId: null,

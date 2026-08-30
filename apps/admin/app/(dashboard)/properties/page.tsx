@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Plus } from 'lucide-react';
 import type { Property } from '@propvault/types';
 import { PropertiesGridClient } from '@/components/properties/PropertiesGridClient';
+import { PropertiesStatusFilterBar } from '@/components/properties/PropertiesStatusFilterBar';
 import type { PropertyCardData } from '@/components/properties/PropertyCard';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
@@ -65,8 +66,16 @@ const DEMO_CARDS: PropertyCardData[] = [
   },
 ];
 
-export default async function PropertiesPage() {
-  const properties: Property[] = ADMIN_DEMO_MODE ? DEMO_PROPERTIES : await loadProperties();
+type RouteParams = { searchParams: Promise<{ status?: string }> };
+
+export default async function PropertiesPage({ searchParams }: RouteParams) {
+  const { status: statusParam } = await searchParams;
+  const statusFilter: 'active' | 'archived' | 'all' =
+    statusParam === 'archived' || statusParam === 'all' ? statusParam : 'active';
+
+  const properties: Property[] = ADMIN_DEMO_MODE
+    ? DEMO_PROPERTIES
+    : await loadProperties(statusFilter);
   const cards: PropertyCardData[] = ADMIN_DEMO_MODE
     ? DEMO_CARDS
     : await loadPropertyCards(properties);
@@ -95,7 +104,12 @@ export default async function PropertiesPage() {
       <PageHeader
         title="Properties"
         subtitle={`${properties.length} ${properties.length === 1 ? 'asset' : 'assets'} · ${totals.units} units · ${currency(totals.income)} billed monthly`}
-        actions={properties.length > 0 ? addAction : undefined}
+        actions={
+          <div className="flex items-center gap-2">
+            <PropertiesStatusFilterBar selected={statusFilter} />
+            {properties.length > 0 ? addAction : null}
+          </div>
+        }
       />
 
       {properties.length > 0 ? (
@@ -132,13 +146,11 @@ function currency(n: number): string {
   }).format(n);
 }
 
-async function loadProperties(): Promise<Property[]> {
+async function loadProperties(statusFilter: 'active' | 'archived' | 'all'): Promise<Property[]> {
   const supabase = await getServerSupabaseClient();
-  const { data, error } = await supabase
-    .from('properties')
-    .select('*')
-    .eq('status', 'active')
-    .order('created_at', { ascending: false });
+  let query = supabase.from('properties').select('*').order('created_at', { ascending: false });
+  if (statusFilter !== 'all') query = query.eq('status', statusFilter);
+  const { data, error } = await query;
   if (error) throw new Error(`Failed to load properties: ${error.message}`);
   return (data ?? []).map(mapPropertyRow);
 }

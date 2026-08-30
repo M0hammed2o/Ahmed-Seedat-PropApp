@@ -72,6 +72,7 @@ export const UNIT_STATUS_PRESENTATION: Record<UnitStatus, StatusPresentation> = 
   vacant: { label: 'Vacant', icon: 'eye', colorToken: 'statusNeedsReview' },
   occupied: { label: 'Occupied', icon: 'check', colorToken: 'statusPaid' },
   maintenance: { label: 'Maintenance', icon: 'spinner', colorToken: 'statusProcessing' },
+  archived: { label: 'Archived', icon: 'dot', colorToken: 'statusVoid' },
 };
 
 // TASKS.md M20 (Tenants vertical slice). `status` is server-set only (defaults to `pending` on

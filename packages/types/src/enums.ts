@@ -157,7 +157,12 @@ export type PropertyAccessMode = (typeof PROPERTY_ACCESS_MODES)[number];
 export const BILLING_CYCLES = ['monthly', 'annual'] as const;
 export type BillingCycle = (typeof BILLING_CYCLES)[number];
 
-export const UNIT_STATUSES = ['vacant', 'occupied', 'maintenance'] as const;
+// 'archived' (property/unit lifecycle pass, migration 20260101000148) is a read-only lifecycle
+// state -- it can only be reached via archive_unit()/restore_unit() (their own active-lease
+// guard), never through a direct PATCH. UNIT_SETTABLE_STATUSES is what the update schema and
+// status-picker UI use; UNIT_STATUSES is the full set for display/filtering.
+export const UNIT_SETTABLE_STATUSES = ['vacant', 'occupied', 'maintenance'] as const;
+export const UNIT_STATUSES = ['vacant', 'occupied', 'maintenance', 'archived'] as const;
 export type UnitStatus = (typeof UNIT_STATUSES)[number];
 
 export const OWNER_TYPES = ['individual', 'company', 'trust'] as const;

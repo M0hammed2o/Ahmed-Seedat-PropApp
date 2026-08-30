@@ -111,6 +111,89 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Final local hardening pass (WORKLOG.md this date), Objective 2 P0/Step 6 finding: an archived
+  // unit -- or a unit whose own property is archived (a property can be archived while its
+  // vacant units stay 'vacant'; archive_property() only blocks on active leases, not on unit
+  // status) -- is not available for new tenancy. Application creation has no equivalent SECURITY
+  // DEFINER RPC to extend the way activate_lease() does, so the guard lives here at the route
+  // layer instead. RLS-scoped read (same client the caller's own org-role check above already
+  // used), never service-role -- a property hidden from this caller by RLS still 404s via the
+  // normal not-found path below, this only adds a status check on a property the caller can
+  // already see.
+  const { data: property, error: propertyFetchError } = await supabase
+    .from('properties')
+    .select('status')
+    .eq('id', parsed.data.propertyId)
+    .maybeSingle();
+  if (propertyFetchError) {
+    return NextResponse.json(
+      {
+        error: {
+          code: 'property_fetch_failed',
+          message: safeErrorMessage(
+            propertyFetchError,
+            'Could not load this property.',
+            'applications.create.propertyFetch',
+          ),
+        },
+      },
+      { status: 500 },
+    );
+  }
+  if (!property) {
+    return NextResponse.json(
+      { error: { code: 'not_found', message: 'Property not found.' } },
+      { status: 404 },
+    );
+  }
+  if (property.status === 'archived') {
+    return NextResponse.json(
+      {
+        error: {
+          code: 'property_archived',
+          message:
+            'This property is archived and is not available for a new application. Restore the property first.',
+        },
+      },
+      { status: 409 },
+    );
+  }
+
+  const { data: unit, error: unitFetchError } = await supabase
+    .from('units')
+    .select('status')
+    .eq('id', parsed.data.unitId)
+    .maybeSingle();
+  if (unitFetchError) {
+    return NextResponse.json(
+      {
+        error: {
+          code: 'unit_fetch_failed',
+          message: safeErrorMessage(unitFetchError, 'Could not load this unit.', 'applications.create.unitFetch'),
+        },
+      },
+      { status: 500 },
+    );
+  }
+  if (!unit) {
+    return NextResponse.json(
+      { error: { code: 'not_found', message: 'Unit not found.' } },
+      { status: 404 },
+    );
+  }
+  if (unit.status === 'archived') {
+    return NextResponse.json(
+      {
+        error: {
+          code: 'unit_archived',
+          message:
+            'This unit is archived and is not available for a new application. Restore the unit first.',
+        },
+      },
+      { status: 409 },
+    );
+  }
+
   const { data, error } = await supabase
     .from('applications')
     .insert({

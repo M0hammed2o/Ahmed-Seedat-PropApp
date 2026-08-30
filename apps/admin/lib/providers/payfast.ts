@@ -184,10 +184,11 @@ export class PayFastBillingGatewayProvider implements BillingGatewayProvider {
     const mPaymentId = input.idempotencyKey;
     // `amount` (the field PayFast charges immediately at checkout completion) is normally the
     // same as the recurring amount -- startTrialActivationCheckout() is the one caller that
-    // passes initialAmount=0 so the checkout only verifies a payment method, deferring the first
-    // real charge to billingDate. UNVERIFIED against a live PayFast round trip (see this file's
-    // header comment) -- cross-checked against PayFast's documented subscription/trial fields,
-    // not invented, but never exercised against the real gateway.
+    // passes a fixed initialAmount (TRIAL_ACTIVATION_CARD_VERIFICATION_FEE_ZAR, packages/config's
+    // limits.ts) so the checkout charges a once-off card-verification fee, deferring the real
+    // first subscription charge to billingDate. A R0.00 initialAmount was live-tested (real
+    // sandbox AND live merchant round trips, WORKLOG.md) and reliably fails at PayFast's own
+    // card-authorization step on this merchant/acquirer path -- see that constant's own comment.
     const chargeNowAmount = input.initialAmount ?? input.amount;
 
     const fields = new Map<string, string>([

@@ -19,6 +19,19 @@ const KNOWN_SAFE_PREFIXES = [
   'property_limit_reached:',
   'owner_subscription_required:',
   'chart_of_accounts_incomplete:',
+  // Property/unit lifecycle pass (WORKLOG.md this date, migration 20260101000148):
+  // get_property_deletion_blockers()/get_unit_deletion_blockers()/hard_delete_property()/
+  // hard_delete_unit()/archive_unit()/restore_unit()'s own raised messages.
+  'not_found:',
+  'insufficient_permission:',
+  'property_deletion_blocked:',
+  'unit_deletion_blocked:',
+  'unit_has_active_lease:',
+  'unit_not_archived:',
+  // Property archive/restore RPC pass (WORKLOG.md this date, migration 20260101000149):
+  // archive_property()/restore_property()'s own raised messages.
+  'property_has_active_leases:',
+  'property_not_archived:',
 ];
 
 export function safeErrorMessage(

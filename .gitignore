@@ -22,6 +22,9 @@ web-build/
 supabase/.branches/
 supabase/.temp/
 
+# Production database backups (schema + real customer data) -- never committed
+.production-backups/
+
 # Testing / coverage
 coverage/
 test-results/
