@@ -26,6 +26,13 @@ export interface Organization {
   supportPhone: string | null;
   supportEmail: string | null;
   communicationFooter: string | null;
+  /** Final hardening pass, Part "Organisation invoice settings" (migration 154) -- tenant-invoice
+   * (public.invoices) presentation fields, distinct from communicationFooter above (that one is
+   * for tenant email/WhatsApp templates, this is for the printed/PDF invoice). */
+  invoiceAddress: string | null;
+  invoicePaymentInstructions: string | null;
+  invoiceNotesDefault: string | null;
+  invoiceFooter: string | null;
   status: OrganizationStatus;
   /** Set once at org creation (20260101000075) and never cleared -- a historical record of when
    * the 30-day free trial ends/ended, meaningful for UI purposes only while status is 'trial'. */

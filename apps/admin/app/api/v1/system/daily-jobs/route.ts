@@ -4,6 +4,7 @@ import { requireAdminRoleOrRespond } from '@/lib/adminApiAuth';
 import { writeAuditEvent } from '@/lib/audit';
 import {
   runSubscriptionLifecycleJob,
+  runStaleCheckoutExpiryJob,
   runRentScheduleJob,
   runComplianceReminderJob,
   runPaymentAndLeaseReminderJob,
@@ -66,6 +67,7 @@ export async function POST(request: NextRequest) {
 
   const jobs: Record<
     | 'subscriptions'
+    | 'staleCheckouts'
     | 'rentSchedules'
     | 'compliance'
     | 'paymentAndLeaseReminders'
@@ -74,6 +76,7 @@ export async function POST(request: NextRequest) {
     { success: boolean; durationMs: number; result?: unknown; error?: string }
   > = {
     subscriptions: { success: false, durationMs: 0 },
+    staleCheckouts: { success: false, durationMs: 0 },
     rentSchedules: { success: false, durationMs: 0 },
     compliance: { success: false, durationMs: 0 },
     paymentAndLeaseReminders: { success: false, durationMs: 0 },
@@ -96,6 +99,25 @@ export async function POST(request: NextRequest) {
   console.warn('[daily-jobs] subscriptions job complete', {
     success: jobs.subscriptions.success,
     durationMs: jobs.subscriptions.durationMs,
+  });
+
+  // 1b. Final hardening pass, "Payment history UX": sweep stale (>24h, no webhook ever received)
+  // pending checkouts to expired -- a display-classification hygiene job, not a billing outcome
+  // change, so it never emails/audits per-org the way job 1 does.
+  const staleStart = Date.now();
+  try {
+    const result = await runStaleCheckoutExpiryJob(serviceClient);
+    jobs.staleCheckouts = { success: true, durationMs: Date.now() - staleStart, result };
+  } catch (err) {
+    jobs.staleCheckouts = {
+      success: false,
+      durationMs: Date.now() - staleStart,
+      error: err instanceof Error ? err.message : 'Unknown error',
+    };
+  }
+  console.warn('[daily-jobs] staleCheckouts job complete', {
+    success: jobs.staleCheckouts.success,
+    durationMs: jobs.staleCheckouts.durationMs,
   });
 
   // 2. Rent schedule generation.
@@ -204,6 +226,7 @@ export async function POST(request: NextRequest) {
 
   const overallSuccess =
     jobs.subscriptions.success &&
+    jobs.staleCheckouts.success &&
     jobs.rentSchedules.success &&
     jobs.compliance.success &&
     jobs.paymentAndLeaseReminders.success &&

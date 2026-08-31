@@ -115,13 +115,13 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     );
   }
 
-  const { data: updated, error: updateError } = await supabase
-    .from('invoices')
-    .update({ emailed_at: new Date().toISOString() })
-    .eq('id', id)
-    .is('emailed_at', null)
-    .select('*')
-    .maybeSingle();
+  // Final hardening pass (migration 20260101000153): a raw client UPDATE on invoices is now refused
+  // by RLS once the row is issued (invoices_update_draft_accountant_plus) -- mark_invoice_emailed()
+  // is the narrowly-scoped, security-definer replacement, same idempotent
+  // "only set it if it was null" behaviour as the direct update this replaces.
+  const { data: updated, error: updateError } = await supabase.rpc('mark_invoice_emailed', {
+    p_invoice_id: id,
+  });
   if (updateError) {
     return NextResponse.json(
       {

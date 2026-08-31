@@ -15,6 +15,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY =
 
 let callOrder: string[] = [];
 let subscriptionsShouldFail = false;
+let staleCheckoutsShouldFail = false;
 let rentSchedulesShouldFail = false;
 let portfolioIntelligenceShouldFail = false;
 
@@ -23,6 +24,11 @@ vi.mock('@/lib/systemJobs', () => ({
     callOrder.push('subscriptions');
     if (subscriptionsShouldFail) throw new Error('simulated subscriptions failure');
     return { transitioned: 0, transitions: [], remindersSent: 0, scheduledPlanChangesApplied: 0 };
+  }),
+  runStaleCheckoutExpiryJob: vi.fn(async () => {
+    callOrder.push('staleCheckouts');
+    if (staleCheckoutsShouldFail) throw new Error('simulated staleCheckouts failure');
+    return { expired: 0 };
   }),
   runRentScheduleJob: vi.fn(async () => {
     callOrder.push('rentSchedules');
@@ -79,6 +85,7 @@ describe('POST /api/v1/system/daily-jobs (orchestration, mocked systemJobs)', ()
   beforeEach(() => {
     callOrder = [];
     subscriptionsShouldFail = false;
+    staleCheckoutsShouldFail = false;
     rentSchedulesShouldFail = false;
     portfolioIntelligenceShouldFail = false;
   });
@@ -86,10 +93,11 @@ describe('POST /api/v1/system/daily-jobs (orchestration, mocked systemJobs)', ()
     vi.clearAllMocks();
   });
 
-  it('runs subscriptions, then rentSchedules, then compliance, then paymentAndLeaseReminders, then ownerMonthlySummary, then portfolioIntelligence, in that exact deterministic order', async () => {
+  it('runs subscriptions, then staleCheckouts, then rentSchedules, then compliance, then paymentAndLeaseReminders, then ownerMonthlySummary, then portfolioIntelligence, in that exact deterministic order', async () => {
     await POST(cronRequest());
     expect(callOrder).toEqual([
       'subscriptions',
+      'staleCheckouts',
       'rentSchedules',
       'compliance',
       'paymentAndLeaseReminders',
@@ -104,12 +112,14 @@ describe('POST /api/v1/system/daily-jobs (orchestration, mocked systemJobs)', ()
     const body = await response.json();
     expect(body.success).toBe(true);
     expect(body.jobs.subscriptions.success).toBe(true);
+    expect(body.jobs.staleCheckouts.success).toBe(true);
     expect(body.jobs.rentSchedules.success).toBe(true);
     expect(body.jobs.compliance.success).toBe(true);
     expect(body.jobs.paymentAndLeaseReminders.success).toBe(true);
     expect(body.jobs.ownerMonthlySummary.success).toBe(true);
     expect(body.jobs.portfolioIntelligence.success).toBe(true);
     expect(typeof body.jobs.subscriptions.durationMs).toBe('number');
+    expect(typeof body.jobs.staleCheckouts.durationMs).toBe('number');
     expect(typeof body.jobs.rentSchedules.durationMs).toBe('number');
     expect(typeof body.jobs.compliance.durationMs).toBe('number');
     expect(typeof body.jobs.paymentAndLeaseReminders.durationMs).toBe('number');
@@ -126,6 +136,7 @@ describe('POST /api/v1/system/daily-jobs (orchestration, mocked systemJobs)', ()
     expect(body.jobs.subscriptions.success).toBe(false);
     expect(typeof body.jobs.subscriptions.error).toBe('string');
     // The other jobs still ran despite the first one failing -- they are independent.
+    expect(body.jobs.staleCheckouts.success).toBe(true);
     expect(body.jobs.rentSchedules.success).toBe(true);
     expect(body.jobs.compliance.success).toBe(true);
     expect(body.jobs.paymentAndLeaseReminders.success).toBe(true);
@@ -133,6 +144,7 @@ describe('POST /api/v1/system/daily-jobs (orchestration, mocked systemJobs)', ()
     expect(body.jobs.portfolioIntelligence.success).toBe(true);
     expect(callOrder).toEqual([
       'subscriptions',
+      'staleCheckouts',
       'rentSchedules',
       'compliance',
       'paymentAndLeaseReminders',
@@ -148,6 +160,7 @@ describe('POST /api/v1/system/daily-jobs (orchestration, mocked systemJobs)', ()
     const body = await response.json();
     expect(body.success).toBe(false);
     expect(body.jobs.subscriptions.success).toBe(true);
+    expect(body.jobs.staleCheckouts.success).toBe(true);
     expect(body.jobs.rentSchedules.success).toBe(false);
     expect(body.jobs.compliance.success).toBe(true);
     expect(body.jobs.paymentAndLeaseReminders.success).toBe(true);
@@ -162,6 +175,7 @@ describe('POST /api/v1/system/daily-jobs (orchestration, mocked systemJobs)', ()
     const body = await response.json();
     expect(body.success).toBe(false);
     expect(body.jobs.subscriptions.success).toBe(true);
+    expect(body.jobs.staleCheckouts.success).toBe(true);
     expect(body.jobs.rentSchedules.success).toBe(true);
     expect(body.jobs.compliance.success).toBe(true);
     expect(body.jobs.paymentAndLeaseReminders.success).toBe(true);

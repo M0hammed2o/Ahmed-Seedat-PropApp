@@ -15,10 +15,20 @@ export function computeInvoiceDisplayStatus(input: {
   balance: number;
   paid: number;
   scheduleStatus: string | undefined;
+  /** Overnight V1 completion pass, Part B: manual invoices have no rent_schedule, so scheduleStatus
+   * is always undefined for them -- overdue is derived from the invoice's own due date (period)
+   * instead. Rent-schedule invoices keep using scheduleStatus exactly as before (this is only
+   * consulted when scheduleStatus is absent, so existing call sites are unaffected). */
+  dueDate?: string;
+  today?: Date;
 }): InvoiceDisplayStatus {
   if (input.invoiceStatus === 'draft') return 'Draft';
   if (input.balance <= 0) return 'Paid';
   if (input.scheduleStatus === 'overdue') return 'Overdue';
+  if (input.scheduleStatus === undefined && input.dueDate) {
+    const today = input.today ?? new Date();
+    if (new Date(input.dueDate).getTime() < today.getTime()) return 'Overdue';
+  }
   if (input.paid > 0) return 'Partially paid';
   return 'Issued';
 }

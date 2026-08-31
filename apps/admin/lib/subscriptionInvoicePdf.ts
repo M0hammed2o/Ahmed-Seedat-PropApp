@@ -36,6 +36,11 @@ export interface SubscriptionInvoicePdfData {
   newPlanRecurringPrice: number | null;
   /** Opaque gateway reference (e.g. a PayFast token) -- not a secret, just an audit trail. */
   paymentReference: string | null;
+  /** Overnight V1 completion pass, Part E: 'trial_activation' means this "new_subscription"-typed
+   * invoice is actually the once-off R5 card-verification fee, not a real subscription charge --
+   * see subscription_payments.purpose and create_subscription_invoice_for_payment() (migration
+   * 20260101000108), which deliberately doesn't distinguish the two at the invoice_type level. */
+  paymentPurpose: string | null;
 }
 
 function formatMoney(amount: number, currency: string): string {
@@ -55,6 +60,12 @@ function formatDate(iso: string): string {
 }
 
 function lineItemDescription(data: SubscriptionInvoicePdfData): string[] {
+  if (data.invoiceType === 'new_subscription' && data.paymentPurpose === 'trial_activation') {
+    return [
+      'Card verification fee (once-off)',
+      `${data.planName} plan -- 30-day free trial starts today, first subscription charge only after the trial ends`,
+    ];
+  }
   switch (data.invoiceType) {
     case 'new_subscription':
       return [`${data.planName} plan subscription`];

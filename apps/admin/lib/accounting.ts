@@ -7,6 +7,8 @@ import type {
   ChartOfAccount,
   Expense,
   Invoice,
+  InvoiceLineItem,
+  InvoicePayment,
   JournalEntry,
   OwnerStatement,
   TrustLedger,
@@ -215,6 +217,11 @@ interface InvoiceRow {
   issued_at: string | null;
   pdf_document_id: string | null;
   emailed_at: string | null;
+  source: string;
+  description: string | null;
+  notes: string | null;
+  reference: string | null;
+  created_by_user_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -232,8 +239,63 @@ export function mapInvoiceRow(row: InvoiceRow): Invoice {
     issuedAt: row.issued_at,
     pdfDocumentId: row.pdf_document_id,
     emailedAt: row.emailed_at,
+    source: row.source as Invoice['source'],
+    description: row.description,
+    notes: row.notes,
+    reference: row.reference,
+    createdByUserId: row.created_by_user_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  };
+}
+
+interface InvoiceLineItemRow {
+  id: string;
+  invoice_id: string;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  amount: number;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export function mapInvoiceLineItemRow(row: InvoiceLineItemRow): InvoiceLineItem {
+  return {
+    id: row.id,
+    invoiceId: row.invoice_id,
+    description: row.description,
+    quantity: Number(row.quantity),
+    unitPrice: Number(row.unit_price),
+    amount: Number(row.amount),
+    sortOrder: row.sort_order,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+interface InvoicePaymentRow {
+  id: string;
+  invoice_id: string;
+  amount: number;
+  paid_at: string;
+  method: string | null;
+  notes: string | null;
+  recorded_by: string | null;
+  created_at: string;
+}
+
+export function mapInvoicePaymentRow(row: InvoicePaymentRow): InvoicePayment {
+  return {
+    id: row.id,
+    invoiceId: row.invoice_id,
+    amount: Number(row.amount),
+    paidAt: row.paid_at,
+    method: row.method,
+    notes: row.notes,
+    recordedBy: row.recorded_by,
+    createdAt: row.created_at,
   };
 }
 

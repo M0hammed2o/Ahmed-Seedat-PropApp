@@ -25,6 +25,9 @@ interface FormState {
   fullName: string;
   email: string;
   phone: string;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+  emergencyContactRelationship: string;
 }
 
 function toFormState(tenant?: Tenant): FormState {
@@ -32,6 +35,9 @@ function toFormState(tenant?: Tenant): FormState {
     fullName: tenant?.fullName ?? '',
     email: tenant?.email ?? '',
     phone: tenant?.phone ?? '',
+    emergencyContactName: tenant?.emergencyContactName ?? '',
+    emergencyContactPhone: tenant?.emergencyContactPhone ?? '',
+    emergencyContactRelationship: tenant?.emergencyContactRelationship ?? '',
   };
 }
 
@@ -110,6 +116,9 @@ export function TenantForm({ mode, orgId, tenant, properties = [], units = [] }:
               fullName: form.fullName,
               email: form.email || null,
               phone: form.phone || null,
+              emergencyContactName: form.emergencyContactName || null,
+              emergencyContactPhone: form.emergencyContactPhone || null,
+              emergencyContactRelationship: form.emergencyContactRelationship || null,
             };
       const response = await fetch(url, {
         method: mode === 'create' ? 'POST' : 'PATCH',
@@ -272,6 +281,43 @@ export function TenantForm({ mode, orgId, tenant, properties = [], units = [] }:
             </div>
           </FormSection>
 
+          {!isCreate ? (
+            <FormSection
+              title="Emergency contact"
+              description="Optional. Never required for a tenant you manage internally."
+            >
+              <div className="space-y-4">
+                <Field label="Name">
+                  <input
+                    maxLength={200}
+                    value={form.emergencyContactName}
+                    onChange={(e) => set('emergencyContactName', e.target.value)}
+                    className={inputClass}
+                  />
+                </Field>
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label="Phone">
+                    <input
+                      maxLength={30}
+                      value={form.emergencyContactPhone}
+                      onChange={(e) => set('emergencyContactPhone', e.target.value)}
+                      className={inputClass}
+                    />
+                  </Field>
+                  <Field label="Relationship">
+                    <input
+                      maxLength={100}
+                      placeholder="e.g. Spouse, Sister"
+                      value={form.emergencyContactRelationship}
+                      onChange={(e) => set('emergencyContactRelationship', e.target.value)}
+                      className={inputClass}
+                    />
+                  </Field>
+                </div>
+              </div>
+            </FormSection>
+          ) : null}
+
           {isCreate ? (
             <FormSection
               title="Tenant access"
@@ -281,6 +327,7 @@ export function TenantForm({ mode, orgId, tenant, properties = [], units = [] }:
                 <label className="flex items-start gap-2.5 rounded-lg border border-light-border p-3 text-sm dark:border-dark-border">
                   <input
                     type="radio"
+                    name="tenantAccessMode"
                     className="mt-0.5"
                     checked={accessMode === 'internal'}
                     onChange={() => setAccessMode('internal')}
@@ -298,6 +345,7 @@ export function TenantForm({ mode, orgId, tenant, properties = [], units = [] }:
                 <label className="flex items-start gap-2.5 rounded-lg border border-light-border p-3 text-sm dark:border-dark-border">
                   <input
                     type="radio"
+                    name="tenantAccessMode"
                     className="mt-0.5"
                     checked={accessMode === 'invite'}
                     onChange={() => setAccessMode('invite')}

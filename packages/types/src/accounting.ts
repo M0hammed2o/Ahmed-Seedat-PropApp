@@ -145,8 +145,39 @@ export interface Invoice {
   issuedAt: string | null;
   pdfDocumentId: string | null;
   emailedAt: string | null;
+  // Overnight V1 completion pass, Part B (migration 20260101000152): 'rent_schedule' invoices are
+  // unchanged, produced only by invoice_rent_schedule(); 'manual' invoices are the new one-off
+  // tenant-charge path (utilities, parking, repairs, etc.), never touching rent_schedules.
+  source: 'rent_schedule' | 'manual';
+  description: string | null;
+  notes: string | null;
+  reference: string | null;
+  createdByUserId: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface InvoiceLineItem {
+  id: string;
+  invoiceId: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  amount: number;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InvoicePayment {
+  id: string;
+  invoiceId: string;
+  amount: number;
+  paidAt: string;
+  method: string | null;
+  notes: string | null;
+  recordedBy: string | null;
+  createdAt: string;
 }
 
 export interface Expense {

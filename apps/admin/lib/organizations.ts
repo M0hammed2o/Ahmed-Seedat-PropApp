@@ -24,6 +24,10 @@ interface OrganizationRow {
   support_phone: string | null;
   support_email: string | null;
   communication_footer: string | null;
+  invoice_address: string | null;
+  invoice_payment_instructions: string | null;
+  invoice_notes_default: string | null;
+  invoice_footer: string | null;
   status: string;
   trial_ends_at: string | null;
   created_at: string;
@@ -49,6 +53,10 @@ export function mapOrganizationRow(row: OrganizationRow): Organization {
     supportPhone: row.support_phone,
     supportEmail: row.support_email,
     communicationFooter: row.communication_footer,
+    invoiceAddress: row.invoice_address,
+    invoicePaymentInstructions: row.invoice_payment_instructions,
+    invoiceNotesDefault: row.invoice_notes_default,
+    invoiceFooter: row.invoice_footer,
     status: row.status as Organization['status'],
     trialEndsAt: row.trial_ends_at,
     createdAt: row.created_at,

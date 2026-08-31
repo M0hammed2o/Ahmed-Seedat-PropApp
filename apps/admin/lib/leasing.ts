@@ -13,6 +13,9 @@ interface TenantRow {
   phone: string | null;
   id_number_ref: string | null;
   status: string;
+  emergency_contact_name: string | null;
+  emergency_contact_phone: string | null;
+  emergency_contact_relationship: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -27,6 +30,9 @@ export function mapTenantRow(row: TenantRow): Tenant {
     phone: row.phone,
     idNumberRef: row.id_number_ref,
     status: row.status as Tenant['status'],
+    emergencyContactName: row.emergency_contact_name,
+    emergencyContactPhone: row.emergency_contact_phone,
+    emergencyContactRelationship: row.emergency_contact_relationship,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

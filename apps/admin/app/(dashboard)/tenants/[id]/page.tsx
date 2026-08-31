@@ -7,6 +7,7 @@ import type {
   Lease,
   RentSchedule,
   MaintenanceTicket,
+  DocumentRecord,
 } from '@propvault/types';
 import {
   TENANT_STATUS_PRESENTATION,
@@ -17,6 +18,7 @@ import {
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapTenantRow, mapLeaseRow, mapRentScheduleRow, pickCurrentLease } from '@/lib/leasing';
 import { mapMaintenanceTicketRow } from '@/lib/operations';
+import { mapDocumentRow } from '@/lib/documents';
 import { mapTenantInvitationRow } from '@/lib/tenantInvitations';
 import {
   deriveTenantPortalStatus,
@@ -70,6 +72,9 @@ const DEMO_TENANT: Tenant = {
   phone: '+27 82 555 0134',
   idNumberRef: null,
   status: 'active',
+  emergencyContactName: null,
+  emergencyContactPhone: null,
+  emergencyContactRelationship: null,
   createdAt: '2026-06-05T00:00:00Z',
   updatedAt: '2026-06-05T00:00:00Z',
 };
@@ -102,6 +107,8 @@ const DEMO_LEASE_CONTEXT: LeaseContext = {
 };
 
 const DEMO_TENANCY_HISTORY: LeaseContext[] = [];
+
+const DEMO_DOCUMENTS: DocumentRecord[] = [];
 
 const DEMO_RENT_SCHEDULES: RentSchedule[] = [
   {
@@ -172,6 +179,7 @@ export default async function TenantDetailPage({ params }: RouteParams) {
         tenancyHistory={DEMO_TENANCY_HISTORY}
         rentSchedules={DEMO_RENT_SCHEDULES}
         maintenanceTickets={DEMO_MAINTENANCE_TICKETS}
+        documents={DEMO_DOCUMENTS}
         demoMode
       />
     );
@@ -235,6 +243,19 @@ export default async function TenantDetailPage({ params }: RouteParams) {
   if (mtError) throw new Error(`Failed to load maintenance tickets: ${mtError.message}`);
   const maintenanceTickets = (mtRows ?? []).map(mapMaintenanceTicketRow);
 
+  // Overnight V1 completion pass (WORKLOG.md this date), Part A gap 3: documents.tenant_id already
+  // exists (migration 20260101000085) -- this panel was previously hardcoded to a "not linked yet"
+  // placeholder with no real query at all. RLS-scoped like every other read on this page.
+  const { data: docRows, error: docError } = await supabase
+    .from('documents')
+    .select('*')
+    .eq('tenant_id', id)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
+    .limit(10);
+  if (docError) throw new Error(`Failed to load documents: ${docError.message}`);
+  const documents = (docRows ?? []).map(mapDocumentRow);
+
   return (
     <TenantDetailView
       tenant={tenant}
@@ -246,6 +267,7 @@ export default async function TenantDetailPage({ params }: RouteParams) {
       tenancyHistory={tenancyHistory}
       rentSchedules={rentSchedules}
       maintenanceTickets={maintenanceTickets}
+      documents={documents}
     />
   );
 }
@@ -309,6 +331,7 @@ function TenantDetailView({
   tenancyHistory,
   rentSchedules,
   maintenanceTickets,
+  documents,
   demoMode = false,
 }: {
   tenant: Tenant;
@@ -317,6 +340,7 @@ function TenantDetailView({
   invitations?: TenantInvitation[];
   portalStatus: TenantPortalStatusResult;
   leaseContext: LeaseContext | null;
+  documents: DocumentRecord[];
   tenancyHistory: LeaseContext[];
   rentSchedules: RentSchedule[];
   maintenanceTickets: MaintenanceTicket[];
@@ -446,7 +470,12 @@ function TenantDetailView({
         <div className="xl:col-span-2">
           <SimpleTabs
             tabs={[
-              { label: 'Lease', content: <LeaseTab leaseContext={leaseContext} /> },
+              {
+                label: 'Lease',
+                content: (
+                  <LeaseTab leaseContext={leaseContext} tenantId={tenant.id} canEdit={canEdit} />
+                ),
+              },
               { label: 'Payments', content: <PaymentsTab rentSchedules={rentSchedules} /> },
               { label: 'Maintenance', content: <MaintenanceTab tickets={maintenanceTickets} /> },
               { label: 'Notes', content: <NotesTab /> },
@@ -455,29 +484,79 @@ function TenantDetailView({
         </div>
 
         <div className="space-y-4">
-          {/* No documents row is scoped to a tenant (public.documents only links to a property and
-              its uploading user, DATABASE.md §2) -- Lovable's 4 fabricated filenames are replaced
-              with a truthful "not linked yet" state, panel kept in place rather than removed. */}
-          <Panel title="Documents" bodyClassName="p-4">
-            <p className="flex items-center gap-2 px-2 py-2 text-[13px] text-light-textMuted dark:text-dark-textMuted">
-              <FileText className="h-4 w-4 shrink-0" aria-hidden="true" />
-              No documents linked to this tenant yet.
-            </p>
-          </Panel>
-          {/* public.tenants has no emergency-contact field (confirmed against
-              supabase/migrations/20260101000028_tenants.sql) -- Lovable's fabricated "Thandi
-              Mokoena · Sister" contact is replaced with a truthful "not captured" state. Adding a
-              new schema field for this wasn't requested for this batch (unlike estimated_value,
-              which was explicitly authorized), so it isn't added speculatively here. */}
-          <Panel title="Emergency contact" bodyClassName="p-5">
-            <div className="flex items-center gap-3">
-              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-light-surfaceStrong text-light-textMuted dark:bg-dark-surfaceStrong dark:text-dark-textMuted">
-                <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-              </span>
-              <p className="text-[13px] text-light-textMuted dark:text-dark-textMuted">
-                Not captured yet.
+          {/* documents.tenant_id (migration 20260101000085) -- overnight V1 completion pass, Part
+              A gap 3. Real query replacing the previous hardcoded "not linked yet" placeholder. */}
+          <Panel
+            title="Documents"
+            bodyClassName="p-4"
+            actions={
+              canEdit ? (
+                <Link
+                  href={`/documents/new?tenantId=${tenant.id}`}
+                  className="text-xs font-medium text-light-accent hover:underline dark:text-dark-accent"
+                >
+                  + Upload document
+                </Link>
+              ) : undefined
+            }
+          >
+            {documents.length === 0 ? (
+              <p className="flex items-center gap-2 px-2 py-2 text-[13px] text-light-textMuted dark:text-dark-textMuted">
+                <FileText className="h-4 w-4 shrink-0" aria-hidden="true" />
+                No documents linked to this tenant yet.
               </p>
-            </div>
+            ) : (
+              <ul className="divide-y divide-light-border dark:divide-dark-border">
+                {documents.map((d) => (
+                  <li key={d.id}>
+                    <Link
+                      href={`/documents/${d.id}`}
+                      className="flex items-center gap-2 px-2 py-2 text-[13px] text-light-textPrimary hover:underline dark:text-dark-textPrimary"
+                    >
+                      <FileText className="h-4 w-4 shrink-0 text-light-textMuted dark:text-dark-textMuted" aria-hidden="true" />
+                      <span className="truncate">{d.originalFileName}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
+          {/* emergency_contact_name/phone/relationship (migration 20260101000151) -- overnight V1
+              completion pass, Part A gap 4. Real fields replacing the previous hardcoded "not
+              captured" placeholder; still shown as "Not captured yet." when genuinely unset. */}
+          <Panel title="Emergency contact" bodyClassName="p-5">
+            {tenant.emergencyContactName ||
+            tenant.emergencyContactPhone ||
+            tenant.emergencyContactRelationship ? (
+              <div className="space-y-1 text-[13px]">
+                <p className="font-medium text-light-textPrimary dark:text-dark-textPrimary">
+                  {tenant.emergencyContactName || '—'}
+                  {tenant.emergencyContactRelationship ? ` · ${tenant.emergencyContactRelationship}` : ''}
+                </p>
+                {tenant.emergencyContactPhone ? (
+                  <p className="flex items-center gap-1.5 text-light-textMuted dark:text-dark-textMuted">
+                    <Phone size={13} aria-hidden="true" /> {tenant.emergencyContactPhone}
+                  </p>
+                ) : null}
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-light-surfaceStrong text-light-textMuted dark:bg-dark-surfaceStrong dark:text-dark-textMuted">
+                  <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+                </span>
+                <p className="text-[13px] text-light-textMuted dark:text-dark-textMuted">
+                  Not captured yet.
+                  {canEdit ? (
+                    <>
+                      {' '}
+                      <Link href={`/tenants/${tenant.id}/edit`} className="text-light-accent hover:underline dark:text-dark-accent">
+                        Add contact
+                      </Link>
+                    </>
+                  ) : null}
+                </p>
+              </div>
+            )}
           </Panel>
         </div>
       </div>
@@ -518,12 +597,29 @@ function TenantDetailView({
   );
 }
 
-function LeaseTab({ leaseContext }: { leaseContext: LeaseContext | null }) {
+function LeaseTab({
+  leaseContext,
+  tenantId,
+  canEdit,
+}: {
+  leaseContext: LeaseContext | null;
+  tenantId: string;
+  canEdit: boolean;
+}) {
   if (!leaseContext) {
     return (
-      <p className="p-5 text-[13px] text-light-textMuted dark:text-dark-textMuted">
-        No lease on record for this tenant yet.
-      </p>
+      <div className="space-y-3 p-5">
+        <p className="text-[13px] text-light-textMuted dark:text-dark-textMuted">
+          No lease on record for this tenant yet.
+        </p>
+        {canEdit ? (
+          <Link href={`/tenants/${tenantId}/leases/new`}>
+            <Button variant="secondary" size="sm">
+              + Add lease
+            </Button>
+          </Link>
+        ) : null}
+      </div>
     );
   }
   const { lease, unitLabel, propertyNickname } = leaseContext;

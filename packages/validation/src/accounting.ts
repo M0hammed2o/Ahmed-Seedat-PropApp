@@ -136,3 +136,50 @@ export const cashReceiptConfirmDepositSchema = z.object({
   depositedAmount: z.number().positive('depositedAmount must be positive'),
 });
 export type CashReceiptConfirmDepositInput = z.infer<typeof cashReceiptConfirmDepositSchema>;
+
+// Manual (non-rent) tenant invoices (apps/admin/app/api/v1/invoices, migration
+// 20260101000152) -- overnight V1 completion pass, Part B. Never touches rent_schedules; a
+// separate, parallel creation path alongside invoice_rent_schedule().
+export const invoiceLineItemInputSchema = z.object({
+  description: z.string().min(1, 'Description is required').max(500),
+  quantity: z.number().positive('quantity must be positive').default(1),
+  unitPrice: z.number().min(0, 'unitPrice cannot be negative'),
+});
+export type InvoiceLineItemInput = z.infer<typeof invoiceLineItemInputSchema>;
+
+export const manualInvoiceCreateSchema = z.object({
+  orgId: z.string().uuid('orgId must be a valid UUID'),
+  leaseId: z.string().uuid('leaseId must be a valid UUID'),
+  tenantId: z.string().uuid('tenantId must be a valid UUID'),
+  invoiceDate: z.string().min(1, 'invoiceDate is required (YYYY-MM-DD)'),
+  dueDate: z.string().min(1, 'dueDate is required (YYYY-MM-DD)'),
+  reference: z.string().max(100).optional().nullable(),
+  description: z.string().max(500).optional().nullable(),
+  notes: z.string().max(2000).optional().nullable(),
+  lineItems: z.array(invoiceLineItemInputSchema).min(1, 'At least one line item is required'),
+});
+export type ManualInvoiceCreateInput = z.infer<typeof manualInvoiceCreateSchema>;
+
+export const manualInvoiceUpdateSchema = z.object({
+  invoiceDate: z.string().min(1, 'invoiceDate is required (YYYY-MM-DD)'),
+  dueDate: z.string().min(1, 'dueDate is required (YYYY-MM-DD)'),
+  reference: z.string().max(100).optional().nullable(),
+  description: z.string().max(500).optional().nullable(),
+  notes: z.string().max(2000).optional().nullable(),
+  lineItems: z.array(invoiceLineItemInputSchema).min(1, 'At least one line item is required'),
+});
+export type ManualInvoiceUpdateInput = z.infer<typeof manualInvoiceUpdateSchema>;
+
+export const invoicePaymentCreateSchema = z.object({
+  amount: z.number().positive('amount must be positive'),
+  paidAt: z.string().min(1, 'paidAt is required (YYYY-MM-DD)'),
+  method: z.string().max(50).optional().nullable(),
+  notes: z.string().max(2000).optional().nullable(),
+  // Final accounting reconciliation pass, migration 157: optionally ties this recorded payment to
+  // a real, already-imported bank transaction (never independently reusable for rent-matching or
+  // another invoice once linked) -- and makes overpayment an explicit, opt-in confirmation rather
+  // than a silent possibility indistinguishable from an accidental duplicate entry.
+  bankTransactionId: z.string().uuid('bankTransactionId must be a valid UUID').optional().nullable(),
+  allowOverpayment: z.boolean().optional(),
+});
+export type InvoicePaymentCreateInput = z.infer<typeof invoicePaymentCreateSchema>;

@@ -88,7 +88,12 @@ function buildColumns(canSend: boolean, onSent: () => void): ColumnDef<InvoiceRo
     header: 'Invoice #',
     accessorKey: 'invoiceNumber',
     cell: (info) => (
-      <span className="tabular font-medium text-foreground">{info.row.original.invoiceNumber}</span>
+      <Link
+        href={`/accounting/invoices/${info.row.original.id}`}
+        className="tabular font-medium text-foreground hover:underline"
+      >
+        {info.row.original.invoiceNumber}
+      </Link>
     ),
   },
   {

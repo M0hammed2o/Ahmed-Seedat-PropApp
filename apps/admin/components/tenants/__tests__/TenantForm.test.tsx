@@ -53,6 +53,30 @@ describe('TenantForm (create mode)', () => {
     );
   });
 
+  // Overnight V1 completion pass (WORKLOG.md this date): permanent regression guard for the exact
+  // production report -- "Manage internally only" explicitly selected, WITH both an email and a
+  // phone number entered, must still send exactly one request (POST /api/v1/tenants) and never
+  // reach the invitations endpoint. hasEmail/hasPhone on the invitation panel only ever choose a
+  // delivery-channel default for later, explicit, opt-in invites -- they must never themselves
+  // trigger an invitation at tenant-creation time.
+  it('sends no invitation for "Manage internally only" even when email and phone are both entered', async () => {
+    render(<TenantForm mode="create" orgId="org-1" properties={PROPERTIES} units={UNITS} />);
+    fireEvent.change(screen.getByLabelText('Full name'), { target: { value: 'Synthetic Test Tenant A' } });
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'synthetic-a@example.invalid' } });
+    fireEvent.change(screen.getByLabelText('Phone'), { target: { value: '+27 82 555 0100' } });
+    expect(screen.getByRole('radio', { name: /Manage internally only/i })).toHaveProperty('checked', true);
+    fireEvent.click(screen.getByRole('button', { name: 'Create tenant' }));
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/tenants/new-tenant-1'));
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(global.fetch).toHaveBeenCalledWith(
+      '/api/v1/tenants',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    const calls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls;
+    expect(calls.some((c) => String(c[0]).includes('/invitations'))).toBe(false);
+  });
+
   it('blocks submission for "Invite tenant to Proplyst" with no email or phone', async () => {
     render(<TenantForm mode="create" orgId="org-1" properties={PROPERTIES} units={UNITS} />);
     fireEvent.change(screen.getByLabelText('Full name'), { target: { value: 'Synthetic Test Tenant A' } });
@@ -117,6 +141,9 @@ describe('TenantForm (edit mode)', () => {
           phone: null,
           idNumberRef: null,
           status: 'active',
+          emergencyContactName: null,
+          emergencyContactPhone: null,
+          emergencyContactRelationship: null,
           createdAt: '2026-01-01T00:00:00Z',
           updatedAt: '2026-01-01T00:00:00Z',
         }}

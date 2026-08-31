@@ -10,6 +10,11 @@ export const tenantSchema = z.object({
   fullName: z.string().min(1, 'Full name is required').max(200),
   email: z.string().email('Enter a valid email address').optional().nullable(),
   phone: z.string().max(30).optional().nullable(),
+  // Overnight V1 completion pass, Part A gap 4 (migration 20260101000151): optional, free-text,
+  // staff-entered only -- never required for an internally-managed tenant.
+  emergencyContactName: z.string().max(200).optional().nullable(),
+  emergencyContactPhone: z.string().max(30).optional().nullable(),
+  emergencyContactRelationship: z.string().max(100).optional().nullable(),
 });
 export type TenantInput = z.infer<typeof tenantSchema>;
 

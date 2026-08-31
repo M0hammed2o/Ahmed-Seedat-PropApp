@@ -131,6 +131,12 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   if (parsed.data.fullName !== undefined) patch.full_name = parsed.data.fullName;
   if (parsed.data.email !== undefined) patch.email = parsed.data.email;
   if (parsed.data.phone !== undefined) patch.phone = parsed.data.phone;
+  if (parsed.data.emergencyContactName !== undefined)
+    patch.emergency_contact_name = parsed.data.emergencyContactName;
+  if (parsed.data.emergencyContactPhone !== undefined)
+    patch.emergency_contact_phone = parsed.data.emergencyContactPhone;
+  if (parsed.data.emergencyContactRelationship !== undefined)
+    patch.emergency_contact_relationship = parsed.data.emergencyContactRelationship;
 
   const { data, error } = await supabase
     .from('tenants')

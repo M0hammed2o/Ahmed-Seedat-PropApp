@@ -25,6 +25,9 @@ const DEMO_TENANTS: TenantWithTenancy[] = [
     phone: '+27 82 555 0134',
     idNumberRef: null,
     status: 'active',
+    emergencyContactName: null,
+    emergencyContactPhone: null,
+    emergencyContactRelationship: null,
     createdAt: '2026-06-05T00:00:00Z',
     updatedAt: '2026-06-05T00:00:00Z',
     tenancy: {
@@ -91,6 +94,9 @@ interface TenantWithTenancyRow {
   phone: string | null;
   id_number_ref: string | null;
   status: string;
+  emergency_contact_name: string | null;
+  emergency_contact_phone: string | null;
+  emergency_contact_relationship: string | null;
   created_at: string;
   updated_at: string;
   lease_tenants: {

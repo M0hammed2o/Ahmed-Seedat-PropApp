@@ -16,6 +16,20 @@ interface LockedContext {
   unitId: string | null;
 }
 
+/** Overnight V1 completion pass (WORKLOG.md this date), Part A gap 3: set when arriving from a
+ * tenant's "+ Upload document" link. Unlike lockedContext (maintenance), a tenant may not have an
+ * active lease yet -- propertyId is only present when one could be inferred from that tenant's
+ * current tenancy, so the property field still falls back to the ordinary picker when absent
+ * rather than being forced to lock. tenantId is always sent regardless, tagging the document to
+ * this tenant (documents.tenant_id, migration 20260101000085) independent of lease/property. */
+interface TenantContext {
+  tenantId: string;
+  tenantName: string;
+  propertyId?: string;
+  propertyNickname?: string;
+  unitId?: string;
+}
+
 interface DocumentUploadFormProps {
   orgId: string;
   properties: { id: string; nickname: string }[];
@@ -29,6 +43,7 @@ interface DocumentUploadFormProps {
    * Maintenance -- a ticket's documents aren't always exactly that category (e.g. a compliance
    * certificate triggered by the same repair). */
   lockedContext?: LockedContext;
+  tenantContext?: TenantContext;
 }
 
 export function DocumentUploadForm({
@@ -37,10 +52,11 @@ export function DocumentUploadForm({
   categories,
   leases,
   lockedContext,
+  tenantContext,
 }: DocumentUploadFormProps) {
   const router = useRouter();
   const [propertyId, setPropertyId] = useState(
-    lockedContext?.propertyId ?? properties[0]?.id ?? '',
+    lockedContext?.propertyId ?? tenantContext?.propertyId ?? properties[0]?.id ?? '',
   );
   const [categoryId, setCategoryId] = useState(categories[0]?.id ?? '');
   const [documentType, setDocumentType] = useState<DocumentType>('supporting_document');
@@ -71,6 +87,10 @@ export function DocumentUploadForm({
         form.set('maintenanceTicketId', lockedContext.maintenanceTicketId);
         if (lockedContext.unitId) form.set('unitId', lockedContext.unitId);
       }
+      if (tenantContext) {
+        form.set('tenantId', tenantContext.tenantId);
+        if (tenantContext.unitId) form.set('unitId', tenantContext.unitId);
+      }
 
       const response = await fetch('/api/v1/documents', { method: 'POST', body: form });
       const body = await response.json();
@@ -88,7 +108,7 @@ export function DocumentUploadForm({
     }
   }
 
-  if (properties.length === 0 && !lockedContext) {
+  if (properties.length === 0 && !lockedContext && !tenantContext?.propertyId) {
     return (
       <div className="space-y-6 animate-rise">
         <PageHeader title="Upload document" />
@@ -118,6 +138,13 @@ export function DocumentUploadForm({
             </p>
           ) : null}
 
+          {tenantContext ? (
+            <p className="rounded-md border border-light-border bg-light-surface px-3 py-2 text-xs text-light-textSecondary dark:border-dark-border dark:bg-dark-surface dark:text-dark-textSecondary">
+              Tenant: {tenantContext.tenantName}
+              {tenantContext.propertyNickname ? ` — ${tenantContext.propertyNickname}` : ''}
+            </p>
+          ) : null}
+
           <label className="block text-xs">
             <span className="text-light-textMuted dark:text-dark-textMuted">
               File (PDF, JPEG, PNG, or HEIC, up to 25MB)
@@ -136,11 +163,11 @@ export function DocumentUploadForm({
             ) : null}
           </label>
 
-          {lockedContext ? (
+          {lockedContext || tenantContext?.propertyId ? (
             <p className="block text-xs">
               <span className="text-light-textMuted dark:text-dark-textMuted">Property</span>
               <span className="mt-1 block text-sm text-light-textPrimary dark:text-dark-textPrimary">
-                {lockedContext.propertyNickname}
+                {lockedContext?.propertyNickname ?? tenantContext?.propertyNickname}
               </span>
             </p>
           ) : (

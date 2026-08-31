@@ -134,6 +134,12 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   if (parsed.data.supportEmail !== undefined) patch.support_email = parsed.data.supportEmail;
   if (parsed.data.communicationFooter !== undefined)
     patch.communication_footer = parsed.data.communicationFooter;
+  if (parsed.data.invoiceAddress !== undefined) patch.invoice_address = parsed.data.invoiceAddress;
+  if (parsed.data.invoicePaymentInstructions !== undefined)
+    patch.invoice_payment_instructions = parsed.data.invoicePaymentInstructions;
+  if (parsed.data.invoiceNotesDefault !== undefined)
+    patch.invoice_notes_default = parsed.data.invoiceNotesDefault;
+  if (parsed.data.invoiceFooter !== undefined) patch.invoice_footer = parsed.data.invoiceFooter;
 
   const { data, error } = await supabase
     .from('organizations')

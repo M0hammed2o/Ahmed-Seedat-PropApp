@@ -25,6 +25,9 @@ export default async function EditTenantPage({ params }: RouteParams) {
           phone: '+27 82 555 0134',
           idNumberRef: null,
           status: 'active',
+          emergencyContactName: null,
+          emergencyContactPhone: null,
+          emergencyContactRelationship: null,
           createdAt: '2026-06-05T00:00:00Z',
           updatedAt: '2026-06-05T00:00:00Z',
         }}

@@ -1,6 +1,9 @@
 import Link from 'next/link';
 import type { Organization } from '@propvault/types';
-import { OrganizationSettingsForm } from '@/components/organizations/OrganizationSettingsForm';
+import {
+  OrganizationSettingsForm,
+  InvoiceSettingsForm,
+} from '@/components/organizations/OrganizationSettingsForm';
 import { CommunicationPreferencesPanel } from '@/components/organizations/CommunicationPreferencesPanel';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { PermissionDenied } from '@/components/ui/PermissionDenied';
@@ -27,6 +30,10 @@ const DEMO_ORGANIZATION: Organization = {
   supportPhone: '+27000000000',
   supportEmail: 'support@example.com',
   communicationFooter: null,
+  invoiceAddress: null,
+  invoicePaymentInstructions: null,
+  invoiceNotesDefault: null,
+  invoiceFooter: null,
   status: 'active',
   trialEndsAt: null,
   createdAt: '2026-01-01T00:00:00Z',
@@ -45,6 +52,7 @@ export default async function OrganizationSettingsPage() {
       <div className="space-y-5 animate-rise">
         <PageHeader title="Organization settings" />
         <OrganizationSettingsForm organization={DEMO_ORGANIZATION} />
+        <InvoiceSettingsForm organization={DEMO_ORGANIZATION} />
         <p className="text-sm text-light-textSecondary dark:text-dark-textSecondary">
           Communication branding and channel preferences aren&apos;t available in demo mode.
         </p>
@@ -92,6 +100,7 @@ export default async function OrganizationSettingsPage() {
         subtitle="Registration, tax, and trust-account details."
       />
       <OrganizationSettingsForm organization={mapOrganizationRow(data)} />
+      <InvoiceSettingsForm organization={mapOrganizationRow(data)} />
       <CommunicationPreferencesPanel
         orgId={activeOrg.orgId}
         organization={mapOrganizationRow(data)}

@@ -32,6 +32,10 @@ const DEMO_ORGANIZATION: Organization = {
   supportPhone: null,
   supportEmail: null,
   communicationFooter: null,
+  invoiceAddress: null,
+  invoicePaymentInstructions: null,
+  invoiceNotesDefault: null,
+  invoiceFooter: null,
   status: 'trial',
   trialEndsAt: new Date(Date.now() + 20 * 24 * 60 * 60 * 1000).toISOString(),
   createdAt: '2026-01-01T00:00:00Z',
@@ -110,6 +114,7 @@ export default async function OrganizationBillingPage() {
           payments={[]}
           invoices={[]}
           paymentMethod={null}
+          hasProviderSubscriptionToken={false}
           capacitySummary={DEMO_CAPACITY_SUMMARY}
         />
       </div>
@@ -169,7 +174,9 @@ export default async function OrganizationBillingPage() {
       .limit(50),
     supabase
       .from('subscription_invoices')
-      .select('*, plans!subscription_invoices_plan_id_fkey(name)')
+      .select(
+        '*, plans!subscription_invoices_plan_id_fkey(name), subscription_payments!subscription_invoices_subscription_payment_id_fkey(purpose)',
+      )
       .eq('org_id', activeOrg.orgId)
       .order('issued_at', { ascending: false })
       .limit(50),
@@ -246,6 +253,7 @@ export default async function OrganizationBillingPage() {
     amount: Number(row.amount),
     currency: row.currency,
     status: row.status,
+    purpose: row.purpose,
     paidAt: row.paid_at,
     createdAt: row.created_at,
   }));
@@ -254,6 +262,12 @@ export default async function OrganizationBillingPage() {
     id: row.id,
     invoiceNumber: row.invoice_number,
     invoiceType: row.invoice_type,
+    // Overnight V1 completion pass, Part E: the R5 once-off card-verification charge is an org's
+    // very first subscription_payments row, so create_subscription_invoice_for_payment() (migration
+    // 20260101000108) labels its invoice invoice_type='new_subscription' the same as a genuine
+    // first paid subscription -- paymentPurpose is the only real signal that distinguishes them.
+    paymentPurpose:
+      (row.subscription_payments as { purpose: string } | null)?.purpose ?? null,
     planName: (row.plans as { name: string } | null)?.name ?? null,
     total: Number(row.total),
     currency: row.currency,
@@ -324,6 +338,7 @@ export default async function OrganizationBillingPage() {
         payments={payments}
         invoices={invoices}
         paymentMethod={paymentMethod}
+        hasProviderSubscriptionToken={Boolean(subRow?.provider_subscription_token)}
         capacitySummary={capacitySummary}
       />
     </div>

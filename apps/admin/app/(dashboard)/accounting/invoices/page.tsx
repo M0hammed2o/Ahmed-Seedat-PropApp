@@ -1,4 +1,6 @@
+import Link from 'next/link';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Button } from '@/components/ui/Button';
 import { AdminMetricCard } from '@/components/ui/AdminMetricCard';
 import { InvoicesClient } from '@/components/accounting/InvoicesClient';
 import type { InvoiceRow } from '@/components/accounting/InvoicesTable';
@@ -55,6 +57,15 @@ export default async function InvoicesPage() {
       <PageHeader
         title="Invoices"
         subtitle="Rent invoices issued to your tenants -- separate from your own Proplyst subscription invoices, which live under Organisation -> Billing."
+        actions={
+          canSend ? (
+            <Link href="/accounting/invoices/new">
+              <Button variant="primary" size="sm">
+                + Create invoice
+              </Button>
+            </Link>
+          ) : undefined
+        }
       />
 
       {invoices.length > 0 ? (
@@ -102,6 +113,19 @@ async function loadInvoices(): Promise<InvoiceRow[]> {
     .from('rent_schedules')
     .select('id, lease_id, due_date, status')
     .in('lease_id', leaseIds);
+
+  // Overnight V1 completion pass, Part B: manual invoices (source='manual') have no rent_schedule
+  // at all -- their "paid" total comes from invoice_payments instead, a deliberately separate
+  // ledger from bank_transactions/cash_receipts (see migration 20260101000152's own comment).
+  const manualInvoiceIds = invoiceRows.filter((r) => r.source === 'manual').map((r) => r.id);
+  const { data: manualPayments } =
+    manualInvoiceIds.length > 0
+      ? await supabase.from('invoice_payments').select('invoice_id, amount').in('invoice_id', manualInvoiceIds)
+      : { data: [] as { invoice_id: string; amount: number }[] };
+  const paidByInvoiceId = new Map<string, number>();
+  for (const p of manualPayments ?? []) {
+    paidByInvoiceId.set(p.invoice_id, (paidByInvoiceId.get(p.invoice_id) ?? 0) + Number(p.amount));
+  }
 
   // Authoritative link (invoice_rent_schedule(), migration 20260101000038): the invoice's own
   // (lease_id, period) is set from the source rent_schedule's (lease_id, due_date) at issuance
@@ -151,8 +175,9 @@ async function loadInvoices(): Promise<InvoiceRow[]> {
     const property = unit?.properties;
     const tenant = row.tenants as unknown as { full_name: string } | null;
 
-    const schedule = scheduleByLeasePeriod.get(`${row.lease_id}:${row.period}`);
-    const paid = schedule ? (paidByScheduleId.get(schedule.id) ?? 0) : 0;
+    const isManual = row.source === 'manual';
+    const schedule = isManual ? undefined : scheduleByLeasePeriod.get(`${row.lease_id}:${row.period}`);
+    const paid = isManual ? (paidByInvoiceId.get(row.id) ?? 0) : schedule ? (paidByScheduleId.get(schedule.id) ?? 0) : 0;
     const amount = Number(row.amount);
     const balance = Math.max(0, amount - paid);
 
@@ -161,9 +186,13 @@ async function loadInvoices(): Promise<InvoiceRow[]> {
       balance,
       paid,
       scheduleStatus: schedule?.status,
+      dueDate: isManual ? row.period : undefined,
     });
 
     const periodDate = new Date(row.period);
+    const description = isManual
+      ? (row.description ?? 'Manual invoice')
+      : `${periodDate.toLocaleDateString('en-ZA', { month: 'long', year: 'numeric' })} Rent`;
 
     return {
       id: row.id,
@@ -174,7 +203,7 @@ async function loadInvoices(): Promise<InvoiceRow[]> {
       propertyNickname: property?.nickname ?? '—',
       unitId: lease?.unit_id ?? '',
       unitLabel: unit?.unit_label ?? '—',
-      description: `${periodDate.toLocaleDateString('en-ZA', { month: 'long', year: 'numeric' })} Rent`,
+      description,
       period: row.period,
       issuedAt: row.issued_at,
       amount,

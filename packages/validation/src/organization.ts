@@ -86,5 +86,10 @@ export const organizationUpdateSchema = z.object({
   supportPhone: z.string().max(30).optional().nullable(),
   supportEmail: z.string().email('Enter a valid email address').optional().nullable(),
   communicationFooter: z.string().max(500).optional().nullable(),
+  // Final hardening pass, "Organisation invoice settings" (migration 154).
+  invoiceAddress: z.string().max(500).optional().nullable(),
+  invoicePaymentInstructions: z.string().max(1000).optional().nullable(),
+  invoiceNotesDefault: z.string().max(1000).optional().nullable(),
+  invoiceFooter: z.string().max(500).optional().nullable(),
 });
 export type OrganizationUpdateInput = z.infer<typeof organizationUpdateSchema>;

@@ -171,6 +171,30 @@ export async function runSubscriptionLifecycleJob(
 }
 
 // ============================================================
+// 1b. Stale checkout expiry (final hardening pass, "Payment history UX")
+// ============================================================
+export interface StaleCheckoutExpiryJobResult {
+  expired: number;
+}
+
+/**
+ * expire_stale_subscription_checkouts() (migration 155) -- a plain hygiene sweep, not a
+ * customer-facing lifecycle event, so unlike runSubscriptionLifecycleJob() above this never
+ * writes an audit_events row or sends email: no billing outcome changed, only the display
+ * classification of an already-abandoned checkout attempt. Idempotent (only ever moves
+ * status='pending' rows past the age threshold; a row already 'expired' is never matched again).
+ */
+export async function runStaleCheckoutExpiryJob(
+  serviceClient: SupabaseClient,
+): Promise<StaleCheckoutExpiryJobResult> {
+  const { data, error } = await serviceClient.rpc('expire_stale_subscription_checkouts', {
+    p_max_age_hours: 24,
+  });
+  if (error) throw new Error(error.message);
+  return { expired: (data as number) ?? 0 };
+}
+
+// ============================================================
 // 2. Rent schedule generation
 // ============================================================
 export interface RentScheduleJobResult {

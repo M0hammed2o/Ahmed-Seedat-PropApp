@@ -21,7 +21,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
   const { data: invoice, error } = await serviceClient
     .from('subscription_invoices')
     .select(
-      '*, plans!subscription_invoices_plan_id_fkey(name, base_price), organizations!subscription_invoices_org_id_fkey(legal_name, trading_name), subscription_payments!subscription_invoices_subscription_payment_id_fkey(provider_reference)',
+      '*, plans!subscription_invoices_plan_id_fkey(name, base_price), organizations!subscription_invoices_org_id_fkey(legal_name, trading_name), subscription_payments!subscription_invoices_subscription_payment_id_fkey(provider_reference, purpose)',
     )
     .eq('id', invoiceId)
     .eq('org_id', orgId)
@@ -51,7 +51,9 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 
   const plan = invoice.plans as { name: string; base_price: number } | null;
   const org = invoice.organizations as { legal_name: string; trading_name: string | null } | null;
-  const payment = invoice.subscription_payments as { provider_reference: string | null } | null;
+  const payment = invoice.subscription_payments as
+    | { provider_reference: string | null; purpose: string | null }
+    | null;
 
   const pdfBuffer = await renderSubscriptionInvoicePdf({
     invoiceNumber: invoice.invoice_number,
@@ -73,6 +75,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
         ? (plan?.base_price ?? null)
         : null,
     paymentReference: payment?.provider_reference ?? null,
+    paymentPurpose: payment?.purpose ?? null,
   });
 
   return new NextResponse(new Uint8Array(pdfBuffer), {

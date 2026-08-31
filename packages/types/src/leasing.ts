@@ -26,6 +26,9 @@ export interface Tenant {
   /** Pointer into `encrypted_secrets` (DATABASE.md §11) -- never a plaintext ID number. */
   idNumberRef: string | null;
   status: TenantStatus;
+  emergencyContactName: string | null;
+  emergencyContactPhone: string | null;
+  emergencyContactRelationship: string | null;
   createdAt: string;
   updatedAt: string;
 }

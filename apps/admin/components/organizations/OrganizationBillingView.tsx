@@ -18,6 +18,7 @@ export interface SubscriptionPaymentSummary {
   amount: number;
   currency: string;
   status: string;
+  purpose: string;
   paidAt: string | null;
   createdAt: string;
 }
@@ -26,6 +27,10 @@ export interface SubscriptionInvoiceSummary {
   id: string;
   invoiceNumber: string;
   invoiceType: 'new_subscription' | 'renewal' | 'upgrade' | 'reactivation';
+  /** Overnight V1 completion pass, Part E: the underlying subscription_payments row's own
+   * purpose -- 'trial_activation' is the R5 once-off card-verification fee, never a real
+   * subscription charge, even though it shares invoice_type='new_subscription'. */
+  paymentPurpose: string | null;
   planName: string | null;
   total: number;
   currency: string;
@@ -53,6 +58,14 @@ interface Props {
   payments: SubscriptionPaymentSummary[];
   invoices: SubscriptionInvoiceSummary[];
   paymentMethod: PaymentMethodSummary | null;
+  /** Overnight V1 completion pass, Part D: true when organization_subscriptions has a real
+   * provider_subscription_token (a recurring PayFast token exists) but no payment_methods row
+   * was ever persisted for it -- true for the small number of historical diagnostic accounts that
+   * predate the normal trial_activation persistence path (see billing.ts's persistPaymentMethod(),
+   * only ever called for purpose='trial_activation'/'payment_method_update', never
+   * 'subscription_charge', which is what those diagnostics used). Never the raw token itself --
+   * only its presence, so nothing sensitive reaches the client. */
+  hasProviderSubscriptionToken: boolean;
   capacitySummary: CapacitySummary;
 }
 
@@ -96,6 +109,31 @@ const INVOICE_TYPE_LABELS: Record<SubscriptionInvoiceSummary['invoiceType'], str
   reactivation: 'Reactivation',
 };
 
+// Overnight V1 completion pass, Part E: "R5.00 paid — Professional (New subscription)" reads as a
+// real subscription charge to a customer, when it was actually the once-off R5 card-verification
+// fee taken before the trial even starts. paymentPurpose is the only field that tells the two
+// apart (see SubscriptionInvoiceSummary's own comment).
+function invoiceTypeLabel(invoice: SubscriptionInvoiceSummary): string {
+  if (invoice.invoiceType === 'new_subscription' && invoice.paymentPurpose === 'trial_activation') {
+    return 'Card verification fee';
+  }
+  return INVOICE_TYPE_LABELS[invoice.invoiceType];
+}
+
+// Final hardening pass, "Payment history UX" (Part F): completed financial events (paid/refunded)
+// and abandoned/in-flight verification attempts (pending/failed/expired) are shown as two
+// separate lists -- a failed R1 test charge or a stale pending checkout is not the same kind of
+// thing as money that actually moved, and mixing them read as clutter/confusion in the original
+// screenshot report. Nothing is ever deleted -- expired/failed rows still show, just in the
+// secondary list.
+const COMPLETED_PAYMENT_STATUSES = new Set(['paid', 'refunded']);
+
+function paymentDescription(payment: SubscriptionPaymentSummary): string {
+  if (payment.purpose === 'trial_activation') return 'Card verification fee';
+  if (payment.purpose === 'payment_method_update') return 'Card verification';
+  return 'Subscription charge';
+}
+
 export function OrganizationBillingView({
   organization,
   plans,
@@ -103,6 +141,7 @@ export function OrganizationBillingView({
   payments,
   invoices,
   paymentMethod,
+  hasProviderSubscriptionToken,
   capacitySummary,
 }: Props) {
   const router = useRouter();
@@ -118,6 +157,12 @@ export function OrganizationBillingView({
   const [restoring, setRestoring] = useState(false);
   const [restoreNotice, setRestoreNotice] = useState<string | null>(null);
   const [addonBusy, setAddonBusy] = useState<'property' | 'owner' | null>(null);
+  // Final hardening pass, "Monthly/Annual billing UX" -- defaults to the org's own current
+  // billing cycle when subscribed (so an annual customer sees annual plans first, not monthly),
+  // else monthly.
+  const [billingCycleView, setBillingCycleView] = useState<'monthly' | 'annual'>(
+    subscription?.billingCycle === 'annual' ? 'annual' : 'monthly',
+  );
 
   /** React #418 fix (WORKLOG.md this date): daysUntil() reads Date.now(), and organization is a
    *  server-fetched prop present on the very first render -- SSR and the client's hydration pass
@@ -392,6 +437,23 @@ export function OrganizationBillingView({
 
   const quotedPlan = quote ? plans.find((p) => p.id === quote.targetPlanId) : null;
 
+  // Derived from the authoritative plans table, never hardcoded -- a monthly/annual pair sharing
+  // the same plan name (e.g. both "Professional") gives the real discount percentage; every tier
+  // uses the same discount by design, so any one matched pair is representative for the toggle
+  // label. Falls back to a plain "Annual" label (no percentage claimed) if no pair can be matched.
+  const visiblePlans = plans.filter((p) => p.billingCycle === billingCycleView);
+  const completedPayments = payments.filter((p) => COMPLETED_PAYMENT_STATUSES.has(p.status));
+  const attemptedPayments = payments.filter((p) => !COMPLETED_PAYMENT_STATUSES.has(p.status));
+  const annualDiscountPct = (() => {
+    const monthly = plans.find((p) => p.billingCycle === 'monthly');
+    const annualMatch = monthly
+      ? plans.find((p) => p.billingCycle === 'annual' && p.name === monthly.name)
+      : undefined;
+    if (!monthly || !annualMatch) return null;
+    const monthlyEquivalent = annualMatch.basePrice / 12;
+    return Math.round((1 - monthlyEquivalent / monthly.basePrice) * 100);
+  })();
+
   return (
     <div className="space-y-5">
       {error ? (
@@ -469,6 +531,10 @@ export function OrganizationBillingView({
                 {mounted
                   ? ` — updated ${new Date(paymentMethod.updatedAt).toLocaleDateString('en-ZA')}`
                   : ''}
+              </p>
+            ) : hasProviderSubscriptionToken ? (
+              <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
+                Recurring card registered with PayFast.
               </p>
             ) : (
               <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
@@ -572,11 +638,37 @@ export function OrganizationBillingView({
       ) : null}
 
       <Panel>
-        <h3 className="mb-3 text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
-          {currentPlan ? 'Change plan' : 'Choose a plan'}
-        </h3>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+            {currentPlan ? 'Change plan' : 'Choose a plan'}
+          </h3>
+          <div className="inline-flex rounded-xl border border-light-border p-0.5 dark:border-dark-border">
+            <button
+              type="button"
+              onClick={() => setBillingCycleView('monthly')}
+              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                billingCycleView === 'monthly'
+                  ? 'bg-light-accent text-white dark:bg-dark-accent'
+                  : 'text-light-textSecondary dark:text-dark-textSecondary'
+              }`}
+            >
+              Monthly
+            </button>
+            <button
+              type="button"
+              onClick={() => setBillingCycleView('annual')}
+              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                billingCycleView === 'annual'
+                  ? 'bg-light-accent text-white dark:bg-dark-accent'
+                  : 'text-light-textSecondary dark:text-dark-textSecondary'
+              }`}
+            >
+              Annual{annualDiscountPct ? ` — Save ${annualDiscountPct}%` : ''}
+            </button>
+          </div>
+        </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {plans.map((plan) => {
+          {visiblePlans.map((plan) => {
             const isCurrent =
               currentPlan?.id === plan.id &&
               organization.status !== 'suspended' &&
@@ -592,13 +684,23 @@ export function OrganizationBillingView({
               >
                 <p className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
                   {plan.name}
+                  {isCurrent ? (
+                    <span className="ml-2 text-[11px] font-normal text-light-accent dark:text-dark-accent">
+                      Current plan · {billingCycleView === 'annual' ? 'Annual' : 'Monthly'} billing
+                    </span>
+                  ) : null}
                 </p>
                 <p className="mt-1 text-lg font-bold text-light-textPrimary dark:text-dark-textPrimary">
                   {formatMoney(plan.basePrice, plan.currency)}
                   <span className="text-xs font-normal text-light-textMuted dark:text-dark-textMuted">
-                    /month
+                    /{plan.billingCycle === 'annual' ? 'year' : 'month'}
                   </span>
                 </p>
+                {plan.billingCycle === 'annual' ? (
+                  <p className="text-xs text-light-textMuted dark:text-dark-textMuted">
+                    ≈ {formatMoney(plan.basePrice / 12, plan.currency)}/month
+                  </p>
+                ) : null}
                 <Button
                   className="mt-3 w-full"
                   variant={isCurrent ? 'secondary' : 'primary'}
@@ -638,7 +740,8 @@ export function OrganizationBillingView({
                   From {new Date(quote.effectiveAt).toLocaleDateString('en-ZA')}
                 </dt>
                 <dd className="text-right text-light-textPrimary dark:text-dark-textPrimary">
-                  {formatMoney(quote.nextRenewalAmount, quote.currency)}/month
+                  {formatMoney(quote.nextRenewalAmount, quote.currency)}/
+                  {quotedPlan.billingCycle === 'annual' ? 'year' : 'month'}
                 </dd>
               </>
             ) : null}
@@ -690,12 +793,18 @@ export function OrganizationBillingView({
         <h3 className="px-4 pt-4 text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
           Payment history
         </h3>
+        <p className="px-4 pb-1 pt-1 text-xs text-light-textMuted dark:text-dark-textMuted">
+          Completed financial events -- money actually paid or refunded.
+        </p>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-light-border bg-light-surfaceStrong dark:border-dark-border dark:bg-dark-surfaceStrong">
               <tr>
                 <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
                   Date
+                </th>
+                <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                  Description
                 </th>
                 <th className="px-4 py-3 text-right font-medium text-light-textSecondary dark:text-dark-textSecondary">
                   Amount
@@ -706,23 +815,26 @@ export function OrganizationBillingView({
               </tr>
             </thead>
             <tbody>
-              {payments.length === 0 ? (
+              {completedPayments.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={3}
+                    colSpan={4}
                     className="px-4 py-6 text-center text-light-textMuted dark:text-dark-textMuted"
                   >
                     No payments yet.
                   </td>
                 </tr>
               ) : (
-                payments.map((payment) => (
+                completedPayments.map((payment) => (
                   <tr
                     key={payment.id}
                     className="border-b border-light-border last:border-b-0 dark:border-dark-border"
                   >
                     <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">
                       {new Date(payment.paidAt ?? payment.createdAt).toLocaleDateString('en-ZA')}
+                    </td>
+                    <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">
+                      {paymentDescription(payment)}
                     </td>
                     <td className="px-4 py-3 text-right text-light-textPrimary dark:text-dark-textPrimary">
                       {formatMoney(payment.amount, payment.currency)}
@@ -737,6 +849,58 @@ export function OrganizationBillingView({
           </table>
         </div>
       </Panel>
+
+      {attemptedPayments.length > 0 ? (
+        <Panel bodyClassName="p-0">
+          <h3 className="px-4 pt-4 text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+            Payment attempts
+          </h3>
+          <p className="px-4 pb-1 pt-1 text-xs text-light-textMuted dark:text-dark-textMuted">
+            Pending, failed, or expired verification attempts -- not money paid.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-light-border bg-light-surfaceStrong dark:border-dark-border dark:bg-dark-surfaceStrong">
+                <tr>
+                  <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                    Date
+                  </th>
+                  <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                    Description
+                  </th>
+                  <th className="px-4 py-3 text-right font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                    Amount
+                  </th>
+                  <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                    Status
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {attemptedPayments.map((payment) => (
+                  <tr
+                    key={payment.id}
+                    className="border-b border-light-border last:border-b-0 dark:border-dark-border"
+                  >
+                    <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">
+                      {new Date(payment.createdAt).toLocaleDateString('en-ZA')}
+                    </td>
+                    <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">
+                      {paymentDescription(payment)}
+                    </td>
+                    <td className="px-4 py-3 text-right text-light-textPrimary dark:text-dark-textPrimary">
+                      {formatMoney(payment.amount, payment.currency)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Pill tone={statusTone(payment.status)}>{payment.status}</Pill>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+      ) : null}
 
       <Panel bodyClassName="p-0">
         <h3 className="px-4 pt-4 text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
@@ -789,9 +953,9 @@ export function OrganizationBillingView({
                       {new Date(invoice.issuedAt).toLocaleDateString('en-ZA')}
                     </td>
                     <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">
-                      {invoice.planName ?? '—'}{' '}
+                      {invoice.paymentPurpose === 'trial_activation' ? 'Card verification' : (invoice.planName ?? '—')}{' '}
                       <span className="text-xs text-light-textMuted dark:text-dark-textMuted">
-                        ({INVOICE_TYPE_LABELS[invoice.invoiceType]})
+                        ({invoiceTypeLabel(invoice)})
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right text-light-textPrimary dark:text-dark-textPrimary">

@@ -18,6 +18,10 @@ interface FormState {
   ffcNumber: string;
   ffcIssued: string;
   ffcExpires: string;
+  invoiceAddress: string;
+  invoicePaymentInstructions: string;
+  invoiceNotesDefault: string;
+  invoiceFooter: string;
 }
 
 function toFormState(org: Organization): FormState {
@@ -33,6 +37,10 @@ function toFormState(org: Organization): FormState {
     ffcNumber: org.ffcNumber ?? '',
     ffcIssued: org.ffcIssued ?? '',
     ffcExpires: org.ffcExpires ?? '',
+    invoiceAddress: org.invoiceAddress ?? '',
+    invoicePaymentInstructions: org.invoicePaymentInstructions ?? '',
+    invoiceNotesDefault: org.invoiceNotesDefault ?? '',
+    invoiceFooter: org.invoiceFooter ?? '',
   };
 }
 
@@ -75,6 +83,10 @@ export function OrganizationSettingsForm({ organization }: { organization: Organ
           ffcNumber: form.ffcNumber || null,
           ffcIssued: form.ffcIssued || null,
           ffcExpires: form.ffcExpires || null,
+          invoiceAddress: form.invoiceAddress || null,
+          invoicePaymentInstructions: form.invoicePaymentInstructions || null,
+          invoiceNotesDefault: form.invoiceNotesDefault || null,
+          invoiceFooter: form.invoiceFooter || null,
         }),
       });
       const body = await response.json();
@@ -194,6 +206,118 @@ export function OrganizationSettingsForm({ organization }: { organization: Organ
 
         <Button type="submit" variant="primary" disabled={submitting}>
           {submitting ? 'Saving…' : 'Save changes'}
+        </Button>
+      </form>
+    </Panel>
+  );
+}
+
+/** Overnight V1 completion pass, "Organisation invoice settings" -- what a tenant invoice PDF
+ * shows beyond the registration/VAT/contact fields already covered above (reused as-is, not
+ * duplicated). A separate panel/form so saving invoice defaults doesn't also resubmit the org's
+ * legal fields, and so its own field errors stay scoped to this section. */
+export function InvoiceSettingsForm({ organization }: { organization: Organization }) {
+  const router = useRouter();
+  const [form, setForm] = useState({
+    invoiceAddress: organization.invoiceAddress ?? '',
+    invoicePaymentInstructions: organization.invoicePaymentInstructions ?? '',
+    invoiceNotesDefault: organization.invoiceNotesDefault ?? '',
+    invoiceFooter: organization.invoiceFooter ?? '',
+  });
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+    setSaved(false);
+  }
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    setFieldErrors({});
+    setSaved(false);
+    try {
+      const response = await fetch(`/api/v1/organizations/${organization.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          invoiceAddress: form.invoiceAddress || null,
+          invoicePaymentInstructions: form.invoicePaymentInstructions || null,
+          invoiceNotesDefault: form.invoiceNotesDefault || null,
+          invoiceFooter: form.invoiceFooter || null,
+        }),
+      });
+      const body = await response.json();
+      if (!response.ok) {
+        setFieldErrors(body.error?.field_errors ?? {});
+        setError(body.error?.message ?? 'Failed to save invoice settings.');
+        return;
+      }
+      setSaved(true);
+      router.refresh();
+    } catch {
+      setError('Failed to save — check your connection and try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Panel className="max-w-2xl" title="Invoice settings">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <p className="text-xs text-light-textMuted dark:text-dark-textMuted">
+          Shown on tenant invoice PDFs (Accounting → Invoices), alongside your legal name,
+          registration and VAT numbers above. Changing these does not alter invoices already
+          issued.
+        </p>
+        {error ? (
+          <p className="rounded-md border border-light-danger bg-light-danger/10 px-3 py-2 text-xs text-light-danger dark:border-dark-danger dark:bg-dark-danger/10 dark:text-dark-danger">
+            {error}
+          </p>
+        ) : null}
+        {saved ? (
+          <p className="text-xs text-light-statusPaid dark:text-dark-statusPaid">Saved.</p>
+        ) : null}
+
+        <Field label="Invoice address" error={fieldErrors.invoiceAddress}>
+          <textarea
+            rows={2}
+            value={form.invoiceAddress}
+            onChange={(e) => set('invoiceAddress', e.target.value)}
+            className={inputClass}
+          />
+        </Field>
+        <Field label="Payment instructions (bank details, reference format, etc.)" error={fieldErrors.invoicePaymentInstructions}>
+          <textarea
+            rows={3}
+            value={form.invoicePaymentInstructions}
+            onChange={(e) => set('invoicePaymentInstructions', e.target.value)}
+            className={inputClass}
+          />
+        </Field>
+        <Field label="Default notes for new manual invoices (optional, can still be edited per invoice)" error={fieldErrors.invoiceNotesDefault}>
+          <textarea
+            rows={2}
+            value={form.invoiceNotesDefault}
+            onChange={(e) => set('invoiceNotesDefault', e.target.value)}
+            className={inputClass}
+          />
+        </Field>
+        <Field label="Invoice footer" error={fieldErrors.invoiceFooter}>
+          <textarea
+            rows={2}
+            value={form.invoiceFooter}
+            onChange={(e) => set('invoiceFooter', e.target.value)}
+            className={inputClass}
+          />
+        </Field>
+
+        <Button type="submit" variant="primary" disabled={submitting}>
+          {submitting ? 'Saving…' : 'Save invoice settings'}
         </Button>
       </form>
     </Panel>
