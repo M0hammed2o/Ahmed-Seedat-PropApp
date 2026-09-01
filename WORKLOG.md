@@ -85,9 +85,52 @@ asserts the resolved Supabase host is genuinely local before starting anything).
   pgTAP suite, already green.
 - TypeScript, ESLint, `git diff --check`: clean. Production build: green.
 
-**Release:** commit `<filled in at commit time>` pushed to `main`.
-**Production:** migration head verification, backup, and controlled deployment tracked separately
-below/in the next entry -- not yet executed as of this entry.
+**Release:** commit `48f63bb4071e202a0228d337a4cca19fc51ea352` (pre-release HEAD
+`f32e209cf27dd96e3808af84036baeba26e15a74`) pushed to `main`, confirmed matching on `origin/main`.
+
+**Production deployment, executed and verified this pass:**
+- Backup taken first (`.production-backups/release-158-162-20260901T110955Z/` -- schema.sql,
+  data.sql, full-schema-public-auth-storage.sql, sha256 checksums, gitignored, never committed),
+  matching the exact process two prior, previously-undocumented backups
+  (`release-148-150-.../`, `release-151-157-.../`) already established.
+- Production migration head confirmed `20260101000157` before touching anything (`supabase
+  migration list --linked`), matching the expected baseline exactly.
+- `supabase db push --linked --dry-run` confirmed exactly migrations 158-162 pending, nothing
+  else; applied for real, all 5 succeeded; head re-verified as `20260101000162`.
+- Read-only post-migration check: dumped the live production schema and confirmed
+  `invoices_select_tenant_self`'s policy text now includes `status = 'issued'` and
+  `public.invoice_payments` exists.
+- Site health: `proplyst.co.za` 200; `/login` 200; the invoice PDF route now correctly 401s
+  unauthenticated (was 500 before tonight's `serverExternalPackages` fix -- confirms the fix is
+  live in production); `/dashboard`, `/portal`, `/platform-admin`, `/accounting/invoices`,
+  `/organization/billing` all 307 (auth redirect, not a 5xx) when hit unauthenticated. A deeper,
+  logged-in smoke test was not performed -- no known safe production test-account credentials were
+  available this session, and creating one wasn't authorised ad-hoc.
+
+**Android**, verified (no source changes made this pass): the app already has extensive V1
+coverage from prior sessions (auth incl. automatic token refresh, owner Dashboard/Properties/
+Units/Tenants/Leases/Maintenance/payment review/monthly summary/notifications, tenant Maintenance
+[incl. photo attachment]/Documents/Notices [incl. read-status]/payment reporting, App Links with
+deep-link-to-subscreen resume, real branding). Talks to the backend entirely through PostgREST/
+the Next.js API -- tonight's RLS tightening (migration 162) and the malware-upload gate apply
+transparently with zero Android-side changes needed, confirming the "backend remains authoritative"
+architecture is holding. Re-verified clean: `gradlew testDebugUnitTest lintDebug assembleDebug` --
+**161/161 unit tests, 0 failures**, lint 0 errors, real APK on disk. Disclosed, still-open gaps:
+biometric re-auth declared in the manifest (`USE_BIOMETRIC`) but never wired to `BiometricPrompt`
+(grepped, zero call sites); push notifications (FCM) explicitly not built, no Firebase project;
+no release signing config (`app-release-unsigned.apk` only -- needs a real upload keystore or Play
+App Signing enrollment from Mohammed); `targetSdk 34` vs. the current latest; physical-device
+testing not performed (no device attached this session).
+
+**iOS**, audited, not built: no `apps/ios` directory, no Xcode project, no Swift/SwiftUI code
+exists anywhere in the repo. `MOBILE_ARCHITECTURE_DECISION.md` explicitly classifies iOS as
+"Missing" and mandates native Swift/SwiftUI; `apps/mobile` (Expo/React Native) is documented
+(`TECHNICAL_DEBT_REGISTER.md` TD-11) as a retained reference app for screen/field requirements,
+never the shipping iOS codebase, and was never converted. This environment (Windows, this session)
+has no Xcode, no macOS, no Swift toolchain -- hand-writing an unverifiable `.pbxproj`/Swift project
+blind, with no compiler to catch even basic errors, would produce something that could not be
+honestly claimed as correct or complete. Not attempted this pass; genuinely blocked on macOS/Xcode
+access, not on scope or effort.
 
 ## 2026-08-30 — Property editing, property/unit archive-vs-delete lifecycle, and landlord rent invoicing (V1, local only)
 
