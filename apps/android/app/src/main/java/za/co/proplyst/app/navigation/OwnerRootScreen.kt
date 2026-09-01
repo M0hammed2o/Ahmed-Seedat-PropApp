@@ -24,6 +24,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import za.co.proplyst.app.ui.account.AccountScreen
 import za.co.proplyst.app.ui.dashboard.DashboardScreen
 import za.co.proplyst.app.ui.leases.LeaseDetailScreen
 import za.co.proplyst.app.ui.leases.LeasesListScreen
@@ -172,10 +173,14 @@ fun OwnerRootScreen(pendingRoute: String? = null) {
             composable(Destinations.NOTIFICATIONS_LIST) {
                 NotificationsListScreen(
                     onSettingsClick = { navController.navigate(Destinations.NOTIFICATION_SETTINGS) },
+                    onAccountClick = { navController.navigate(Destinations.ACCOUNT) },
                 )
             }
             composable(Destinations.NOTIFICATION_SETTINGS) {
                 NotificationPreferencesScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Destinations.ACCOUNT) {
+                AccountScreen(onBack = { navController.popBackStack() })
             }
         }
     }

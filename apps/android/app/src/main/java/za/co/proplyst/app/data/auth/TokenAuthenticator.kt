@@ -32,6 +32,10 @@ import javax.inject.Singleton
 class TokenAuthenticator @Inject constructor(
     private val sessionManager: SessionManager,
     private val authApiProvider: Provider<SupabaseAuthApi>,
+    // Same lazy-Provider trick as authApiProvider above, and for the identical reason:
+    // AuthRepository transitively depends on the same OkHttpClient-derived Retrofit APIs this
+    // Authenticator is attached to, so injecting it directly would be a Dagger-rejected cycle.
+    private val authRepositoryProvider: Provider<AuthRepository>,
 ) : Authenticator {
 
     private val refreshMutex = Mutex()
@@ -68,16 +72,21 @@ class TokenAuthenticator @Inject constructor(
             .build()
     }
 
-    /** Real refresh against Supabase Auth. Returns null (and clears the local session) for any
-     * failure -- an invalid/expired refresh token, a network error, or a malformed response are
-     * all "this session cannot be recovered," never silently retried further here. */
+    /** Real refresh against Supabase Auth. Returns null (and force-signs-out locally) for an
+     * unrecoverable failure -- an invalid/expired refresh token or a malformed response mean this
+     * session cannot be recovered. `forceSignOutLocally()` (not just `sessionManager.clear()`)
+     * so `AuthState` itself flips to `Unauthenticated` immediately -- otherwise the in-memory
+     * state a currently-visible screen is observing would stay `Authenticated` until the next
+     * app restart's `restoreSession()`, even though every subsequent API call would keep 401ing
+     * (Phase 3D, "401 returns user safely to auth when recovery fails" -- RootNavGraph's
+     * top-level `authState` observer is what actually navigates back to sign-in once this fires). */
     private suspend fun performRefresh(): String? {
         val refreshToken = sessionManager.getRefreshToken() ?: return null
         return try {
             val response = authApiProvider.get().refreshSession(body = RefreshTokenRequest(refreshToken))
             val session = response.body()
             if (!response.isSuccessful || session == null) {
-                sessionManager.clear()
+                authRepositoryProvider.get().forceSignOutLocally()
                 return null
             }
             sessionManager.saveSession(session.accessToken, session.refreshToken, session.user.id)

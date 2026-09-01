@@ -24,7 +24,13 @@ import java.util.concurrent.TimeUnit
 /** Android V1 final gap-closure pass (WORKLOG.md this date), Phase 2. Real okhttp3.Response/
  * Request objects (not mocked) -- Authenticator.authenticate() is OkHttp's own contract, and the
  * behaviour under test (response chain length, header inspection) only means something against
- * real OkHttp types. */
+ * real OkHttp types.
+ *
+ * Auth/session hardening pass (WORKLOG.md this date): TokenAuthenticator now takes a third
+ * Provider<AuthRepository> (same lazy-Provider trick as authApiProvider, and for the identical
+ * cycle-breaking reason) so an unrecoverable refresh failure can flip AuthState to
+ * Unauthenticated immediately via forceSignOutLocally(), not just clear SessionManager's storage
+ * -- every TokenAuthenticator(...) construction below passes a mocked AuthRepository accordingly. */
 class TokenAuthenticatorTest {
 
     private fun request(token: String?): Request {
@@ -58,18 +64,20 @@ class TokenAuthenticatorTest {
 
         val authApi = mockk<SupabaseAuthApi>()
         coEvery { authApi.refreshSession(body = any()) } returns RetrofitResponse.success(session())
+        val authRepository = mockk<AuthRepository>(relaxed = true)
 
-        val authenticator = TokenAuthenticator(sessionManager, Provider { authApi })
+        val authenticator = TokenAuthenticator(sessionManager, Provider { authApi }, Provider { authRepository })
         val failedRequest = request("old-access-token")
 
         val result = authenticator.authenticate(null, response(failedRequest))
 
         assertEquals("Bearer new-access-token", result?.header("Authorization"))
         io.mockk.verify { sessionManager.saveSession("new-access-token", "new-refresh-token", "user-1") }
+        io.mockk.verify(exactly = 0) { authRepository.forceSignOutLocally() }
     }
 
     @Test
-    fun `refresh failure (rejected by server) clears the session and gives up`() = runTest {
+    fun `refresh failure (rejected by server) force-signs-out locally and gives up`() = runTest {
         val sessionManager = mockk<SessionManager>(relaxed = true)
         every { sessionManager.getAccessToken() } returns "old-access-token"
         every { sessionManager.getRefreshToken() } returns "old-refresh-token"
@@ -77,12 +85,16 @@ class TokenAuthenticatorTest {
         val authApi = mockk<SupabaseAuthApi>()
         coEvery { authApi.refreshSession(body = any()) } returns
             RetrofitResponse.error(401, "{}".toResponseBody(null))
+        val authRepository = mockk<AuthRepository>(relaxed = true)
 
-        val authenticator = TokenAuthenticator(sessionManager, Provider { authApi })
+        val authenticator = TokenAuthenticator(sessionManager, Provider { authApi }, Provider { authRepository })
         val result = authenticator.authenticate(null, response(request("old-access-token")))
 
         assertNull(result)
-        io.mockk.verify { sessionManager.clear() }
+        // forceSignOutLocally() (not a raw sessionManager.clear()) is what actually flips AuthState
+        // to Unauthenticated for a screen that's currently observing it -- see AuthRepository's own
+        // doc comment for why a plain SessionManager.clear() alone isn't enough here.
+        io.mockk.verify { authRepository.forceSignOutLocally() }
     }
 
     @Test
@@ -92,8 +104,9 @@ class TokenAuthenticatorTest {
         every { sessionManager.getRefreshToken() } returns null
 
         val authApi = mockk<SupabaseAuthApi>()
+        val authRepository = mockk<AuthRepository>(relaxed = true)
 
-        val authenticator = TokenAuthenticator(sessionManager, Provider { authApi })
+        val authenticator = TokenAuthenticator(sessionManager, Provider { authApi }, Provider { authRepository })
         val result = authenticator.authenticate(null, response(request("old-access-token")))
 
         assertNull(result)
@@ -104,8 +117,9 @@ class TokenAuthenticatorTest {
     fun `never retries a request that has already been retried once (no infinite loop)`() = runTest {
         val sessionManager = mockk<SessionManager>(relaxed = true)
         val authApi = mockk<SupabaseAuthApi>()
+        val authRepository = mockk<AuthRepository>(relaxed = true)
 
-        val authenticator = TokenAuthenticator(sessionManager, Provider { authApi })
+        val authenticator = TokenAuthenticator(sessionManager, Provider { authApi }, Provider { authRepository })
         // OkHttp requires a priorResponse's body to already be null (it represents an already-
         // consumed response, same constraint real redirect/auth-challenge chains have) --
         // built without .body(...), unlike every other response() in this file.
@@ -133,8 +147,9 @@ class TokenAuthenticatorTest {
         every { sessionManager.getRefreshToken() } returns "old-refresh-token"
 
         val authApi = mockk<SupabaseAuthApi>()
+        val authRepository = mockk<AuthRepository>(relaxed = true)
 
-        val authenticator = TokenAuthenticator(sessionManager, Provider { authApi })
+        val authenticator = TokenAuthenticator(sessionManager, Provider { authApi }, Provider { authRepository })
         val result = authenticator.authenticate(null, response(request("old-access-token")))
 
         assertEquals("Bearer already-refreshed-token", result?.header("Authorization"))
@@ -169,6 +184,7 @@ class TokenAuthenticatorTest {
         val sessionManager = fake.asSessionManager()
 
         val authApi = mockk<SupabaseAuthApi>()
+        val authRepository = mockk<AuthRepository>(relaxed = true)
         var refreshCallCount = 0
         coEvery { authApi.refreshSession(body = any()) } coAnswers {
             refreshCallCount++
@@ -176,7 +192,7 @@ class TokenAuthenticatorTest {
             RetrofitResponse.success(session())
         }
 
-        val authenticator = TokenAuthenticator(sessionManager, Provider { authApi })
+        val authenticator = TokenAuthenticator(sessionManager, Provider { authApi }, Provider { authRepository })
         val pool = Executors.newFixedThreadPool(2)
         val latch = CountDownLatch(2)
         repeat(2) {

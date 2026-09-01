@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -35,6 +36,7 @@ import za.co.proplyst.app.ui.common.LoadingView
 @Composable
 fun NotificationsListScreen(
     onSettingsClick: () -> Unit,
+    onAccountClick: () -> Unit,
     viewModel: NotificationsViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -44,6 +46,9 @@ fun NotificationsListScreen(
             TopAppBar(
                 title = { Text("Notifications") },
                 actions = {
+                    IconButton(onClick = onAccountClick) {
+                        Icon(Icons.Filled.AccountCircle, contentDescription = "Account")
+                    }
                     IconButton(onClick = onSettingsClick) {
                         Icon(Icons.Filled.Settings, contentDescription = "Notification settings")
                     }

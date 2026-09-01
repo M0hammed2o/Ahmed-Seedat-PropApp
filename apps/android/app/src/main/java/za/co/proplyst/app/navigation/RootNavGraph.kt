@@ -1,5 +1,7 @@
 package za.co.proplyst.app.navigation
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -7,13 +9,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import za.co.proplyst.app.data.auth.AuthState
 import za.co.proplyst.app.ui.auth.SignInScreen
 import za.co.proplyst.app.ui.auth.SplashScreen
+import za.co.proplyst.app.ui.biometric.BiometricGateViewModel
+import za.co.proplyst.app.ui.biometric.BiometricLockOverlay
 
 /**
  * Auth shell (NATIVE_ANDROID_SPEC.md "Implement the first verified Android vertical slice:
@@ -27,6 +33,8 @@ fun RootNavGraph() {
     val navController = rememberNavController()
     val authViewModel: RootAuthViewModel = hiltViewModel()
     val authState by authViewModel.authState.collectAsState()
+    val biometricGateViewModel: BiometricGateViewModel = hiltViewModel()
+    val locked by biometricGateViewModel.locked.collectAsState()
 
     // App Link resume (Android V1 last local blocker pass, WORKLOG.md this date): consumed once,
     // right when a role is actually resolved (see below) -- read here as plain composition state
@@ -39,59 +47,86 @@ fun RootNavGraph() {
         authViewModel.restoreSession()
     }
 
-    NavHost(navController = navController, startDestination = Destinations.SPLASH) {
-        composable(Destinations.SPLASH) {
-            LaunchedEffect(authState) {
-                when (val state = authState) {
-                    is AuthState.Authenticated -> {
-                        val destination = destinationForRole(state)
-                        // A pending target only ever applies to the role the caller actually
-                        // resolved to -- an OwnerScreen link opened by a tenant-only account (or
-                        // vice versa) is silently dropped here, not shown/denied with an error:
-                        // the caller still lands on their own real portal home, exactly the
-                        // "safe...correct fallback" this pass's own instruction asks for.
-                        when (val pending = authViewModel.consumePendingDeepLink()) {
-                            is AppLinkDestination.OwnerScreen ->
-                                if (destination == Destinations.OWNER_ROOT) pendingOwnerRoute = pending.route
-                            is AppLinkDestination.TenantScreen ->
-                                if (destination == Destinations.TENANT_ROOT) pendingTenantRoute = pending.route
-                            null -> Unit
+    // Session-expiry / sign-out redirect (auth/session hardening pass, WORKLOG.md this date):
+    // reacts to authState from ANYWHERE in the app, not just while SPLASH happens to be on
+    // screen -- covers both an explicit sign-out (AccountScreen) and TokenAuthenticator's own
+    // forceSignOutLocally() on an unrecoverable refresh failure, which can happen while the
+    // caller is sitting on any owner/tenant screen. Guarded to only fire when a portal is
+    // actually showing (not already on SPLASH/SIGN_IN), so this never fights with SPLASH's own
+    // first-launch routing LaunchedEffect below or double-navigates.
+    val currentRoute by navController.currentBackStackEntryAsState()
+    LaunchedEffect(authState, currentRoute) {
+        val route = currentRoute?.destination?.route
+        if (authState is AuthState.Unauthenticated && route != Destinations.SPLASH && route != Destinations.SIGN_IN) {
+            navController.navigate(Destinations.SIGN_IN) {
+                popUpTo(0) { inclusive = true }
+            }
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        NavHost(navController = navController, startDestination = Destinations.SPLASH) {
+            composable(Destinations.SPLASH) {
+                LaunchedEffect(authState) {
+                    when (val state = authState) {
+                        is AuthState.Authenticated -> {
+                            val destination = destinationForRole(state)
+                            // A pending target only ever applies to the role the caller actually
+                            // resolved to -- an OwnerScreen link opened by a tenant-only account
+                            // (or vice versa) is silently dropped here, not shown/denied with an
+                            // error: the caller still lands on their own real portal home,
+                            // exactly the "safe...correct fallback" this pass's own instruction
+                            // asks for.
+                            when (val pending = authViewModel.consumePendingDeepLink()) {
+                                is AppLinkDestination.OwnerScreen ->
+                                    if (destination == Destinations.OWNER_ROOT) pendingOwnerRoute = pending.route
+                                is AppLinkDestination.TenantScreen ->
+                                    if (destination == Destinations.TENANT_ROOT) pendingTenantRoute = pending.route
+                                null -> Unit
+                            }
+                            navController.navigate(destination) {
+                                popUpTo(Destinations.SPLASH) { inclusive = true }
+                            }
                         }
-                        navController.navigate(destination) {
+                        is AuthState.Unauthenticated -> navController.navigate(Destinations.SIGN_IN) {
                             popUpTo(Destinations.SPLASH) { inclusive = true }
                         }
+                        is AuthState.Loading -> Unit // stay on splash
                     }
-                    is AuthState.Unauthenticated -> navController.navigate(Destinations.SIGN_IN) {
-                        popUpTo(Destinations.SPLASH) { inclusive = true }
-                    }
-                    is AuthState.Loading -> Unit // stay on splash
                 }
+                SplashScreen()
             }
-            SplashScreen()
+            composable(Destinations.SIGN_IN) {
+                SignInScreen(
+                    onSignedIn = {
+                        // Real role is only known once RootAuthViewModel's authState actually
+                        // flips to Authenticated (signIn() already fetched both memberships and
+                        // tenancies) -- re-navigating through SPLASH re-runs the LaunchedEffect
+                        // above with that real state, rather than guessing OWNER_ROOT here and
+                        // potentially routing a tenant-only account to a portal with zero
+                        // organizations to show. The pending deep link (if any) survives this hop
+                        // unread -- it's still sitting in PendingDeepLinkStore, consumed only once
+                        // SPLASH's LaunchedEffect re-runs with a real Authenticated state, i.e.
+                        // "unauthenticated -> retain pending destination -> sign in -> resume
+                        // destination" end to end.
+                        navController.navigate(Destinations.SPLASH) {
+                            popUpTo(Destinations.SIGN_IN) { inclusive = true }
+                        }
+                    },
+                )
+            }
+            composable(Destinations.OWNER_ROOT) {
+                OwnerRootScreen(pendingRoute = pendingOwnerRoute)
+            }
+            composable(Destinations.TENANT_ROOT) {
+                TenantRootScreen(pendingRoute = pendingTenantRoute)
+            }
         }
-        composable(Destinations.SIGN_IN) {
-            SignInScreen(
-                onSignedIn = {
-                    // Real role is only known once RootAuthViewModel's authState actually flips to
-                    // Authenticated (signIn() already fetched both memberships and tenancies) --
-                    // re-navigating through SPLASH re-runs the LaunchedEffect above with that real
-                    // state, rather than guessing OWNER_ROOT here and potentially routing a
-                    // tenant-only account to a portal with zero organizations to show. The pending
-                    // deep link (if any) survives this hop unread -- it's still sitting in
-                    // PendingDeepLinkStore, consumed only once SPLASH's LaunchedEffect re-runs
-                    // with a real Authenticated state, i.e. "unauthenticated -> retain pending
-                    // destination -> sign in -> resume destination" end to end.
-                    navController.navigate(Destinations.SPLASH) {
-                        popUpTo(Destinations.SIGN_IN) { inclusive = true }
-                    }
-                },
-            )
-        }
-        composable(Destinations.OWNER_ROOT) {
-            OwnerRootScreen(pendingRoute = pendingOwnerRoute)
-        }
-        composable(Destinations.TENANT_ROOT) {
-            TenantRootScreen(pendingRoute = pendingTenantRoute)
+        // Biometric app-lock (NATIVE_ANDROID_SPEC.md §12) -- only ever shown once a real portal
+        // is authenticated (never gates SPLASH/SIGN_IN themselves, which would be pointless --
+        // there is nothing behind them yet to protect).
+        if (locked && authState is AuthState.Authenticated) {
+            BiometricLockOverlay(onUnlocked = biometricGateViewModel::unlock)
         }
     }
 }

@@ -73,6 +73,10 @@ class SupabaseAuthRepository @Inject constructor(
             // actually matters for this device; a failed network call here must never block
             // sign-out.
         }
+        forceSignOutLocally()
+    }
+
+    override fun forceSignOutLocally() {
         sessionManager.clear()
         _authState.value = AuthState.Unauthenticated
     }

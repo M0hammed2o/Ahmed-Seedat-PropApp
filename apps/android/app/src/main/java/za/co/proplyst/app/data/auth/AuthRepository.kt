@@ -34,4 +34,10 @@ interface AuthRepository {
     suspend fun restoreSession()
     suspend fun signIn(email: String, password: String): Result<Unit>
     suspend fun signOut()
+
+    /** Synchronous, non-network local sign-out -- for the one caller (TokenAuthenticator) that
+     * already knows the session is dead (an unrecoverable refresh failure) and cannot itself call
+     * the network-revoking [signOut] without re-entering the same auth-related OkHttpClient this
+     * runs inside of. Idempotent -- safe to call even if already Unauthenticated. */
+    fun forceSignOutLocally()
 }

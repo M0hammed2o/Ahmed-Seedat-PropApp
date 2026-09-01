@@ -40,4 +40,8 @@ class MockAuthRepository @Inject constructor() : AuthRepository {
         delay(100)
         _authState.value = AuthState.Unauthenticated
     }
+
+    override fun forceSignOutLocally() {
+        _authState.value = AuthState.Unauthenticated
+    }
 }

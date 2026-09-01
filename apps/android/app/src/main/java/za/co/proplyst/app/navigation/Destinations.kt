@@ -55,6 +55,10 @@ object Destinations {
     const val NOTIFICATIONS_LIST = "notifications"
     const val NOTIFICATION_SETTINGS = "notifications/settings"
 
+    // Account/sign-out (auth/session hardening pass, WORKLOG.md this date) -- shared route name
+    // across both the Owner and Tenant nested NavHosts, same pattern as NOTIFICATIONS_LIST.
+    const val ACCOUNT = "account"
+
     // Tenant portal (Android V1 commercial-launch pass, WORKLOG.md this date, Phase 4) -- payment
     // reporting only in this first slice; tenant Maintenance/Documents/Notices follow once their
     // own modules are built (see the same pass's final report for the disclosed remaining gaps).

@@ -12,10 +12,14 @@ import za.co.proplyst.app.data.network.dto.CreateTenantMaintenanceTicketRequest
 import za.co.proplyst.app.data.network.dto.DocumentDto
 import za.co.proplyst.app.data.network.dto.MaintenanceTicketCreatedDto
 import za.co.proplyst.app.data.network.dto.MaintenanceTicketDto
+import za.co.proplyst.app.data.network.dto.WebApiErrorBody
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
+import retrofit2.Response
 import java.io.File
 import javax.inject.Inject
 
@@ -25,6 +29,24 @@ class PostgrestMaintenanceRepository @Inject constructor(
     private val dao: MaintenanceTicketDao,
     @ApplicationContext private val context: Context,
 ) : MaintenanceRepository {
+
+    private val errorJson = Json { ignoreUnknownKeys = true }
+
+    /** Sensitive-upload-gate UX pass (WORKLOG.md this date): surfaces the SERVER's own
+     * user-facing message (e.g. scanUploadOrRespond()'s professional, ClamAV-free 503 wording,
+     * "Document uploads are temporarily unavailable while secure file scanning is being
+     * configured.") instead of a bare status code -- same established pattern
+     * WebApiPaymentReportsRepository's own proof-of-payment upload already uses. Never leaks
+     * internal provider/infrastructure terminology, since it only ever repeats back exactly what
+     * the server itself chose to say. */
+    private fun errorMessage(response: Response<*>): String? {
+        val raw = response.errorBody()?.string() ?: return null
+        return try {
+            errorJson.decodeFromString<WebApiErrorBody>(raw).error?.message
+        } catch (_: Exception) {
+            null
+        }
+    }
 
     override suspend fun getTickets(): MaintenanceResult {
         return try {
@@ -92,7 +114,9 @@ class PostgrestMaintenanceRepository @Inject constructor(
             val response = webApi.uploadMaintenanceTicketDocument(ticketId, part)
             val body = response.body()
             if (!response.isSuccessful || body == null) {
-                AttachmentUploadResult.Error("Failed to upload attachment (${response.code()})")
+                AttachmentUploadResult.Error(
+                    errorMessage(response) ?: "Failed to upload attachment (${response.code()})",
+                )
             } else {
                 AttachmentUploadResult.Success(body.document.toTenantDocument())
             }
@@ -105,7 +129,9 @@ class PostgrestMaintenanceRepository @Inject constructor(
         return try {
             val response = webApi.getDocument(documentId)
             if (!response.isSuccessful) {
-                return DocumentUrlResult.Error("Failed to open this attachment (${response.code()})")
+                return DocumentUrlResult.Error(
+                    errorMessage(response) ?: "Failed to open this attachment (${response.code()})",
+                )
             }
             val body = response.body() ?: return DocumentUrlResult.Error("Failed to open this attachment.")
             DocumentUrlResult.Success(body.signedUrl, body.document.mimeType)
