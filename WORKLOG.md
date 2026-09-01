@@ -1,5 +1,88 @@
 # Worklog
 
+## 2026-09-01 (continued) — Android auth/session/biometric hardening + iOS backend-contract source prep
+
+Continuation from the production web release below -- explicitly scoped mobile-only this pass,
+production web untouched (`git status`/`origin/main` HEAD re-confirmed unchanged at the start,
+matching the standing "do not touch the successful web release unless a genuine P0 appears"
+instruction; none was found).
+
+**Found and fixed, both real, both previously undisclosed:**
+- `AuthRepository.signOut()` existed at every layer (repository, `RootAuthViewModel`) but had
+  **zero UI call site anywhere in the app** (grepped, confirmed) -- there was no way for a user to
+  sign out of the Android app at all. Built `AccountScreen`/`AccountViewModel` (sign out with a
+  confirmation dialog, app version, the biometric-lock toggle below), reached via a person icon on
+  the existing Notifications-tab TopAppBar in both portals.
+- `TokenAuthenticator`'s unrecoverable-refresh-failure path only called `sessionManager.clear()`
+  -- the in-memory `AuthState` a currently-visible screen observes was never updated, so a session
+  that died mid-use kept showing authenticated screens (with every subsequent API call silently
+  401ing) until the next cold launch, not immediately. Added `AuthRepository
+  .forceSignOutLocally()` (synchronous, flips `AuthState` to `Unauthenticated` directly, injected
+  into `TokenAuthenticator` via the same lazy-`Provider` cycle-breaking pattern already used for
+  `SupabaseAuthApi`) and a top-level `authState` observer in `RootNavGraph` (not scoped inside
+  just the splash screen's own `LaunchedEffect`) that navigates back to sign-in from anywhere the
+  moment `AuthState` becomes `Unauthenticated` -- covers both this case and an explicit sign-out
+  with the same mechanism.
+- Biometric re-auth was declared (dependency present, `USE_BIOMETRIC` permission) but never
+  wired to `BiometricPrompt` -- a real, previously-disclosed gap, now closed.
+  `BiometricAuthenticator.kt` bridges `BiometricPrompt`'s callback API to a suspend function;
+  `BiometricGateViewModel` gates app foreground-from-background (via the injected process
+  `Lifecycle`, not fetched internally -- see below for why) when enabled in the new Account
+  screen; `BIOMETRIC_STRONG or DEVICE_CREDENTIAL` (system PIN/pattern fallback, never a custom PIN
+  screen); re-checks live availability at unlock time so a user who removed their fingerprint
+  enrollment while the app was backgrounded is never trapped. `MainActivity` changed
+  `ComponentActivity` → `FragmentActivity` (required to host `BiometricPrompt`; a safe superset,
+  every existing API call site unaffected).
+- The maintenance-ticket-attachment upload path (`PostgrestMaintenanceRepository.uploadAttachment`)
+  showed a bare status-code error ("Failed to upload attachment (503)") instead of the server's
+  own professional message -- fixed to use the same `WebApiErrorBody`/`errorMessage()` parsing
+  pattern `WebApiPaymentReportsRepository`'s proof-of-payment upload already used (that one was
+  already correct, confirmed by inspection, no fix needed there).
+- **Real, live-caught testing-infrastructure bug**: a direct `ProcessLifecycleOwner.get()` call
+  inside `BiometricGateViewModel`'s own `init{}` threw at construction time in this project's
+  pure-JVM (no Robolectric) unit tests -- confirmed live (`RuntimeException`, all 6 new tests
+  failing identically). Fixed by injecting `Lifecycle` via a new `LifecycleModule` (`@Provides
+  fun provideProcessLifecycle(): Lifecycle = ProcessLifecycleOwner.get().lifecycle`) rather than
+  the ViewModel fetching it internally -- production Hilt wiring still calls the real
+  `ProcessLifecycleOwner.get()` exactly once, safely, on the real Android runtime; a unit test now
+  supplies a mocked `Lifecycle` instead. The same lesson was applied proactively to the iOS
+  `BiometricLockState` prep work below (externally-driven `handlePhase(_:)`, never an internally-
+  fetched global scene-phase signal) before it could cause an equivalent problem there.
+- Audited the payment/invoice contract against the now-released backend (`invoice_payments` as
+  sole ledger truth, migrations 158-162): confirmed, by direct search, **zero** local paid/balance
+  arithmetic exists anywhere in the Android data layer -- Android's "Payments" screens are the
+  tenant-reported-claim workflow (`payment_reports`) only, never computing a conflicting truth.
+  This IS a real, disclosed completeness gap though: there is no Android screen showing the
+  authoritative Amount/Paid/Balance/Status invoice view the web tenant portal now has. Not built
+  this pass (out of the explicit A-E priority list); flagged for a future shared pass (build once,
+  matching whatever Android ships, not designed twice independently for iOS).
+
+**Verified**: real `gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease
+bundleRelease` (Temurin 21, same toolchain every prior Android pass used) -- **171/171 unit tests
+passing** (161 before this pass, +10 new: `AccountViewModelTest` x4, `BiometricGateViewModelTest`
+x6), lint 0 errors (59 warnings; the delta from the prior 55-warning baseline is new-dependency
+`GradleDependency` version-bump suggestions plus one genuine `StaticFieldLeak` false-positive on
+`BiometricGateViewModel`'s injected `Lifecycle`, explained and suppressed inline, not silently
+ignored). This machine was under severe, sustained resource contention throughout (one Gradle
+daemon OOM-crashed mid-build, `arena.cpp:168`, real memory pressure, not a code issue -- a clean
+retry with a fresh daemon recovered). Not run: instrumented/emulator tests, physical-device
+testing -- no device/emulator attached this session, disclosed rather than fabricated.
+
+**iOS**: `NATIVE_IOS_SPEC.md` extended with a §16 addendum reconciling it against shipped reality
+(Android's actual V1 scope is narrower than this document's original §3/§4 vision; the exact
+session-refresh/biometric/malware-upload-gate contracts to match). `apps/ios/Sources/Proplyst/`
+written -- domain models, `Codable` DTOs, the API error model, an `APIClient` actor implementing
+Android's exact just-verified refresh strategy, Keychain session storage, biometric-lock
+scaffolding, repository protocols -- deliberately no SwiftUI `View`s, no Xcode project (a
+hand-authored `.pbxproj` would be unverifiable and likely broken, worse than no scaffold), no
+signing. This environment has no macOS/Xcode/Swift toolchain; nothing here has been compiled.
+`IOS BUILD VERIFIED: NO`, `MACOS/XCODE REQUIRED: YES` -- genuinely blocked on tooling access, not
+on remaining scope or effort.
+
+`TASKS.md`'s M21/M22 checklists (stale relative to `WORKLOG.md`'s own more recent entries --
+verified against the actual repository rather than trusted, per standing instruction) updated to
+match current reality.
+
 ## 2026-08-31/09-01 — Tenant invoice PDF security + release-gate hardening (V1, local verified, release committed)
 
 Autonomous overnight completion pass, continuing the invoice-payment-ledger architecture work

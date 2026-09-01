@@ -276,10 +276,12 @@ notifications, deep links, biometric auth, tablet behaviour) — specification o
 ## M21 — Native iOS
 
 - [x] Implementation-ready design specification (`NATIVE_IOS_SPEC.md`, 2026-08-01) — navigation architecture, screen hierarchy, component mapping, HIG compliance, state management, offline behaviour, accessibility, animations, notifications, deep links, biometric auth, tablet behaviour.
-- [ ] Xcode project scaffold, Swift/SwiftUI, Supabase Swift SDK, Keychain-backed auth (`MOBILE_ARCHITECTURE_DECISION.md`).
-- [ ] Role-aware navigation shell (portal switcher), biometric re-auth gate for sensitive actions (`SECURITY.md` § Auth).
-- [ ] Screens per `NATIVE_IOS_SPEC.md` §3/§4, Maintenance flow first (explicit master-prompt priority).
-- **Exit criteria**: specification done and execution-verified as a document (self-consistent, cross-referenced, grounded in the real M4-M19 API surface). Actual Xcode build: not started; blocked on an environment with Xcode (requires macOS), not on more specification.
+- [x] **Specification reconciled against shipped reality, 2026-09-01** (`NATIVE_IOS_SPEC.md` §16): the original spec pre-dates `apps/android` and several backend changes (`invoice_payments` ledger, migrations 158-162; the malware-scanning fail-closed upload gate). Added: an explicit scope-narrowing recommendation (§3/§4's V1 is ahead of what Android actually shipped — Owner Statements/Inspections/Approvals-as-a-screen/Tasks/AI Assistant should be post-V1 for iOS too, pending Mohammed's confirmation, not a unilateral cut); the exact session-refresh strategy to implement (matching `apps/android`'s just-verified `TokenAuthenticator`: one retry max, concurrent-401 refresh dedup, immediate sign-out-in-place on unrecoverable failure — not just on next cold launch); the malware-upload-gate UX contract (surface the server's own `error.message` verbatim, never invent wording or reference the scanning provider); biometric-lock parity confirmation (already correctly scoped, cross-checked against Android's shipped `BiometricGateViewModel`).
+- [x] **Reviewable Swift source written, 2026-09-01** (`apps/ios/Sources/Proplyst/` — no Xcode project, `apps/ios/README.md` explains why and how to bring it into one): domain models + `Codable` DTOs (`Property`/`PropertyUnit`/`Tenant`/`Lease`/`MaintenanceTicket`/`PaymentReport`/`AppNotification`/`Announcement`/`AuthState`, every field mirroring `apps/android`'s equivalent exactly), the API error model (`APIError`, mirrors the server's `{error:{code,message}}` shape and Android's `WebApiErrorBody`), `APIClient` (a `URLSession` actor implementing the exact refresh-on-401 strategy above), `KeychainSessionStore` (`kSecAttrAccessibleWhenUnlockedThisDeviceOnly`), `AuthRepository` protocol + a complete deterministic mock, `BiometricAuthenticator`/`BiometricLockState` (`LocalAuthentication`, externally-driven scene-phase handling — deliberately NOT fetching a global lifecycle signal internally, the exact lesson learned live fixing an equivalent Android bug this same pass), repository protocols for every V1-scope domain, and a design-token file structure (§15, values deliberately left as placeholders pending the still-unbuilt codegen step, not invented). Not written: any SwiftUI `View`, any Xcode project file (real, `.pbxproj` is not hand-editable), any signing/provisioning. `IOS BUILD VERIFIED: NO` — no compiler available this session; explicitly not claimed.
+- [ ] Xcode project scaffold, Swift/SwiftUI, Supabase Swift SDK, Keychain-backed auth (`MOBILE_ARCHITECTURE_DECISION.md`) — genuinely blocked on macOS/Xcode access, not on more preparation.
+- [ ] Role-aware navigation shell (portal switcher), biometric re-auth gate for sensitive actions (`SECURITY.md` § Auth) — protocols/state machine ready (see above), SwiftUI wiring needs Xcode.
+- [ ] Screens per `NATIVE_IOS_SPEC.md` §3/§4 (narrowed per §16.1), Maintenance flow first (explicit master-prompt priority).
+- **Exit criteria**: specification done and execution-verified as a document (self-consistent, cross-referenced, grounded in the real M4-M19 API surface, now also reconciled against shipped Android/backend reality). The backend-contract Swift layer (domain/DTOs/error model/networking/auth/biometric/repository protocols) is written and reviewable, not compiler-verified. Actual Xcode build: not started; blocked on an environment with Xcode (requires macOS), not on more specification or more preparable source.
 
 ## M22 — Native Android
 
@@ -294,8 +296,51 @@ notifications, deep links, biometric auth, tablet behaviour) — specification o
 - [x] **Leases vertical slice, 2026-08-01** (priority 12, continuing the one-module-at-a-time pattern): unit-scoped (a lease only makes sense for a specific unit, same "no new bottom-nav tab" reasoning as Units), reached from Unit Detail's new "View leases" button. `Lease` domain model (`source`/`sourceDocumentId`/`sourceApplicationId` deliberately left out — internal provenance fields with no view-only-screen use, same reasoning as `Tenant.idNumberRef`), `LeaseDto`/`LeaseEntity`/`LeaseDao` (Room cache scoped to `unitId`, `replaceForUnit()` mirroring `UnitDao.replaceForProperty()`), `PostgrestLeasesRepository` + `MockLeasesRepository` (one fixture lease under `demo-unit-1`, the occupied unit in the Units fixture, so an occupied unit having an active lease is a coherent demo). `PropertyVaultDatabase` bumped to version 4. Extracted `formatCurrency()`/`formatArea()` out of `UnitDetailScreen` into a shared `ui/common/NumberFormatting.kt` (both Unit Detail and the new Lease Detail need identical Double-formatting, and this is exactly the class of logic that shouldn't be copy-pasted after the bug it already caused once). Tests: `MockLeasesRepositoryTest` (4), `LeasesListViewModelTest` (4). Verified: real `gradlew testDebugUnitTest assembleDebug lintDebug` — BUILD SUCCESSFUL, 30/30 unit tests (8 new + 22 pre-existing, none broken), real APK, lint 0 errors/55 warnings (unchanged). **Also device-verified in the same pass**: booted the AVD, installed the APK, drove Property -> Unit -> View leases -> Leases list -> Lease Detail by hand via `adb`, confirmed via `logcat` (no crash) and real screenshots in light and dark mode — the formatted rent/deposit values ("R10,650") render correctly, confirming the extracted shared formatter carried the earlier fix over cleanly.
 - [x] **Maintenance vertical slice, 2026-08-01** (priority 12, continuing the one-module-at-a-time pattern): **view-only**, org-wide list + detail, a new "Maintenance" bottom-nav tab (fourth tab). `MaintenanceTicket` domain model (a deliberate subset — `unitId`/`leaseId`/`tenantId`/`submittedBy*`/`assignedVendorId`/`resolvedAt` all left out, no view-only-screen use yet), `MaintenanceTicketDto`/`Entity`/`Dao`, `PostgrestMaintenanceRepository` + `MockMaintenanceRepository`. `PropertyVaultDatabase` bumped to version 5. Tests: `MockMaintenanceRepositoryTest` (3), `MaintenanceListViewModelTest` (4). Verified: real `gradlew testDebugUnitTest assembleDebug lintDebug` — BUILD SUCCESSFUL, 37/37 unit tests, lint 0 errors/55 warnings (unchanged); device-verified (AVD, light+dark, no crash) same as every prior slice.
       **Real gap found while scoping this slice, not built around**: `MOBILE_ARCHITECTURE_DECISION.md` §6/§7 explicitly calls Maintenance ticket _submission_ out as the native-app write-path priority ("full flow both directions"). Investigated wiring it and found `apps/admin`'s API routes authenticated cookie-session-only (`getServerSupabaseClient()`) — they never read the `Authorization: Bearer <jwt>` header `API_SPEC.md` §0 itself specifies as the contract "so native mobile apps consume the same API surface as the web app." A native POST with only a Bearer header would get an unconditional 401, for every mutating admin route, not just this one. Filed as `TECHNICAL_DEBT_REGISTER.md` TD-28. **Resolved 2026-08-02** (M10's own entry) — `getServerSupabaseClient()` now accepts a Bearer token through the same shared helper every route already uses; ticket submission is no longer blocked at the API-auth layer. The remaining work is Android-side only: the actual Kotlin screen/ViewModel to POST a real ticket with the stored access token, not yet built.
-- [ ] Ticket submission (server-side auth no longer blocking — TD-28 resolved M10 2026-08-02; the Android submit screen/ViewModel itself is not yet built), remaining owner tabs (Operations/Finance/More), Tenant portal, adaptive tablet/foldable layout, biometric re-auth gate actually wired to `BiometricPrompt` (dependency present, not yet called), deep links, push notifications, the cross-platform design-token codegen step — not started, same one-module-at-a-time pattern as Properties/Units/Tenants/Leases/Maintenance.
-- **Exit criteria**: project foundation and first five vertical slices (Properties, Units, Tenants, Leases, Maintenance) done and execution-verified (build, tests, lint, real device install/launch, and light+dark visual confirmation via a real AVD for all five). Not claimed as milestone-complete — most modules listed above remain open.
+- [x] **Ticket submission, tenant portal, deep links, and further Android V1 hardening —
+      2026-08-17/08-18/09-01** (this checklist section was stale relative to `WORKLOG.md`'s own
+      more recent entries; corrected here rather than trusted at face value, per this pass's own
+      "verify TASKS.md's checkboxes against the actual repository" instruction). Built across
+      three passes: tenant portal payment reporting (role-aware routing between `OWNER_ROOT`/
+      `TENANT_ROOT`), owner payment review (confirm/reject), owner monthly summary, in-app
+      notification centre + preferences, tenant Maintenance (incl. ticket submission and photo/
+      file attachment), Documents, Notices (incl. read/unread tracking), automatic token refresh
+      (`TokenAuthenticator`), App Links with deep-link-to-subscreen resume, real branding/
+      launcher icon, release build config hardening (`RELEASE_*` BuildConfig fields, no
+      accidental mock-data-in-release). **Auth/session hardening pass, 2026-09-01**: closed a
+      real, previously-undisclosed gap — `AuthRepository.signOut()` existed at every layer but had
+      zero UI call site (no Settings/Account screen existed at all); built `AccountScreen` (sign
+      out, biometric-lock toggle, app version), wired `RootNavGraph` to react to `AuthState`
+      becoming `Unauthenticated` from anywhere (not just while the splash screen happened to be
+      showing), and fixed `TokenAuthenticator`'s unrecoverable-refresh-failure path to flip
+      `AuthState` immediately (`forceSignOutLocally()`) rather than only on the next cold launch.
+      **Biometric re-auth, previously declared but never wired, now built**: `BiometricPrompt`
+      (`BIOMETRIC_STRONG or DEVICE_CREDENTIAL`, no custom PIN) gates app foreground-from-
+      background when enabled in Account settings; never traps the user if hardware/enrollment
+      becomes unavailable while backgrounded. `MainActivity` changed `ComponentActivity` →
+      `FragmentActivity` (required to host `BiometricPrompt`; a safe superset, no existing API
+      lost). Verified: real `gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease
+      bundleRelease` — **171/171 unit tests passing** (was 161 before this pass's own 10 new
+      tests), lint 0 errors (59 warnings, unchanged class of pre-existing `GradleDependency`/
+      `OldTargetApi` items plus one documented `StaticFieldLeak` suppression on the new
+      `BiometricGateViewModel`, a confirmed lint false-positive explained inline). **Remaining,
+      real, disclosed gaps**: adaptive tablet/foldable layout, push notifications (FCM — needs a
+      Firebase project, an explicit external-setup decision, not attempted), the real App Links
+      SHA-256 signing fingerprint (needs Mohammed's release keystore/Play App Signing
+      enrollment), release signing itself (same blocker — `app-release.aab`/`app-release-
+      unsigned.apk` both build, neither is signed), the cross-platform design-token codegen step,
+      and a real Invoices/balance-ledger screen (Android's "Payments" tabs are the
+      tenant-reported-claim workflow only, not the authoritative `invoice_payments`-backed ledger
+      the web tenant portal now has — a real V1-level completeness gap, not a correctness bug: no
+      local payment/balance arithmetic exists anywhere in the Android data layer, confirmed by
+      direct search).
+- **Exit criteria**: project foundation and every vertical slice through the tenant portal
+  (Properties, Units, Tenants, Leases, Maintenance incl. submission/attachments, Documents,
+  Notices, payment reporting/review, notifications, auth/session incl. biometric and sign-out)
+  done and execution-verified (build, tests, lint; device/emulator install-and-launch confirmed as
+  of the 2026-08-01/08-17/08-18 passes, not re-run this pass — no emulator was attached this
+  session, disclosed rather than re-claimed). Not claimed as fully milestone-complete — the
+  disclosed gaps above (tablet layout, push notifications, release signing, real App Links
+  fingerprint, design-token codegen, an Invoices ledger screen) remain open.
 
 ## M23 — Automated testing
 

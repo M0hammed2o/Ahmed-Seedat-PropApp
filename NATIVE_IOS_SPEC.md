@@ -369,3 +369,77 @@ builds), consumed by:
 This keeps the token source-of-truth singular (`packages/ui/src/tokens.ts`) exactly as
 `DESIGN_SYSTEM.md` already requires for the web/RN surfaces, extended rather than duplicated for
 native.
+
+---
+
+## 16. Addendum — reconciled against shipped reality (auto/session hardening pass, WORKLOG.md
+this date)
+
+This document was written before `apps/android` existed and before several backend changes since
+landed. Still no Xcode/macOS available this pass either -- same "specification + reviewable Swift
+source, never a claimed build" posture as the rest of this document. Three real gaps closed here:
+
+### 16.1 Scope: this document's V1 (§3/§4) is AHEAD of what Android actually shipped
+
+`apps/android` is the one native app that has actually been built end to end (171 unit tests
+passing, real debug/release builds). Its shipped V1 scope is narrower than §3/§4 above: no Owner
+Statements, Inspections, Approvals-as-a-separate-screen, Tasks, or AI Assistant screen exist on
+Android -- and Android's "Payments" screens (both portals) are the tenant-reported
+`payment_reports` claim/confirm workflow only, not a full invoice/balance ledger view (there is no
+"Invoices" screen on Android at all, even though the backend has fully supported one, with
+`invoice_payments` as the sole authoritative paid/balance source, since migrations 158-162).
+
+Per this pass's explicit instruction ("mirror the stable backend contract and Android V1
+capability set," not this document's own more ambitious original vision), **the recommended iOS
+V1 target is Android's actual shipped scope**, not §3/§4 literally -- Owner Statements/
+Inspections/Approvals/Tasks/AI Assistant should be treated as post-V1 for iOS too, until either
+Android grows them first or Mohammed explicitly decides iOS should go further. This is a scope
+recommendation, not a unilateral cut -- flagged for confirmation, same as every other open
+decision this document already defers.
+
+An "Invoices" screen (Amount/Paid/Balance/Status, sourced from `loadInvoicesWithBalances()`'s
+same `invoice_payments`-only truth) is a real, currently-missing V1-level gap on **both** native
+platforms, not an iOS-specific decision -- worth building once, matching Android's future
+implementation exactly, not designed twice independently.
+
+### 16.2 Malware-scanning fail-closed uploads (new since this document was written)
+
+Every document/photo upload endpoint now returns a `503` with
+`{ "error": { "code": "upload_temporarily_unavailable", "message": "Document uploads are
+temporarily unavailable while secure file scanning is being configured." } }` when no real
+malware scanner is configured server-side (`apps/admin/lib/uploadScan.ts`) -- property-photo-only
+uploads are exempted, everything else (proof of payment, lease/applicant documents, maintenance
+attachments) is not. §3/§4's Documents/Maintenance-photo upload flows must surface the server's
+own `error.message` verbatim (never invent different wording, never reference "ClamAV" or any
+internal provider name) and must render it as a normal inline/banner error -- never crash, never
+silently retry in a loop, never claim success. This mirrors `apps/android`'s own
+`WebApiPaymentReportsRepository`/`PostgrestMaintenanceRepository` pattern exactly (parse
+`error.message` from the JSON error body if present, fall back to a generic "(status code)"
+message only if the body doesn't parse) -- §17.4 below gives the exact `Codable` shape.
+
+### 16.3 Session refresh -- match Android's exact pattern, not a new design
+
+§7's `APIClient actor` should implement the identical refresh strategy already built and tested on
+Android (`TokenAuthenticator.kt`): a 401 triggers exactly one refresh attempt (never more than one
+retry per request, preventing an infinite loop against a genuinely dead session); concurrent
+requests that 401 at the same time share one real refresh call, not one each (a
+`Task`/actor-reentrancy-safe "in-flight refresh" guard, the direct Swift-concurrency equivalent of
+Android's `Mutex`-guarded refresh); an unrecoverable refresh failure (invalid/expired refresh
+token) clears the Keychain session and flips `AuthCoordinator`'s state to signed-out immediately --
+not just on the next cold launch -- so a screen currently on-screen when the session dies is
+promptly returned to sign-in, the same real gap just closed on Android this pass (previously, a
+dead session only actually signed the user out on next app restart; every screen in between just
+saw every API call silently 401 forever).
+
+### 16.4 Biometric lock -- match Android's exact scope
+
+§13 is already correctly scoped (client-side-only, foreground-from-background, never extends the
+JWT session) and needs no correction -- noted here only to confirm parity: Android's just-shipped
+implementation (`BiometricAuthenticator.kt`/`BiometricGateViewModel.kt`) uses
+`BIOMETRIC_STRONG or DEVICE_CREDENTIAL` (fingerprint/face with a system PIN/pattern fallback, no
+custom PIN screen) -- the direct equivalent of this section's own `LAPolicy
+.deviceOwnerAuthentication` choice. Also confirmed on Android and worth carrying over: never trap
+the user if biometrics become unavailable/unenrolled while the app was backgrounded (re-check
+availability live at unlock time, skip the gate rather than requiring something that no longer
+exists) -- add this exact rule to whichever iOS `LAContext.canEvaluatePolicy` check gates the
+unlock prompt.
