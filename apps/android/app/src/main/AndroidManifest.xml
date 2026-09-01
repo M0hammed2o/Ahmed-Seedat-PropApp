@@ -47,6 +47,23 @@
                 <data android:scheme="https" android:host="proplyst.co.za" />
             </intent-filter>
         </activity>
+
+        <!-- Invoice V1 completion pass (WORKLOG.md this date): GET /api/v1/invoices/:id/pdf
+             requires this app's own Bearer auth header (unlike documents.signedUrl, a pre-signed
+             Storage URL openable directly in a browser), so the PDF is downloaded once,
+             authenticated, to a cache file, then opened via a content:// URI through the system's
+             own PDF viewer. A raw file:// Uri is blocked by FileUriExposedException on modern
+             Android; grantUriPermissions scopes read access to only the launched viewer app, for
+             only that one file, never the whole cache directory. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="za.co.proplyst.app.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 
 </manifest>

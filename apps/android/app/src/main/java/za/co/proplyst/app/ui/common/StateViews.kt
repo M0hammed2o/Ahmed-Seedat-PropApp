@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Inbox
@@ -81,6 +82,35 @@ fun ErrorStateView(
         Button(onClick = onRetry, modifier = Modifier.padding(top = 16.dp)) {
             Text("Retry")
         }
+    }
+}
+
+/** Shared status pill (Invoice V1 completion pass, WORKLOG.md this date, mobile UX polish) --
+ * colour + label together, never colour alone (status is never colour-only, matching
+ * `DESIGN_SYSTEM.md`'s accessibility rule for status presentation). Recognizes the exact
+ * `InvoiceDisplayStatus`/payment-report status strings the backend already sends; an unrecognized
+ * value still renders (falls back to the neutral/default tone) rather than crashing on a future
+ * status this app doesn't know about yet. */
+@Composable
+fun StatusChip(status: String, modifier: Modifier = Modifier) {
+    val (container, content) = when (status) {
+        "Paid", "confirmed" -> MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
+        "Overdue", "rejected" -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
+        "Partially paid", "reported" -> MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
+        "Void" -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
+        else -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
+    }
+    Surface(
+        color = container,
+        contentColor = content,
+        shape = RoundedCornerShape(50),
+        modifier = modifier,
+    ) {
+        Text(
+            status,
+            style = MaterialTheme.typography.labelSmall,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+        )
     }
 }
 

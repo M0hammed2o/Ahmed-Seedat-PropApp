@@ -10,6 +10,7 @@ import za.co.proplyst.app.data.network.dto.NotificationReadUpdate
 import za.co.proplyst.app.data.network.dto.OrganizationMemberDto
 import za.co.proplyst.app.data.network.dto.OwnerSummaryDto
 import za.co.proplyst.app.data.network.dto.TenancyMembershipDto
+import za.co.proplyst.app.data.network.dto.TenancyWithLeaseDto
 import za.co.proplyst.app.data.network.dto.PropertyDto
 import za.co.proplyst.app.data.network.dto.TenantDto
 import za.co.proplyst.app.data.network.dto.UnitDto
@@ -46,6 +47,19 @@ interface PostgrestApi {
         @Query("select") select: String = "id,org_id,status",
         @Query("user_id") userIdFilter: String,
     ): Response<List<TenancyMembershipDto>>
+
+    /** "My Lease" (Invoice V1 completion pass, WORKLOG.md this date) -- see
+     * TenancyWithLeaseDto's own doc comment for why this is a separate, richer call from
+     * getMyTenancies() above. `order`/`limit` are irrelevant to correctness (RLS is the real
+     * scope; every returned row is genuinely the caller's own) -- present only so a caller with
+     * multiple tenancies gets a stable, most-recently-created-first ordering client-side, same
+     * convention as every other multi-row "my own" endpoint in this file. */
+    @GET("rest/v1/tenants")
+    suspend fun getMyTenanciesWithLease(
+        @Query("select") select: String =
+            "id,org_id,status,lease_tenants(lease_id,leases(id,status,start_date,end_date,rent_amount,unit_id,units(id,unit_label,property_id,properties(id,nickname,full_address))))",
+        @Query("user_id") userIdFilter: String,
+    ): Response<List<TenancyWithLeaseDto>>
 
     @GET("rest/v1/properties")
     suspend fun getProperties(

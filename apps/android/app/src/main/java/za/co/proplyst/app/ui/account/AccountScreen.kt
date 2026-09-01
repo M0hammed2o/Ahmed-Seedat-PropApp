@@ -45,6 +45,7 @@ import za.co.proplyst.app.ui.biometric.checkBiometricAvailability
 @Composable
 fun AccountScreen(
     onBack: () -> Unit,
+    onMyLeaseClick: (() -> Unit)? = null,
     viewModel: AccountViewModel = hiltViewModel(),
 ) {
     val signingOut by viewModel.signingOut.collectAsState()
@@ -69,6 +70,13 @@ fun AccountScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+
+            if (onMyLeaseClick != null) {
+                HorizontalDivider()
+                OutlinedButton(onClick = onMyLeaseClick, modifier = Modifier.fillMaxWidth()) {
+                    Text("My lease")
+                }
+            }
 
             HorizontalDivider()
 

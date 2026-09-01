@@ -26,6 +26,9 @@ import za.co.proplyst.app.data.documents.WebApiTenantDocumentsRepository
 import za.co.proplyst.app.data.insights.MockPortfolioInsightsRepository
 import za.co.proplyst.app.data.insights.PortfolioInsightsRepository
 import za.co.proplyst.app.data.insights.WebApiPortfolioInsightsRepository
+import za.co.proplyst.app.data.invoices.InvoicesRepository
+import za.co.proplyst.app.data.invoices.MockInvoicesRepository
+import za.co.proplyst.app.data.invoices.WebApiInvoicesRepository
 import za.co.proplyst.app.data.ownersummary.OwnerSummaryRepository
 import za.co.proplyst.app.data.ownersummary.PostgrestOwnerSummaryRepository
 import za.co.proplyst.app.data.paymentreports.MockPaymentReportsRepository
@@ -34,6 +37,9 @@ import za.co.proplyst.app.data.paymentreports.WebApiPaymentReportsRepository
 import za.co.proplyst.app.data.properties.MockPropertiesRepository
 import za.co.proplyst.app.data.properties.PostgrestPropertiesRepository
 import za.co.proplyst.app.data.properties.PropertiesRepository
+import za.co.proplyst.app.data.tenancy.MockTenancyRepository
+import za.co.proplyst.app.data.tenancy.PostgrestTenancyRepository
+import za.co.proplyst.app.data.tenancy.TenancyRepository
 import za.co.proplyst.app.data.tenants.MockTenantsRepository
 import za.co.proplyst.app.data.tenants.PostgrestTenantsRepository
 import za.co.proplyst.app.data.tenants.TenantsRepository
@@ -141,4 +147,18 @@ object RepositoryModule {
         real: SupabaseAuthRepository,
         mock: MockAuthRepository,
     ): AuthRepository = if (BuildConfig.USE_MOCK_DATA) mock else real
+
+    @Provides
+    @Singleton
+    fun provideInvoicesRepository(
+        real: WebApiInvoicesRepository,
+        mock: MockInvoicesRepository,
+    ): InvoicesRepository = if (BuildConfig.USE_MOCK_DATA) mock else real
+
+    @Provides
+    @Singleton
+    fun provideTenancyRepository(
+        real: PostgrestTenancyRepository,
+        mock: MockTenancyRepository,
+    ): TenancyRepository = if (BuildConfig.USE_MOCK_DATA) mock else real
 }

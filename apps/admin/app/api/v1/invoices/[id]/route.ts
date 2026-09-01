@@ -3,6 +3,7 @@ import { manualInvoiceUpdateSchema } from '@propvault/validation';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { requireOrgRole } from '@/lib/portfolio';
 import { mapInvoiceRow, mapInvoiceLineItemRow } from '@/lib/accounting';
+import { loadInvoicesWithBalances } from '@/lib/invoicing';
 import { safeErrorMessage } from '@/lib/safeError';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -12,6 +13,13 @@ type RouteParams = { params: Promise<{ id: string }> };
  * migration 20260101000152). Rent-schedule invoices have no real line-item rows (they synthesize
  * one virtual line at display time, apps/admin/lib/invoicing.ts) so lineItems comes back empty for
  * those -- callers should treat an empty array as "not a manual invoice", not an error.
+ *
+ * `balance` is now included too (Android V1 completion pass, WORKLOG.md this date) -- computed
+ * the exact same way GET /api/v1/invoices' own list response is (`loadInvoicesWithBalances()`,
+ * never a second, independently-written calculation that could disagree). The extra query this
+ * costs (loads every RLS-visible invoice, not just this one id) is the same acceptable tradeoff
+ * that function's own doc comment already accepts for the list route -- correctness over a
+ * premature single-id optimization.
  */
 export async function GET(_request: NextRequest, { params }: RouteParams) {
   const { id } = await params;
@@ -49,9 +57,24 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     );
   }
 
+  let balance: Awaited<ReturnType<typeof loadInvoicesWithBalances>>[number] | undefined;
+  try {
+    const withBalances = await loadInvoicesWithBalances(supabase);
+    balance = withBalances.find((inv) => inv.id === id);
+  } catch (balanceError) {
+    // Never fails the whole request over the balance enrichment alone -- the raw invoice/
+    // lineItems above are still returned; `balance` is simply omitted this one time and the
+    // caller can retry, matching this route's own established per-field error tolerance
+    // elsewhere (PATCH below tolerates the reload half-failing too).
+    console.error('[invoices/[id].balance]', balanceError instanceof Error ? balanceError.message : balanceError);
+  }
+
   return NextResponse.json({
     invoice: mapInvoiceRow(invoice),
     lineItems: (lineItems ?? []).map(mapInvoiceLineItemRow),
+    paid: balance?.paid ?? null,
+    balance: balance?.balance ?? null,
+    displayStatus: balance?.displayStatus ?? null,
   });
 }
 

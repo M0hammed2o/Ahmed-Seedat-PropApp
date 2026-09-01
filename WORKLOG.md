@@ -1,5 +1,101 @@
 # Worklog
 
+## 2026-09-01 (continued, 2) — Final Android V1 completion: authoritative invoice/payment ledger + My Lease
+
+Continuation, Android-only this pass (iOS untouched, confirmed via `git status apps/ios/` before
+and after; web production untouched, confirmed via `git diff --stat` against both prior invoice
+routes showing zero changes to migrations). The one remaining real Android V1 functional gap,
+closed: the tenant-reported payment-CLAIM workflow (`payment_reports`) existed, but the
+authoritative invoice/balance ledger the web app now has (`invoice_payments`, migrations 158-162)
+had no Android screen at all.
+
+**Backend: two new JSON endpoints, zero new business logic** (`apps/admin/app/api/v1/invoices/`,
+local-only this pass, not deployed) -- `GET /api/v1/invoices` (new) and `GET /api/v1/invoices/:id`
+(extended) both call the EXACT same `loadInvoicesWithBalances()` the web `/accounting/invoices`
+and tenant `/my-payments` pages already trust for `paid`/`balance`/`displayStatus` -- never a
+second, independently-written calculation. Deliberately unfiltered: RLS alone decides which rows
+come back for either portal, matching every existing "my own" read in this codebase.
+`POST/GET /api/v1/invoices/:id/payments` (Record Payment) already existed, already correctly
+role-gated (`requireOrgRole(..., 'accountant')`) and overpayment-blocked server-side -- reused
+as-is, no changes needed.
+
+**Android**: `InvoicesRepository` (real + mock split), `InvoicesListScreen`/`InvoiceDetailScreen`/
+`RecordPaymentScreen`, added as an "Invoices" tab in both portals (distinct from the existing
+"Payments" tab, which stays the report-a-payment-claim workflow -- the two concepts are never
+merged into one screen). Record Payment is only ever shown when `InvoiceDetailViewModel
+.canRecordPayment` (a new `has_org_role()`-mirroring UX-layer check, `accountant`/`manager`/
+`principal` only) is true -- the server's own role gate remains the real enforcement regardless.
+Invoice PDF: `GET /api/v1/invoices/:id/pdf` requires this app's own Bearer auth (unlike
+`documents.signedUrl`, a pre-signed Storage URL), so this needed real new infrastructure -- a
+`FileProvider` (downloads the PDF once, authenticated, to a scoped cache subdirectory, opens it
+via a `content://` URI through the system's own PDF viewer, never a raw `file://` Uri).
+
+**"My Lease"** (tenant-only, reached from Account, never a bottom-nav tab -- the tenant NavHost
+already carries 6 tabs after adding Invoices): a real, previously-missing gap -- the tenant portal
+had ZERO lease-related screens at all before this pass. Built via a richer PostgREST embed on the
+EXISTING `tenants` read (`lease_tenants(lease_id,leases(...,units(...,properties(...))))`), not a
+new backend endpoint -- mirrors `resolveTenantSession()`'s own query shape. Multiple tenancies
+(explicitly audited, not guessed): the backend's own RLS (`caller_tenant_ids()`) returns every
+tenancy a caller holds blended together with no per-request "active tenancy" scoping at the API
+layer -- building a real switcher would need that added server-side first (new API surface, out
+of this pass's "use the current backend contract" scope). Shows the caller's most likely-current
+tenancy (an active lease, else most recently started) instead of a partial, half-working switcher
+-- disclosed as a reasoned scope decision, not attempted.
+
+**Regressions checked, not re-designed** (per explicit instruction not to touch the just-verified
+`3640fe5` biometric/session work): re-ran the full test suite unchanged from that commit's own
+logic; grepped to confirm no arithmetic on `amount`/`paid`/`balance` exists anywhere in the new
+invoice code (server remains the sole source of truth); confirmed the maintenance-attachment
+upload path's existing sensitive-upload-gate 503 handling (fixed last pass) is unaffected.
+
+**Verification**: real `gradlew testDebugUnitTest lintDebug assembleDebug` -- **193/193 unit
+tests passing** (was 171, +22 new: invoice list/detail/record-payment/PDF-download ViewModel and
+mock-repository tests, My Lease ViewModel/mock-repository tests), lint 0 errors (60 warnings,
+same pre-existing `GradleDependency`/`OldTargetApi` class as every prior pass, 2 new from the
+`fragment-ktx`/`lifecycle-process` dependencies already added last pass, `StaticFieldLeak`
+suppression from last pass still correctly absent). `assembleRelease`/`bundleRelease` re-verified
+separately (see this pass's own final report for the exact result).
+
+**Disclosed, real, remaining gaps** (not attempted this pass, per its own explicit stop
+conditions): a real multiple-tenancy switcher (needs new backend API-layer scoping, a business/
+architecture decision beyond "use the current contract"); adaptive tablet layout (usable, not
+broken -- classified POST-V1 per this pass's own instruction not to force a redesign); push
+notifications (FCM -- needs a Firebase project, an external owner decision, unchanged from the
+prior pass's own finding); Android release signing (unchanged blocker -- `app-release-unsigned
+.apk`/`app-release.aab` both build clean, neither is signed).
+
+**Emulator smoke test, actually run** (`PropertyVault_Pixel7_API35`, API 35, wiped/cold-booted
+after the first two boot attempts left `adb` stuck reporting the device `offline` despite the
+guest itself logging "Boot completed" -- a host/adb-bridge desync, not an app issue; `-wipe-data`
+resolved it). Installed and launched the real `app-debug.apk` built this pass, `USE_MOCK_DATA=true`
+against `local.properties`' loopback-only URLs (`10.0.2.2`, not `*.supabase.co`, verified before
+touching the build). Exercised end-to-end, screenshotted at each step, zero crashes in the full
+session `logcat` (`FATAL EXCEPTION` grep came back empty): splash -> sign-in -> owner/staff
+dashboard (8-tab nav, Invoices tab present) -> **Invoices list** (server-computed amounts/ZAR
+formatting/status chips) -> **Invoice detail** (Amount R20,000 / Paid R15,000 / Balance R5,000 --
+amount = paid + balance, confirming no client-side recomputation) -> **Record Payment** form (all
+6 payment methods, amount/date/reference/notes) -> **PDF button** correctly showed "Invoice PDF is
+not available in demo mode." (never a fake success) -> Maintenance tab -> Notifications/Alerts tab
+-> **Account screen** (biometric toggle, version, Sign out) -> sign-out confirmation -> signed out
+back to Sign In cleanly -> re-signed in -> Properties tab. Session/auth regression (Phase 9)
+confirmed working end-to-end this way (sign-in, sign-out, re-sign-in with no stuck state).
+
+**Not run, disclosed rather than guessed**: the tenant portal could not be reached this session --
+`MockAuthRepository.signIn()` unconditionally returns an org membership (`role = "principal"`)
+with an empty tenancies list, so mock-mode login always resolves to `OWNER_ROOT`
+(`RootNavGraph.destinationForRole`); there is no mock-mode toggle for a tenant-only account. This
+is a real gap in the *mock test fixture*, not in the shipped auth logic, and not something this
+pass fabricated a workaround for. Biometric prompt, screen rotation, and dark mode were not
+exercised (time-boxed after the extended boot troubleshooting above). One rendering anomaly
+observed and disclosed, not fixed: both the Material3 `DatePickerDialog` (Record Payment) and the
+sign-out `AlertDialog` rendered clipped into a near-perfect circle instead of the standard rounded
+rectangle, cutting off the date picker's own OK button. This reproduced on both dialogs
+consistently, pointing at this emulator's software graphics fallback (`Vulkan` unsupported on this
+host's Intel UHD 620, confirmed falling back to `lavapipe`/`SwiftShader` in the emulator's own
+boot log) rather than app code -- Material3 dialog shape is library-default, not custom-styled by
+this codebase. **Needs verification on Mohammed's physical phone before being treated as either
+confirmed-fine or a real defect** -- flagged, not silently dropped.
+
 ## 2026-09-01 (continued) — Android auth/session/biometric hardening + iOS backend-contract source prep
 
 Continuation from the production web release below -- explicitly scoped mobile-only this pass,

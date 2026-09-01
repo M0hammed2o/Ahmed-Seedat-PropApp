@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Scopes FileProvider access to exactly the cache subdirectory downloaded invoice PDFs are
+     written to (Invoice V1 completion pass, WORKLOG.md this date), not the whole app cache
+     directory, which also holds maintenance/proof-of-payment upload temp files from
+     PostgrestMaintenanceRepository/WebApiPaymentReportsRepository. -->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <cache-path name="invoices" path="invoices/" />
+</paths>

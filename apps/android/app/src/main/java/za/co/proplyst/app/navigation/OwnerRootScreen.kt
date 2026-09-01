@@ -9,6 +9,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Receipt
+import androidx.compose.material.icons.filled.RequestQuote
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -26,6 +27,9 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import za.co.proplyst.app.ui.account.AccountScreen
 import za.co.proplyst.app.ui.dashboard.DashboardScreen
+import za.co.proplyst.app.ui.invoices.InvoiceDetailScreen
+import za.co.proplyst.app.ui.invoices.InvoicesListScreen
+import za.co.proplyst.app.ui.invoices.RecordPaymentScreen
 import za.co.proplyst.app.ui.leases.LeaseDetailScreen
 import za.co.proplyst.app.ui.leases.LeasesListScreen
 import za.co.proplyst.app.ui.maintenance.MaintenanceDetailScreen
@@ -47,6 +51,7 @@ private val OWNER_BOTTOM_NAV_ITEMS: List<OwnerBottomNavItem> = listOf(
     OwnerBottomNavItem(Destinations.DASHBOARD, "Dashboard", Icons.Filled.Dashboard),
     OwnerBottomNavItem(Destinations.PROPERTIES_LIST, "Properties", Icons.Filled.Home),
     OwnerBottomNavItem(Destinations.TENANTS_LIST, "Tenants", Icons.Filled.People),
+    OwnerBottomNavItem(Destinations.INVOICES_LIST, "Invoices", Icons.Filled.RequestQuote),
     OwnerBottomNavItem(Destinations.PAYMENT_REVIEW_LIST, "Payments", Icons.Filled.Receipt),
     OwnerBottomNavItem(Destinations.MAINTENANCE_LIST, "Maintenance", Icons.Filled.Build),
     OwnerBottomNavItem(Destinations.OWNER_SUMMARY_LIST, "Summary", Icons.Filled.Assessment),
@@ -163,6 +168,24 @@ fun OwnerRootScreen(pendingRoute: String? = null) {
             }
             composable(Destinations.MAINTENANCE_DETAIL) {
                 MaintenanceDetailScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Destinations.INVOICES_LIST) {
+                InvoicesListScreen(
+                    onInvoiceClick = { invoiceId -> navController.navigate(Destinations.invoiceDetail(invoiceId)) },
+                )
+            }
+            composable(Destinations.INVOICE_DETAIL) { backStackEntry ->
+                val invoiceId = checkNotNull(backStackEntry.arguments?.getString("invoiceId"))
+                InvoiceDetailScreen(
+                    onBack = { navController.popBackStack() },
+                    onRecordPaymentClick = { navController.navigate(Destinations.recordPayment(invoiceId)) },
+                )
+            }
+            composable(Destinations.RECORD_PAYMENT) {
+                RecordPaymentScreen(
+                    onSubmitted = { navController.popBackStack() },
+                    onCancel = { navController.popBackStack() },
+                )
             }
             composable(Destinations.PAYMENT_REVIEW_LIST) {
                 PaymentReviewListScreen()

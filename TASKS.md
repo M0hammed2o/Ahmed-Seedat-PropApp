@@ -333,14 +333,51 @@ notifications, deep links, biometric auth, tablet behaviour) — specification o
       the web tenant portal now has — a real V1-level completeness gap, not a correctness bug: no
       local payment/balance arithmetic exists anywhere in the Android data layer, confirmed by
       direct search).
+- [x] **Final Android V1 completion pass — authoritative invoice/payment ledger + My Lease,
+      2026-09-01 (continued, 2)**. Closed the previously-disclosed Invoices/balance-ledger gap:
+      added `GET /api/v1/invoices` and extended `GET /api/v1/invoices/:id` (both reusing the
+      existing, already-trusted `loadInvoicesWithBalances()` — zero new/duplicated accounting
+      logic; balance/paid/status computed server-side exactly as the web portal already relies
+      on). Built the Android side natively: `Invoice`/`InvoiceDetail`/`InvoicePayment` domain
+      models, real (`WebApiInvoicesRepository`) + mock repositories, owner/staff **Invoices** tab
+      (list + detail: amount/paid/balance/status/line items/payment history/PDF open) with a
+      **Record Payment** screen gated by `canRecordPayment()` (mirrors the server's own
+      `accountant`/`manager`/`principal` role floor — UI-layer only, server `requireOrgRole` is
+      the real, non-bypassable enforcement, unchanged), and a tenant **Invoices** tab (issued
+      invoices only, RLS-scoped, no Record Payment control) kept explicitly distinct from the
+      existing tenant **Report Payment** workflow (ledger truth vs. tenant self-report are
+      different concepts, not merged). PDF viewing required new `FileProvider` infrastructure
+      (authenticated download to app cache, then a `content://` share-URI) since invoice PDFs
+      need this app's own bearer token, unlike pre-signed document URLs. Added a **My Lease**
+      screen for tenants (property, unit, lease status, start/end date, rent) via a PostgREST
+      embed on the existing RLS-protected `lease_tenants`/`leases` tables — no new backend
+      endpoint. Investigated (not guessed) whether a tenancy switcher is needed: the backend's
+      `caller_tenant_ids()` RLS helper has no per-request "active tenancy" scoping parameter
+      anywhere in the API surface, so a real switcher would require new backend API work, out of
+      this pass's "use the current backend contract" scope; Android instead shows the single
+      most-likely-current tenancy (active lease first, else most recent), exactly mirroring web's
+      own `resolveTenantSession()` tie-break rule. Added 22 new tests covering invoice mapping,
+      server-authoritative balance (no local recomputation), record-payment role gating, PDF
+      demo-mode failure (never a fake success), and My Lease loaded/empty/error states. Verified:
+      real `gradlew testDebugUnitTest lintDebug assembleDebug` — **193/193 unit tests passing**
+      (was 171), lint **0 errors, 60 warnings** (was 59; one new warning class, no regression).
+      Full detail in `WORKLOG.md`'s "2026-09-01 (continued, 2)" entry. iOS untouched this pass
+      (explicitly out of scope). Remaining gaps unchanged from the prior pass except the closed
+      Invoices item: tablet/foldable layout, push notifications (FCM, needs a Firebase project),
+      real App Links SHA-256 fingerprint, release signing, design-token codegen — all owner-action
+      or POST-V1 items, not Android code gaps.
 - **Exit criteria**: project foundation and every vertical slice through the tenant portal
   (Properties, Units, Tenants, Leases, Maintenance incl. submission/attachments, Documents,
-  Notices, payment reporting/review, notifications, auth/session incl. biometric and sign-out)
-  done and execution-verified (build, tests, lint; device/emulator install-and-launch confirmed as
-  of the 2026-08-01/08-17/08-18 passes, not re-run this pass — no emulator was attached this
-  session, disclosed rather than re-claimed). Not claimed as fully milestone-complete — the
-  disclosed gaps above (tablet layout, push notifications, release signing, real App Links
-  fingerprint, design-token codegen, an Invoices ledger screen) remain open.
+  Notices, payment reporting/review, notifications, auth/session incl. biometric and sign-out, and
+  now the authoritative Invoices/payment-ledger screen and My Lease) done and execution-verified
+  (build, tests, lint; device/emulator install-and-launch confirmed as of the
+  2026-08-01/08-17/08-18 passes — this pass's own emulator smoke test is tracked separately below,
+  report only what actually ran). **ANDROID APPLICATION V1** (native code, all backend-supported
+  V1 workflows) is functionally complete pending that final smoke-test confirmation. **PLAY STORE
+  RELEASE READINESS** is a separate, still-BLOCKED concept: the disclosed owner-action gaps above
+  (tablet layout classified POST-V1 enhancement — usable, not broken; push notifications; release
+  signing; real App Links fingerprint; design-token codegen) remain open and are not Android code
+  work.
 
 ## M23 — Automated testing
 

@@ -46,3 +46,52 @@ data class TenancyMembershipDto(
     @SerialName("org_id") val orgId: String,
     val status: String,
 )
+
+/** "My Lease" (Invoice V1 completion pass, WORKLOG.md this date) -- a richer embed of the SAME
+ * `tenants` row `getMyTenancies()` above reads, via PostgREST's own embed syntax
+ * (`lease_tenants(lease_id,leases(...))`), mirroring `resolveTenantSession()`'s own query shape
+ * (apps/admin/lib/tenantSession.ts) conceptually. A separate call from the lightweight
+ * `getMyTenancies()` above -- that one runs on every sign-in/session-restore and stays cheap on
+ * purpose; this one only runs when the tenant actually opens "My Lease." RLS
+ * (`tenants_select_org_or_self`/`leases_select_org_or_tenant`/`units_select_org_or_tenant`/
+ * `properties_select_org_or_tenant`) scopes every embedded table to the caller's own rows, same
+ * as every other "my own" read in this app. */
+@Serializable
+data class TenancyWithLeaseDto(
+    val id: String,
+    @SerialName("org_id") val orgId: String,
+    val status: String,
+    @SerialName("lease_tenants") val leaseTenants: List<LeaseTenantEmbedDto> = emptyList(),
+)
+
+@Serializable
+data class LeaseTenantEmbedDto(
+    @SerialName("lease_id") val leaseId: String,
+    val leases: LeaseEmbedDto? = null,
+)
+
+@Serializable
+data class LeaseEmbedDto(
+    val id: String,
+    val status: String,
+    @SerialName("start_date") val startDate: String,
+    @SerialName("end_date") val endDate: String? = null,
+    @SerialName("rent_amount") val rentAmount: Double,
+    @SerialName("unit_id") val unitId: String,
+    val units: UnitEmbedDto? = null,
+)
+
+@Serializable
+data class UnitEmbedDto(
+    val id: String,
+    @SerialName("unit_label") val unitLabel: String,
+    @SerialName("property_id") val propertyId: String,
+    val properties: PropertyEmbedDto? = null,
+)
+
+@Serializable
+data class PropertyEmbedDto(
+    val id: String,
+    val nickname: String,
+    @SerialName("full_address") val fullAddress: String,
+)

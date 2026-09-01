@@ -7,6 +7,7 @@ import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Receipt
+import androidx.compose.material.icons.filled.RequestQuote
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -25,6 +26,9 @@ import androidx.navigation.compose.rememberNavController
 import za.co.proplyst.app.ui.account.AccountScreen
 import za.co.proplyst.app.ui.announcements.AnnouncementsListScreen
 import za.co.proplyst.app.ui.documents.DocumentsListScreen
+import za.co.proplyst.app.ui.invoices.InvoiceDetailScreen
+import za.co.proplyst.app.ui.invoices.InvoicesListScreen
+import za.co.proplyst.app.ui.tenancy.MyLeaseScreen
 import za.co.proplyst.app.ui.maintenance.CreateMaintenanceTicketScreen
 import za.co.proplyst.app.ui.maintenance.MaintenanceDetailScreen
 import za.co.proplyst.app.ui.maintenance.MaintenanceListScreen
@@ -36,6 +40,7 @@ import za.co.proplyst.app.ui.paymentreports.ReportPaymentScreen
 private data class TenantBottomNavItem(val route: String, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
 
 private val TENANT_BOTTOM_NAV_ITEMS: List<TenantBottomNavItem> = listOf(
+    TenantBottomNavItem(Destinations.INVOICES_LIST, "Invoices", Icons.Filled.RequestQuote),
     TenantBottomNavItem(Destinations.PAYMENTS_LIST, "Payments", Icons.Filled.Receipt),
     TenantBottomNavItem(Destinations.MAINTENANCE_LIST, "Maintenance", Icons.Filled.Build),
     TenantBottomNavItem(Destinations.DOCUMENTS_LIST, "Documents", Icons.Filled.Description),
@@ -86,9 +91,22 @@ fun TenantRootScreen(pendingRoute: String? = null) {
     ) { padding ->
         NavHost(
             navController = navController,
-            startDestination = Destinations.PAYMENTS_LIST,
+            startDestination = Destinations.INVOICES_LIST,
             modifier = Modifier.padding(padding),
         ) {
+            composable(Destinations.INVOICES_LIST) {
+                InvoicesListScreen(
+                    onInvoiceClick = { invoiceId -> navController.navigate(Destinations.invoiceDetail(invoiceId)) },
+                )
+            }
+            composable(Destinations.INVOICE_DETAIL) {
+                // No onRecordPaymentClick -- a tenant is never accountant+ org role, so
+                // InvoiceDetailViewModel.canRecordPayment is always false for this caller anyway;
+                // omitted here rather than passed-but-never-true, so this NavHost never even
+                // references RECORD_PAYMENT (a route with no destination registered in this
+                // NavHost at all -- there is no code path by which a tenant could navigate to it).
+                InvoiceDetailScreen(onBack = { navController.popBackStack() })
+            }
             composable(Destinations.PAYMENTS_LIST) {
                 PaymentReportsListScreen(
                     onReportPaymentClick = { navController.navigate(Destinations.REPORT_PAYMENT) },
@@ -131,7 +149,13 @@ fun TenantRootScreen(pendingRoute: String? = null) {
                 NotificationPreferencesScreen(onBack = { navController.popBackStack() })
             }
             composable(Destinations.ACCOUNT) {
-                AccountScreen(onBack = { navController.popBackStack() })
+                AccountScreen(
+                    onBack = { navController.popBackStack() },
+                    onMyLeaseClick = { navController.navigate(Destinations.MY_LEASE) },
+                )
+            }
+            composable(Destinations.MY_LEASE) {
+                MyLeaseScreen(onBack = { navController.popBackStack() })
             }
         }
     }

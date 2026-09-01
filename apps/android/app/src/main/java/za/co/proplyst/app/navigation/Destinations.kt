@@ -65,4 +65,20 @@ object Destinations {
     const val TENANT_ROOT = "tenant_root"
     const val PAYMENTS_LIST = "payments"
     const val REPORT_PAYMENT = "payments/report"
+
+    // Invoice V1 completion pass (WORKLOG.md this date) -- the authoritative invoice/balance
+    // ledger, distinct from PAYMENTS_LIST above (the tenant-REPORTED payment-CLAIM workflow).
+    // Shared route names across both the Owner and Tenant nested NavHosts, same pattern as
+    // NOTIFICATIONS_LIST.
+    const val INVOICES_LIST = "invoices"
+    const val INVOICE_DETAIL = "invoices/{invoiceId}"
+    const val RECORD_PAYMENT = "invoices/{invoiceId}/record-payment"
+
+    fun invoiceDetail(invoiceId: String) = "invoices/$invoiceId"
+    fun recordPayment(invoiceId: String) = "invoices/$invoiceId/record-payment"
+
+    // "My Lease" (Invoice V1 completion pass, WORKLOG.md this date) -- tenant-only, reached from
+    // AccountScreen (never a bottom-nav tab -- the Tenant NavHost already carries 6 tabs after
+    // adding Invoices; see OwnerRootScreen.kt's own disclosed tab-count P2 note).
+    const val MY_LEASE = "my_lease"
 }

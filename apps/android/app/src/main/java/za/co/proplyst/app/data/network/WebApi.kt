@@ -5,13 +5,19 @@ import za.co.proplyst.app.data.network.dto.CreateTenantMaintenanceTicketRequest
 import za.co.proplyst.app.data.network.dto.DocumentDetailResponse
 import za.co.proplyst.app.data.network.dto.DocumentListResponse
 import za.co.proplyst.app.data.network.dto.InsightListResponse
+import za.co.proplyst.app.data.network.dto.InvoiceDetailResponse
+import za.co.proplyst.app.data.network.dto.InvoiceListResponse
+import za.co.proplyst.app.data.network.dto.InvoicePaymentCreateResponse
+import za.co.proplyst.app.data.network.dto.InvoicePaymentListResponse
 import za.co.proplyst.app.data.network.dto.MaintenanceDocumentUploadResponse
 import za.co.proplyst.app.data.network.dto.MaintenanceTicketCreateResponse
 import za.co.proplyst.app.data.network.dto.PaymentReportCreateResponse
 import za.co.proplyst.app.data.network.dto.PaymentReportListResponse
+import za.co.proplyst.app.data.network.dto.RecordInvoicePaymentRequest
 import za.co.proplyst.app.data.network.dto.RejectPaymentReportRequest
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
+import okhttp3.ResponseBody
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -20,6 +26,7 @@ import retrofit2.http.POST
 import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
+import retrofit2.http.Streaming
 
 /**
  * Calls into the Next.js web API (`BuildConfig.API_BASE_URL`), never Supabase directly -- for
@@ -116,4 +123,44 @@ interface WebApi {
     suspend fun getPortfolioInsights(
         @Query("filter[org_id]") orgId: String,
     ): Response<InsightListResponse>
+
+    /** Android V1 completion pass (WORKLOG.md this date) -- the ONE invoice list, shared by both
+     * portals. RLS alone decides visibility (`invoices_select_org_member` for staff,
+     * `invoices_select_tenant_self` for a tenant, issued-only for the latter since migration
+     * 20260101000162) -- no orgId/tenantId sent, same "trust RLS, never send a caller-supplied
+     * scope" posture as getMyPaymentReports() above. `paid`/`balance`/`displayStatus` are
+     * computed server-side (loadInvoicesWithBalances()); this app never recomputes them. */
+    @GET("api/v1/invoices")
+    suspend fun getInvoices(): Response<InvoiceListResponse>
+
+    /** A non-existent id, another tenant's invoice, another org's invoice, or (for a tenant
+     * caller) a draft invoice all resolve to the identical 404 the web app's own PDF route
+     * documents -- RLS hides the row entirely, this app never gets a distinguishing signal
+     * either. */
+    @GET("api/v1/invoices/{id}")
+    suspend fun getInvoice(@Path("id") id: String): Response<InvoiceDetailResponse>
+
+    /** The one payment-recording path for both manual and rent-sourced invoices (unified
+     * invoice-payment ledger, migration 20260101000158). RLS/role gating (accountant+ org role,
+     * via requireOrgRole() server-side) is the real authorization -- a tenant or an
+     * insufficiently-privileged staff caller gets a real 403 from the server, never something
+     * this app pre-filters or hides a control for alone (a hidden control is a UX nicety, not
+     * the enforcement boundary, matching this codebase's established posture everywhere else). */
+    @GET("api/v1/invoices/{id}/payments")
+    suspend fun getInvoicePayments(@Path("id") invoiceId: String): Response<InvoicePaymentListResponse>
+
+    @POST("api/v1/invoices/{id}/payments")
+    suspend fun recordInvoicePayment(
+        @Path("id") invoiceId: String,
+        @Body body: RecordInvoicePaymentRequest,
+    ): Response<InvoicePaymentCreateResponse>
+
+    /** Raw PDF bytes (`Content-Type: application/pdf`), not JSON -- @Streaming avoids buffering
+     * the whole file in memory before the caller can start writing it to a cache file. Same RLS-
+     * only authorization as every other invoice route: own issued invoice -> real PDF; another
+     * tenant's/another org's/a draft/a nonexistent id -> 404, never a distinguishing signal;
+     * unauthenticated -> 401. */
+    @Streaming
+    @GET("api/v1/invoices/{id}/pdf")
+    suspend fun getInvoicePdf(@Path("id") id: String): Response<ResponseBody>
 }
