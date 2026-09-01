@@ -170,16 +170,37 @@ export const manualInvoiceUpdateSchema = z.object({
 });
 export type ManualInvoiceUpdateInput = z.infer<typeof manualInvoiceUpdateSchema>;
 
+// Unified invoice-payment ledger (migration 20260101000158): the ONE recording path for both
+// manual and rent-sourced invoices. method is a closed set matching record_invoice_payment()'s own
+// check constraint; reference is first-class (not folded into notes); there is no
+// allowOverpayment escape hatch anywhere -- the RPC refuses any payment that would exceed the
+// outstanding balance, full stop.
+export const invoicePaymentMethodSchema = z.enum(['eft', 'cash', 'card', 'debit_order', 'bank_deposit', 'other']);
+export type InvoicePaymentMethod = z.infer<typeof invoicePaymentMethodSchema>;
+
 export const invoicePaymentCreateSchema = z.object({
   amount: z.number().positive('amount must be positive'),
   paidAt: z.string().min(1, 'paidAt is required (YYYY-MM-DD)'),
-  method: z.string().max(50).optional().nullable(),
+  method: invoicePaymentMethodSchema,
+  reference: z.string().max(100).optional().nullable(),
   notes: z.string().max(2000).optional().nullable(),
-  // Final accounting reconciliation pass, migration 157: optionally ties this recorded payment to
-  // a real, already-imported bank transaction (never independently reusable for rent-matching or
-  // another invoice once linked) -- and makes overpayment an explicit, opt-in confirmation rather
-  // than a silent possibility indistinguishable from an accidental duplicate entry.
+  // Optionally ties this recorded payment to a real, already-imported bank transaction (never
+  // independently reusable for rent-matching or another invoice once linked).
   bankTransactionId: z.string().uuid('bankTransactionId must be a valid UUID').optional().nullable(),
-  allowOverpayment: z.boolean().optional(),
 });
 export type InvoicePaymentCreateInput = z.infer<typeof invoicePaymentCreateSchema>;
+
+export const invoicePaymentReversalSchema = z.object({
+  reason: z.string().trim().min(1, 'A reversal reason is required').max(2000),
+});
+export type InvoicePaymentReversalInput = z.infer<typeof invoicePaymentReversalSchema>;
+
+export const invoiceVoidSchema = z.object({
+  reason: z.string().trim().min(1, 'A void reason is required').max(2000),
+});
+export type InvoiceVoidInput = z.infer<typeof invoiceVoidSchema>;
+
+export const invoicePaymentLinkBankTransactionSchema = z.object({
+  bankTransactionId: z.string().uuid('bankTransactionId must be a valid UUID'),
+});
+export type InvoicePaymentLinkBankTransactionInput = z.infer<typeof invoicePaymentLinkBankTransactionSchema>;

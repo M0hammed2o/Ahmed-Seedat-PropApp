@@ -10,6 +10,7 @@ const DISPLAY_STATUSES: InvoiceRow['displayStatus'][] = [
   'Partially paid',
   'Paid',
   'Overdue',
+  'Void',
 ];
 
 // Landlord rent-invoicing pass (WORKLOG.md this date): same client-side filter-over-already-fetched

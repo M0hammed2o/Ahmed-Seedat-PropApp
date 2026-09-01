@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { resolveTenantSession, getTenancyLeaseIds } from '@/lib/tenantSession';
 import { mapAnnouncementRow } from '@/lib/notifications';
+import { loadInvoicesWithBalances } from '@/lib/invoicing';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 // New page -- Lovable's reference (reference/lovable-ui-reference/.../src/routes/portal/index.tsx)
@@ -152,7 +153,7 @@ export default async function TenantPortalHomePage() {
                       : 'No rent currently due'}
                   </p>
                   <p className="tabular mt-1 font-display text-[32px] leading-none font-bold text-light-textPrimary dark:text-dark-textPrimary">
-                    {currency(data.lease.nextDueAmount ?? data.lease.rentAmount)}
+                    {currency(data.lease.nextDueAmount ?? 0)}
                   </p>
                   <p className="mt-2 text-xs text-light-textMuted dark:text-dark-textMuted">
                     {data.lease.unitLabel ?? 'Unit'} · {data.lease.propertyNickname ?? 'Property'}
@@ -371,34 +372,33 @@ async function loadData(): Promise<PortalOverview> {
       })
     | null;
 
+  // Unified invoice-payment ledger (migrations 20260101000158/159/161, tenant-portal release-gate
+  // pass): "rent due" must be the real OUTSTANDING BALANCE (invoice.amount - non-reversed
+  // invoice_payments), never a rent_schedule's raw .amount column, which always holds the full
+  // scheduled amount regardless of how much has already been paid against it -- the exact bug
+  // this replaces (a tenant who had paid R15,000 of a R20,000 invoice was shown "Rent due
+  // R20,000", not the true R5,000 outstanding). paidCount/overdueCount now come from the same
+  // per-invoice displayStatus every other surface (the invoices list, the tenant Payments tab)
+  // already agrees on.
   let lease: PortalOverview['lease'] = null;
   let paidCount = 0;
   let overdueCount = 0;
   if (leaseRow) {
-    const { data: rentSchedules, error: rsError } = await supabase
-      .from('rent_schedules')
-      .select('due_date, amount, status')
-      .eq('lease_id', leaseRow.id)
-      .order('due_date', { ascending: true });
-    if (rsError) throw new Error(`Failed to load rent schedule: ${rsError.message}`);
-
-    const schedules = rentSchedules ?? [];
-    paidCount = schedules.filter((r) => r.status === 'paid').length;
-    overdueCount = schedules.filter((r) => r.status === 'overdue').length;
-    const nextDue = schedules.find(
-      (r) =>
-        r.status === 'pending' ||
-        r.status === 'invoiced' ||
-        r.status === 'overdue' ||
-        r.status === 'partial',
+    const invoices = (await loadInvoicesWithBalances(supabase, { tenantId: session.tenantId })).filter(
+      (inv) => inv.displayStatus !== 'Draft',
     );
+    paidCount = invoices.filter((inv) => inv.displayStatus === 'Paid').length;
+    overdueCount = invoices.filter((inv) => inv.displayStatus === 'Overdue').length;
+    const nextDue = invoices
+      .filter((inv) => inv.balance > 0)
+      .sort((a, b) => a.period.localeCompare(b.period))[0];
 
     lease = {
       unitLabel: leaseRow.units?.unit_label ?? null,
       propertyNickname: leaseRow.units?.properties?.nickname ?? null,
       rentAmount: Number(leaseRow.rent_amount),
-      nextDueDate: nextDue?.due_date ?? null,
-      nextDueAmount: nextDue ? Number(nextDue.amount) : null,
+      nextDueDate: nextDue?.period ?? null,
+      nextDueAmount: nextDue?.balance ?? null,
       startDate: leaseRow.start_date,
       endDate: leaseRow.end_date,
     };

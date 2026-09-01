@@ -184,7 +184,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
   const buffer = Buffer.from(await file.arrayBuffer());
 
-  const scanRejection = await scanUploadOrRespond(buffer);
+  // sensitive: false (autonomous overnight completion pass, WORKLOG.md this date) -- marketing
+  // property photos, MIME-allowlisted to images only (ALLOWED_PHOTO_MIME_TYPES above, no PDF), a
+  // narrower attack surface than the document-upload paths scanUploadOrRespond()'s default now
+  // fail-closes on when no real scanner is configured. Blocking this unrelated, lower-risk
+  // product feature on the same missing-ClamAV gap would be an unaudited regression, not a
+  // safety improvement -- see scanUploadOrRespond()'s own comment for the full reasoning.
+  const scanRejection = await scanUploadOrRespond(buffer, { sensitive: false });
   if (scanRejection) return scanRejection;
 
   const { data: category, error: categoryError } = await supabase

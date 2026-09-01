@@ -119,6 +119,10 @@ export interface BankTransaction {
   reference: string | null;
   matchedJournalEntryId: string | null;
   matchedRentScheduleId: string | null;
+  // Unified invoice-payment ledger (migration 20260101000158): mutually exclusive with
+  // matchedRentScheduleId -- a bank transaction is either evidence for a rent-schedule match or a
+  // manual/rent invoice payment, never both.
+  matchedInvoicePaymentId: string | null;
   matchStatus: BankTransactionMatchStatus;
   createdAt: string;
   // V1 launch-completion pass (migration 20260101000146): optional manual tags plus the second
@@ -153,6 +157,12 @@ export interface Invoice {
   notes: string | null;
   reference: string | null;
   createdByUserId: string | null;
+  // Unified invoice-payment ledger (migration 20260101000158): never deleted, remains visible;
+  // excluded from outstanding-balance totals; cannot be voided while any non-reversed payment
+  // exists (reverse first) and cannot receive a new payment once void.
+  voidedAt: string | null;
+  voidedByUserId: string | null;
+  voidReason: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -171,12 +181,22 @@ export interface InvoiceLineItem {
 
 export interface InvoicePayment {
   id: string;
+  orgId: string;
+  tenantId: string;
   invoiceId: string;
   amount: number;
   paidAt: string;
   method: string | null;
+  reference: string | null;
   notes: string | null;
   recordedBy: string | null;
+  bankTransactionId: string | null;
+  // Unified invoice-payment ledger (migration 20260101000158): the original row is never edited
+  // beyond these three columns, never deleted -- reverse_invoice_payment() is the only path that
+  // may set them.
+  reversedAt: string | null;
+  reversedByUserId: string | null;
+  reversalReason: string | null;
   createdAt: string;
 }
 

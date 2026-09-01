@@ -11,6 +11,7 @@ export function Panel({
   children,
   className = '',
   bodyClassName = 'p-5',
+  id,
 }: {
   title?: string;
   description?: string;
@@ -18,9 +19,11 @@ export function Panel({
   children: ReactNode;
   className?: string;
   bodyClassName?: string;
+  id?: string;
 }) {
   return (
     <section
+      id={id}
       className={`overflow-hidden rounded-card border border-light-border bg-light-surfaceRaised shadow-card dark:border-dark-border dark:bg-dark-surfaceRaised ${className}`}
     >
       {title ? (

@@ -9,19 +9,45 @@ import { getMalwareScanProvider, getClamAVConfig } from './providers/malwareScan
  * NextResponse to send back immediately if the upload must be refused, or null if it's clean and
  * the route should proceed.
  *
- * Two deliberately different failure modes, not one:
- * - CLAMAV_HOST/CLAMAV_PORT unset (no scanner configured, e.g. this environment's own default):
- *   falls back to MockMalwareScanProvider, which always reports clean but logs loudly -- the
- *   existing MIME-allowlist remains the only real protection, a disclosed gap
- *   (TECHNICAL_DEBT_REGISTER.md TD-43), not a silent one.
- * - CLAMAV_HOST/CLAMAV_PORT set but the scan call itself throws (connection refused, timeout,
- *   protocol error): fails CLOSED -- the upload is refused with a 503, never silently allowed
- *   through. An operator who configured real scanning gets the guarantee that implies; a scanner
- *   outage must not quietly become "uploads go through unscanned."
+ * Three deliberately different failure modes, not two (autonomous overnight completion pass,
+ * WORKLOG.md this date -- TD-43's disclosed gap was real and this closes it for the highest-risk
+ * upload paths without standing up new infrastructure):
+ * - `sensitive: true` (the default -- a caller must opt OUT, never silently opt in) AND no real
+ *   scanner configured: fails CLOSED with a professional, detail-free 503 message. Sensitive
+ *   document/proof-of-payment/applicant-document uploads must never go through completely
+ *   unscanned in production -- MIME-allowlisting alone (PDFs can carry embedded exploits) is not
+ *   an acceptable substitute for the malware-scanning guarantee this codebase's own security
+ *   posture implies. Existing documents remain fully readable -- this only blocks new uploads.
+ * - `sensitive: false` (an explicit, audited per-call-site opt-out -- currently only property
+ *   photos, whose MIME allowlist is image-only, a narrower attack surface, and whose loss would
+ *   block an unrelated, lower-risk product feature) AND no real scanner configured: unchanged
+ *   behaviour -- falls back to MockMalwareScanProvider (clean, logs loudly), same disclosed gap
+ *   as before this pass.
+ * - A real scanner IS configured but the scan call itself throws (connection refused, timeout,
+ *   protocol error): fails CLOSED regardless of `sensitive` -- the upload is refused with a 503,
+ *   never silently allowed through. An operator who configured real scanning gets the guarantee
+ *   that implies; a scanner outage must not quietly become "uploads go through unscanned."
  */
-export async function scanUploadOrRespond(bytes: Uint8Array): Promise<NextResponse | null> {
+export async function scanUploadOrRespond(
+  bytes: Uint8Array,
+  options: { sensitive?: boolean } = {},
+): Promise<NextResponse | null> {
+  const sensitive = options.sensitive ?? true;
   const provider = getMalwareScanProvider();
   const isRealScannerConfigured = getClamAVConfig() !== null;
+
+  if (sensitive && !isRealScannerConfigured) {
+    return NextResponse.json(
+      {
+        error: {
+          code: 'upload_temporarily_unavailable',
+          message:
+            'Document uploads are temporarily unavailable while secure file scanning is being configured.',
+        },
+      },
+      { status: 503 },
+    );
+  }
 
   try {
     const result = await provider.scan(bytes);

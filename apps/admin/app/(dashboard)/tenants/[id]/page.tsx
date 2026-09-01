@@ -5,21 +5,25 @@ import type {
   Tenant,
   TenantInvitation,
   Lease,
-  RentSchedule,
   MaintenanceTicket,
   DocumentRecord,
 } from '@propvault/types';
 import {
   TENANT_STATUS_PRESENTATION,
   LEASE_STATUS_PRESENTATION,
-  RENT_SCHEDULE_STATUS_PRESENTATION,
   MAINTENANCE_STATUS_PRESENTATION,
 } from '@propvault/ui';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
-import { mapTenantRow, mapLeaseRow, mapRentScheduleRow, pickCurrentLease } from '@/lib/leasing';
+import { mapTenantRow, mapLeaseRow, pickCurrentLease } from '@/lib/leasing';
 import { mapMaintenanceTicketRow } from '@/lib/operations';
 import { mapDocumentRow } from '@/lib/documents';
 import { mapTenantInvitationRow } from '@/lib/tenantInvitations';
+import {
+  loadInvoicesWithBalances,
+  loadTenantPaymentLedger,
+  type InvoiceWithBalance,
+  type TenantPaymentLedgerRow,
+} from '@/lib/invoicing';
 import {
   deriveTenantPortalStatus,
   PORTAL_STATUS_TONE,
@@ -110,33 +114,63 @@ const DEMO_TENANCY_HISTORY: LeaseContext[] = [];
 
 const DEMO_DOCUMENTS: DocumentRecord[] = [];
 
-const DEMO_RENT_SCHEDULES: RentSchedule[] = [
+const DEMO_INVOICES: InvoiceWithBalance[] = [
   {
-    id: 'demo-rs-1',
-    orgId: 'demo-org-1',
-    leaseId: 'demo-lease-1',
-    dueDate: '2026-08-01',
+    id: 'demo-invoice-aug',
+    invoiceNumber: 'INV-000201',
+    tenantId: 'demo-tenant-1',
+    tenantName: 'Naledi Khumalo',
+    propertyId: 'demo-property-1',
+    propertyNickname: 'Sea Point Apartment',
+    unitId: 'demo-unit-1',
+    unitLabel: 'Unit 1',
+    description: 'August 2026 Rent',
+    period: '2026-08-01',
+    issuedAt: '2026-08-01T00:00:00Z',
     amount: 12500,
-    status: 'overdue',
-    generatedAt: '2026-08-01T00:00:00Z',
+    paid: 0,
+    balance: 12500,
+    displayStatus: 'Overdue',
+    emailedAt: null,
+    voidedAt: null,
+    source: 'rent_schedule',
   },
   {
-    id: 'demo-rs-2',
-    orgId: 'demo-org-1',
-    leaseId: 'demo-lease-1',
-    dueDate: '2026-07-01',
+    id: 'demo-invoice-jul',
+    invoiceNumber: 'INV-000188',
+    tenantId: 'demo-tenant-1',
+    tenantName: 'Naledi Khumalo',
+    propertyId: 'demo-property-1',
+    propertyNickname: 'Sea Point Apartment',
+    unitId: 'demo-unit-1',
+    unitLabel: 'Unit 1',
+    description: 'July 2026 Rent',
+    period: '2026-07-01',
+    issuedAt: '2026-07-01T00:00:00Z',
     amount: 12500,
-    status: 'paid',
-    generatedAt: '2026-07-01T00:00:00Z',
+    paid: 12500,
+    balance: 0,
+    displayStatus: 'Paid',
+    emailedAt: null,
+    voidedAt: null,
+    source: 'rent_schedule',
   },
+];
+
+const DEMO_PAYMENTS: TenantPaymentLedgerRow[] = [
   {
-    id: 'demo-rs-3',
-    orgId: 'demo-org-1',
-    leaseId: 'demo-lease-1',
-    dueDate: '2026-06-01',
+    id: 'demo-payment-1',
+    paidAt: '2026-07-01',
+    invoiceId: 'demo-invoice-jul',
+    invoiceNumber: 'INV-000188',
+    description: 'July 2026 Rent',
+    method: 'eft',
+    reference: 'REF778812',
     amount: 12500,
-    status: 'paid',
-    generatedAt: '2026-06-01T00:00:00Z',
+    recordedByName: 'Demo Admin',
+    reversedAt: null,
+    reversedByName: null,
+    reversalReason: null,
   },
 ];
 
@@ -177,7 +211,8 @@ export default async function TenantDetailPage({ params }: RouteParams) {
         portalStatus={{ status: 'not_invited', label: 'Not invited' }}
         leaseContext={DEMO_LEASE_CONTEXT}
         tenancyHistory={DEMO_TENANCY_HISTORY}
-        rentSchedules={DEMO_RENT_SCHEDULES}
+        invoices={DEMO_INVOICES}
+        payments={DEMO_PAYMENTS}
         maintenanceTickets={DEMO_MAINTENANCE_TICKETS}
         documents={DEMO_DOCUMENTS}
         demoMode
@@ -222,17 +257,14 @@ export default async function TenantDetailPage({ params }: RouteParams) {
 
   const { current: leaseContext, history: tenancyHistory } = await loadTenancy(id);
 
-  let rentSchedules: RentSchedule[] = [];
-  if (leaseContext) {
-    const { data: rsRows, error: rsError } = await supabase
-      .from('rent_schedules')
-      .select('*')
-      .eq('lease_id', leaseContext.lease.id)
-      .order('due_date', { ascending: false })
-      .limit(5);
-    if (rsError) throw new Error(`Failed to load rent schedules: ${rsError.message}`);
-    rentSchedules = (rsRows ?? []).map(mapRentScheduleRow);
-  }
+  // Unified invoice-payment ledger (migration 20260101000158): Balance and the Payments tab both
+  // come from this same pair of loaders lib/invoicing.ts also uses for /accounting/invoices --
+  // never a second, independently-derived total, and never rent_schedules rendered as if it were a
+  // payment ledger (rent_schedules is an obligation/arrears schedule, not a record of money moved).
+  const [invoices, payments] = await Promise.all([
+    loadInvoicesWithBalances(supabase, { tenantId: id }),
+    loadTenantPaymentLedger(supabase, id),
+  ]);
 
   const { data: mtRows, error: mtError } = await supabase
     .from('maintenance_tickets')
@@ -265,7 +297,8 @@ export default async function TenantDetailPage({ params }: RouteParams) {
       portalStatus={portalStatus}
       leaseContext={leaseContext}
       tenancyHistory={tenancyHistory}
-      rentSchedules={rentSchedules}
+      invoices={invoices}
+      payments={payments}
       maintenanceTickets={maintenanceTickets}
       documents={documents}
     />
@@ -329,7 +362,8 @@ function TenantDetailView({
   portalStatus,
   leaseContext,
   tenancyHistory,
-  rentSchedules,
+  invoices,
+  payments,
   maintenanceTickets,
   documents,
   demoMode = false,
@@ -342,13 +376,17 @@ function TenantDetailView({
   leaseContext: LeaseContext | null;
   documents: DocumentRecord[];
   tenancyHistory: LeaseContext[];
-  rentSchedules: RentSchedule[];
+  invoices: InvoiceWithBalance[];
+  payments: TenantPaymentLedgerRow[];
   maintenanceTickets: MaintenanceTicket[];
   demoMode?: boolean;
 }) {
-  const balance = rentSchedules
-    .filter((r) => r.status === 'pending' || r.status === 'overdue' || r.status === 'partial')
-    .reduce((sum, r) => sum + r.amount, 0);
+  // Unified invoice-payment ledger (migration 20260101000158): sum of CURRENT invoice balances
+  // across every non-void invoice -- loadInvoicesWithBalances() already zeroes a void invoice's
+  // balance, so this never needs its own void filter. One source of truth, shared with
+  // /accounting/invoices, Rent Due, and property Accounting -- never a second, independently
+  // computed arrears figure.
+  const balance = invoices.reduce((sum, inv) => sum + inv.balance, 0);
 
   const stats: { label: string; value: string; danger?: boolean }[] = [];
   if (leaseContext) {
@@ -476,7 +514,7 @@ function TenantDetailView({
                   <LeaseTab leaseContext={leaseContext} tenantId={tenant.id} canEdit={canEdit} />
                 ),
               },
-              { label: 'Payments', content: <PaymentsTab rentSchedules={rentSchedules} /> },
+              { label: 'Payments', content: <PaymentsTab payments={payments} /> },
               { label: 'Maintenance', content: <MaintenanceTab tickets={maintenanceTickets} /> },
               { label: 'Notes', content: <NotesTab /> },
             ]}
@@ -655,31 +693,78 @@ function LeaseTab({
   );
 }
 
-function PaymentsTab({ rentSchedules }: { rentSchedules: RentSchedule[] }) {
-  if (rentSchedules.length === 0) {
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  eft: 'EFT',
+  cash: 'Cash',
+  card: 'Card',
+  debit_order: 'Debit order',
+  bank_deposit: 'Bank deposit',
+  other: 'Other',
+};
+
+/**
+ * A real invoice_payments-based ledger (unified invoice-payment ledger, migration
+ * 20260101000158) -- covers both manual and rent-sourced invoices, never rent_schedules rendered
+ * as if it were a record of money moved (that was this tab's actual bug before this pass: it
+ * listed OBLIGATIONS, not payments, and a schedule with zero payments recorded against it could
+ * still show "Paid" purely from bank-reconciliation matching that never touched invoice_payments
+ * at all).
+ */
+function PaymentsTab({ payments }: { payments: TenantPaymentLedgerRow[] }) {
+  if (payments.length === 0) {
     return (
       <p className="p-5 text-[13px] text-light-textMuted dark:text-dark-textMuted">
-        No rent schedule entries for this tenant yet.
+        No payments recorded for this tenant yet.
       </p>
     );
   }
   return (
     <ul className="divide-y divide-light-border dark:divide-dark-border">
-      {rentSchedules.map((r) => (
-        <li key={r.id} className="flex items-center justify-between px-5 py-3.5 text-[13px]">
-          <span className="font-medium text-light-textPrimary dark:text-dark-textPrimary">
-            {new Date(r.dueDate).toLocaleDateString('en-ZA', {
-              day: '2-digit',
-              month: 'short',
-              year: 'numeric',
-            })}
-          </span>
-          <span className="flex items-center gap-3">
-            <span className="tabular font-semibold text-light-textPrimary dark:text-dark-textPrimary">
-              {currency(r.amount)}
-            </span>
-            <StatusBadge presentation={RENT_SCHEDULE_STATUS_PRESENTATION[r.status]} />
-          </span>
+      {payments.map((p) => (
+        <li key={p.id} className="px-5 py-3.5 text-[13px]">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <Link
+                href={`/accounting/invoices/${p.invoiceId}`}
+                className={
+                  p.reversedAt
+                    ? 'font-medium text-light-textMuted line-through hover:underline dark:text-dark-textMuted'
+                    : 'font-medium text-light-accent hover:underline dark:text-dark-accent'
+                }
+              >
+                {p.invoiceNumber}
+              </Link>
+              <p className="truncate text-xs text-light-textMuted dark:text-dark-textMuted">
+                {p.description}
+                {p.method ? ` · ${PAYMENT_METHOD_LABELS[p.method] ?? p.method}` : ''}
+                {p.reference ? ` · ${p.reference}` : ''}
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-3">
+              <span className="text-xs text-light-textMuted dark:text-dark-textMuted">
+                {new Date(p.paidAt).toLocaleDateString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric' })}
+              </span>
+              <span
+                className={
+                  p.reversedAt
+                    ? 'tabular text-light-textMuted line-through dark:text-dark-textMuted'
+                    : 'tabular font-semibold text-light-textPrimary dark:text-dark-textPrimary'
+                }
+              >
+                {currency(p.amount)}
+              </span>
+            </div>
+          </div>
+          <p className="mt-1 text-xs text-light-textMuted dark:text-dark-textMuted">
+            {p.reversedAt ? (
+              <span className="text-light-statusOverdue dark:text-dark-statusOverdue">
+                Reversed by {p.reversedByName ?? 'a team member'}
+                {p.reversalReason ? `: ${p.reversalReason}` : ''}
+              </span>
+            ) : (
+              <>Recorded by {p.recordedByName ?? 'a team member'}</>
+            )}
+          </p>
         </li>
       ))}
     </ul>

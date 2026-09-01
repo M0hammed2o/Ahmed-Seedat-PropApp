@@ -170,6 +170,7 @@ interface BankTransactionRow {
   reference: string | null;
   matched_journal_entry_id: string | null;
   matched_rent_schedule_id: string | null;
+  matched_invoice_payment_id: string | null;
   match_status: string;
   created_at: string;
   property_id: string | null;
@@ -200,6 +201,7 @@ export function mapBankTransactionRow(row: BankTransactionRow): BankTransaction 
     expenseId: row.expense_id,
     matchedJournalEntryId: row.matched_journal_entry_id,
     matchedRentScheduleId: row.matched_rent_schedule_id,
+    matchedInvoicePaymentId: row.matched_invoice_payment_id,
     matchStatus: row.match_status as BankTransaction['matchStatus'],
     createdAt: row.created_at,
   };
@@ -222,6 +224,9 @@ interface InvoiceRow {
   notes: string | null;
   reference: string | null;
   created_by_user_id: string | null;
+  voided_at: string | null;
+  voided_by_user_id: string | null;
+  void_reason: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -244,6 +249,9 @@ export function mapInvoiceRow(row: InvoiceRow): Invoice {
     notes: row.notes,
     reference: row.reference,
     createdByUserId: row.created_by_user_id,
+    voidedAt: row.voided_at,
+    voidedByUserId: row.voided_by_user_id,
+    voidReason: row.void_reason,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -277,24 +285,38 @@ export function mapInvoiceLineItemRow(row: InvoiceLineItemRow): InvoiceLineItem 
 
 interface InvoicePaymentRow {
   id: string;
+  org_id: string;
+  tenant_id: string;
   invoice_id: string;
   amount: number;
   paid_at: string;
   method: string | null;
+  reference: string | null;
   notes: string | null;
   recorded_by: string | null;
+  bank_transaction_id: string | null;
+  reversed_at: string | null;
+  reversed_by_user_id: string | null;
+  reversal_reason: string | null;
   created_at: string;
 }
 
 export function mapInvoicePaymentRow(row: InvoicePaymentRow): InvoicePayment {
   return {
     id: row.id,
+    orgId: row.org_id,
+    tenantId: row.tenant_id,
     invoiceId: row.invoice_id,
     amount: Number(row.amount),
     paidAt: row.paid_at,
     method: row.method,
+    reference: row.reference,
     notes: row.notes,
     recordedBy: row.recorded_by,
+    bankTransactionId: row.bank_transaction_id,
+    reversedAt: row.reversed_at,
+    reversedByUserId: row.reversed_by_user_id,
+    reversalReason: row.reversal_reason,
     createdAt: row.created_at,
   };
 }

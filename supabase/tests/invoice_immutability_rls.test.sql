@@ -180,7 +180,7 @@ update public.invoices set amount = 1
 select throws_ok(
   $$ select public.record_invoice_payment(
        (select i.id from public.invoices i join public.organizations o on o.id = i.org_id where o.legal_name = 'Immutability Test Org' and i.description = 'Issued target'),
-       50, current_date, 'eft', null
+       50, current_date, 'eft', null, null
      ) $$,
   'P0001',
   'Invoice not found',
@@ -210,7 +210,7 @@ select is(
 -- record_invoice_payment() still cannot directly rewrite or delete it afterward. ===
 select public.record_invoice_payment(
   (select i.id from public.invoices i join public.organizations o on o.id = i.org_id where o.legal_name = 'Immutability Test Org' and i.description = 'Issued target'),
-  50, current_date, 'eft', 'Legitimate payment for the immutability check below'
+  50, current_date, 'eft', 'REF-IMMUT', 'Legitimate payment for the immutability check below'
 );
 
 update public.invoice_payments set amount = 1

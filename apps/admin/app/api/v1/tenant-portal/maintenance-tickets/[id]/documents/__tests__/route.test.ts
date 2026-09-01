@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
 // Real integration test against local Supabase, same pattern as
 // tenant-portal/switch-tenancy/__tests__/route.test.ts and lib/__tests__/tenantSession.test.ts --
@@ -23,6 +23,23 @@ vi.mock('next/headers', () => ({
     },
     getAll: () => [],
   }),
+}));
+
+// This route's uploads default to sensitive:true (autonomous overnight completion pass,
+// WORKLOG.md this date -- lib/uploadScan.ts's own comment explains why: a tenant-submitted file
+// via a service-role-bypassing route, MIME-allowlisted to include PDF, is exactly the kind of
+// upload TD-43's malware-scanning gap should not leave completely unscanned in production). This
+// file's own concern is the route's ticket-ownership/RLS/document-readback logic, not the malware
+// GATE'S OWN logic (dedicated coverage in lib/__tests__/uploadScan.test.ts) -- mocked clean by
+// default here so a real local environment with no ClamAV configured (matching today's actual
+// production state) doesn't block every "happy path" assertion below with a 503. One test further
+// down overrides this mock to prove the route itself correctly propagates a scan rejection, i.e.
+// that the wiring (not just the gate function in isolation) actually fails closed.
+const mockScanUploadOrRespond = vi.hoisted(() =>
+  vi.fn(async (): Promise<InstanceType<typeof NextResponse> | null> => null),
+);
+vi.mock('@/lib/uploadScan', () => ({
+  scanUploadOrRespond: mockScanUploadOrRespond,
 }));
 
 process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://127.0.0.1:54321';
@@ -296,6 +313,29 @@ describeIfSupabase(
       expect(listResponse.status).toBe(200);
       const listBody = await listResponse.json();
       expect(listBody.documents.map((d: { id: string }) => d.id)).toContain(uploaded.document.id);
+    });
+
+    it('propagates a fail-closed malware-scan rejection instead of completing the upload', async () => {
+      mockScanUploadOrRespond.mockResolvedValueOnce(
+        NextResponse.json(
+          {
+            error: {
+              code: 'upload_temporarily_unavailable',
+              message:
+                'Document uploads are temporarily unavailable while secure file scanning is being configured.',
+            },
+          },
+          { status: 503 },
+        ),
+      );
+      const file = new File([new Uint8Array([1, 2, 3, 4])], 'photo.png', { type: 'image/png' });
+      const response = await POST(uploadRequest(ticketAId, file), {
+        params: Promise.resolve({ id: ticketAId }),
+      });
+      expect(response.status).toBe(503);
+      const body = await response.json();
+      expect(body.error.code).toBe('upload_temporarily_unavailable');
+      mockScanUploadOrRespond.mockClear();
     });
   },
 );

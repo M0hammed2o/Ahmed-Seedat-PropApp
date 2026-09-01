@@ -24,6 +24,17 @@ vi.mock('next/headers', () => ({
   }),
 }));
 
+// This route's uploads default to sensitive:true (autonomous overnight completion pass,
+// WORKLOG.md this date -- lib/uploadScan.ts's own comment explains why: lease template documents
+// are exactly the kind of upload TD-43's malware-scanning gap should not leave completely
+// unscanned in production). This file's own concern is the DOCX bucket-MIME/content-verification
+// logic, not the malware GATE'S OWN logic (dedicated coverage in lib/__tests__/uploadScan.test.ts)
+// -- mocked clean here so a real local environment with no ClamAV configured (matching today's
+// actual production state) doesn't block every assertion below with a 503.
+vi.mock('@/lib/uploadScan', () => ({
+  scanUploadOrRespond: async () => null,
+}));
+
 process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://127.0.0.1:54321';
 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';

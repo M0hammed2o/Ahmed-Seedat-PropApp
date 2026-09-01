@@ -139,6 +139,7 @@ export async function POST(request: NextRequest) {
     unitId: form.get('unitId') || null,
     tenantId: form.get('tenantId') || null,
     maintenanceTicketId: form.get('maintenanceTicketId') || null,
+    invoicePaymentId: form.get('invoicePaymentId') || null,
     originalFileName: file.name,
     mimeType: file.type,
     fileSizeBytes: file.size,
@@ -156,13 +157,24 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const canWrite = await requireOrgRole(supabase, parsed.data.orgId, 'agent');
+  // P0 correction pass (WORKLOG.md this date): has_org_role() ranks 'accountant' and 'agent' as
+  // SIBLING roles, neither a superset of the other (accountant's own rank list is
+  // ('accountant','manager','principal') -- 'agent' is never in it, and vice versa). A proof-of-
+  // payment upload (invoicePaymentId set) is an accounting write and must be gated on accountant+
+  // specifically, not the general agent+ document floor below -- checking agent+ alone would
+  // wrongly exclude a pure accountant and wrongly admit a pure agent for this one upload kind.
+  // Every other document type keeps the original agent+ floor, unchanged.
+  const canWrite = parsed.data.invoicePaymentId
+    ? await requireOrgRole(supabase, parsed.data.orgId, 'accountant')
+    : await requireOrgRole(supabase, parsed.data.orgId, 'agent');
   if (!canWrite) {
     return NextResponse.json(
       {
         error: {
           code: 'forbidden',
-          message: 'You do not have permission to upload documents for this organization.',
+          message: parsed.data.invoicePaymentId
+            ? 'You do not have permission to attach proof of payment for this organization.'
+            : 'You do not have permission to upload documents for this organization.',
         },
       },
       { status: 403 },
@@ -187,6 +199,32 @@ export async function POST(request: NextRequest) {
       },
       { status: 403 },
     );
+  }
+
+  // P0 correction pass (WORKLOG.md this date): proof-of-payment specifically must never be
+  // attachable to a payment outside the caller's own org -- the caller's own orgId/propertyId
+  // checks above only prove the FILE is going to the right place, not that invoicePaymentId (a
+  // client-supplied id, same as leaseId/tenantId/maintenanceTicketId above) actually belongs to
+  // that org. RLS on invoice_payments itself would additionally hide a genuinely-foreign row from
+  // this SELECT, but this explicit check gives a real 403 instead of surfacing as a confusing
+  // "not found" on a field the client did successfully send.
+  if (parsed.data.invoicePaymentId) {
+    const { data: payment } = await supabase
+      .from('invoice_payments')
+      .select('org_id')
+      .eq('id', parsed.data.invoicePaymentId)
+      .maybeSingle();
+    if (!payment || payment.org_id !== parsed.data.orgId) {
+      return NextResponse.json(
+        {
+          error: {
+            code: 'forbidden',
+            message: 'This payment does not belong to the specified organization.',
+          },
+        },
+        { status: 403 },
+      );
+    }
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
@@ -234,6 +272,7 @@ export async function POST(request: NextRequest) {
       unit_id: parsed.data.unitId ?? null,
       tenant_id: parsed.data.tenantId ?? null,
       maintenance_ticket_id: parsed.data.maintenanceTicketId ?? null,
+      invoice_payment_id: parsed.data.invoicePaymentId ?? null,
       uploaded_by: user.id,
       storage_path: storagePath,
       original_file_name: parsed.data.originalFileName,

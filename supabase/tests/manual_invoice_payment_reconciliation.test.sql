@@ -8,7 +8,7 @@
 -- together.
 
 begin;
-select plan(19);
+select plan(23);
 
 insert into auth.users (id, email) values
   ('c2000000-0000-0000-0000-000000000001', 'reconciliation-accountant@test.propertyvault.example'),
@@ -87,7 +87,7 @@ select public.issue_manual_invoice(
 -- C: partial R400 payment.
 select public.record_invoice_payment(
   (select i.id from public.invoices i join public.organizations o on o.id = i.org_id where o.legal_name = 'Reconciliation Test Org' and i.description = 'Reconciliation invoice A'),
-  400, current_date, 'eft', 'Partial payment'
+  400, current_date, 'eft', 'REF-C', 'Partial payment'
 );
 
 select is(
@@ -122,7 +122,7 @@ select is(
 -- D: second genuine R600 receipt covers the remainder exactly.
 select public.record_invoice_payment(
   (select i.id from public.invoices i join public.organizations o on o.id = i.org_id where o.legal_name = 'Reconciliation Test Org' and i.description = 'Reconciliation invoice A'),
-  600, current_date, 'eft', 'Final payment'
+  600, current_date, 'eft', 'REF-D', 'Final payment'
 );
 
 select is(
@@ -174,7 +174,7 @@ select public.issue_manual_invoice(
 -- Record the payment WITH the bank transaction explicitly linked.
 select public.record_invoice_payment(
   (select i.id from public.invoices i join public.organizations o on o.id = i.org_id where o.legal_name = 'Reconciliation Test Org' and i.description = 'Reconciliation invoice B'),
-  1000, current_date, 'eft', 'Linked to real bank deposit',
+  1000, current_date, 'eft', 'REF-B', 'Linked to real bank deposit',
   (select id from public.bank_transactions where description = 'Reconciliation invoice B deposit')
 );
 
@@ -220,7 +220,7 @@ select public.issue_manual_invoice(
 select throws_ok(
   $$ select public.record_invoice_payment(
        (select i.id from public.invoices i join public.organizations o on o.id = i.org_id where o.legal_name = 'Reconciliation Test Org' and i.description = 'Reconciliation invoice B2'),
-       1000, current_date, 'eft', 'Attempted reuse',
+       1000, current_date, 'eft', 'REF-B2', 'Attempted reuse',
        (select id from public.bank_transactions where description = 'Reconciliation invoice B deposit')
      ) $$,
   'P0001',
@@ -235,7 +235,9 @@ select is(
   'B: the rejected reuse attempt recorded zero payment against invoice B2'
 );
 
--- === E: overpayment is explicit and safe, never silent ===
+-- === E: overpayment is categorically impossible in V1 -- no bypass parameter exists at any layer
+-- (migration 158 removed the old allow_overpayment parameter from record_invoice_payment()
+-- entirely, not merely hid it in the UI) ===
 select public.create_manual_invoice(
   (select id from public.organizations where legal_name = 'Reconciliation Test Org'),
   (select l.id from public.leases l join public.units u on u.id = l.unit_id where u.unit_label = 'Reconciliation Unit'),
@@ -250,27 +252,55 @@ select public.issue_manual_invoice(
 select throws_ok(
   $$ select public.record_invoice_payment(
        (select i.id from public.invoices i join public.organizations o on o.id = i.org_id where o.legal_name = 'Reconciliation Test Org' and i.description = 'Reconciliation invoice E'),
-       700, current_date, 'eft', 'Accidental overpayment'
+       700, current_date, 'eft', 'REF-E1', 'Accidental overpayment'
      ) $$,
   'P0001',
   null,
-  'E: a R700 payment against a R600 invoice is refused by default (would overpay, not explicitly confirmed)'
+  'E: a R700 payment against a R600 invoice is refused -- overpayment is never permitted, under any circumstances'
 );
 
+-- A payment landing exactly on the outstanding balance (the boundary itself) must still succeed --
+-- proves the check is a strict ">" against the balance, not an off-by-one that also rejects exact
+-- payoffs.
 select lives_ok(
   $$ select public.record_invoice_payment(
        (select i.id from public.invoices i join public.organizations o on o.id = i.org_id where o.legal_name = 'Reconciliation Test Org' and i.description = 'Reconciliation invoice E'),
-       700, current_date, 'eft', 'Confirmed overpayment', null, true
+       600, current_date, 'eft', 'REF-E2', 'Payment exactly matching the outstanding balance'
      ) $$,
-  'E: the same R700 payment succeeds once allow_overpayment is explicitly passed'
+  'E: a payment exactly matching the outstanding balance succeeds (the boundary itself is not rejected)'
 );
 
 select is(
   (select i.amount - coalesce((select sum(invoice_payments.amount) from public.invoice_payments where invoice_id = i.id), 0)
      from public.invoices i join public.organizations o on o.id = i.org_id
      where o.legal_name = 'Reconciliation Test Org' and i.description = 'Reconciliation invoice E'),
-  -100::numeric,
-  'E: the resulting balance explicitly shows -R100 (overpaid by R100), not silently clamped to zero'
+  0::numeric,
+  'E: balance is exactly R0 after the exact-boundary payment -- never negative'
+);
+
+-- Once the invoice is fully paid, even the smallest further payment is refused -- there is no
+-- allow_overpayment escape hatch left anywhere in the RPC.
+select throws_ok(
+  $$ select public.record_invoice_payment(
+       (select i.id from public.invoices i join public.organizations o on o.id = i.org_id where o.legal_name = 'Reconciliation Test Org' and i.description = 'Reconciliation invoice E'),
+       0.01, current_date, 'eft', 'REF-E3', 'Attempted payment past an already-fully-paid invoice'
+     ) $$,
+  'P0001',
+  null,
+  'E: even a R0.01 payment against an already-fully-paid invoice is refused -- overpayment is impossible, not merely hidden from the UI'
+);
+
+-- Structural proof, not just behavioral: the old allow_overpayment-capable signature genuinely no
+-- longer exists as a callable overload.
+select is(
+  (select count(*) from pg_proc where proname = 'record_invoice_payment'),
+  1::bigint,
+  'E: exactly one record_invoice_payment overload exists in the schema'
+);
+select is(
+  (select pronargs from pg_proc where proname = 'record_invoice_payment'),
+  7::smallint,
+  'E: record_invoice_payment has exactly 7 parameters -- no allow_overpayment bypass parameter exists'
 );
 
 -- === F: rent invoice reconciliation is completely unaffected by any of this ===
@@ -332,12 +362,23 @@ select is(
   'paid',
   'G: the rent schedule for the SAME PROPERTY (different unit/tenant) as every manual invoice above paid correctly, with its own independent total'
 );
+-- Single-source-of-truth correction pass: confirm_bank_transaction_match() now creates its OWN
+-- invoice_payments allocation row for this rent payment (previously it created none at all, the
+-- exact incompleteness that pass fixed) -- exactly ONE, not zero, and not contaminated by any of
+-- the manual-invoice payments recorded earlier in this same file against a different lease.
 select is(
   (select count(*) from public.invoice_payments ip
      join public.invoices i on i.id = ip.invoice_id
      where i.lease_id = (select l.id from public.leases l join public.units u on u.id = l.unit_id where u.unit_label = 'Reconciliation Rent Unit')),
-  0::bigint,
-  'G: zero invoice_payments rows exist against the rent lease -- manual-invoice payment recording never touched it'
+  1::bigint,
+  'G: exactly one invoice_payments row exists against the rent lease -- confirm_bank_transaction_match()''s own allocation, not bled in from any manual invoice'
+);
+select is(
+  (select ip.amount from public.invoice_payments ip
+     join public.invoices i on i.id = ip.invoice_id
+     where i.lease_id = (select l.id from public.leases l join public.units u on u.id = l.unit_id where u.unit_label = 'Reconciliation Rent Unit')),
+  1000::numeric,
+  'G: that allocation is for exactly R1000 -- the real rent payment amount, matching the schedule, not some manual-invoice figure'
 );
 
 -- === H: cross-org payment/allocation attempt is blocked ===
@@ -377,20 +418,24 @@ select public.issue_manual_invoice(
   (select i.id from public.invoices i join public.organizations o on o.id = i.org_id where o.legal_name = 'Reconciliation Test Org' and i.description = 'Reconciliation invoice H')
 );
 
--- RLS hides the other org's bank_transactions row from this caller entirely
--- (bank_transactions_select_org_member) -- record_invoice_payment()'s own `select ... into
--- v_bank_txn` therefore resolves NOT FOUND before its explicit org-mismatch check ever runs, the
--- same "never confirm a hidden resource's existence" pattern already used elsewhere in this
--- codebase (e.g. invoice_immutability_rls.test.sql's Test 6b). Either way the attempt is refused.
+-- record_invoice_payment() is security definer (migration 158 -- required so its own mandatory
+-- SELECT ... FOR UPDATE lock on the invoice is not filtered by the draft-only
+-- invoices_update_draft_accountant_plus UPDATE policy's USING clause, which Postgres RLS combines
+-- with the SELECT policy whenever a FOR UPDATE lock is requested). This means its internal bank
+-- transaction lookup is NOT RLS-scoped the way the calling session's own queries are -- the row is
+-- genuinely found, and the function's own explicit org-mismatch check is what refuses it. This is a
+-- stronger guarantee than incidental RLS-invisibility: the rejection is an intentional authorization
+-- decision inside the function, not a side effect of what the caller's session happens to be able to
+-- see.
 select throws_ok(
   $$ select public.record_invoice_payment(
        (select i.id from public.invoices i join public.organizations o on o.id = i.org_id where o.legal_name = 'Reconciliation Test Org' and i.description = 'Reconciliation invoice H'),
-       500, current_date, 'eft', 'Cross-org attempt',
+       500, current_date, 'eft', 'REF-H', 'Cross-org attempt',
        (select id from tmp_other_org_bank_txn)
      ) $$,
   'P0001',
-  'Bank transaction not found',
-  'H: linking a bank transaction from a completely different org is refused (hidden by RLS, never confirmed to exist)'
+  'Bank transaction does not belong to this organization',
+  'H: linking a bank transaction from a completely different org is refused by the function''s own explicit org check'
 );
 
 select is(

@@ -1,5 +1,94 @@
 # Worklog
 
+## 2026-08-31/09-01 — Tenant invoice PDF security + release-gate hardening (V1, local verified, release committed)
+
+Autonomous overnight completion pass, continuing the invoice-payment-ledger architecture work
+(migrations 158-161) already on the working tree. Environment-safety protocol observed throughout
+(`scripts/dev-local-safe.sh` -- process-level env override, never reads `apps/admin/.env.local`,
+asserts the resolved Supabase host is genuinely local before starting anything).
+
+**Found and fixed, both real, both previously undisclosed:**
+- `invoices_select_tenant_self`/`invoice_line_items_select_tenant_self` RLS (migration
+  `20260101000049`) had no `status` filter at all -- a tenant could SELECT (and via
+  `GET /api/v1/invoices/:id/pdf`, download) a DRAFT invoice belonging to them. Fixed via migration
+  `20260101000162` (tightened to `status = 'issued'`). `supabase/tests/tenant_portal_rls.test.sql`'s
+  own invoice fixture was incidentally using `status='draft'` for its (unrelated) cross-tenant
+  isolation assertions -- updated to `'issued'` so the fix doesn't make that positive control
+  meaningless.
+- The tenant portal's `/my-payments` page had no link to the existing, already-built
+  `/api/v1/invoices/:id/pdf` route at all -- added one (mirrors `InvoicesTable.tsx`'s staff-side
+  pattern).
+- `pdfkit`'s runtime `fs.readFileSync(path.join(__dirname, 'data/Helvetica.afm'))` pattern is
+  incompatible with Turbopack's bundling -- observed live as `ENOENT` resolving a synthetic
+  `C:\ROOT\...` path instead of the real `node_modules` location. This broke **every** invoice PDF
+  download, staff and tenant, and confirmed via a real `next build` to affect the production build
+  path too (`next build` uses Turbopack in this project, not just `next dev`) -- meaning PDF
+  downloads were already broken before tonight, not a regression. Fixed via
+  `serverExternalPackages: ['pdfkit']` in `next.config.ts` (excludes it from bundling; Next loads it
+  via native `require()` instead, where `__dirname` resolves correctly).
+- TD-43's disclosed gap (no production ClamAV target configured, `MockMalwareScanProvider` fails
+  open) was real and unaddressed -- rather than block the whole release on infrastructure that
+  doesn't exist yet, `lib/uploadScan.ts`'s `scanUploadOrRespond()` now takes a `{ sensitive?:
+  boolean }` option, defaulting to `true` (secure by default -- a caller must opt OUT). A sensitive
+  upload with no real scanner configured now fails CLOSED with a professional 503
+  (`"Document uploads are temporarily unavailable while secure file scanning is being
+  configured."`, no ClamAV/internal details) instead of silently falling back to the always-clean
+  mock. Audited all 7 call sites: 6 (documents, proof-of-payment via `invoice_payment_id`, lease
+  templates, lease documents, applicant documents, tenant maintenance-ticket attachments) kept the
+  default -- all accept PDF via `ALLOWED_MIME_TYPES`, several from untrusted/least-trusted
+  uploaders (applicants, tenants), one via a service-role RLS bypass where the route's own
+  validation is the *only* remaining boundary. One (`properties/[id]/photos`, marketing photos,
+  image-only `ALLOWED_PHOTO_MIME_TYPES`, no PDF) explicitly opts out (`{ sensitive: false }`) --
+  preserves its existing behaviour rather than regressing an unrelated, lower-risk feature on the
+  same missing-infrastructure gap. Existing documents remain fully readable; this only gates new
+  uploads. Three pre-existing route tests that upload real files through the now-fail-closed
+  default (`documents/__tests__/route.proof-of-payment.test.ts`,
+  `tenant-portal/maintenance-tickets/[id]/documents/__tests__/route.test.ts`,
+  `lease-templates/__tests__/route.test.ts`) updated to mock `@/lib/uploadScan` clean, since their
+  own concern is ownership/role/content-validation logic, not the malware gate itself (which has
+  its own dedicated coverage, expanded from 4 to 8 cases in `lib/__tests__/uploadScan.test.ts`).
+  One new test added proving the route-level wiring (not just the gate function in isolation)
+  correctly propagates a scan rejection.
+
+**Verified, not just assumed:**
+- Tenant invoice PDF authorization boundary, live in a real browser against local Supabase: own
+  issued invoice -> 200 (renders); own draft -> 404; a genuinely different org's invoice -> 404;
+  nonexistent id -> 404; unauthenticated -> 401. All four negative cases return the identical 404
+  (except the auth case, 401) -- never a distinguishing signal that a hidden resource exists.
+- Tenant -> staff-route and tenant -> Platform Admin isolation, via source (every route in
+  `(dashboard)/**` shares one layout whose `activeOrg` check redirects a tenant before any staff
+  content renders; `(super-admin)/**`'s own gate is stricter still -- a non-admin is silently
+  bounced to their own destination with an audit-log entry, never a 403 that would confirm the
+  admin area exists) plus a partial live walkthrough (two real hops through the `(dashboard)`
+  layout's pre-org gates, both generic account forms, no staff data).
+- Session security: grepped confirmed the only `supabase.auth.getSession()` call site in
+  `apps/admin` is `ResetPasswordForm.tsx`'s own UI-only affordance gate (already tracked,
+  `TECHNICAL_DEBT_REGISTER.md` TD-45) -- every authorization decision uses `getUser()`. The tenant
+  `active_tenant_id` cookie is re-validated against the caller's own `tenants` rows on every read
+  (`resolveTenantSession()`) -- a tampered value can at most select among the caller's own
+  tenancies, never another tenant's.
+- Full pgTAP: 88 files, 1348/1348, twice (once right after migration 162, again after tonight's
+  final change).
+- Vitest release gate: the full 1018-test suite run in one batch showed 85 failures across 28
+  files -- systematically re-verified in small serial batches (per this session's own established
+  lesson: concurrent/bulk vitest runs against local Supabase on this machine cause genuine
+  environmental cascading failures, confirmed again live). 27 of 28 files pass cleanly in
+  isolation with `--testTimeout=30000 --hookTimeout=30000`. The one holdout
+  (`system/daily-jobs/__tests__/route.test.ts`) is root-caused, not dismissed: local Supabase has
+  accumulated 1560 test organizations across many sessions' worth of integration-test fixtures
+  (never reset), and the cron route's own hardcoded 20s test timeout is no longer enough given that
+  volume -- not a logic bug, not a regression. Then re-ran 9 targeted release-gate batches by
+  feature area (tenant portal/session, invoice/payment/PDF, documents/proof, maintenance/notices/
+  profile, accounting/billing/PayFast [confirmed sandbox-only, no real PayFast calls], Platform
+  Admin/security) -- all clean after fixing the three upload-gate test regressions described above.
+  Cross-tenant/cross-org isolation has no dedicated vitest coverage; it lives entirely in the
+  pgTAP suite, already green.
+- TypeScript, ESLint, `git diff --check`: clean. Production build: green.
+
+**Release:** commit `<filled in at commit time>` pushed to `main`.
+**Production:** migration head verification, backup, and controlled deployment tracked separately
+below/in the next entry -- not yet executed as of this entry.
+
 ## 2026-08-30 — Property editing, property/unit archive-vs-delete lifecycle, and landlord rent invoicing (V1, local only)
 
 Continuation from manual dashboard testing gaps found after the R5 billing pass and the

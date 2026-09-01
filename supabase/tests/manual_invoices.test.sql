@@ -225,7 +225,7 @@ select throws_ok(
 select lives_ok(
   $$ select public.record_invoice_payment(
        (select i.id from public.invoices i join public.organizations o on o.id = i.org_id where o.legal_name = 'Manual Invoice Test Org'),
-       250, current_date, 'eft', 'Paid in full via EFT'
+       250, current_date, 'eft', 'REF-PAY-1', 'Paid in full via EFT'
      ) $$,
   'a payment can be recorded against an issued manual invoice'
 );
@@ -270,7 +270,7 @@ select public.create_manual_invoice(
 select throws_ok(
   $$ select public.record_invoice_payment(
        (select i.id from public.invoices i join public.organizations o on o.id = i.org_id where o.legal_name = 'Manual Invoice Test Org' and i.description = 'Parking fee'),
-       300, current_date, 'eft', null
+       300, current_date, 'eft', null, null
      ) $$,
   'P0001',
   'Only issued invoices can have payments recorded against them',

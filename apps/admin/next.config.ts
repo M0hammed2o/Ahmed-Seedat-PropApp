@@ -34,6 +34,13 @@ const nextConfig: NextConfig = {
     '@propvault/utils',
     '@propvault/validation',
   ],
+  // pdfkit reads its .afm font files at runtime via a path relative to its own __dirname
+  // (lib/invoicePdf.ts). Turbopack's bundler rewrites __dirname for bundled CJS modules and does
+  // not copy pdfkit's non-JS data assets, breaking that lookup (observed: ENOENT resolving to a
+  // synthetic "C:\ROOT\..." path instead of the real node_modules location). Excluding it from
+  // bundling makes Next.js load it via native require() at runtime instead, where __dirname
+  // resolves correctly. Found live this session testing /api/v1/invoices/[id]/pdf.
+  serverExternalPackages: ['pdfkit'],
   async headers() {
     return [{ source: '/(.*)', headers: securityHeaders }];
   },

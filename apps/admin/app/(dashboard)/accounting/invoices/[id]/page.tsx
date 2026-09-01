@@ -8,6 +8,9 @@ import {
   IssueInvoiceButton,
   SendInvoiceButton,
   RecordPaymentForm,
+  ReversePaymentButton,
+  VoidInvoiceButton,
+  AttachProofOfPaymentButton,
   PrintButton,
 } from '@/components/accounting/InvoiceActions';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
@@ -52,7 +55,11 @@ export default async function InvoiceDetailPage({ params }: RouteParams) {
           notes: null,
           reference: null,
           emailedAt: null,
+          voidedAt: null,
+          voidReason: null,
         }}
+        orgId="demo-org-1"
+        proofOfPaymentCategoryId="demo-category-proof-of-payment"
         tenant={{ id: 'demo-tenant-1', fullName: 'Naledi Khumalo', email: 'naledi@example.com' }}
         property={{ id: 'demo-property-1', nickname: 'Sea Point Apartment' }}
         unit={{ id: 'demo-unit-1', unitLabel: 'Unit 1' }}
@@ -92,12 +99,29 @@ export default async function InvoiceDetailPage({ params }: RouteParams) {
     .eq('id', invoice.org_id)
     .maybeSingle();
 
-  const [{ data: lineItemRows }, { data: paymentRows }] = await Promise.all([
+  const [{ data: lineItemRows }, { data: paymentRows }, { data: proofCategory }] = await Promise.all([
     supabase.from('invoice_line_items').select('*').eq('invoice_id', id).order('sort_order', { ascending: true }),
     invoice.status === 'issued'
       ? supabase.from('invoice_payments').select('*').eq('invoice_id', id).order('paid_at', { ascending: false })
-      : Promise.resolve({ data: [] as never[] }),
+      : Promise.resolve({ data: [] as { id: string; amount: number; paid_at: string; method: string | null; reference: string | null; reversed_at: string | null; reversal_reason: string | null }[] }),
+    supabase.from('document_categories').select('id').eq('slug', 'proof_of_payment').maybeSingle(),
   ]);
+
+  const paymentIds = (paymentRows ?? []).map((r) => r.id);
+  const { data: proofDocRows } =
+    paymentIds.length > 0
+      ? await supabase
+          .from('documents')
+          .select('id, original_file_name, invoice_payment_id')
+          .in('invoice_payment_id', paymentIds)
+          .is('deleted_at', null)
+      : { data: [] as { id: string; original_file_name: string; invoice_payment_id: string }[] };
+  const proofDocsByPaymentId = new Map<string, { id: string; originalFileName: string }[]>();
+  for (const d of proofDocRows ?? []) {
+    const list = proofDocsByPaymentId.get(d.invoice_payment_id) ?? [];
+    list.push({ id: d.id, originalFileName: d.original_file_name });
+    proofDocsByPaymentId.set(d.invoice_payment_id, list);
+  }
 
   return (
     <InvoiceDetailView
@@ -113,7 +137,11 @@ export default async function InvoiceDetailPage({ params }: RouteParams) {
         notes: invoice.notes,
         reference: invoice.reference,
         emailedAt: invoice.emailed_at,
+        voidedAt: invoice.voided_at,
+        voidReason: invoice.void_reason,
       }}
+      orgId={invoice.org_id}
+      proofOfPaymentCategoryId={proofCategory?.id ?? null}
       tenant={tenant ? { id: tenant.id, fullName: tenant.full_name, email: tenant.email } : null}
       property={property ? { id: property.id, nickname: property.nickname } : null}
       unit={unit ? { id: unit.id, unitLabel: unit.unit_label } : null}
@@ -130,6 +158,10 @@ export default async function InvoiceDetailPage({ params }: RouteParams) {
         amount: Number(r.amount),
         paidAt: r.paid_at,
         method: r.method,
+        reference: r.reference,
+        reversedAt: r.reversed_at,
+        reversalReason: r.reversal_reason,
+        proofDocs: proofDocsByPaymentId.get(r.id) ?? [],
       }))}
       canWrite={canWrite}
     />
@@ -138,6 +170,8 @@ export default async function InvoiceDetailPage({ params }: RouteParams) {
 
 function InvoiceDetailView({
   invoice,
+  orgId,
+  proofOfPaymentCategoryId,
   tenant,
   property,
   unit,
@@ -158,19 +192,39 @@ function InvoiceDetailView({
     notes: string | null;
     reference: string | null;
     emailedAt: string | null;
+    voidedAt: string | null;
+    voidReason: string | null;
   };
+  orgId: string;
+  proofOfPaymentCategoryId: string | null;
   tenant: { id: string; fullName: string; email: string | null } | null;
   property: { id: string; nickname: string } | null;
   unit: { id: string; unitLabel: string } | null;
   org: { legalName: string; vatNo: string | null };
   lineItems: { id: string; description: string; quantity: number; unitPrice: number; amount: number }[];
-  payments: { id: string; amount: number; paidAt: string; method: string | null }[];
+  payments: {
+    id: string;
+    amount: number;
+    paidAt: string;
+    method: string | null;
+    reference: string | null;
+    reversedAt: string | null;
+    reversalReason: string | null;
+    proofDocs: { id: string; originalFileName: string }[];
+  }[];
   canWrite: boolean;
 }) {
   const isManual = invoice.source === 'manual';
   const isDraft = invoice.status === 'draft';
-  const paid = payments.reduce((sum, p) => sum + p.amount, 0);
-  const balance = Math.max(0, invoice.amount - paid);
+  const isVoid = Boolean(invoice.voidedAt);
+  // Unified invoice-payment ledger (migration 20260101000158): a reversed payment never counts
+  // toward paid_amount -- this must agree exactly with record_invoice_payment()'s own
+  // "sum(amount) where reversed_at is null" balance check, or the UI could show a payable balance
+  // the RPC would then refuse.
+  const activePayments = payments.filter((p) => !p.reversedAt);
+  const paid = activePayments.reduce((sum, p) => sum + p.amount, 0);
+  const balance = isVoid ? 0 : Math.max(0, invoice.amount - paid);
+  const hasActivePayments = activePayments.length > 0;
 
   const displayLines =
     lineItems.length > 0
@@ -188,17 +242,27 @@ function InvoiceDetailView({
             <Button size="sm">Download PDF</Button>
           </a>
           <PrintButton />
-          {canWrite && isManual && isDraft ? (
+          {canWrite && isManual && isDraft && !isVoid ? (
             <Link href={`/accounting/invoices/${invoice.id}/edit`}>
               <Button size="sm">Edit</Button>
             </Link>
           ) : null}
-          {canWrite && isManual && isDraft ? <IssueInvoiceButton invoiceId={invoice.id} /> : null}
-          {canWrite && invoice.status === 'issued' ? <SendInvoiceButton invoiceId={invoice.id} /> : null}
+          {canWrite && isManual && isDraft && !isVoid ? <IssueInvoiceButton invoiceId={invoice.id} /> : null}
+          {canWrite && invoice.status === 'issued' && !isVoid ? <SendInvoiceButton invoiceId={invoice.id} /> : null}
         </div>
       </div>
 
-      <PageHeader title={`Invoice ${invoice.invoiceNumber}`} subtitle={isDraft ? 'Draft -- not yet issued' : `Issued ${invoice.issuedAt ? longDate(invoice.issuedAt) : ''}`} />
+      <PageHeader
+        title={`Invoice ${invoice.invoiceNumber}`}
+        subtitle={isVoid ? 'Voided' : isDraft ? 'Draft -- not yet issued' : `Issued ${invoice.issuedAt ? longDate(invoice.issuedAt) : ''}`}
+      />
+
+      {isVoid ? (
+        <div className="rounded-md border border-light-statusOverdue bg-light-statusOverdue/10 px-4 py-3 text-sm text-light-statusOverdue print:hidden dark:border-dark-statusOverdue dark:bg-dark-statusOverdue/10 dark:text-dark-statusOverdue">
+          This invoice is void{invoice.voidReason ? `: ${invoice.voidReason}` : '.'} It is excluded from
+          outstanding-balance totals and can never receive a new payment.
+        </div>
+      ) : null}
 
       <Panel bodyClassName="p-6">
         <div className="flex flex-wrap justify-between gap-6 border-b border-light-border pb-4 dark:border-dark-border">
@@ -284,25 +348,67 @@ function InvoiceDetailView({
         ) : null}
       </Panel>
 
-      {isManual && invoice.status === 'issued' ? (
-        <Panel title="Payments" bodyClassName="p-4" className="print:hidden">
+      {invoice.status === 'issued' ? (
+        <Panel title="Payments" bodyClassName="p-4" className="scroll-mt-4 print:hidden" id="payments">
           {payments.length === 0 ? (
             <p className="px-1 py-1 text-[13px] text-light-textMuted dark:text-dark-textMuted">No payments recorded yet.</p>
           ) : (
             <ul className="mb-3 divide-y divide-light-border dark:divide-dark-border">
               {payments.map((p) => (
-                <li key={p.id} className="flex items-center justify-between px-1 py-2 text-[13px]">
-                  <span className="text-light-textPrimary dark:text-dark-textPrimary">
-                    {longDate(p.paidAt)}
-                    {p.method ? ` · ${p.method}` : ''}
-                  </span>
-                  <span className="tabular font-medium text-light-textPrimary dark:text-dark-textPrimary">{currency(p.amount)}</span>
+                <li key={p.id} className="px-1 py-2 text-[13px]">
+                  <div className="flex items-center justify-between">
+                    <span className={p.reversedAt ? 'text-light-textMuted line-through dark:text-dark-textMuted' : 'text-light-textPrimary dark:text-dark-textPrimary'}>
+                      {longDate(p.paidAt)}
+                      {p.method ? ` · ${p.method}` : ''}
+                      {p.reference ? ` · ${p.reference}` : ''}
+                    </span>
+                    <span className={p.reversedAt ? 'tabular text-light-textMuted line-through dark:text-dark-textMuted' : 'tabular font-medium text-light-textPrimary dark:text-dark-textPrimary'}>
+                      {currency(p.amount)}
+                    </span>
+                  </div>
+                  {p.proofDocs.length > 0 ? (
+                    <ul className="mt-1 space-y-0.5">
+                      {p.proofDocs.map((doc) => (
+                        <li key={doc.id}>
+                          <Link
+                            href={`/documents/${doc.id}`}
+                            className="text-xs text-light-accent hover:underline dark:text-dark-accent"
+                          >
+                            📎 {doc.originalFileName}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  {p.reversedAt ? (
+                    <p className="mt-0.5 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">
+                      Reversed{p.reversalReason ? `: ${p.reversalReason}` : ''}
+                    </p>
+                  ) : (
+                    <div className="mt-1 flex items-center gap-3 print:hidden">
+                      {canWrite ? <ReversePaymentButton invoiceId={invoice.id} paymentId={p.id} /> : null}
+                      {canWrite && property && proofOfPaymentCategoryId ? (
+                        <AttachProofOfPaymentButton
+                          orgId={orgId}
+                          propertyId={property.id}
+                          categoryId={proofOfPaymentCategoryId}
+                          invoicePaymentId={p.id}
+                        />
+                      ) : null}
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
           )}
-          {canWrite && balance > 0 ? <RecordPaymentForm invoiceId={invoice.id} /> : null}
+          {canWrite && !isVoid && balance > 0 ? <RecordPaymentForm invoiceId={invoice.id} balance={balance} /> : null}
         </Panel>
+      ) : null}
+
+      {canWrite && !isVoid && !hasActivePayments ? (
+        <div className="print:hidden">
+          <VoidInvoiceButton invoiceId={invoice.id} />
+        </div>
       ) : null}
     </div>
   );

@@ -37,11 +37,24 @@ from public.units u where u.property_id = current_setting('pgtap.cash_test.prope
 
 select set_config('pgtap.cash_test.lease_id', (select id::text from public.leases limit 1), false);
 
+-- Single-source-of-truth correction pass: confirm_bank_transaction_match()/
+-- confirm_cash_receipt_deposit() now look up the schedule's own invoice (created by
+-- invoice_rent_schedule(), never a raw insert) to allocate an invoice_payments row against -- a
+-- tenant/lease_tenants row is required for that (invoices.tenant_id is not null).
+insert into public.tenants (org_id, full_name, status)
+select id, 'Cash Test Tenant', 'active' from public.organizations where legal_name = 'Cash Management Test Org';
+insert into public.lease_tenants (lease_id, tenant_id, is_primary)
+select current_setting('pgtap.cash_test.lease_id')::uuid, t.id, true
+from public.tenants t join public.organizations o on o.id = t.org_id
+where o.legal_name = 'Cash Management Test Org' and t.full_name = 'Cash Test Tenant';
+
 insert into public.rent_schedules (org_id, lease_id, due_date, amount, status)
 select (select id from public.organizations where legal_name = 'Cash Management Test Org'),
-  current_setting('pgtap.cash_test.lease_id')::uuid, '2026-01-01', 10000, 'invoiced';
+  current_setting('pgtap.cash_test.lease_id')::uuid, '2026-01-01', 10000, 'pending';
 
 select set_config('pgtap.cash_test.schedule_id', (select id::text from public.rent_schedules limit 1), false);
+
+select public.invoice_rent_schedule(current_setting('pgtap.cash_test.schedule_id')::uuid);
 
 insert into public.bank_accounts (org_id, account_class, bank_name)
 select id, 'business', 'Cash Test Bank' from public.organizations where legal_name = 'Cash Management Test Org';

@@ -8,11 +8,11 @@ import { safeErrorMessage } from '@/lib/safeError';
 type RouteParams = { params: Promise<{ id: string }> };
 
 /**
- * GET/POST /api/v1/invoices/:id/payments -- manual "this invoice was paid" evidence
- * (invoice_payments, migration 20260101000152). Deliberately separate from
- * bank_transactions/cash_receipts reconciliation -- rent invoices keep using that mechanism
- * exactly as before; this is only for manual (non-rent) invoices, and record_invoice_payment()
- * itself refuses a draft invoice, so there's nothing to guard against here beyond org role.
+ * GET/POST /api/v1/invoices/:id/payments -- the one payment-recording path for BOTH manual and
+ * rent-sourced invoices (unified invoice-payment ledger, migration 20260101000158). Overpayment is
+ * never permitted -- record_invoice_payment() has no bypass parameter at all, not just a hidden
+ * one; this route's own pre-flight check exists purely to surface a friendlier structured error
+ * before the RPC's own authoritative check runs.
  */
 export async function GET(_request: NextRequest, { params }: RouteParams) {
   const { id } = await params;
@@ -102,48 +102,46 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     );
   }
 
-  // Final accounting reconciliation pass: computed here (not just left to the RPC's own guard,
-  // migration 157) so the client gets a structured, actionable "this would overpay by R<x>" 409
-  // instead of a swallowed generic 500 -- record_invoice_payment()'s own check is still the real,
-  // authoritative enforcement (defense in depth, same pattern as the archived-resource visibility
-  // checks elsewhere in this app), this is purely a friendlier pre-flight.
-  if (!parsed.data.allowOverpayment) {
-    const { data: existingPayments, error: paymentsError } = await supabase
-      .from('invoice_payments')
-      .select('amount')
-      .eq('invoice_id', id);
-    if (paymentsError) {
-      return NextResponse.json(
-        { error: { code: 'invoice_payments_fetch_failed', message: safeErrorMessage(paymentsError, 'Could not load existing payments for this invoice.', 'invoices/[id]/payments.precheck') } },
-        { status: 500 },
-      );
-    }
-    const alreadyPaid = (existingPayments ?? []).reduce((sum, p) => sum + Number(p.amount), 0);
-    const wouldOverpayBy = alreadyPaid + parsed.data.amount - Number(existing.amount);
-    if (wouldOverpayBy > 0) {
-      return NextResponse.json(
-        {
-          error: {
-            code: 'would_overpay',
-            message: `This payment would overpay the invoice by R${wouldOverpayBy.toFixed(2)}. Confirm to record it as an overpayment anyway.`,
-            already_paid: alreadyPaid,
-            invoice_amount: Number(existing.amount),
-            would_overpay_by: wouldOverpayBy,
-          },
+  // Overpayment is never permitted -- record_invoice_payment() itself refuses it unconditionally
+  // (migration 158, no bypass parameter exists). This pre-flight only exists so the client gets a
+  // structured, actionable "this would overpay by R<x>" 409 instead of a generic 400 -- the RPC's
+  // own check is still the real, authoritative enforcement.
+  const { data: existingPayments, error: paymentsError } = await supabase
+    .from('invoice_payments')
+    .select('amount')
+    .eq('invoice_id', id)
+    .is('reversed_at', null);
+  if (paymentsError) {
+    return NextResponse.json(
+      { error: { code: 'invoice_payments_fetch_failed', message: safeErrorMessage(paymentsError, 'Could not load existing payments for this invoice.', 'invoices/[id]/payments.precheck') } },
+      { status: 500 },
+    );
+  }
+  const alreadyPaid = (existingPayments ?? []).reduce((sum, p) => sum + Number(p.amount), 0);
+  const wouldOverpayBy = alreadyPaid + parsed.data.amount - Number(existing.amount);
+  if (wouldOverpayBy > 0) {
+    return NextResponse.json(
+      {
+        error: {
+          code: 'would_overpay',
+          message: `This payment would overpay the invoice by R${wouldOverpayBy.toFixed(2)}. Overpayment is not supported -- record a smaller amount or reverse an existing payment first.`,
+          already_paid: alreadyPaid,
+          invoice_amount: Number(existing.amount),
+          would_overpay_by: wouldOverpayBy,
         },
-        { status: 409 },
-      );
-    }
+      },
+      { status: 409 },
+    );
   }
 
   const { data: paymentId, error: rpcError } = await supabase.rpc('record_invoice_payment', {
     p_invoice_id: id,
     p_amount: parsed.data.amount,
     p_paid_at: parsed.data.paidAt,
-    p_method: parsed.data.method ?? null,
+    p_method: parsed.data.method,
+    p_reference: parsed.data.reference ?? null,
     p_notes: parsed.data.notes ?? null,
     p_bank_transaction_id: parsed.data.bankTransactionId ?? null,
-    p_allow_overpayment: parsed.data.allowOverpayment ?? false,
   });
   if (rpcError) {
     return NextResponse.json(

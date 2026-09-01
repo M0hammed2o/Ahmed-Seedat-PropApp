@@ -20,6 +20,11 @@ export const documentUploadMetadataSchema = z.object({
   unitId: z.string().uuid().optional().nullable(),
   tenantId: z.string().uuid().optional().nullable(),
   maintenanceTicketId: z.string().uuid().optional().nullable(),
+  // Unified invoice-payment ledger (migration 20260101000158): proof of payment reuses the
+  // existing documents/storage system via this locked-context FK, same idiom as
+  // maintenanceTicketId above -- never a new upload path, never a raw storage URL stored on
+  // invoice_payments itself.
+  invoicePaymentId: z.string().uuid().optional().nullable(),
   originalFileName: z.string().min(1).max(255),
   mimeType: z.enum(ALLOWED_MIME_TYPES),
   fileSizeBytes: z.number().int().positive(),

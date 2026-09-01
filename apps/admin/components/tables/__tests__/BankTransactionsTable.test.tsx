@@ -19,6 +19,7 @@ const UNMATCHED: BankTransaction = {
   reference: 'REF1',
   matchedJournalEntryId: null,
   matchedRentScheduleId: null,
+  matchedInvoicePaymentId: null,
   matchStatus: 'unmatched',
   createdAt: '2026-08-01T00:00:00Z',
   propertyId: null,

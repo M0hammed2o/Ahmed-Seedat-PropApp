@@ -31,4 +31,28 @@ describe('computeInvoiceDisplayStatus', () => {
       computeInvoiceDisplayStatus({ invoiceStatus: 'issued', balance: 1000, paid: 0, scheduleStatus: 'invoiced' }),
     ).toBe('Issued');
   });
+
+  it('a voided invoice is Void regardless of balance, paid, or schedule status -- checked first', () => {
+    expect(
+      computeInvoiceDisplayStatus({
+        invoiceStatus: 'issued',
+        balance: 1000,
+        paid: 0,
+        scheduleStatus: 'overdue',
+        voidedAt: '2026-08-01T00:00:00Z',
+      }),
+    ).toBe('Void');
+  });
+
+  it('a null voidedAt does not force Void -- normal status computation proceeds', () => {
+    expect(
+      computeInvoiceDisplayStatus({
+        invoiceStatus: 'issued',
+        balance: 0,
+        paid: 1000,
+        scheduleStatus: 'paid',
+        voidedAt: null,
+      }),
+    ).toBe('Paid');
+  });
 });

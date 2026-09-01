@@ -52,10 +52,16 @@ values
   ('fb000000-0000-0000-0000-000000000001', 'fb000000-0000-0000-0000-000000000041', current_date, 5000, 'pending'),
   ('fb000000-0000-0000-0000-000000000001', 'fb000000-0000-0000-0000-000000000042', current_date, 6000, 'pending');
 
-insert into public.invoices (id, org_id, lease_id, tenant_id, period, amount, status)
+-- Autonomous overnight completion pass: status must be 'issued' -- invoices_select_tenant_self
+-- (migration 20260101000162) now correctly excludes draft invoices from tenant visibility, so a
+-- 'draft' fixture here would make the POSITIVE "Tenant A can SELECT their own invoice" control
+-- below meaningless (it would fail even though the RLS isolation being tested is unrelated to
+-- draft-status filtering). The negative "cannot see Tenant B's invoice" assertions are correct
+-- regardless of status and are unaffected by this change.
+insert into public.invoices (id, org_id, lease_id, tenant_id, period, amount, status, issued_at)
 values
-  ('fb000000-0000-0000-0000-000000000051', 'fb000000-0000-0000-0000-000000000001', 'fb000000-0000-0000-0000-000000000041', 'fb000000-0000-0000-0000-000000000031', current_date, 5000, 'draft'),
-  ('fb000000-0000-0000-0000-000000000052', 'fb000000-0000-0000-0000-000000000001', 'fb000000-0000-0000-0000-000000000042', 'fb000000-0000-0000-0000-000000000032', current_date, 6000, 'draft');
+  ('fb000000-0000-0000-0000-000000000051', 'fb000000-0000-0000-0000-000000000001', 'fb000000-0000-0000-0000-000000000041', 'fb000000-0000-0000-0000-000000000031', current_date, 5000, 'issued', now()),
+  ('fb000000-0000-0000-0000-000000000052', 'fb000000-0000-0000-0000-000000000001', 'fb000000-0000-0000-0000-000000000042', 'fb000000-0000-0000-0000-000000000032', current_date, 6000, 'issued', now());
 
 insert into public.maintenance_tickets (id, org_id, property_id, unit_id, tenant_id, submitted_by_tenant_id, summary)
 values
