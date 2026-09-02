@@ -31,6 +31,7 @@ describeIfSupabase('reconcilePortfolioInsights (real local Supabase integration)
   let propertyId: string;
   let unitId: string;
   let leaseId: string;
+  let userId: string;
 
   beforeEach(async () => {
     const stamp = Date.now();
@@ -83,15 +84,27 @@ describeIfSupabase('reconcilePortfolioInsights (real local Supabase integration)
       .single();
     if (leaseError) throw leaseError;
     leaseId = lease.id;
+
+    const { data: auth } = await serviceClient.auth.admin.createUser({
+      email: `pi-vitest-${Date.now()}@propertyvault.example`,
+      password: 'TestPassw0rd!23',
+      email_confirm: true,
+    });
+    userId = auth!.user!.id;
   });
 
   afterEach(async () => {
     await serviceClient.from('portfolio_insights').delete().eq('org_id', orgId);
+    await serviceClient.from('utility_readings').delete().eq('org_id', orgId);
+    await serviceClient.from('utility_meters').delete().eq('org_id', orgId);
+    await serviceClient.from('property_budgets').delete().eq('org_id', orgId);
+    await serviceClient.from('expenses').delete().eq('org_id', orgId);
     await serviceClient.from('rent_schedules').delete().eq('org_id', orgId);
     await serviceClient.from('leases').delete().eq('org_id', orgId);
     await serviceClient.from('units').delete().eq('org_id', orgId);
     await serviceClient.from('properties').delete().eq('org_id', orgId);
     await serviceClient.from('organizations').delete().eq('id', orgId);
+    if (userId) await serviceClient.auth.admin.deleteUser(userId);
   });
 
   it('inserts a real, grounded rent_overdue insight for an actual overdue rent_schedules row', async () => {
@@ -217,5 +230,181 @@ describeIfSupabase('reconcilePortfolioInsights (real local Supabase integration)
     expect(count).toBe(0);
 
     await serviceClient.from('organizations').delete().eq('id', otherOrg!.id);
+  });
+
+  // V1 utilities/rates/levies/budgets pass (UTILITIES_RATES_BUDGET_GAP_AUDIT.md §14) -- same real
+  // local-Supabase integration pattern as the rent_overdue tests above, proving the three new rules
+  // actually fire against real rows, not just reading the rule code and trusting it.
+
+  it('raises budget_exceeded once actual expenses pass the planned amount, never budget_approaching at the same time', async () => {
+    const monthStart = new Date();
+    monthStart.setUTCDate(1);
+    const monthIso = monthStart.toISOString().slice(0, 10);
+
+    await serviceClient.from('property_budgets').insert({
+      org_id: orgId,
+      property_id: propertyId,
+      month: monthIso,
+      planned_amount: 1000,
+      created_by: userId,
+    });
+    await serviceClient.from('expenses').insert({
+      org_id: orgId,
+      property_id: propertyId,
+      category: 'Water',
+      amount: 1200,
+      invoice_date: monthIso,
+    });
+
+    const result = await reconcilePortfolioInsights(serviceClient, orgId);
+    expect(result.inserted).toBe(1);
+
+    const { data: insights } = await serviceClient
+      .from('portfolio_insights')
+      .select('insight_type, severity')
+      .eq('org_id', orgId);
+    expect(insights).toHaveLength(1);
+    expect(insights![0]!.insight_type).toBe('budget_exceeded');
+    expect(insights![0]!.severity).toBe('urgent');
+  });
+
+  it('raises budget_approaching (warning) at 80-99% used, and auto-resolves it once spend drops back under threshold', async () => {
+    const monthStart = new Date();
+    monthStart.setUTCDate(1);
+    const monthIso = monthStart.toISOString().slice(0, 10);
+
+    await serviceClient.from('property_budgets').insert({
+      org_id: orgId,
+      property_id: propertyId,
+      month: monthIso,
+      planned_amount: 1000,
+      created_by: userId,
+    });
+    const { data: expense } = await serviceClient
+      .from('expenses')
+      .insert({ org_id: orgId, property_id: propertyId, category: 'Levies', amount: 850, invoice_date: monthIso })
+      .select('id')
+      .single();
+
+    const first = await reconcilePortfolioInsights(serviceClient, orgId);
+    expect(first.inserted).toBe(1);
+    const { data: insightsAfterFirst } = await serviceClient
+      .from('portfolio_insights')
+      .select('insight_type, severity')
+      .eq('org_id', orgId);
+    expect(insightsAfterFirst![0]!.insight_type).toBe('budget_approaching');
+    expect(insightsAfterFirst![0]!.severity).toBe('warning');
+
+    // Spend drops back under 80% -- the condition no longer holds.
+    await serviceClient.from('expenses').update({ amount: 100 }).eq('id', expense!.id);
+    const second = await reconcilePortfolioInsights(serviceClient, orgId);
+    expect(second.autoResolved).toBe(1);
+  });
+
+  it('raises unusual_utility_usage only once BOTH the percentage and absolute floor are crossed, with safe wording', async () => {
+    const { data: meter } = await serviceClient
+      .from('utility_meters')
+      .insert({
+        org_id: orgId,
+        property_id: propertyId,
+        utility_type: 'water',
+        responsibility_mode: 'owner_paid',
+      })
+      .select('id')
+      .single();
+
+    // Three readings: the anomaly check compares this PERIOD's consumption against the PREVIOUS
+    // period's consumption, so the previous period needs its own real (non-null) consumption --
+    // that itself requires a reading before it. July=0 (baseline), August=1000 (consumption 1000),
+    // September=2200 (consumption 1200) -- 1200 vs 1000 = +20%, well over the 200 L absolute floor.
+    await serviceClient.from('utility_readings').insert([
+      {
+        org_id: orgId,
+        meter_id: meter!.id,
+        period_month: '2026-07-01',
+        reading_date: '2026-07-31',
+        reading_value: 0,
+        consumption: null,
+        unit_of_measure: 'L',
+      },
+      {
+        org_id: orgId,
+        meter_id: meter!.id,
+        period_month: '2026-08-01',
+        reading_date: '2026-08-31',
+        reading_value: 1000,
+        consumption: 1000,
+        unit_of_measure: 'L',
+      },
+      {
+        org_id: orgId,
+        meter_id: meter!.id,
+        period_month: '2026-09-01',
+        reading_date: '2026-09-30',
+        reading_value: 2200,
+        consumption: 1200,
+        unit_of_measure: 'L',
+      },
+    ]);
+
+    const result = await reconcilePortfolioInsights(serviceClient, orgId);
+    expect(result.inserted).toBe(1);
+
+    const { data: insights } = await serviceClient
+      .from('portfolio_insights')
+      .select('insight_type, message, severity')
+      .eq('org_id', orgId);
+    expect(insights).toHaveLength(1);
+    expect(insights![0]!.insight_type).toBe('unusual_utility_usage');
+    expect(insights![0]!.severity).toBe('warning');
+    expect(insights![0]!.message).toContain('Unusual water usage');
+    expect(insights![0]!.message.toLowerCase()).not.toContain('leak');
+  });
+
+  it('does not raise unusual_utility_usage for a large percentage increase on a tiny, meaningless base', async () => {
+    const { data: meter } = await serviceClient
+      .from('utility_meters')
+      .insert({
+        org_id: orgId,
+        property_id: propertyId,
+        utility_type: 'electricity',
+        responsibility_mode: 'owner_paid',
+      })
+      .select('id')
+      .single();
+
+    await serviceClient.from('utility_readings').insert([
+      {
+        org_id: orgId,
+        meter_id: meter!.id,
+        period_month: '2026-07-01',
+        reading_date: '2026-07-31',
+        reading_value: 0,
+        consumption: null,
+        unit_of_measure: 'kWh',
+      },
+      {
+        org_id: orgId,
+        meter_id: meter!.id,
+        period_month: '2026-08-01',
+        reading_date: '2026-08-31',
+        reading_value: 10,
+        consumption: 10,
+        unit_of_measure: 'kWh',
+      },
+      {
+        org_id: orgId,
+        meter_id: meter!.id,
+        period_month: '2026-09-01',
+        reading_date: '2026-09-30',
+        reading_value: 25,
+        consumption: 15, // 15 vs 10 = +50% (would trip the percentage threshold alone), but only
+        // +5 kWh absolute -- below the 20 kWh floor, so must NOT trigger.
+        unit_of_measure: 'kWh',
+      },
+    ]);
+
+    const result = await reconcilePortfolioInsights(serviceClient, orgId);
+    expect(result.inserted).toBe(0);
   });
 });

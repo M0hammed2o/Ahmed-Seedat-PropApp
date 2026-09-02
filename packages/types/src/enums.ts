@@ -429,6 +429,11 @@ export const PORTFOLIO_INSIGHT_TYPES = [
   'lease_expiring',
   'maintenance_open',
   'invoice_unpaid',
+  // V1 utilities/rates/levies/budgets pass (UTILITIES_RATES_BUDGET_GAP_AUDIT.md §14) -- three new
+  // rules reusing this same rules engine rather than a competing alert system.
+  'budget_approaching',
+  'budget_exceeded',
+  'unusual_utility_usage',
 ] as const;
 export type PortfolioInsightType = (typeof PORTFOLIO_INSIGHT_TYPES)[number];
 

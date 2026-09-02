@@ -140,6 +140,9 @@ export interface UtilityAnomalyAlert {
  * calculations" rules). */
 export interface OwnerFinancialSummary {
   propertyId: string | null;
+  /** Set only by the portfolio-wide endpoint (GET /api/v1/organizations/:orgId/financial-summary)
+   * -- how many properties contributed to this sum. Null/absent on the per-property endpoint. */
+  propertyCount?: number;
   month: string;
   rentPlanned: number;
   rentCollected: number;

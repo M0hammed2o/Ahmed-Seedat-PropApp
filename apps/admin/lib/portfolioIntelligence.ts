@@ -1,6 +1,7 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { PortfolioInsightSeverity, PortfolioInsightType } from '@propvault/types';
+import { isUnusualUsage, percentChange } from './utilityAnomaly';
 
 // Portfolio Intelligence rules engine (AI_ARCHITECTURE.md §2) -- explicitly NOT an LLM. Every
 // insight is a fixed SQL predicate over live data (§2.2); severity is a deterministic function of
@@ -60,6 +61,19 @@ function severityForInvoiceUnpaid(daysPastDue: number): PortfolioInsightSeverity
   if (daysPastDue >= 14) return 'urgent';
   if (daysPastDue >= 7) return 'warning';
   return 'info';
+}
+// V1 utilities/rates/levies/budgets pass -- budget_exceeded is always urgent (money already
+// overspent, not a forecast); budget_approaching is a warning (the 80% default threshold, matching
+// the financial-summary API's own constant); unusual_utility_usage is a warning, never urgent --
+// §4B's own wording rule extends to severity, not just copy: this is "worth a look", not a crisis.
+function severityForBudgetApproaching(): PortfolioInsightSeverity {
+  return 'warning';
+}
+function severityForBudgetExceeded(): PortfolioInsightSeverity {
+  return 'urgent';
+}
+function severityForUnusualUtilityUsage(): PortfolioInsightSeverity {
+  return 'warning';
 }
 
 async function evaluateRules(
@@ -215,7 +229,161 @@ async function evaluateRules(
     });
   }
 
+  await evaluateBudgetRules(client, orgId, now, insights);
+  await evaluateUtilityAnomalyRules(client, orgId, insights);
+
   return insights;
+}
+
+const BUDGET_APPROACHING_THRESHOLD_PERCENT = 80;
+
+async function evaluateBudgetRules(
+  client: SupabaseClient,
+  orgId: string,
+  now: Date,
+  insights: EvaluatedInsight[],
+): Promise<void> {
+  const monthStart = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-01`;
+
+  const { data: budgets, error: budgetsError } = await client
+    .from('property_budgets')
+    .select('id, property_id, planned_amount')
+    .eq('org_id', orgId)
+    .eq('month', monthStart);
+  if (budgetsError) throw new Error(`Portfolio Intelligence budget query failed: ${budgetsError.message}`);
+  if (!budgets || budgets.length === 0) return;
+
+  const propertyIds = budgets.map((b) => b.property_id as string);
+  const { data: expenses, error: expensesError } = await client
+    .from('expenses')
+    .select('property_id, amount, invoice_date')
+    .eq('org_id', orgId)
+    .in('property_id', propertyIds)
+    .gte('invoice_date', monthStart);
+  if (expensesError) throw new Error(`Portfolio Intelligence expense query failed: ${expensesError.message}`);
+
+  const actualByProperty = new Map<string, number>();
+  const nextMonthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1))
+    .toISOString()
+    .slice(0, 10);
+  for (const row of expenses ?? []) {
+    const invoiceDate = row.invoice_date as string | null;
+    if (!invoiceDate || invoiceDate >= nextMonthStart) continue; // outside this calendar month
+    const propertyId = row.property_id as string;
+    actualByProperty.set(propertyId, (actualByProperty.get(propertyId) ?? 0) + Number(row.amount));
+  }
+
+  for (const budget of budgets) {
+    const planned = Number(budget.planned_amount);
+    if (planned <= 0) continue; // nothing to be "approaching" or "exceeded" against
+    const actual = actualByProperty.get(budget.property_id as string) ?? 0;
+    const percentUsed = (actual / planned) * 100;
+
+    if (percentUsed >= 100) {
+      insights.push({
+        insightType: 'budget_exceeded',
+        key: `budget_exceeded:${budget.id}`,
+        message: `This month's budget has been exceeded -- ${percentUsed.toFixed(1)}% used (R${actual.toFixed(2)} of R${planned.toFixed(2)}).`,
+        dataSource: {
+          insight_type: 'budget_exceeded',
+          triggering_records: [
+            { table: 'property_budgets', id: budget.id as string, planned_amount: planned, actual_amount: actual },
+          ],
+        },
+        severity: severityForBudgetExceeded(),
+      });
+    } else if (percentUsed >= BUDGET_APPROACHING_THRESHOLD_PERCENT) {
+      insights.push({
+        insightType: 'budget_approaching',
+        key: `budget_approaching:${budget.id}`,
+        message: `This month's budget is ${percentUsed.toFixed(1)}% used (R${actual.toFixed(2)} of R${planned.toFixed(2)}).`,
+        dataSource: {
+          insight_type: 'budget_approaching',
+          triggering_records: [
+            { table: 'property_budgets', id: budget.id as string, planned_amount: planned, actual_amount: actual },
+          ],
+        },
+        severity: severityForBudgetApproaching(),
+      });
+    }
+  }
+}
+
+async function evaluateUtilityAnomalyRules(
+  client: SupabaseClient,
+  orgId: string,
+  insights: EvaluatedInsight[],
+): Promise<void> {
+  const { data: meters, error: metersError } = await client
+    .from('utility_meters')
+    .select('id, utility_type')
+    .eq('org_id', orgId)
+    .eq('active', true);
+  if (metersError) throw new Error(`Portfolio Intelligence meter query failed: ${metersError.message}`);
+  if (!meters || meters.length === 0) return;
+
+  const meterIds = meters.map((m) => m.id as string);
+  const { data: readings, error: readingsError } = await client
+    .from('utility_readings')
+    .select('meter_id, period_month, consumption')
+    .in('meter_id', meterIds)
+    .order('period_month', { ascending: true });
+  if (readingsError) throw new Error(`Portfolio Intelligence reading query failed: ${readingsError.message}`);
+
+  const readingsByMeter = new Map<string, { periodMonth: string; consumption: number | null }[]>();
+  for (const row of readings ?? []) {
+    const meterId = row.meter_id as string;
+    const list = readingsByMeter.get(meterId) ?? [];
+    list.push({
+      periodMonth: row.period_month as string,
+      consumption: row.consumption === null ? null : Number(row.consumption),
+    });
+    readingsByMeter.set(meterId, list);
+  }
+
+  for (const meter of meters) {
+    const meterId = meter.id as string;
+    const utilityType = meter.utility_type as 'water' | 'electricity';
+    const unitOfMeasure: 'L' | 'kWh' = utilityType === 'water' ? 'L' : 'kWh';
+    const history = readingsByMeter.get(meterId);
+    if (!history || history.length < 2) continue;
+
+    const latest = history[history.length - 1];
+    const previous = history[history.length - 2];
+    if (!latest || !previous) continue;
+    const unusual = isUnusualUsage({
+      consumption: latest.consumption,
+      previousConsumption: previous.consumption,
+      unitOfMeasure,
+      periodIndex: history.length - 1,
+    });
+    if (!unusual) continue;
+
+    const change = percentChange(latest.consumption, previous.consumption);
+    insights.push({
+      insightType: 'unusual_utility_usage',
+      // Keyed by meter+period so a NEW period's anomaly is a distinct insight, and an already-
+      // surfaced anomaly for a period that hasn't changed is never re-inserted as a duplicate.
+      key: `unusual_utility_usage:${meterId}:${latest.periodMonth}`,
+      message: `Unusual ${utilityType} usage -- consumption increased ${change ?? '?'}% compared with the previous period.`,
+      dataSource: {
+        insight_type: 'unusual_utility_usage',
+        triggering_records: [
+          {
+            table: 'utility_readings',
+            id: `${meterId}:${latest.periodMonth}`,
+            meter_id: meterId,
+            utility_type: utilityType,
+            period_month: latest.periodMonth,
+            consumption: latest.consumption,
+            previous_consumption: previous.consumption,
+            percent_change: change,
+          },
+        ],
+      },
+      severity: severityForUnusualUtilityUsage(),
+    });
+  }
 }
 
 export interface ReconcileResult {
