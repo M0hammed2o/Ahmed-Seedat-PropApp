@@ -22,13 +22,17 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.Logout
+import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
+import androidx.compose.material.icons.automirrored.outlined.ShowChart
 import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material.icons.outlined.CreditCard
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.People
+import androidx.compose.material.icons.outlined.PieChart
 import androidx.compose.material.icons.outlined.PriceCheck
 import androidx.compose.material.icons.outlined.Receipt
+import androidx.compose.material.icons.outlined.WaterDrop
 import androidx.compose.material.icons.outlined.RequestQuote
 import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material.icons.outlined.Summarize
@@ -65,6 +69,10 @@ fun OwnerMoreScreen(
     onTenantsClick: () -> Unit,
     onPaymentReviewClick: () -> Unit,
     onRentStatusClick: () -> Unit,
+    onAddExpenseClick: () -> Unit,
+    onUtilityCaptureClick: () -> Unit,
+    onUtilityHistoryClick: () -> Unit,
+    onBudgetClick: () -> Unit,
     onMaintenanceClick: () -> Unit,
     onNoticesClick: () -> Unit,
     onSummaryClick: () -> Unit,
@@ -139,6 +147,18 @@ fun OwnerMoreScreen(
                 MoreRow("Notices", "Announcements sent to tenants", Icons.Outlined.Notifications, onNoticesClick)
                 RowDivider()
                 MoreRow("Reports & summary", "Monthly portfolio summaries", Icons.Outlined.Summarize, onSummaryClick)
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            SectionLabel("Finances")
+            GroupCard {
+                MoreRow("Add expense", "Record a property operating expense", Icons.AutoMirrored.Outlined.ReceiptLong, onAddExpenseClick)
+                RowDivider()
+                MoreRow("Utility reading", "Record a water or electricity meter reading", Icons.Outlined.WaterDrop, onUtilityCaptureClick)
+                RowDivider()
+                MoreRow("Utility history", "Consumption trends and unusual usage", Icons.AutoMirrored.Outlined.ShowChart, onUtilityHistoryClick)
+                RowDivider()
+                MoreRow("Budget", "Planned vs actual spend this month", Icons.Outlined.PieChart, onBudgetClick)
             }
 
             Spacer(modifier = Modifier.height(16.dp))

@@ -23,9 +23,15 @@ import za.co.proplyst.app.data.announcements.WebApiAnnouncementsRepository
 import za.co.proplyst.app.data.documents.MockTenantDocumentsRepository
 import za.co.proplyst.app.data.documents.TenantDocumentsRepository
 import za.co.proplyst.app.data.documents.WebApiTenantDocumentsRepository
+import za.co.proplyst.app.data.expenses.ExpensesRepository
+import za.co.proplyst.app.data.expenses.MockExpensesRepository
+import za.co.proplyst.app.data.expenses.WebApiExpensesRepository
 import za.co.proplyst.app.data.financials.FinancialSummaryRepository
 import za.co.proplyst.app.data.financials.MockFinancialSummaryRepository
 import za.co.proplyst.app.data.financials.WebApiFinancialSummaryRepository
+import za.co.proplyst.app.data.utilities.MockUtilitiesRepository
+import za.co.proplyst.app.data.utilities.UtilitiesRepository
+import za.co.proplyst.app.data.utilities.WebApiUtilitiesRepository
 import za.co.proplyst.app.data.insights.MockPortfolioInsightsRepository
 import za.co.proplyst.app.data.insights.PortfolioInsightsRepository
 import za.co.proplyst.app.data.insights.WebApiPortfolioInsightsRepository
@@ -129,6 +135,20 @@ object RepositoryModule {
         real: WebApiFinancialSummaryRepository,
         mock: MockFinancialSummaryRepository,
     ): FinancialSummaryRepository = if (BuildConfig.USE_MOCK_DATA) mock else real
+
+    @Provides
+    @Singleton
+    fun provideExpensesRepository(
+        real: WebApiExpensesRepository,
+        mock: MockExpensesRepository,
+    ): ExpensesRepository = if (BuildConfig.USE_MOCK_DATA) mock else real
+
+    @Provides
+    @Singleton
+    fun provideUtilitiesRepository(
+        real: WebApiUtilitiesRepository,
+        mock: MockUtilitiesRepository,
+    ): UtilitiesRepository = if (BuildConfig.USE_MOCK_DATA) mock else real
 
     @Provides
     @Singleton

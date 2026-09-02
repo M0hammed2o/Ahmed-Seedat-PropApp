@@ -31,6 +31,20 @@ class WebApiFinancialSummaryRepository @Inject constructor(
         }
     }
 
+    override suspend fun getPortfolioFinancialSummary(orgId: String, month: String): FinancialSummaryResult {
+        return try {
+            val response = webApi.getPortfolioFinancialSummary(orgId, month)
+            if (!response.isSuccessful) {
+                return FinancialSummaryResult.Error(errorMessage(response) ?: "Failed to load the financial summary.")
+            }
+            val summary = response.body()?.financialSummary
+                ?: return FinancialSummaryResult.Error("Failed to load the financial summary.")
+            FinancialSummaryResult.Loaded(summary.toDomain())
+        } catch (e: Exception) {
+            FinancialSummaryResult.Error(e.message ?: "Failed to load the financial summary -- check your connection.")
+        }
+    }
+
     override suspend fun getTenantPaymentStatus(propertyId: String, month: String): TenantPaymentStatusResult {
         return try {
             val response = webApi.getTenantPaymentStatus(propertyId, month)
@@ -55,6 +69,7 @@ class WebApiFinancialSummaryRepository @Inject constructor(
 
     private fun FinancialSummaryDto.toDomain() = FinancialSummary(
         month = month,
+        propertyCount = propertyCount,
         rentPlanned = rentPlanned,
         rentCollected = rentCollected,
         rentOutstanding = rentOutstanding,

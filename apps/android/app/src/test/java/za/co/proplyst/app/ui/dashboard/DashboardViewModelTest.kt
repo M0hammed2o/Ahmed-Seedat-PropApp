@@ -21,6 +21,8 @@ import za.co.proplyst.app.data.auth.AuthState
 import za.co.proplyst.app.data.auth.OrgMembership
 import za.co.proplyst.app.data.auth.SessionManager
 import za.co.proplyst.app.data.auth.TenancyMembership
+import za.co.proplyst.app.data.financials.FinancialSummaryRepository
+import za.co.proplyst.app.data.financials.FinancialSummaryResult
 import za.co.proplyst.app.data.insights.PortfolioInsight
 import za.co.proplyst.app.data.insights.PortfolioInsightsRepository
 import za.co.proplyst.app.data.insights.PortfolioInsightsResult
@@ -91,18 +93,28 @@ class DashboardViewModelTest {
         return repo
     }
 
+    private fun mockFinancialSummaryRepository(
+        result: FinancialSummaryResult = FinancialSummaryResult.Error("not configured for this test"),
+    ): FinancialSummaryRepository {
+        val repo = mockk<FinancialSummaryRepository>()
+        coEvery { repo.getPortfolioFinancialSummary(any(), any()) } returns result
+        return repo
+    }
+
     private fun viewModel(
         authRepository: AuthRepository,
         insightsRepository: PortfolioInsightsRepository = mockInsightsRepository(),
         ownerSummaryRepository: OwnerSummaryRepository = mockOwnerSummaryRepository(),
         propertiesRepository: PropertiesRepository = mockPropertiesRepository(),
         notificationsRepository: NotificationsRepository = mockNotificationsRepository(),
+        financialSummaryRepository: FinancialSummaryRepository = mockFinancialSummaryRepository(),
     ) = DashboardViewModel(
         authRepository,
         insightsRepository,
         ownerSummaryRepository,
         propertiesRepository,
         notificationsRepository,
+        financialSummaryRepository,
         mockk<SessionManager>(relaxed = true),
     )
 
@@ -300,5 +312,76 @@ class DashboardViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(OwnerSummaryUiState.Error("Failed to load summary."), vm.summaryUiState.value)
+    }
+
+    // Continuation pass (UTILITIES_RATES_BUDGET_IMPLEMENTATION.md "Portfolio-wide owner financial
+    // summary") -- financialSummaryUiState is the LIVE source for every money figure on Home now;
+    // these pin that it calls the portfolio (org-scoped), not per-property, repository method, and
+    // that it degrades safely (Empty, never a stuck spinner) when there is no org to summarize.
+
+    private fun sampleFinancialSummary() = za.co.proplyst.app.data.financials.FinancialSummary(
+        month = "2026-09-01",
+        propertyCount = 2,
+        rentPlanned = 21300.0,
+        rentCollected = 18000.0,
+        rentOutstanding = 3300.0,
+        utilitiesExpense = 2400.0,
+        ratesAndLeviesExpense = 3700.0,
+        otherExpenses = 900.0,
+        totalExpenses = 7000.0,
+        budgetPlanned = 25000.0,
+        budgetUsedPercent = 67.2,
+        budgetRemaining = 8200.0,
+        netOperatingPosition = 11000.0,
+        awaitingConfirmationCount = 1,
+        budgetAlertLevel = null,
+    )
+
+    @Test
+    fun `financialSummaryUiState loads the portfolio-wide summary for the signed-in user's org`() = runTest {
+        val authRepository = mockk<AuthRepository>()
+        every { authRepository.authState } returns MutableStateFlow(
+            AuthState.Authenticated(
+                userId = "user-1",
+                organizations = listOf(OrgMembership(orgId = "org-1", role = "principal", status = "active")),
+            ),
+        )
+        val summary = sampleFinancialSummary()
+        val financialSummaryRepository = mockFinancialSummaryRepository(FinancialSummaryResult.Loaded(summary))
+        val vm = viewModel(authRepository, financialSummaryRepository = financialSummaryRepository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(FinancialSummaryUiState.Loaded(summary), vm.financialSummaryUiState.value)
+        io.mockk.coVerify { financialSummaryRepository.getPortfolioFinancialSummary("org-1", any()) }
+    }
+
+    @Test
+    fun `financialSummaryUiState surfaces a real repository error, never a silent failure`() = runTest {
+        val authRepository = mockk<AuthRepository>()
+        every { authRepository.authState } returns MutableStateFlow(
+            AuthState.Authenticated(
+                userId = "user-1",
+                organizations = listOf(OrgMembership(orgId = "org-1", role = "principal", status = "active")),
+            ),
+        )
+        val vm = viewModel(
+            authRepository,
+            financialSummaryRepository = mockFinancialSummaryRepository(FinancialSummaryResult.Error("Failed to load the financial summary.")),
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(FinancialSummaryUiState.Error("Failed to load the financial summary."), vm.financialSummaryUiState.value)
+    }
+
+    @Test
+    fun `financialSummaryUiState is Empty (not stuck Loading) for a tenant-only account with no org`() = runTest {
+        val authRepository = mockk<AuthRepository>()
+        every { authRepository.authState } returns MutableStateFlow(
+            AuthState.Authenticated(userId = "user-1", organizations = emptyList()),
+        )
+        val vm = viewModel(authRepository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(FinancialSummaryUiState.Empty, vm.financialSummaryUiState.value)
     }
 }

@@ -91,6 +91,19 @@ class RentStatusViewModel @Inject constructor(
         _filter.value = filter
     }
 
+    /** §10/§9-A month selector -- was previously fixed to the current month only. Server-
+     * authoritative either way: this just changes which month's rent_schedules the same endpoint
+     * is asked for. */
+    fun goToPreviousMonth() {
+        _month.value = LocalDate.parse(_month.value).minusMonths(1).toString()
+        loadRentStatus()
+    }
+
+    fun goToNextMonth() {
+        _month.value = LocalDate.parse(_month.value).plusMonths(1).toString()
+        loadRentStatus()
+    }
+
     fun loadRentStatus() {
         val propertyId = _selectedPropertyId.value ?: return
         viewModelScope.launch {

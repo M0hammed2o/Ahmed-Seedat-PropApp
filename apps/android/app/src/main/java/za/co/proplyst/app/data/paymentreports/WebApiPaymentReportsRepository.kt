@@ -136,5 +136,6 @@ class WebApiPaymentReportsRepository @Inject constructor(
         tenantName = tenantName,
         propertyName = propertyName,
         documentId = documentId,
+        reportedByTenant = reportedByTenant,
     )
 }

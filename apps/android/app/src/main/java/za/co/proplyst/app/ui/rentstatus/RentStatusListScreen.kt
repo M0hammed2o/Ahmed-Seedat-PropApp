@@ -20,6 +20,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.ChevronLeft
+import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -75,6 +77,20 @@ fun RentStatusListScreen(
                 Column {
                     Text("Settings", style = type.meta, color = colors.navySecondaryOn)
                     Text("Rent status", style = type.settingsTitle, color = Color.White)
+                }
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier.padding(top = 10.dp, start = 8.dp),
+            ) {
+                IconButton(onClick = viewModel::goToPreviousMonth) {
+                    Icon(Icons.Outlined.ChevronLeft, contentDescription = "Previous month", tint = Color.White)
+                }
+                Text(monthLabel(month), style = type.body, color = Color.White)
+                IconButton(onClick = viewModel::goToNextMonth) {
+                    Icon(Icons.Outlined.ChevronRight, contentDescription = "Next month", tint = Color.White)
                 }
             }
 
@@ -219,6 +235,15 @@ private fun AmountColumn(label: String, amount: Double, color: Color) {
     Column {
         Text(label, style = type.meta, color = ProplystTheme.colors.textSecondary)
         Text("R %.2f".format(amount), style = type.captionEmphasis.copy(fontWeight = FontWeight.Bold), color = color)
+    }
+}
+
+private fun monthLabel(month: String): String {
+    return try {
+        val date = java.time.LocalDate.parse(month)
+        date.month.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.getDefault()) + " " + date.year
+    } catch (_: Exception) {
+        month
     }
 }
 

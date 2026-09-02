@@ -100,6 +100,14 @@ fun PaymentReviewListScreen(viewModel: PaymentReviewViewModel = hiltViewModel())
     }
 }
 
+/** §7A/§9 payment-review polish -- EFT/cash/other shown as clear labels, matching the same
+ * payment_report_method enum ('eft'/'cash'/'other') this app already sends. */
+private fun paymentMethodLabel(method: String): String = when (method) {
+    "eft" -> "EFT / bank transfer"
+    "cash" -> "Cash"
+    else -> "Other"
+}
+
 @Composable
 private fun PaymentReviewRow(
     report: PaymentReport,
@@ -118,7 +126,16 @@ private fun PaymentReviewRow(
             headlineContent = { Text("R%.2f — ${report.tenantName ?: "Unknown tenant"}".format(report.amount)) },
             supportingContent = {
                 Column {
-                    Text("${report.propertyName ?: "Unknown property"} · ${report.paymentMethod} · ${report.paymentDate}")
+                    Text("${report.propertyName ?: "Unknown property"} · ${paymentMethodLabel(report.paymentMethod)} · ${report.paymentDate}")
+                    Text(
+                        if (report.paymentMethod == "cash" && !report.reportedByTenant)
+                            "Cash collected by staff on the tenant's behalf"
+                        else if (report.reportedByTenant)
+                            "Reported by tenant"
+                        else
+                            "Recorded by staff",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                     if (report.status == "rejected" && report.rejectionReason != null) {
                         Text(
                             "Rejected: ${report.rejectionReason}",
@@ -140,7 +157,7 @@ private fun PaymentReviewRow(
                 TextButton(onClick = onOpenProof) { Text("View proof") }
             }
             if (report.status == "reported") {
-                Button(onClick = onConfirm, enabled = !busy) { Text("Confirm") }
+                Button(onClick = onConfirm, enabled = !busy) { Text("Confirm payment received") }
                 TextButton(onClick = onStartReject, enabled = !busy) { Text("Reject") }
             }
         }

@@ -69,6 +69,12 @@ object Destinations {
     // unpaid rent status per property+month, server-authoritative from rent_schedules.
     const val RENT_STATUS_LIST = "rent_status"
 
+    // Continuation pass -- owner expense/utility/budget mobile workflows (§9).
+    const val ADD_EXPENSE = "add_expense"
+    const val UTILITY_CAPTURE = "utility_capture"
+    const val UTILITY_HISTORY = "utility_history"
+    const val BUDGET_VIEW = "budget_view"
+
     // In-app notifications + settings (same pass, Phase 7/9) -- shared route names across both
     // the Owner and Tenant nested NavHosts (each has its own NavController, so no collision).
     const val NOTIFICATIONS_LIST = "notifications"

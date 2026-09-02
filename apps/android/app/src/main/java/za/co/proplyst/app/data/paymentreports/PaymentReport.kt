@@ -20,6 +20,13 @@ data class PaymentReport(
     val tenantName: String? = null,
     val propertyName: String? = null,
     val documentId: String? = null,
+    /** Continuation pass (UTILITIES_RATES_BUDGET_GAP_AUDIT.md §9 payment-review polish) -- true
+     * when the tenant self-reported this payment; false means staff recorded it on the tenant's
+     * behalf (the "cash collected by staff" case -- payment_reports_insert_staff RLS policy).
+     * There is no reliable per-report collector DISPLAY NAME available (no profile-name field
+     * resolves reportedByUserId to something safe to show) -- this flag is the honest, real
+     * distinction the data actually supports, never a fabricated name. */
+    val reportedByTenant: Boolean = true,
 )
 
 sealed interface PaymentReportsResult {

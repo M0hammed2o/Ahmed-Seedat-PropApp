@@ -47,6 +47,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import za.co.proplyst.app.R
+import za.co.proplyst.app.data.financials.FinancialSummary
 import za.co.proplyst.app.data.insights.PortfolioInsight
 import za.co.proplyst.app.data.notifications.AppNotification
 import za.co.proplyst.app.data.properties.Property
@@ -75,6 +76,7 @@ fun DashboardScreen(
 ) {
     val insightsState by viewModel.insightsUiState.collectAsState()
     val summaryState by viewModel.summaryUiState.collectAsState()
+    val financialSummaryState by viewModel.financialSummaryUiState.collectAsState()
     val topProperties by viewModel.topProperties.collectAsState()
     val recentActivity by viewModel.recentActivity.collectAsState()
     val hasUnread by viewModel.hasUnread.collectAsState()
@@ -87,7 +89,7 @@ fun DashboardScreen(
         LazyColumn(modifier = Modifier.fillMaxSize()) {
             item {
                 NavyHeroSection(
-                    summaryState = summaryState,
+                    financialSummaryState = financialSummaryState,
                     hasUnread = hasUnread,
                     accountEmail = viewModel.accountEmail,
                     onNotificationsClick = onNotificationsClick,
@@ -96,7 +98,13 @@ fun DashboardScreen(
             }
             item { KpiStrip(summaryState = summaryState, properties = topProperties) }
             item { Spacer(modifier = Modifier.height(24.dp)) }
-            item { NeedsAttentionSection(insightsState = insightsState) }
+            item { OperatingCostsSection(financialSummaryState = financialSummaryState) }
+            item { Spacer(modifier = Modifier.height(24.dp)) }
+            item { BudgetSection(financialSummaryState = financialSummaryState) }
+            item { Spacer(modifier = Modifier.height(24.dp)) }
+            item { OperatingPositionSection(financialSummaryState = financialSummaryState) }
+            item { Spacer(modifier = Modifier.height(24.dp)) }
+            item { NeedsAttentionSection(insightsState = insightsState, financialSummaryState = financialSummaryState) }
             item { Spacer(modifier = Modifier.height(24.dp)) }
             item { RecentActivitySection(activity = recentActivity) }
             item { Spacer(modifier = Modifier.height(24.dp)) }
@@ -117,7 +125,7 @@ private fun greeting(): String {
 
 @Composable
 private fun NavyHeroSection(
-    summaryState: OwnerSummaryUiState,
+    financialSummaryState: FinancialSummaryUiState,
     hasUnread: Boolean,
     accountEmail: String?,
     onNotificationsClick: () -> Unit,
@@ -195,19 +203,19 @@ private fun NavyHeroSection(
             }
             Spacer(modifier = Modifier.height(20.dp))
             Text(greeting(), style = type.body, color = colors.navySecondaryOn)
-            val monthLabel = summaryMonthLabel(summaryState)
+            val monthLabel = financialSummaryMonthLabel(financialSummaryState)
             Text(
                 "Collected$monthLabel",
                 style = type.caption,
                 color = colors.navySecondaryOn,
                 modifier = Modifier.padding(top = 2.dp),
             )
-            when (summaryState) {
-                is OwnerSummaryUiState.Loaded -> {
-                    val summary = summaryState.summary
-                    val pct = if (summary.expectedRent > 0) (summary.confirmedPaid / summary.expectedRent * 100).coerceIn(0.0, 100.0) else 0.0
+            when (financialSummaryState) {
+                is FinancialSummaryUiState.Loaded -> {
+                    val summary = financialSummaryState.summary
+                    val pct = if (summary.rentPlanned > 0) (summary.rentCollected / summary.rentPlanned * 100).coerceIn(0.0, 100.0) else 0.0
                     Text(
-                        "R ${formatCurrency(summary.confirmedPaid)}",
+                        "R ${formatCurrency(summary.rentCollected)}",
                         style = type.financialHero,
                         color = Color.White,
                         modifier = Modifier.padding(top = 8.dp),
@@ -234,24 +242,24 @@ private fun NavyHeroSection(
                     Spacer(modifier = Modifier.height(10.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Billed ", style = type.caption, color = colors.navySecondaryOn)
-                        Text("R ${formatCurrency(summary.expectedRent)}", style = type.captionEmphasis, color = Color.White)
+                        Text("R ${formatCurrency(summary.rentPlanned)}", style = type.captionEmphasis, color = Color.White)
                         Spacer(modifier = Modifier.width(18.dp))
                         Text("Outstanding ", style = type.caption, color = colors.navySecondaryOn)
-                        Text("R ${formatCurrency(summary.outstanding)}", style = type.captionEmphasis, color = colors.outstandingOnNavy)
+                        Text("R ${formatCurrency(summary.rentOutstanding)}", style = type.captionEmphasis, color = colors.outstandingOnNavy)
                     }
                 }
-                is OwnerSummaryUiState.Loading -> CircularProgressIndicator(
+                is FinancialSummaryUiState.Loading -> CircularProgressIndicator(
                     color = Color.White,
                     modifier = Modifier.padding(top = 12.dp).size(28.dp),
                 )
-                is OwnerSummaryUiState.Empty -> Text(
+                is FinancialSummaryUiState.Empty -> Text(
                     "No billing summary yet this period.",
                     style = type.body,
                     color = colors.navyTertiaryOn,
                     modifier = Modifier.padding(top = 8.dp),
                 )
-                is OwnerSummaryUiState.Error -> Text(
-                    summaryState.message,
+                is FinancialSummaryUiState.Error -> Text(
+                    financialSummaryState.message,
                     style = type.body,
                     color = colors.outstandingOnNavy,
                     modifier = Modifier.padding(top = 8.dp),
@@ -261,10 +269,10 @@ private fun NavyHeroSection(
     }
 }
 
-private fun summaryMonthLabel(state: OwnerSummaryUiState): String {
-    val periodStart = (state as? OwnerSummaryUiState.Loaded)?.summary?.periodStart ?: return ""
+private fun financialSummaryMonthLabel(state: FinancialSummaryUiState): String {
+    val month = (state as? FinancialSummaryUiState.Loaded)?.summary?.month ?: return ""
     return try {
-        val date = LocalDate.parse(periodStart)
+        val date = LocalDate.parse(month)
         " in ${date.month.getDisplayName(JTextStyle.FULL, Locale.getDefault())}"
     } catch (_: Exception) {
         ""
@@ -334,12 +342,169 @@ private fun KpiColumn(label: String, value: String, modifier: Modifier = Modifie
     }
 }
 
+/** UTILITIES_RATES_BUDGET_IMPLEMENTATION.md "Owner Home mobile" -- Utilities/Rates & levies/Other/
+ * Total, from the same live portfolio financial summary the hero card reads. Loading/error states
+ * are already shown on the hero card above; this section renders nothing extra for those (avoiding
+ * two duplicate spinners/error banners on one screen) and simply waits for Loaded. */
 @Composable
-private fun NeedsAttentionSection(insightsState: InsightsUiState) {
+private fun OperatingCostsSection(financialSummaryState: FinancialSummaryUiState) {
+    val summary = (financialSummaryState as? FinancialSummaryUiState.Loaded)?.summary ?: return
+    val colors = ProplystTheme.colors
+    val type = ProplystTheme.type
+    Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+        Text("Operating costs", style = type.sectionHeading, color = colors.textPrimary)
+        Spacer(modifier = Modifier.height(12.dp))
+        Surface(
+            color = colors.surface,
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .shadow(1.dp, RoundedCornerShape(16.dp), ambientColor = colors.navy.copy(alpha = 0.10f), spotColor = colors.navy.copy(alpha = 0.10f)),
+        ) {
+            Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                ExpenseLineRow("Utilities", summary.utilitiesExpense)
+                DividerLine()
+                ExpenseLineRow("Rates & levies", summary.ratesAndLeviesExpense)
+                DividerLine()
+                ExpenseLineRow("Other expenses", summary.otherExpenses)
+                DividerLine()
+                ExpenseLineRow("Total expenses", summary.totalExpenses, emphasize = true)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExpenseLineRow(label: String, amount: Double, emphasize: Boolean = false) {
+    val colors = ProplystTheme.colors
+    val type = ProplystTheme.type
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp, horizontal = 16.dp),
+    ) {
+        Text(
+            label,
+            style = if (emphasize) type.cardTitle.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold) else type.body,
+            color = if (emphasize) colors.textPrimary else colors.textSecondary,
+        )
+        Text(
+            "R ${formatCurrency(amount)}",
+            style = if (emphasize) type.cardTitle.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold) else type.captionEmphasis,
+            color = colors.textPrimary,
+        )
+    }
+}
+
+@Composable
+private fun DividerLine() {
+    Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(1.dp).background(ProplystTheme.colors.divider))
+}
+
+/** Monthly budget -- planned/used/remaining/%, plus a slim progress bar coloured to match the
+ * approaching/exceeded thresholds (§4A: 80% approaching, 100% exceeded). Renders nothing when no
+ * budget is set for this portfolio+month (budgetPlanned is null) -- an owner who hasn't set a
+ * budget yet should not see an empty/zeroed budget card implying one exists. */
+@Composable
+private fun BudgetSection(financialSummaryState: FinancialSummaryUiState) {
+    val summary = (financialSummaryState as? FinancialSummaryUiState.Loaded)?.summary ?: return
+    val planned = summary.budgetPlanned ?: return
+    val colors = ProplystTheme.colors
+    val type = ProplystTheme.type
+    val pct = (summary.budgetUsedPercent ?: 0.0).coerceIn(0.0, 999.0)
+    val barColor = when {
+        pct >= 100.0 -> colors.critical
+        pct >= 80.0 -> colors.warning
+        else -> colors.primary
+    }
+    Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+        Text("Budget", style = type.sectionHeading, color = colors.textPrimary)
+        Spacer(modifier = Modifier.height(12.dp))
+        Surface(
+            color = colors.surface,
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .shadow(1.dp, RoundedCornerShape(16.dp), ambientColor = colors.navy.copy(alpha = 0.10f), spotColor = colors.navy.copy(alpha = 0.10f)),
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                    Text("R ${formatCurrency(summary.totalExpenses)} of R ${formatCurrency(planned)}", style = type.cardTitle, color = colors.textPrimary)
+                    Text("${"%.1f".format(pct)}%", style = type.cardTitle.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold), color = barColor)
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(colors.divider),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth((pct / 100.0).coerceIn(0.0, 1.0).toFloat())
+                            .height(6.dp)
+                            .background(barColor, RoundedCornerShape(50)),
+                    )
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    if ((summary.budgetRemaining ?: 0.0) >= 0)
+                        "R ${formatCurrency(summary.budgetRemaining ?: 0.0)} remaining"
+                    else
+                        "R ${formatCurrency(-(summary.budgetRemaining ?: 0.0))} over budget",
+                    style = type.meta,
+                    color = colors.textSecondary,
+                )
+            }
+        }
+    }
+}
+
+/** "Monthly net position" -- rent collected minus owner operating expenses. Deliberately never
+ * labelled "profit" (excludes tax, finance costs, depreciation, management fee) -- see this
+ * screen's own note and UTILITIES_RATES_BUDGET_IMPLEMENTATION.md. */
+@Composable
+private fun OperatingPositionSection(financialSummaryState: FinancialSummaryUiState) {
+    val summary = (financialSummaryState as? FinancialSummaryUiState.Loaded)?.summary ?: return
+    val colors = ProplystTheme.colors
+    val type = ProplystTheme.type
+    val positive = summary.netOperatingPosition >= 0
+    Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+        Text("Monthly net position", style = type.sectionHeading, color = colors.textPrimary)
+        Spacer(modifier = Modifier.height(12.dp))
+        Surface(
+            color = colors.surface,
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .shadow(1.dp, RoundedCornerShape(16.dp), ambientColor = colors.navy.copy(alpha = 0.10f), spotColor = colors.navy.copy(alpha = 0.10f)),
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    "${if (positive) "R" else "-R"} ${formatCurrency(kotlin.math.abs(summary.netOperatingPosition))}",
+                    style = type.pageTitle,
+                    color = if (positive) colors.successText else colors.criticalDeep,
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    "Rent collected minus operating expenses this month. Not accounting profit -- excludes tax, finance costs, and depreciation.",
+                    style = type.caption,
+                    color = colors.textSecondary,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun NeedsAttentionSection(insightsState: InsightsUiState, financialSummaryState: FinancialSummaryUiState) {
     val colors = ProplystTheme.colors
     val type = ProplystTheme.type
     val insights = (insightsState as? InsightsUiState.Loaded)?.insights.orEmpty()
-    if (insightsState is InsightsUiState.Empty) return
+    val awaitingConfirmation = (financialSummaryState as? FinancialSummaryUiState.Loaded)?.summary?.awaitingConfirmationCount ?: 0
+    val totalCount = insights.size + (if (awaitingConfirmation > 0) 1 else 0)
+    if (insightsState is InsightsUiState.Empty && awaitingConfirmation == 0) return
     Column(modifier = Modifier.padding(horizontal = 20.dp)) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -347,10 +512,10 @@ private fun NeedsAttentionSection(insightsState: InsightsUiState) {
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text("Needs attention", style = type.sectionHeading, color = colors.textPrimary)
-            if (insights.isNotEmpty()) {
+            if (totalCount > 0) {
                 Surface(color = colors.navy, shape = RoundedCornerShape(50)) {
                     Text(
-                        "${insights.size}",
+                        "$totalCount",
                         style = type.meta.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
                         color = Color.White,
                         modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp),
@@ -363,8 +528,48 @@ private fun NeedsAttentionSection(insightsState: InsightsUiState) {
             is InsightsUiState.Loading -> CircularProgressIndicator(modifier = Modifier.size(24.dp))
             is InsightsUiState.Error -> Text(insightsState.message, style = type.caption, color = colors.critical)
             else -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Payment-awaiting-confirmation is a LIVE count from the same financial-summary
+                // call (never a stale daily-job insight -- a tenant's just-reported payment should
+                // show up immediately, not tomorrow), rendered first since it is directly
+                // actionable from this screen's own Payment Review entry point.
+                if (awaitingConfirmation > 0) {
+                    AwaitingConfirmationRow(count = awaitingConfirmation)
+                }
                 insights.forEach { InsightRow(it) }
             }
+        }
+    }
+}
+
+@Composable
+private fun AwaitingConfirmationRow(count: Int) {
+    val colors = ProplystTheme.colors
+    val type = ProplystTheme.type
+    Surface(
+        color = colors.surface,
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(1.dp, RoundedCornerShape(16.dp), ambientColor = colors.navy.copy(alpha = 0.10f), spotColor = colors.navy.copy(alpha = 0.10f)),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp, horizontal = 16.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(width = 4.dp, height = 36.dp)
+                    .background(colors.primary, RoundedCornerShape(2.dp)),
+            )
+            Text(
+                if (count == 1) "1 payment is awaiting your confirmation." else "$count payments are awaiting your confirmation.",
+                style = type.cardTitle,
+                color = colors.textPrimary,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = 12.dp).weight(1f),
+            )
+            Text("REVIEW", style = type.statusLabel, color = colors.primary, modifier = Modifier.padding(start = 10.dp))
         }
     }
 }

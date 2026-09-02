@@ -5,6 +5,8 @@ package za.co.proplyst.app.data.financials
  * (migrations 164/166), never recomputed on-device (§17). */
 data class FinancialSummary(
     val month: String,
+    /** Non-null only for the portfolio-wide summary -- how many properties contributed. */
+    val propertyCount: Int? = null,
     val rentPlanned: Double,
     val rentCollected: Double,
     val rentOutstanding: Double,
@@ -45,5 +47,6 @@ sealed interface TenantPaymentStatusResult {
 
 interface FinancialSummaryRepository {
     suspend fun getFinancialSummary(propertyId: String, month: String): FinancialSummaryResult
+    suspend fun getPortfolioFinancialSummary(orgId: String, month: String): FinancialSummaryResult
     suspend fun getTenantPaymentStatus(propertyId: String, month: String): TenantPaymentStatusResult
 }

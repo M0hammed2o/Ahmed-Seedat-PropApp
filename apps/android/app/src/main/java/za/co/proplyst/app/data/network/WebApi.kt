@@ -3,8 +3,17 @@ package za.co.proplyst.app.data.network
 import za.co.proplyst.app.data.network.dto.AnnouncementListResponse
 import za.co.proplyst.app.data.network.dto.CreateTenantMaintenanceTicketRequest
 import za.co.proplyst.app.data.network.dto.DocumentDetailResponse
+import za.co.proplyst.app.data.network.dto.DocumentCategoryListResponse
 import za.co.proplyst.app.data.network.dto.DocumentListResponse
+import za.co.proplyst.app.data.network.dto.DocumentUploadResponseDto
+import za.co.proplyst.app.data.network.dto.ExpenseCreateRequest
+import za.co.proplyst.app.data.network.dto.ExpenseCreateResponse
 import za.co.proplyst.app.data.network.dto.FinancialSummaryResponse
+import za.co.proplyst.app.data.network.dto.UtilityHistoryResponse
+import za.co.proplyst.app.data.network.dto.UtilityMeterCreateRequest
+import za.co.proplyst.app.data.network.dto.UtilityMeterCreateResponse
+import za.co.proplyst.app.data.network.dto.UtilityMeterListResponse
+import za.co.proplyst.app.data.network.dto.UtilityReadingCreateRequest
 import za.co.proplyst.app.data.network.dto.TenantPaymentStatusResponse
 import za.co.proplyst.app.data.network.dto.InsightListResponse
 import za.co.proplyst.app.data.network.dto.InvoiceDetailResponse
@@ -182,10 +191,20 @@ interface WebApi {
 
     /** V1 utilities/rates/levies pass (UTILITIES_RATES_BUDGET_GAP_AUDIT.md §6/§8/§16) -- the one
      * server-authoritative owner financial dashboard call (rent + expenses + budget + net
-     * position), avoiding N+1 on Owner Home. */
+     * position), avoiding N+1 on Owner Home. Property-scoped -- see [getPortfolioFinancialSummary]
+     * for the portfolio-wide call Owner Home actually uses. */
     @GET("api/v1/properties/{id}/financial-summary")
     suspend fun getFinancialSummary(
         @Path("id") propertyId: String,
+        @Query("month") month: String,
+    ): Response<FinancialSummaryResponse>
+
+    /** Continuation pass (UTILITIES_RATES_BUDGET_IMPLEMENTATION.md "Portfolio-wide owner financial
+     * summary") -- the LIVE, org-wide aggregation Owner Home is built on, replacing the previously
+     * separate (and stale-snapshot) owner_property_summaries read for the rent hero figures. */
+    @GET("api/v1/organizations/{orgId}/financial-summary")
+    suspend fun getPortfolioFinancialSummary(
+        @Path("orgId") orgId: String,
         @Query("month") month: String,
     ): Response<FinancialSummaryResponse>
 
@@ -196,4 +215,51 @@ interface WebApi {
         @Path("id") propertyId: String,
         @Query("month") month: String,
     ): Response<TenantPaymentStatusResponse>
+
+    /** Owner Add Expense (UTILITIES_RATES_BUDGET_GAP_AUDIT.md §5) -- creates ONE authoritative
+     * expenses row via the existing, unchanged POST /api/v1/expenses (§20's "no duplicate
+     * expense/document monetary records" rule: this app never writes to `documents`/`expenses`
+     * any other way). */
+    @POST("api/v1/expenses")
+    suspend fun createExpense(@Body request: ExpenseCreateRequest): Response<ExpenseCreateResponse>
+
+    /** Resolves a document category slug (e.g. "receipt", "bill") to its id -- required before
+     * [uploadDocument], mirroring the web ExpenseForm's own uploadEvidenceDocument() lookup. */
+    @GET("api/v1/document-categories")
+    suspend fun getDocumentCategories(): Response<DocumentCategoryListResponse>
+
+    /** Generic evidence upload (existing, unchanged route -- malware scan + org/property-access
+     * gating happen server-side exactly as they already do for the web app). Used for expense
+     * receipts and utility-bill evidence -- never a second, Android-only upload path. */
+    @Multipart
+    @POST("api/v1/documents")
+    suspend fun uploadDocument(
+        @Part("orgId") orgId: RequestBody,
+        @Part("propertyId") propertyId: RequestBody,
+        @Part("categoryId") categoryId: RequestBody,
+        @Part("documentType") documentType: RequestBody,
+        @Part file: MultipartBody.Part,
+    ): Response<DocumentUploadResponseDto>
+
+    /** Utility Capture / Utility History (UTILITIES_RATES_BUDGET_GAP_AUDIT.md §6/§7, §9-D/§9-F). */
+    @GET("api/v1/properties/{id}/utility-meters")
+    suspend fun getUtilityMeters(
+        @Path("id") propertyId: String,
+        @Query("unitId") unitId: String? = null,
+    ): Response<UtilityMeterListResponse>
+
+    @POST("api/v1/properties/{id}/utility-meters")
+    suspend fun createUtilityMeter(
+        @Path("id") propertyId: String,
+        @Body request: UtilityMeterCreateRequest,
+    ): Response<UtilityMeterCreateResponse>
+
+    @GET("api/v1/utility-meters/{id}/readings")
+    suspend fun getUtilityReadingHistory(@Path("id") meterId: String): Response<UtilityHistoryResponse>
+
+    @POST("api/v1/utility-meters/{id}/readings")
+    suspend fun createUtilityReading(
+        @Path("id") meterId: String,
+        @Body request: UtilityReadingCreateRequest,
+    ): Response<Unit>
 }

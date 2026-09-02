@@ -37,6 +37,10 @@ import za.co.proplyst.app.ui.notificationprefs.NotificationPreferencesScreen
 import za.co.proplyst.app.ui.paymentreview.PaymentReviewListScreen
 import za.co.proplyst.app.ui.ownersummary.OwnerSummaryListScreen
 import za.co.proplyst.app.ui.rentstatus.RentStatusListScreen
+import za.co.proplyst.app.ui.expenses.AddExpenseScreen
+import za.co.proplyst.app.ui.utilities.UtilityCaptureScreen
+import za.co.proplyst.app.ui.utilities.UtilityHistoryScreen
+import za.co.proplyst.app.ui.budget.BudgetViewScreen
 import za.co.proplyst.app.ui.announcements.AnnouncementsListScreen
 import za.co.proplyst.app.ui.properties.PropertiesListScreen
 import za.co.proplyst.app.ui.properties.PropertyDetailScreen
@@ -181,6 +185,24 @@ fun OwnerRootScreen(pendingRoute: String? = null) {
             composable(Destinations.RENT_STATUS_LIST) {
                 RentStatusListScreen(onBack = { navController.popBackStack() })
             }
+            composable(Destinations.ADD_EXPENSE) {
+                AddExpenseScreen(
+                    onBack = { navController.popBackStack() },
+                    onSubmitted = { navController.popBackStack() },
+                )
+            }
+            composable(Destinations.UTILITY_CAPTURE) {
+                UtilityCaptureScreen(
+                    onBack = { navController.popBackStack() },
+                    onSubmitted = { navController.popBackStack() },
+                )
+            }
+            composable(Destinations.UTILITY_HISTORY) {
+                UtilityHistoryScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Destinations.BUDGET_VIEW) {
+                BudgetViewScreen(onBack = { navController.popBackStack() })
+            }
             composable(Destinations.OWNER_ACTIVITY) {
                 NotificationsListScreen(
                     onSettingsClick = { navController.navigate(Destinations.NOTIFICATION_SETTINGS) },
@@ -196,6 +218,10 @@ fun OwnerRootScreen(pendingRoute: String? = null) {
                     onTenantsClick = { navController.navigate(Destinations.TENANTS_LIST) },
                     onPaymentReviewClick = { navController.navigate(Destinations.PAYMENT_REVIEW_LIST) },
                     onRentStatusClick = { navController.navigate(Destinations.RENT_STATUS_LIST) },
+                    onAddExpenseClick = { navController.navigate(Destinations.ADD_EXPENSE) },
+                    onUtilityCaptureClick = { navController.navigate(Destinations.UTILITY_CAPTURE) },
+                    onUtilityHistoryClick = { navController.navigate(Destinations.UTILITY_HISTORY) },
+                    onBudgetClick = { navController.navigate(Destinations.BUDGET_VIEW) },
                     onMaintenanceClick = { navController.navigate(Destinations.MAINTENANCE_LIST) },
                     onNoticesClick = { navController.navigate(Destinations.ANNOUNCEMENTS_LIST) },
                     onSummaryClick = { navController.navigate(Destinations.OWNER_SUMMARY_LIST) },

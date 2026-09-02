@@ -13,6 +13,9 @@ import kotlinx.coroutines.launch
 import za.co.proplyst.app.data.auth.AuthRepository
 import za.co.proplyst.app.data.auth.AuthState
 import za.co.proplyst.app.data.auth.SessionManager
+import za.co.proplyst.app.data.financials.FinancialSummary
+import za.co.proplyst.app.data.financials.FinancialSummaryRepository
+import za.co.proplyst.app.data.financials.FinancialSummaryResult
 import za.co.proplyst.app.data.insights.PortfolioInsight
 import za.co.proplyst.app.data.insights.PortfolioInsightsRepository
 import za.co.proplyst.app.data.insights.PortfolioInsightsResult
@@ -29,12 +32,17 @@ import javax.inject.Inject
 
 /**
  * Owner Home (Proplyst Mobile Design System redesign pass -- the approved Navy Deck "most
- * important Owner screen"). Backs DashboardScreen.kt's hero card (collected/billed/outstanding,
- * from [OwnerSummaryRepository] -- the same immutable server-computed monthly snapshot the web
- * app shows, never recalculated here), KPI strip, "Needs attention" (the existing Portfolio
- * Intelligence feed, [PortfolioInsightsRepository], AI_ARCHITECTURE.md §2 -- a deterministic rules
- * engine, never an LLM), "Recent activity" (the existing in-app notification feed,
- * [NotificationsRepository], reused rather than duplicated), and "Top properties" ([PropertiesRepository]).
+ * important Owner screen"). Backs DashboardScreen.kt's hero card, operating-costs/budget/operating-
+ * position sections (all from [FinancialSummaryRepository]'s portfolio-wide call -- LIVE,
+ * server-authoritative, computed fresh every load, per UTILITIES_RATES_BUDGET_IMPLEMENTATION.md),
+ * KPI strip (occupancy from [PropertiesRepository]; maintenance/lease-expiry counts still from the
+ * older [OwnerSummaryRepository] snapshot, which this pass deliberately keeps ONLY for those two
+ * non-monetary counts -- every money figure on Home now has exactly one live source, never two),
+ * "Needs attention" (the existing Portfolio Intelligence feed, [PortfolioInsightsRepository],
+ * AI_ARCHITECTURE.md §2 -- a deterministic rules engine, never an LLM -- merged with a synthetic
+ * "payments awaiting confirmation" row from the live financial summary), "Recent activity" (the
+ * existing in-app notification feed, [NotificationsRepository], reused rather than duplicated), and
+ * "Top properties" ([PropertiesRepository]).
  *
  * `isPrincipal` predates this pass (V1 billing invoice pass) and still gates the "Manage
  * subscription" entry point, now surfaced from OwnerMoreScreen instead of a Dashboard toolbar icon.
@@ -46,6 +54,7 @@ class DashboardViewModel @Inject constructor(
     private val ownerSummaryRepository: OwnerSummaryRepository,
     private val propertiesRepository: PropertiesRepository,
     private val notificationsRepository: NotificationsRepository,
+    private val financialSummaryRepository: FinancialSummaryRepository,
     sessionManager: SessionManager,
 ) : ViewModel() {
 
@@ -65,6 +74,15 @@ class DashboardViewModel @Inject constructor(
     private val _summaryUiState = MutableStateFlow<OwnerSummaryUiState>(OwnerSummaryUiState.Loading)
     val summaryUiState: StateFlow<OwnerSummaryUiState> = _summaryUiState.asStateFlow()
 
+    /** Continuation pass (UTILITIES_RATES_BUDGET_IMPLEMENTATION.md "Portfolio-wide owner financial
+     * summary") -- the LIVE, portfolio-wide source for every money figure on Home (rent hero,
+     * operating costs, budget, operating position). [summaryUiState] above is kept only for the
+     * KPI strip's maintenance/lease-expiry counts, which this call does not compute -- it is no
+     * longer used for any monetary figure, so Home now has exactly one live source of truth for
+     * money, not two. */
+    private val _financialSummaryUiState = MutableStateFlow<FinancialSummaryUiState>(FinancialSummaryUiState.Loading)
+    val financialSummaryUiState: StateFlow<FinancialSummaryUiState> = _financialSummaryUiState.asStateFlow()
+
     private val _topProperties = MutableStateFlow<List<Property>>(emptyList())
     val topProperties: StateFlow<List<Property>> = _topProperties.asStateFlow()
 
@@ -79,12 +97,35 @@ class DashboardViewModel @Inject constructor(
     init {
         loadInsights()
         loadSummary()
+        loadFinancialSummary()
         loadTopProperties()
         loadRecentActivity()
     }
 
     private fun currentOrgId(): String? =
         (authRepository.authState.value as? AuthState.Authenticated)?.organizations?.firstOrNull()?.orgId
+
+    private fun currentMonthIso(): String {
+        val now = java.time.LocalDate.now()
+        return java.time.LocalDate.of(now.year, now.month, 1).toString()
+    }
+
+    fun loadFinancialSummary() {
+        viewModelScope.launch {
+            _financialSummaryUiState.value = FinancialSummaryUiState.Loading
+            val orgId = currentOrgId()
+            if (orgId == null) {
+                _financialSummaryUiState.value = FinancialSummaryUiState.Empty
+                return@launch
+            }
+            _financialSummaryUiState.value = when (
+                val result = financialSummaryRepository.getPortfolioFinancialSummary(orgId, currentMonthIso())
+            ) {
+                is FinancialSummaryResult.Loaded -> FinancialSummaryUiState.Loaded(result.summary)
+                is FinancialSummaryResult.Error -> FinancialSummaryUiState.Error(result.message)
+            }
+        }
+    }
 
     fun loadInsights() {
         viewModelScope.launch {
@@ -155,6 +196,13 @@ sealed interface InsightsUiState {
     data object Empty : InsightsUiState
     data class Loaded(val insights: List<PortfolioInsight>) : InsightsUiState
     data class Error(val message: String) : InsightsUiState
+}
+
+sealed interface FinancialSummaryUiState {
+    data object Loading : FinancialSummaryUiState
+    data object Empty : FinancialSummaryUiState
+    data class Loaded(val summary: FinancialSummary) : FinancialSummaryUiState
+    data class Error(val message: String) : FinancialSummaryUiState
 }
 
 sealed interface OwnerSummaryUiState {

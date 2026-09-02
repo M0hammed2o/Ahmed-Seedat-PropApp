@@ -9,6 +9,8 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class FinancialSummaryDto(
     val propertyId: String? = null,
+    /** Set only by the portfolio-wide endpoint. */
+    val propertyCount: Int? = null,
     val month: String,
     val rentPlanned: Double,
     val rentCollected: Double,
@@ -52,3 +54,57 @@ data class TenantPaymentStatusRowDto(
 
 @Serializable
 data class TenantPaymentStatusResponse(val tenantPaymentStatus: List<TenantPaymentStatusRowDto>)
+
+/** GET/POST api/v1/properties/{id}/utility-meters, GET/POST api/v1/utility-meters/{id}/readings. */
+@Serializable
+data class UtilityMeterDto(
+    val id: String,
+    val orgId: String,
+    val propertyId: String,
+    val unitId: String? = null,
+    val utilityType: String,
+    val meterNumber: String? = null,
+    val responsibilityMode: String,
+    val isPrepaid: Boolean,
+    val active: Boolean,
+)
+
+@Serializable
+data class UtilityMeterListResponse(val utilityMeters: List<UtilityMeterDto>)
+
+@Serializable
+data class UtilityMeterCreateRequest(
+    val orgId: String,
+    val utilityType: String,
+    val meterNumber: String? = null,
+    val responsibilityMode: String,
+    val isPrepaid: Boolean = false,
+)
+
+@Serializable
+data class UtilityMeterCreateResponse(val utilityMeter: UtilityMeterDto)
+
+@Serializable
+data class UtilityReadingCreateRequest(
+    val periodMonth: String,
+    val readingDate: String,
+    val readingValue: Double,
+    val unitOfMeasure: String,
+    val source: String = "manual",
+    val documentId: String? = null,
+    val notes: String? = null,
+    val replaceExisting: Boolean = false,
+)
+
+@Serializable
+data class UtilityHistoryPointDto(
+    val periodMonth: String,
+    val readingValue: Double,
+    val consumption: Double? = null,
+    val previousConsumption: Double? = null,
+    val percentChange: Double? = null,
+    val isUnusualUsage: Boolean = false,
+)
+
+@Serializable
+data class UtilityHistoryResponse(val history: List<UtilityHistoryPointDto>)
