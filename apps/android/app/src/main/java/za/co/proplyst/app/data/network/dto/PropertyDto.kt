@@ -30,6 +30,27 @@ data class PropertyDto(
     @SerialName("updated_at") val updatedAt: String,
 )
 
+/** Mobile card enrichment (Proplyst Mobile Design System redesign pass) -- the JSON API's
+ * `GET /api/v1/properties` / `GET /api/v1/properties/:id` response shape, extended with a signed
+ * cover-photo URL and real unit/occupancy counts (`apps/admin/lib/propertyPhotos.ts`,
+ * `apps/admin/lib/unitOccupancy.ts`). Only the three extra fields matter here -- the rest of the
+ * property shape is already covered by [PropertyDto] via the direct Postgrest read; this DTO exists
+ * purely to carry the card extras back into [za.co.proplyst.app.data.properties
+ * .PostgrestPropertiesRepository]'s best-effort merge. */
+@Serializable
+data class PropertyCardExtrasDto(
+    val id: String,
+    @SerialName("coverPhotoUrl") val coverPhotoUrl: String? = null,
+    @SerialName("unitCount") val unitCount: Int = 0,
+    @SerialName("occupiedUnitCount") val occupiedUnitCount: Int = 0,
+)
+
+@Serializable
+data class PropertyCardExtrasListResponse(val properties: List<PropertyCardExtrasDto> = emptyList())
+
+@Serializable
+data class PropertyCardExtrasDetailResponse(val property: PropertyCardExtrasDto)
+
 @Serializable
 data class OrganizationMemberDto(
     @SerialName("org_id") val orgId: String,

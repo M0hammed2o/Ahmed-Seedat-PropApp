@@ -6,6 +6,8 @@ import { mayCreateProperty } from '@/lib/subscriptionEntitlements';
 import { getGeocodingProvider } from '@/lib/providers/geocoding';
 import { parseListQuery, encodeCursor, beforeCursorFilter } from '@/lib/cursorPagination';
 import { safeErrorMessage } from '@/lib/safeError';
+import { resolveCoverPhotoRowsByProperty, signCoverPhotoUrl } from '@/lib/propertyPhotos';
+import { loadUnitOccupancyByProperty } from '@/lib/unitOccupancy';
 
 /**
  * GET /api/v1/properties — list properties across every org the caller belongs to
@@ -63,7 +65,27 @@ export async function GET(request: NextRequest) {
       ? encodeCursor({ createdAt: last.created_at, id: last.id })
       : null;
 
-  return NextResponse.json({ properties, next_cursor: nextCursor });
+  // Mobile card enrichment (Proplyst Mobile Design System redesign pass): cover photo + real
+  // unit/occupancy counts for the Properties grid card. Both are best-effort, non-fatal -- a
+  // photo-signing or occupancy-count failure must never fail the whole list, it just leaves that
+  // one property's card without an image/occupancy figure (same posture as loadInvoicesWithBalances
+  // enrichment on the invoices routes). Neither introduces a new financial calculation: occupancy
+  // is a plain count of existing `leases.status = 'active'` rows, not money.
+  const propertyIds = properties.map((property) => property.id);
+  const [coverPhotoRows, occupancyByProperty] = await Promise.all([
+    resolveCoverPhotoRowsByProperty(supabase, propertyIds).catch(() => new Map()),
+    loadUnitOccupancyByProperty(supabase, propertyIds).catch(() => new Map()),
+  ]);
+  const propertiesWithCards = await Promise.all(
+    properties.map(async (property) => {
+      const coverRow = coverPhotoRows.get(property.id);
+      const coverPhotoUrl = coverRow ? await signCoverPhotoUrl(supabase, coverRow, 'card').catch(() => null) : null;
+      const occupancy = occupancyByProperty.get(property.id) ?? { unitCount: 0, occupiedUnitCount: 0 };
+      return { ...property, coverPhotoUrl, unitCount: occupancy.unitCount, occupiedUnitCount: occupancy.occupiedUnitCount };
+    }),
+  );
+
+  return NextResponse.json({ properties: propertiesWithCards, next_cursor: nextCursor });
 }
 
 /**

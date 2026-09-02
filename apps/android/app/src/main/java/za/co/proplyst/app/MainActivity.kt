@@ -6,8 +6,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.fragment.app.FragmentActivity
+import za.co.proplyst.app.data.appearance.AppearancePreferences
 import za.co.proplyst.app.navigation.PendingDeepLinkStore
 import za.co.proplyst.app.navigation.RootNavGraph
 import za.co.proplyst.app.navigation.parseAppLink
@@ -30,12 +33,16 @@ class MainActivity : FragmentActivity() {
     @Inject
     lateinit var pendingDeepLinkStore: PendingDeepLinkStore
 
+    @Inject
+    lateinit var appearancePreferences: AppearancePreferences
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         captureDeepLink(intent)
         setContent {
-            ProplystTheme {
+            val themeMode by appearancePreferences.themeMode.collectAsState()
+            ProplystTheme(themeMode = themeMode) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     RootNavGraph()
                 }

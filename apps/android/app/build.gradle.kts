@@ -24,6 +24,13 @@ val localProperties = Properties().apply {
 }
 val supabaseUrl: String = localProperties.getProperty("SUPABASE_URL", "")
 val supabaseAnonKey: String = localProperties.getProperty("SUPABASE_ANON_KEY", "")
+// Google Sign-In (Proplyst Mobile Design System redesign pass, design handoff §"Google Sign-In"):
+// deliberately empty by default -- no OAuth web client ID is configured anywhere in this project
+// (confirmed: grepped apps/admin and this app's own local.properties.example before adding this).
+// The UI (SignInScreen) reads BuildConfig.GOOGLE_WEB_CLIENT_ID.isNotBlank() to decide whether
+// "Continue with Google" is a real flow or a safe "owner configuration required" message -- never
+// a fabricated client ID, per this pass's own explicit "do not invent OAuth credentials" instruction.
+val googleWebClientId: String = localProperties.getProperty("GOOGLE_WEB_CLIENT_ID", "")
 // Next.js API base URL (the apps/web deployment, or a local `pnpm --filter admin dev` instance --
 // 10.0.2.2 is the Android emulator's alias for the host machine's localhost). Only ever hit for
 // endpoints that need real server-side business logic (API_SPEC.md §0); RLS-protected reads go
@@ -80,6 +87,7 @@ android {
             // own USE_MOCK_DATA value happens to be set to for local UI work -- a release build
             // must never be able to accidentally ship with mock data baked in.
             buildConfigField("boolean", "USE_MOCK_DATA", "false")
+            buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
         }
         debug {
             // Debug builds may point at a local `supabase start` instance -- no separate flag
@@ -90,6 +98,7 @@ android {
             buildConfigField("String", "SUPABASE_ANON_KEY", "\"$supabaseAnonKey\"")
             buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
             buildConfigField("boolean", "USE_MOCK_DATA", "$useMockData")
+            buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
         }
     }
 
@@ -157,6 +166,7 @@ dependencies {
     implementation(libs.androidx.fragment.ktx)
     implementation(libs.androidx.security.crypto)
     implementation(libs.androidx.datastore.preferences)
+    implementation(libs.coil.compose)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

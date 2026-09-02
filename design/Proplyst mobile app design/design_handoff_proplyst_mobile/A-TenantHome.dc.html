@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"><style>body{margin:0}a{color:#1B6BF2}a:hover{color:#0B3FA8}</style></helmet>
+<div style="font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:#F6F8FB;color:#0F1B2D;min-height:100%;-webkit-font-smoothing:antialiased">
+  <sc-if value="{{ isIOS }}" hint-placeholder-val="{{ true }}"><div style="height:54px"></div></sc-if>
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 20px 0">
+    <img src="assets/logo-wordmark.png" alt="Proplyst" style="height:22px;width:auto">
+    <div style="display:flex;align-items:center;gap:8px">
+      <button aria-label="Notifications" style="width:40px;height:40px;border-radius:50%;border:1px solid #E5E9F0;background:#fff;display:flex;align-items:center;justify-content:center;color:#3A4A5E;cursor:pointer"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"></path><path d="M10 21h4"></path></svg></button>
+      <div style="width:40px;height:40px;border-radius:50%;background:#E8F0FE;color:#1B6BF2;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center">LN</div>
+    </div>
+  </div>
+  <div style="padding:20px 20px 0"><div style="font-size:22px;font-weight:700;letter-spacing:-0.3px">Hi Lerato</div><div style="font-size:14px;color:#5B6B7F;margin-top:2px">Unit AQ-101 · Atlas Quarter</div></div>
+  <div style="margin:14px 20px 0;display:flex;align-items:center;gap:10px;height:44px;border-radius:14px;background:#fff;border:1px solid #E5E9F0;padding:0 14px;color:#98A2B3;font-size:14px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>Search my documents</div>
+  <div style="margin:16px 20px 0;background:#fff;border:1px solid #E5E9F0;border-radius:20px;padding:22px 20px;text-align:center;box-shadow:0 1px 2px rgba(15,27,45,.04)">
+    <div style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#1B6BF2;background:#E8F0FE;padding:5px 12px;border-radius:999px">Rent due 1 October</div>
+    <div style="font-size:42px;font-weight:800;letter-spacing:-1.2px;margin-top:12px;line-height:1">R 14,500</div>
+    <div style="font-size:13px;color:#5B6B7F;margin-top:8px">{{ dueSub }}</div>
+    <button onClick="{{ togglePaid }}" style="width:100%;height:52px;margin-top:18px;border:0;border-radius:14px;background:{{ payBg }};color:{{ payFg }};font:inherit;font-size:15px;font-weight:700;cursor:pointer;box-shadow:{{ payShadow }}">{{ payLabel }}</button>
+    <div style="font-size:12px;color:#98A2B3;margin-top:10px">Reported payments are confirmed by management.</div>
+  </div>
+  <div style="margin:12px 20px 0;background:#fff;border:1px solid #E5E9F0;border-radius:16px;padding:16px">
+    <div style="display:flex;justify-content:space-between;font-size:14px"><span style="color:#5B6B7F">Lease progress</span><span style="font-weight:700">9 / 12 months</span></div>
+    <div style="height:6px;border-radius:999px;background:#EEF1F5;margin-top:10px;overflow:hidden"><div style="width:75%;height:100%;background:#1B6BF2;border-radius:999px"></div></div>
+    <div style="display:flex;justify-content:space-between;font-size:12px;color:#98A2B3;margin-top:8px"><span>Started 1 Jan 2026</span><span>Ends 31 Dec 2026</span></div>
+  </div>
+  <div style="margin:24px 20px 0">
+    <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:17px;font-weight:700">My requests</span><a href="#" style="font-size:13px;font-weight:600;text-decoration:none">New request</a></div>
+    <div style="background:#fff;border:1px solid #E5E9F0;border-radius:16px;margin-top:12px;overflow:hidden">
+      <sc-for list="{{ requests }}" as="r" hint-placeholder-count="2">
+        <button style="width:100%;display:flex;align-items:center;gap:12px;padding:12px 16px;border:0;border-top:1px solid #EEF1F5;background:#fff;text-align:left;font:inherit;color:inherit;cursor:pointer">
+          <div style="width:44px;height:44px;border-radius:12px;background:repeating-linear-gradient(135deg,#EEF1F5 0 6px,#F6F8FB 6px 12px);flex:none"></div>
+          <div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:600">{{ r.title }}</div><div style="font-size:12px;color:#98A2B3;margin-top:2px">{{ r.date }}</div></div>
+          <span style="font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px;background:{{ r.bg }};color:{{ r.fg }}">{{ r.status }}</span>
+        </button>
+      </sc-for>
+    </div>
+  </div>
+  <div style="margin:24px 20px 0">
+    <span style="font-size:17px;font-weight:700">Building notices</span>
+    <div style="background:#fff;border:1px solid #E5E9F0;border-radius:16px;margin-top:12px;padding:14px 16px;display:flex;gap:12px">
+      <div style="width:36px;height:36px;border-radius:50%;background:#E8F0FE;color:#1B6BF2;display:flex;align-items:center;justify-content:center;flex:none"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 8v5M12 16h.01"></path><circle cx="12" cy="12" r="9"></circle></svg></div>
+      <div><div style="font-size:14px;font-weight:600">Water interruption</div><div style="font-size:13px;color:#5B6B7F;margin-top:2px">Tuesday 08:00–12:00. Municipal maintenance on Main Road.</div></div>
+    </div>
+  </div>
+  <div style="margin:24px 20px 0">
+    <span style="font-size:17px;font-weight:700">Documents</span>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">
+      <button style="display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid #E5E9F0;border-radius:14px;background:#fff;font:inherit;font-size:13px;font-weight:600;color:#0F1B2D;text-align:left;cursor:pointer"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1B6BF2" stroke-width="2" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z M14 3v4h4"></path></svg>Lease agreement</button>
+      <button style="display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid #E5E9F0;border-radius:14px;background:#fff;font:inherit;font-size:13px;font-weight:600;color:#0F1B2D;text-align:left;cursor:pointer"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1B6BF2" stroke-width="2" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z M14 3v4h4"></path></svg>House rules</button>
+    </div>
+  </div>
+  <div style="height:24px"></div>
+  <sc-if value="{{ isIOS }}" hint-placeholder-val="{{ true }}">
+    <nav style="position:sticky;bottom:0;display:grid;grid-template-columns:repeat(4,1fr);background:rgba(255,255,255,.92);backdrop-filter:blur(12px);border-top:1px solid #E5E9F0;padding:8px 8px 28px">
+      <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="4"><button style="display:flex;flex-direction:column;align-items:center;gap:4px;border:0;background:transparent;font:inherit;font-size:11px;font-weight:600;color:{{ t.color }};padding:6px 0;min-height:44px">{{ t.icon }}<span>{{ t.label }}</span></button></sc-for>
+    </nav>
+  </sc-if>
+  <sc-if value="{{ isAndroid }}" hint-placeholder-val="{{ false }}">
+    <nav style="position:sticky;bottom:0;display:grid;grid-template-columns:repeat(4,1fr);background:#fff;border-top:1px solid #E5E9F0;padding:10px 8px 12px">
+      <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="4"><button style="display:flex;flex-direction:column;align-items:center;gap:4px;border:0;background:transparent;font:inherit;font-size:12px;font-weight:600;color:{{ t.color }};padding:0"><span style="width:60px;height:32px;border-radius:16px;background:{{ t.pill }};display:flex;align-items:center;justify-content:center">{{ t.icon }}</span><span>{{ t.label }}</span></button></sc-for>
+    </nav>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:402,&quot;height&quot;:874},&quot;platform&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;ios&quot;,&quot;android&quot;],&quot;default&quot;:&quot;ios&quot;,&quot;tsType&quot;:&quot;'ios'|'android'&quot;}}">
+class Component extends DCLogic {
+  state = { reported: false };
+  icon(d, color) { return React.createElement('svg', { width: 24, height: 24, viewBox: '0 0 24 24', fill: 'none', stroke: color, strokeWidth: 1.9, strokeLinecap: 'round', strokeLinejoin: 'round' }, ...d.map((p, i) => React.createElement('path', { key: i, d: p }))); }
+  renderVals() {
+    const platform = this.props.platform ?? 'ios';
+    const r = this.state.reported;
+    const defs = [['Home', ['M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z']], ['Payments', ['M3 7h18v10H3z', 'M3 11h18', 'M7 15h3']], ['Requests', ['M14.7 6.3a4 4 0 0 0 5 5L13 18a2.5 2.5 0 0 1-3.5-3.5z']], ['Profile', ['M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z', 'M4 21a8 8 0 0 1 16 0']]];
+    const tabs = defs.map(([label, d], i) => ({ label, color: i === 0 ? '#1B6BF2' : '#7B8794', icon: this.icon(d, i === 0 ? '#1B6BF2' : '#7B8794'), pill: i === 0 ? '#E8F0FE' : 'transparent' }));
+    return {
+      isIOS: platform === 'ios', isAndroid: platform === 'android', tabs,
+      dueSub: r ? 'Payment reported · awaiting confirmation' : 'Due in 29 days · No outstanding balance',
+      payLabel: r ? 'Payment reported ✓' : 'Report payment',
+      payBg: r ? '#E8F0FE' : '#1B6BF2', payFg: r ? '#1B6BF2' : '#fff', payShadow: r ? 'none' : '0 6px 16px rgba(27,107,242,.25)',
+      togglePaid: () => this.setState(s => ({ reported: !s.reported })),
+      requests: [
+        { title: 'Geyser leak', date: 'Opened 28 Aug', status: 'In progress', bg: '#E8F0FE', fg: '#1B6BF2' },
+        { title: 'Extractor fan', date: 'Closed 14 Aug', status: 'Completed', bg: '#DCFCE7', fg: '#15803D' },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -106,4 +106,52 @@ class PropertiesListViewModelTest {
         assertTrue(state is PropertiesListUiState.Error)
         assertEquals("network error", (state as PropertiesListUiState.Error).message)
     }
+
+    // Proplyst Mobile Design System redesign pass: the Properties grid header's search field and
+    // "All / Residential / Commercial / Land" filter chips are real client-side filters, not
+    // decorative -- these assert they actually narrow uiState.
+    private val houseProperty = sampleProperty.copy(id = "p1", nickname = "Beach House", propertyType = "house")
+    private val retailProperty = sampleProperty.copy(id = "p2", nickname = "Corner Retail Unit", propertyType = "retail", fullAddress = "9 Long St")
+
+    @Test
+    fun `search query narrows the loaded list by nickname or address, case-insensitively`() = runTest {
+        val repository = mockk<PropertiesRepository>()
+        coEvery { repository.getProperties() } returns PropertiesResult.Live(listOf(houseProperty, retailProperty))
+
+        val viewModel = PropertiesListViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
+        viewModel.onSearchQueryChange("beach")
+
+        val state = viewModel.uiState.value
+        assertTrue(state is PropertiesListUiState.Loaded)
+        assertEquals(listOf(houseProperty), (state as PropertiesListUiState.Loaded).properties)
+    }
+
+    @Test
+    fun `category filter narrows the loaded list to the matching property types`() = runTest {
+        val repository = mockk<PropertiesRepository>()
+        coEvery { repository.getProperties() } returns PropertiesResult.Live(listOf(houseProperty, retailProperty))
+
+        val viewModel = PropertiesListViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
+        viewModel.onCategoryFilterChange(PropertyCategoryFilter.RESIDENTIAL)
+
+        val state = viewModel.uiState.value
+        assertTrue(state is PropertiesListUiState.Loaded)
+        assertEquals(listOf(houseProperty), (state as PropertiesListUiState.Loaded).properties)
+    }
+
+    @Test
+    fun `a search with zero matches shows a distinct message from a genuinely empty portfolio`() = runTest {
+        val repository = mockk<PropertiesRepository>()
+        coEvery { repository.getProperties() } returns PropertiesResult.Live(listOf(houseProperty))
+
+        val viewModel = PropertiesListViewModel(repository)
+        dispatcher.scheduler.advanceUntilIdle()
+        viewModel.onSearchQueryChange("no such property")
+
+        val state = viewModel.uiState.value
+        assertTrue(state is PropertiesListUiState.Empty)
+        assertEquals("No properties match your search", (state as PropertiesListUiState.Empty).message)
+    }
 }

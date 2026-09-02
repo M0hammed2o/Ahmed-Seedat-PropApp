@@ -378,6 +378,42 @@ notifications, deep links, biometric auth, tablet behaviour) — specification o
   (tablet layout classified POST-V1 enhancement — usable, not broken; push notifications; release
   signing; real App Links fingerprint; design-token codegen) remain open and are not Android code
   work.
+- [x] **Proplyst Mobile Design System: Navy Deck redesign, 2026-09-02**. Full visual/navigation
+  redesign onto the approved "1b Navy Deck" direction
+  (`design/Proplyst mobile app design/design_handoff_proplyst_mobile/`) — replaces the old
+  earth-tone palette and the 8-tab (owner)/6-tab (tenant) bottom nav with a 4-tab IA each
+  (Owner: Home · Properties · Activity · More / Tenant: Home · Payments · Requests · Profile) and
+  a floating white pill bottom nav (the one deliberate departure from the mockups' dark navy nav,
+  per this pass's own explicit instruction). Design tokens, typography, and shapes rewritten as a
+  proper `ProplystTheme` design system with System/Light/Dark appearance support (More/Profile >
+  Appearance). Real bug fix found and corrected in the process: the old
+  `Shapes.extraLarge = 999.dp` was the actual cause of the circular-clipped dialogs observed in the
+  prior pass's emulator smoke test (mis-attributed at the time to the emulator's software
+  renderer) — M3 dialogs use `shapes.extraLarge` as their container shape by default; now a real
+  28dp per the design spec. Every previously-top-level screen remains fully reachable, nested one
+  level deeper (Owner More, Property Detail's contextual links). Property photography wired to the
+  real backend (`property_photos` table, existing `propertyPhotos.ts` cover-photo resolution/
+  signing, previously used by web only) via best-effort JSON API enrichment on
+  `GET /api/v1/properties` (list + detail) — signed URLs and real unit/occupancy counts, never
+  fabricated. Login redesigned with real invalid/network error distinction and a working
+  `sendPasswordReset()` flow (Supabase's own `/auth/v1/recover`); "Continue with Google" is a real
+  UI boundary gated on `BuildConfig.GOOGLE_WEB_CLIENT_ID`, confirmed empty everywhere in this repo
+  — **GOOGLE SIGN-IN: OWNER CONFIGURATION REQUIRED**, not implemented further per this pass's own
+  "do not invent OAuth credentials" instruction. A development-only mock role selector
+  (`MockAuthRepository`, email-prefix "tenant" → tenant fixture) lets the emulator exercise both
+  portals without real credentials; compiled into every build but only ever wired live when
+  `USE_MOCK_DATA` is true, itself hardcoded `false` in every release build. Business logic,
+  repositories, API contracts, and auth/session/biometric architecture unchanged. Real, disclosed
+  gaps found and left open (not fabricated screens): the Tenant Requests (maintenance) list and the
+  Owner/tenant Activity feed still use their pre-existing plain-list visual treatment, not a
+  restyled photo-thumbnail card (design handoff §"Tenant Requests" was not individually mocked and
+  time-boxed this pass); a portfolio-wide occupancy % now shown on Owner Home is computed from the
+  properties already fetched for that screen, not a separate backend aggregate. Real device/emulator
+  visual pass caught and fixed three genuine defects before this pass's own final report: missing
+  status-bar inset handling on every new navy header, a hardcoded occupancy placeholder that had
+  real data available, and the floating nav silently going dark in dark mode (a real spec §22
+  violation) — see WORKLOG.md's own entry for detail. See this pass's own final report for exact
+  test/lint/build verification.
 
 ## M23 — Automated testing
 

@@ -11,6 +11,15 @@ import javax.inject.Singleton
  * Deterministic fake session -- any non-blank email/password "succeeds," matching
  * MockPropertiesRepository's fixture-data pattern. Never wired into the same binding as
  * SupabaseAuthRepository (Mohammed's explicit instruction).
+ *
+ * Proplyst Mobile Design System redesign pass -- development-only role selector (spec §30): this
+ * class only exists in the binding graph when `BuildConfig.USE_MOCK_DATA` is true, which is itself
+ * hardcoded `false` for every release build (`app/build.gradle.kts` release block) regardless of a
+ * developer's own `local.properties`, so this can never reach a real device build or weaken server
+ * authorization -- the real role gate (`requireOrgRole`/RLS) is untouched and unaware this exists.
+ * An email starting with "tenant" (case-insensitive) signs in as the tenant fixture; anything else
+ * signs in as the existing owner/staff fixture, exactly as before this pass. This lets the
+ * emulator smoke test exercise both portals without inventing a real backend switcher.
  */
 @Singleton
 class MockAuthRepository @Inject constructor() : AuthRepository {
@@ -29,10 +38,18 @@ class MockAuthRepository @Inject constructor() : AuthRepository {
         if (email.isBlank() || password.isBlank()) {
             return Result.failure(Exception("Email and password are required."))
         }
-        _authState.value = AuthState.Authenticated(
-            userId = "demo-user-1",
-            organizations = listOf(OrgMembership(orgId = "demo-org-1", role = "principal", status = "active")),
-        )
+        _authState.value = if (email.trim().lowercase().startsWith("tenant")) {
+            AuthState.Authenticated(
+                userId = "demo-tenant-user-1",
+                organizations = emptyList(),
+                tenancies = listOf(TenancyMembership(tenantId = "demo-tenant-1", orgId = "demo-org-1", status = "active")),
+            )
+        } else {
+            AuthState.Authenticated(
+                userId = "demo-user-1",
+                organizations = listOf(OrgMembership(orgId = "demo-org-1", role = "principal", status = "active")),
+            )
+        }
         return Result.success(Unit)
     }
 
@@ -43,5 +60,10 @@ class MockAuthRepository @Inject constructor() : AuthRepository {
 
     override fun forceSignOutLocally() {
         _authState.value = AuthState.Unauthenticated
+    }
+
+    override suspend fun sendPasswordReset(email: String): Result<Unit> {
+        delay(300)
+        return Result.success(Unit)
     }
 }

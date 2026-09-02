@@ -40,4 +40,10 @@ interface AuthRepository {
      * the network-revoking [signOut] without re-entering the same auth-related OkHttpClient this
      * runs inside of. Idempotent -- safe to call even if already Unauthenticated. */
     fun forceSignOutLocally()
+
+    /** "Forgot password?" (Proplyst Mobile Design System redesign pass) -- always resolves to
+     * success from the caller's perspective (Supabase's own `recover` endpoint always returns 200
+     * regardless of whether the email matches an account; this app must not use the response to
+     * reveal account existence either, matching the design's own "neutral copy" requirement). */
+    suspend fun sendPasswordReset(email: String): Result<Unit>
 }

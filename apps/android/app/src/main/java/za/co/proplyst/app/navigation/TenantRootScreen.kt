@@ -1,21 +1,16 @@
 package za.co.proplyst.app.navigation
 
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.Campaign
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Receipt
-import androidx.compose.material.icons.filled.RequestQuote
-import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -25,36 +20,37 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import za.co.proplyst.app.ui.account.AccountScreen
 import za.co.proplyst.app.ui.announcements.AnnouncementsListScreen
+import za.co.proplyst.app.ui.common.FloatingBottomNav
+import za.co.proplyst.app.ui.common.FloatingNavItem
 import za.co.proplyst.app.ui.documents.DocumentsListScreen
 import za.co.proplyst.app.ui.invoices.InvoiceDetailScreen
 import za.co.proplyst.app.ui.invoices.InvoicesListScreen
 import za.co.proplyst.app.ui.tenancy.MyLeaseScreen
+import za.co.proplyst.app.ui.tenancy.TenantHomeScreen
+import za.co.proplyst.app.ui.tenancy.TenantProfileScreen
 import za.co.proplyst.app.ui.maintenance.CreateMaintenanceTicketScreen
 import za.co.proplyst.app.ui.maintenance.MaintenanceDetailScreen
 import za.co.proplyst.app.ui.maintenance.MaintenanceListScreen
+import za.co.proplyst.app.ui.more.AppearanceScreen
 import za.co.proplyst.app.ui.notifications.NotificationsListScreen
 import za.co.proplyst.app.ui.notificationprefs.NotificationPreferencesScreen
 import za.co.proplyst.app.ui.paymentreports.PaymentReportsListScreen
 import za.co.proplyst.app.ui.paymentreports.ReportPaymentScreen
 
-private data class TenantBottomNavItem(val route: String, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
-
-private val TENANT_BOTTOM_NAV_ITEMS: List<TenantBottomNavItem> = listOf(
-    TenantBottomNavItem(Destinations.INVOICES_LIST, "Invoices", Icons.Filled.RequestQuote),
-    TenantBottomNavItem(Destinations.PAYMENTS_LIST, "Payments", Icons.Filled.Receipt),
-    TenantBottomNavItem(Destinations.MAINTENANCE_LIST, "Maintenance", Icons.Filled.Build),
-    TenantBottomNavItem(Destinations.DOCUMENTS_LIST, "Documents", Icons.Filled.Description),
-    TenantBottomNavItem(Destinations.ANNOUNCEMENTS_LIST, "Notices", Icons.Filled.Campaign),
-    TenantBottomNavItem(Destinations.NOTIFICATIONS_LIST, "Alerts", Icons.Filled.Notifications),
-    // Android V1 final gap-closure pass (WORKLOG.md this date) adds Maintenance/Documents/
-    // Notices/Alerts alongside the prior pass's Payments -- every tenant V1 gap this pass set out
-    // to close now has a real, reachable tab.
+/** Proplyst Mobile Design System redesign pass -- tenant IA collapsed from 6 top-level tabs to the
+ * 4 the approved Navy Deck direction specifies: Home · Payments · Requests · Profile. "Payments"
+ * is the authoritative invoice/balance ledger (INVOICES_LIST, unchanged data source); the
+ * separate tenant-reported-claim workflow (PAYMENTS_LIST/REPORT_PAYMENT) stays reachable from
+ * Tenant Home's "Report payment" CTA and from inside the Payments tab, never merged into one
+ * concept with the ledger. "Requests" is Maintenance; "Profile" replaces the old bare Account
+ * entry point with the richer identity/lease summary + settings list. */
+private val TENANT_BOTTOM_NAV_ITEMS: List<FloatingNavItem> = listOf(
+    FloatingNavItem(Destinations.TENANT_HOME, "Home", Icons.Filled.Home),
+    FloatingNavItem(Destinations.INVOICES_LIST, "Payments", Icons.AutoMirrored.Filled.ReceiptLong),
+    FloatingNavItem(Destinations.MAINTENANCE_LIST, "Requests", Icons.Filled.Build),
+    FloatingNavItem(Destinations.TENANT_PROFILE, "Profile", Icons.Filled.Person),
 )
 
-/**
- * Tenant-portal root (Android V1 commercial-launch pass, WORKLOG.md this date, Phase 4; extended
- * with a real bottom nav this pass now that a second real destination -- Alerts -- exists).
- */
 @Composable
 fun TenantRootScreen(pendingRoute: String? = null) {
     val navController = rememberNavController()
@@ -66,34 +62,24 @@ fun TenantRootScreen(pendingRoute: String? = null) {
         if (pendingRoute != null) navController.navigate(pendingRoute)
     }
 
-    Scaffold(
-        bottomBar = {
-            NavigationBar {
-                val navBackStackEntry by navController.currentBackStackEntryAsState()
-                val currentDestination = navBackStackEntry?.destination
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentDestination = navBackStackEntry?.destination
 
-                TENANT_BOTTOM_NAV_ITEMS.forEach { item ->
-                    NavigationBarItem(
-                        icon = { Icon(item.icon, contentDescription = item.label) },
-                        label = { Text(item.label) },
-                        selected = currentDestination?.hierarchy?.any { it.route == item.route } == true,
-                        onClick = {
-                            navController.navigate(item.route) {
-                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                    )
-                }
-            }
-        },
-    ) { padding ->
+    Box(modifier = Modifier.fillMaxSize()) {
         NavHost(
             navController = navController,
-            startDestination = Destinations.INVOICES_LIST,
-            modifier = Modifier.padding(padding),
+            startDestination = Destinations.TENANT_HOME,
+            modifier = Modifier.fillMaxSize(),
         ) {
+            composable(Destinations.TENANT_HOME) {
+                TenantHomeScreen(
+                    onNotificationsClick = { navController.navigate(Destinations.NOTIFICATIONS_LIST) },
+                    onReportPaymentClick = { navController.navigate(Destinations.REPORT_PAYMENT) },
+                    onInvoicesClick = { navController.navigate(Destinations.INVOICES_LIST) },
+                    onRequestsClick = { navController.navigate(Destinations.MAINTENANCE_LIST) },
+                    onNoticesClick = { navController.navigate(Destinations.ANNOUNCEMENTS_LIST) },
+                )
+            }
             composable(Destinations.INVOICES_LIST) {
                 InvoicesListScreen(
                     onInvoiceClick = { invoiceId -> navController.navigate(Destinations.invoiceDetail(invoiceId)) },
@@ -148,6 +134,18 @@ fun TenantRootScreen(pendingRoute: String? = null) {
             composable(Destinations.NOTIFICATION_SETTINGS) {
                 NotificationPreferencesScreen(onBack = { navController.popBackStack() })
             }
+            composable(Destinations.TENANT_PROFILE) {
+                TenantProfileScreen(
+                    onMyLeaseClick = { navController.navigate(Destinations.MY_LEASE) },
+                    onDocumentsClick = { navController.navigate(Destinations.DOCUMENTS_LIST) },
+                    onNoticesClick = { navController.navigate(Destinations.ANNOUNCEMENTS_LIST) },
+                    onAccountClick = { navController.navigate(Destinations.ACCOUNT) },
+                    onAppearanceClick = { navController.navigate(Destinations.APPEARANCE_SETTINGS) },
+                )
+            }
+            composable(Destinations.APPEARANCE_SETTINGS) {
+                AppearanceScreen(onBack = { navController.popBackStack() })
+            }
             composable(Destinations.ACCOUNT) {
                 AccountScreen(
                     onBack = { navController.popBackStack() },
@@ -157,6 +155,22 @@ fun TenantRootScreen(pendingRoute: String? = null) {
             composable(Destinations.MY_LEASE) {
                 MyLeaseScreen(onBack = { navController.popBackStack() })
             }
+        }
+
+        val showBottomNav = TENANT_BOTTOM_NAV_ITEMS.any { item -> currentDestination?.hierarchy?.any { it.route == item.route } == true }
+        if (showBottomNav) {
+            FloatingBottomNav(
+                items = TENANT_BOTTOM_NAV_ITEMS,
+                currentRoute = currentDestination?.route,
+                onItemClick = { item ->
+                    navController.navigate(item.route) {
+                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                },
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
         }
     }
 }

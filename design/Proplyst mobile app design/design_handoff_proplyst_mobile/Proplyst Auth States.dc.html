@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><meta name="design_doc_mode" content="canvas"><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"><style>body{margin:0;background:#EEF0F3}a{color:#1B6BF2}a:hover{color:#0B3FA8}</style></helmet>
+<div style="font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:#0F1B2D;padding:40px 44px 60px;display:flex;flex-direction:column;gap:32px;-webkit-font-smoothing:antialiased">
+  <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+    <a href="Proplyst Mobile Directions.dc.html" style="font:600 10px ui-monospace,Menlo,monospace;padding:3px 7px;background:#1a1a1a;color:#fff;border-radius:4px;text-decoration:none">1b</a>
+    <span style="font-size:20px;font-weight:800;letter-spacing:-0.3px">Authentication &amp; biometric unlock</span>
+    <span style="font-size:13px;color:#5B6B7F">Navy Deck · shared, iOS and Android states · visual/UX spec only. Use the Device tweak to switch platform, biometric type and availability.</span>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1.25fr .75fr;gap:20px;max-width:1400px">
+    <div style="background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:16px;padding:22px 24px;font-size:13px;line-height:1.5;color:#3A4A5E;display:flex;flex-direction:column;gap:14px">
+      <div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#98A2B3">Flows · biometrics gate local access to an existing session, never server authentication</div>
+      <sc-for list="{{ flows }}" as="f" hint-placeholder-count="4">
+        <div style="display:flex;gap:14px;align-items:flex-start">
+          <div style="flex:none;width:112px;font-weight:700;color:#0F1B2D;padding-top:5px">{{ f.name }}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+            <sc-for list="{{ f.steps }}" as="st" hint-placeholder-count="5"><span style="display:inline-flex;align-items:center;gap:6px"><span style="padding:5px 10px;border-radius:999px;background:{{ st.bg }};color:{{ st.fg }};font-size:12px;font-weight:600;white-space:nowrap">{{ st.t }}</span><span style="color:#B7C6E0;font-size:12px;display:{{ st.arrow }}">→</span></span></sc-for>
+          </div>
+        </div>
+      </sc-for>
+      <div style="border-top:1px solid #EEF1F5;padding-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:6px 20px;font-size:12.5px">
+        <div><b style="color:#0F1B2D">Navy = server-authenticated step.</b> Blue = device-local biometric step. Grey = system or neutral.</div>
+        <div><b style="color:#0F1B2D">Session expiry wins.</b> If the refresh token fails, the lock screen is skipped and the sign-in screen shows the expired banner with the email prefilled; the biometric preference is kept.</div>
+        <div><b style="color:#0F1B2D">Sign out</b> clears the session and turns biometric unlock off for the device. Next launch is the plain sign-in screen with a confirmation toast.</div>
+        <div><b style="color:#0F1B2D">Fallback is always one tap away:</b> "Use password instead" on the lock screen and inside the Android prompt.</div>
+      </div>
+    </div>
+    <div style="background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:16px;padding:22px 24px;font-size:12.5px;line-height:1.5;color:#3A4A5E">
+      <div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#98A2B3">Implementation hooks (no config values)</div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">
+        <div><b style="color:#0F1B2D">iOS · SwiftUI</b> · LocalAuthentication LAContext: canEvaluatePolicy → biometryType decides the Face ID / Touch ID label and glyph; errors biometryNotAvailable / biometryNotEnrolled / userCancel map to the states below. Session token in Keychain; biometric-unlock preference is a per-device flag. Sign in with Apple via AuthenticationServices (button shown on iOS only). Google via Google Sign-In SDK.</div>
+        <div><b style="color:#0F1B2D">Android · Jetpack Compose</b> · BiometricManager.canAuthenticate(BIOMETRIC_STRONG) → BIOMETRIC_ERROR_NO_HARDWARE / NONE_ENROLLED / SUCCESS; BiometricPrompt with a negative "Use password" button (system sheet, shown as a mock). Token in EncryptedSharedPreferences / Keystore. Google via Credential Manager. No Sign in with Apple.</div>
+        <div><b style="color:#0F1B2D">Both</b> · Loading disables inputs and shows the spinner inside the primary button; buttons with unmet requirements render at 45% opacity and are not tappable. Errors are inline banners above the actions, never toasts. Copy in the frames is final.</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:28px;align-items:flex-start">
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="font:600 11px system-ui;color:rgba(0,0,0,.55)">Tappable flow · start here</div>
+      <x-import component-from-global-scope="{{ frameComp }}" from="./frames/ios-frame.jsx ./frames/android-frame.jsx" hint-size="360px,780px" width="{{ w }}" height="{{ h }}" dark="{{ true }}"><dc-import name="B-Auth" style="height:100%" platform="{{ platform }}" biometric="{{ biometric }}" bio-availability="{{ avail }}" hint-size="100%,100%"></dc-import></x-import>
+    </div>
+    <div style="background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:16px;padding:20px 22px;font-size:13px;line-height:1.6;color:#3A4A5E;max-width:360px;margin-top:22px">
+      <div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#98A2B3">How to drive it</div>
+      <div style="margin-top:8px">Type any password and tap <b style="color:#0F1B2D">Sign in</b> → loading → first-login biometric offer.<br>Password <b style="color:#0F1B2D">wrong</b> → invalid credentials. Password <b style="color:#0F1B2D">offline</b> → network failure with Retry.<br><b style="color:#0F1B2D">Google / Apple</b> → provider hand-off screen → same offer.<br><b style="color:#0F1B2D">Enable</b> → system prompt → Security settings with the toggle on. Cancel the prompt to stay unenrolled.<br>In Security: <b style="color:#0F1B2D">Lock now</b> → returning-user lock screen. Cancel the prompt there → failed state. <b style="color:#0F1B2D">Session</b> row → expired sign-in. <b style="color:#0F1B2D">Sign out</b> → confirm sheet → signed-out sign-in.</div>
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid #EEF1F5;font-size:12px;color:#7B8794">Device tweak: switch platform, Face ID ↔ Touch ID, and biometric availability (available / unavailable / not enrolled) to see the settings row change.</div>
+    </div>
+  </div>
+
+  <sc-for list="{{ groups }}" as="g" hint-placeholder-count="3">
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:baseline;gap:10px"><span style="font-size:15px;font-weight:800">{{ g.name }}</span><span style="font-size:12px;color:#5B6B7F">{{ g.sub }}</span></div>
+      <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start">
+        <sc-for list="{{ g.items }}" as="s" hint-placeholder-count="4">
+          <div style="display:flex;flex-direction:column;gap:8px;width:360px">
+            <div style="display:flex;flex-direction:column;gap:2px"><div style="font:700 12px system-ui;color:#0F1B2D">{{ s.label }}</div><div style="font:400 11px/1.4 system-ui;color:rgba(0,0,0,.55);min-height:30px">{{ s.note }}</div></div>
+            <x-import component-from-global-scope="{{ frameComp }}" from="./frames/ios-frame.jsx ./frames/android-frame.jsx" hint-size="360px,780px" width="{{ w }}" height="{{ h }}" dark="{{ true }}"><dc-import name="B-Auth" style="height:100%" screen="{{ s.id }}" platform="{{ platform }}" biometric="{{ s.bio }}" bio-availability="{{ avail }}" hint-size="100%,100%"></dc-import></x-import>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;platform&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;ios&quot;,&quot;android&quot;],&quot;default&quot;:&quot;ios&quot;,&quot;tsType&quot;:&quot;'ios'|'android'&quot;,&quot;section&quot;:&quot;Device&quot;},&quot;biometric&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;faceid&quot;,&quot;touchid&quot;],&quot;default&quot;:&quot;faceid&quot;,&quot;tsType&quot;:&quot;'faceid'|'touchid'&quot;,&quot;section&quot;:&quot;Device&quot;},&quot;bioAvailability&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;available&quot;,&quot;unavailable&quot;,&quot;notEnrolled&quot;],&quot;default&quot;:&quot;available&quot;,&quot;tsType&quot;:&quot;'available'|'unavailable'|'notEnrolled'&quot;,&quot;section&quot;:&quot;Device&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const platform = this.props.platform ?? 'ios', isIOS = platform === 'ios';
+    const biometric = this.props.biometric ?? 'faceid';
+    const bioName = !isIOS ? 'Fingerprint' : biometric === 'touchid' ? 'Touch ID' : 'Face ID';
+    const N = { bg: '#0F1B2D', fg: '#fff' }, B = { bg: '#E8F0FE', fg: '#1B6BF2' }, G = { bg: '#F3F5F9', fg: '#3A4A5E' }, R = { bg: '#FEE2E2', fg: '#B91C1C' };
+    const chain = arr => arr.map(([t, c], i) => ({ t, ...c, arrow: i === arr.length - 1 ? 'none' : 'inline' }));
+    const flows = [
+      { name: 'First login', steps: chain([['Sign in', G], ['Email + password / Google' + (isIOS ? ' / Apple' : ''), N], ['Loading', G], ['Authenticated session', N], ['Offer ' + bioName + ' unlock', B], ['Enable / Not now', B], ['App', G]]) },
+      { name: 'Returning user', steps: chain([['Relaunch with valid session', G], ['Lock screen', B], [bioName + ' prompt (device)', B], ['App', G]]) },
+      { name: 'Fallbacks', steps: chain([['Failed / cancelled', R], ['Try again', B], ['or Use password', G], ['Sign in (returning)', N]]) },
+      { name: 'Session expired', steps: chain([['Refresh fails', R], ['Sign in · expired banner', N], ['Success', N], ['App · ' + bioName + ' stays on', G]]) },
+      { name: 'Sign out', steps: chain([['Confirm sheet', G], ['Clear session + biometric flag', N], ['Sign in · signed-out toast', G]]) },
+    ];
+    const bio = biometric;
+    const groups = [
+      { name: 'Shared', sub: 'identical on both platforms; iOS adds Continue with Apple', items: [
+        { id: 'signin', label: 'Sign in · new user', note: 'Email + password, Forgot password, Google' + (isIOS ? ', Apple' : '') + '. Primary button 45% until both fields filled.', bio },
+        { id: 'signin-loading', label: 'Loading', note: 'Inputs and providers disabled, spinner in the primary button, label "Signing in…".', bio },
+        { id: 'signin-invalid', label: 'Invalid credentials', note: 'Red inline banner above actions; password field border tinted. Clears on edit.', bio },
+        { id: 'signin-network', label: 'Network failure', note: 'Amber banner with Retry. Credentials are kept.', bio },
+        { id: 'forgot', label: 'Forgot password', note: 'Email only; back to sign in.', bio },
+        { id: 'forgot-sent', label: 'Reset link sent', note: 'Neutral confirmation that does not reveal whether the account exists.', bio },
+        { id: 'oauth-loading', label: 'Continue with Google / Apple', note: 'Hand-off screen while the provider sheet is open; Cancel returns to sign in.', bio },
+      ] },
+      { name: 'Biometric unlock', sub: 'device-local; only reachable after a server-authenticated session exists', items: [
+        { id: 'bio-offer', label: 'Offer after first login', note: 'One-time. Explains that ' + bioName + ' only unlocks the app. Not now → app.', bio },
+        { id: 'bio-prompt', label: 'System prompt', note: isIOS ? 'LAContext evaluatePolicy. Mock of the system card; Cancel = userCancel.' : 'BiometricPrompt bottom sheet with negative "Use password" button.', bio },
+        { id: 'settings-enabled', label: 'Enabled', note: 'Security settings, toggle on, confirmation toast. "Lock now" available.', bio },
+        { id: 'settings-unavailable', label: 'Unavailable', note: isIOS ? 'biometryNotAvailable: toggle disabled, explanatory text.' : 'BIOMETRIC_ERROR_NO_HARDWARE: toggle disabled, explanatory text.', bio },
+        { id: 'settings-notenrolled', label: 'Not enrolled', note: isIOS ? 'biometryNotEnrolled: toggle disabled, deep link to Settings.' : 'BIOMETRIC_ERROR_NONE_ENROLLED: toggle disabled, link to device settings.', bio },
+        { id: 'lock', label: 'Returning user · lock screen', note: 'Valid session in Keychain/Keystore. Unlock, Use password, Not you? Sign out.', bio },
+        ...(isIOS ? [{ id: 'lock', label: 'Returning user · Touch ID device', note: 'Same screen; biometryType .touchID swaps label and glyph.', bio: 'touchid' }] : []),
+        { id: 'lock-prompt', label: 'Unlocking', note: 'System prompt over the lock screen.', bio },
+        { id: 'lock-failed', label: 'Failed / cancelled', note: 'Red-tinted glyph, "Try again" primary, password fallback. Lockout after repeated failures follows the OS.', bio },
+      ] },
+      { name: 'Session', sub: 'server session state drives which screen is shown', items: [
+        { id: 'signin-returning', label: 'Returning user · password path', note: 'Reached via Use password. Shows the "Unlock with ' + bioName + '" shortcut and Welcome back copy.', bio },
+        { id: 'signin-expired', label: 'Expired session', note: 'Refresh failed. Blue banner, email prefilled, biometric preference retained.', bio },
+        { id: 'logout-confirm', label: 'Sign out confirmation', note: 'Bottom sheet; states that biometric unlock will be turned off on this device.', bio },
+        { id: 'signin-loggedout', label: 'Signed out', note: 'Plain sign-in with a toast; no returning-user shortcut.', bio },
+      ] },
+    ];
+    return { w: 360, h: 780, platform, biometric, avail: this.props.bioAvailability ?? 'available', frameComp: isIOS ? 'IOSDevice' : 'AndroidDevice', flows, groups };
+  }
+}
+</script>
+</body>
+</html>

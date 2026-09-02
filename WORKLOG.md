@@ -1,5 +1,121 @@
 # Worklog
 
+## 2026-09-02 — Proplyst Mobile Design System: Navy Deck redesign (Android)
+
+Full visual/navigation redesign of the Android app onto the approved "1b Navy Deck" direction
+(`design/Proplyst mobile app design/design_handoff_proplyst_mobile/`), replacing the old
+earth-tone PropertyVault palette and 8-tab/6-tab bottom navigation. Business logic, repositories,
+API contracts, auth/session/biometric architecture, and financial computation are unchanged --
+this pass is presentation-layer + navigation only, per its own explicit scope.
+
+**Design system** (`ui/theme/`): `Color.kt`/`Type.kt`/`Shape.kt`/`Theme.kt` rewritten with the
+handoff's exact token values (`ProplystLightPalette`/`ProplystDarkPalette`, a `ProplystColorTokens`
+data class exposed via `ProplystTheme.colors`/`.type` alongside a fully-populated M3 `ColorScheme`
+so built-in components and custom composables never disagree). New `ThemeMode` (System/Light/Dark)
++ `AppearancePreferences` (plain SharedPreferences + live StateFlow, same shape as the existing
+`BiometricLockPreferences`), wired into `MainActivity`/`ProplystTheme`; setting lives under
+More/Profile > Appearance (new `AppearanceScreen`).
+
+**Real bug fix, not cosmetic**: the old `Shapes.extraLarge = RoundedCornerShape(999.dp)` was the
+actual cause of the circular-clipped `DatePickerDialog`/sign-out `AlertDialog` observed and
+mis-attributed to the emulator's software renderer in the prior pass's smoke test (M3 dialogs use
+`shapes.extraLarge` as their container shape by default). Now 28dp per the design's own "sheets"
+token; a dedicated `ProplystPillShape` (999dp) is used explicitly only where a pill is wanted
+(floating nav, chips).
+
+**Navigation**: owner IA collapsed from 8 tabs to 4 (Home · Properties · Activity · More); tenant
+from 6 to 4 (Home · Payments · Requests · Profile) -- design handoff's explicit direction. Every
+previously-top-level screen stays fully reachable, nested one level deeper (`OwnerMoreScreen`,
+`PropertyDetailScreen`'s new contextual links). New shared `FloatingBottomNav` (`ui/common/`) --
+the ONE deliberate departure from the Navy Deck mockups (a floating WHITE pill bar, not the dark
+navy one shown in the concept, per the task's own explicit override), insetting from both edges
+and the gesture area, active state a pale-blue pill + Proplyst-blue icon/label.
+
+**Real defect caught during Owner nav wiring**: `DOCUMENTS_LIST` is tenant-self RLS-scoped
+(`TenantDocumentsRepository`, no owner/org-scoped variant exists) -- an initial draft wired it into
+`OwnerMoreScreen`/`PropertyDetailScreen`, which would have shown owners a broken/empty screen.
+Removed before this reached a build; Owner's Documents entry stays a disclosed, real, out-of-scope
+gap rather than a fabricated broken link. `AnnouncementsRepository`'s RLS name
+(`announcements_select_org_or_tenant`) confirmed org callers genuinely see their own sent notices,
+so that entry stayed.
+
+**Screens rebuilt/new**: `SignInScreen` (navy hero + glow, real Proplyst mark, styled inputs,
+password visibility toggle, invalid/network-distinct error banners, "Forgot password?" -> a real
+`AuthRepository.sendPasswordReset()` flow via Supabase's own `/auth/v1/recover` endpoint --
+new, safe, always-succeeds-from-the-caller's-view per Supabase's own account-existence-hiding
+behavior -- and a "Continue with Google" boundary gated on `BuildConfig.GOOGLE_WEB_CLIENT_ID`,
+which is genuinely empty everywhere in this project; see GOOGLE SIGN-IN below). `DashboardScreen`
+(Owner Home: navy hero card sourced from the real `OwnerSummaryRepository` monthly snapshot --
+collected/billed/outstanding, never recomputed here -- KPI strip, "Needs attention" reusing
+`PortfolioInsightsRepository` unchanged, "Recent activity" reusing `NotificationsRepository`
+unchanged, "Top properties" horizontal strip). `PropertiesListScreen` (real photo cards, working
+search + category filter chips, real unit/occupancy stats). `PropertyDetailScreen` (hero photo,
+summary stats, contextual links to Units/Tenants/Maintenance). New `OwnerMoreScreen`,
+`AppearanceScreen`. New `TenantHomeScreen`/`TenantHomeViewModel` (outstanding-balance hero sourced
+from the existing authoritative invoice ledger -- `InvoicesRepository`, balance never recomputed;
+"Report payment" CTA explicitly distinct from the ledger, per spec; lease progress, last payment,
+requests/notices previews, all reusing existing repositories). New `TenantProfileScreen`
+(identity/lease summary + settings list, reuses `TenancyRepository.getMyLease()`).
+
+**Property photography** (spec §24, a named "core mobile feature"): audited the real backend --
+`property_photos` table + `apps/admin/lib/propertyPhotos.ts`'s existing cover-photo resolution/
+signing, already used by the web app but never exposed to the JSON API. Added best-effort
+enrichment to `GET /api/v1/properties` (list, card-size) and `GET /api/v1/properties/:id` (detail,
+hero-size) -- signed URLs, never a fabricated hard-coded image URL. New `apps/admin/lib
+/unitOccupancy.ts` for real per-property unit/occupied-unit counts (plain row counts, not a
+financial calculation). Android's `PostgrestPropertiesRepository` (still the real direct-Postgrest
+read for the base property fields) layers these in via one additional best-effort `WebApi` call,
+merged client-side, never persisted to the Room cache -- an enrichment failure degrades to a plain
+card, never blocks the property list itself. New shared `PropertyPhoto` composable (Coil, added as
+a new dependency, `coil-compose:2.7.0`) with the design's own branded diagonal-stripe fallback for
+properties with no photo. `MockPropertiesRepository` fixtures expanded from 1 to 3 properties using
+the design handoff's own `prop-edendale`/`prop-northdale`/`prop-salta` photos, bundled into
+`res/drawable-nodpi/` and loaded via an `android.resource://` URI -- Coil treats this identically to
+a real signed URL, so the UI layer never branches on mock-vs-real.
+
+**Dev-only mock role selector** (spec §30, needed because the emulator has no real tenant
+credentials): `MockAuthRepository.signIn()` now routes an email starting with "tenant" to the
+tenant fixture, anything else to the existing owner fixture. Compiled into every build, but only
+ever wired into the live binding when `BuildConfig.USE_MOCK_DATA` is true -- hardcoded `false` for
+every release build regardless of a developer's `local.properties`, so this can never reach a real
+device and never touches server authorization.
+
+**GOOGLE SIGN-IN**: OWNER CONFIGURATION REQUIRED. Confirmed (grepped the whole repo) that no Google
+OAuth web client ID exists anywhere -- web app, Android, or `local.properties.example`. Built the
+full UI + a `BuildConfig.GOOGLE_WEB_CLIENT_ID`-gated boundary; the button never claims success
+without real configuration. Implementing the actual Credential Manager flow is deferred until
+Mohammed provides a real Google Cloud OAuth client ID (and, for a signed build, the release
+keystore's SHA-1).
+
+**Push notifications**: unchanged finding from the prior pass -- OWNER ACTION REQUIRED (needs a
+real Firebase project, confirmed none exists in this repo). In-app notification centre (now the
+Owner Activity tab / tenant notification bell) already works, so this does not block V1.
+
+**Emulator visual pass, real defects found and fixed** (`PropertyVault_Pixel7_API35`, both portals,
+light and dark mode, screenshots at every step): (1) every new navy header (Properties, Owner More,
+Tenant Home/Profile, Sign In, Property Detail's back button) was drawn flush to the top of the
+screen with a fixed `padding(top = ...)`, ignoring the actual status-bar inset under edge-to-edge
+-- the status bar clock visibly overlapped page titles. Fixed with `.statusBarsPadding()` on each.
+(2) The Owner Home KPI strip's "Occupancy" figure was a hardcoded "—" placeholder; since
+`PostgrestPropertiesRepository`'s card-extras enrichment already carries real per-property
+unit/occupied counts, computed a real portfolio-wide percentage from the already-fetched properties
+list instead of leaving a fake dash. (3) A real, disclosed spec violation: the floating bottom nav
+used `MaterialTheme.colorScheme.surface` for its pill background, which is white in light mode but
+flips to dark navy in dark mode -- directly contradicting spec §22's explicit "floating bottom
+navigation remains white" instruction, confirmed by an actual dark-mode screenshot showing a dark
+pill. Fixed by pinning the nav's colors (pill background, active/inactive icon and label tint, the
+active-item background tint) to `ProplystLightPalette` explicitly, regardless of the active theme.
+(4) Verified the Shape.kt dialog-shape fix for real: triggered the sign-out `AlertDialog` on-device
+and confirmed it now renders as a proper rounded rectangle, not the circle seen in the prior pass.
+Both portals smoke-tested end-to-end via the dev-only mock role selector (owner: Home/Properties/
+Property Detail/Activity/More/Account, all live with zero crashes; tenant: Home/Payments/Requests/
+Profile, all live with zero crashes, aggregated data from five separate repositories rendering
+correctly together).
+
+**Verification**: see this pass's own final report for exact test/lint/build counts (run after this
+entry was written, so not duplicated here to avoid a stale number if a later fix changes it --
+check the final report or a fresh `gradlew testDebugUnitTest` for the current figure).
+
 ## 2026-09-01 (continued, 2) — Final Android V1 completion: authoritative invoice/payment ledger + My Lease
 
 Continuation, Android-only this pass (iOS untouched, confirmed via `git status apps/ios/` before

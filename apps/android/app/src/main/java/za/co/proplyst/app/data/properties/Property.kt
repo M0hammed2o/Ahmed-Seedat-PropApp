@@ -13,4 +13,12 @@ data class Property(
     val municipalAccountNumber: String?,
     val notes: String?,
     val status: String,
+    // Proplyst Mobile Design System redesign pass -- card-visual extras, merged in best-effort by
+    // PostgrestPropertiesRepository from the JSON API (apps/admin/lib/propertyPhotos.ts,
+    // unitOccupancy.ts). Defaulted so every existing call site (Mock repository, Room entity
+    // mapping) keeps compiling unchanged; a property with no photo/occupancy data simply renders
+    // its fallback state.
+    val coverPhotoUrl: String? = null,
+    val unitCount: Int = 0,
+    val occupiedUnitCount: Int = 0,
 )

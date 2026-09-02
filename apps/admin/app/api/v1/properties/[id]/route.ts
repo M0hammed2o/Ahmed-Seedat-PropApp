@@ -4,6 +4,8 @@ import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapPropertyRow, requireOrgRole } from '@/lib/portfolio';
 import { getGeocodingProvider } from '@/lib/providers/geocoding';
 import { safeErrorMessage } from '@/lib/safeError';
+import { resolveCoverPhotoRow, signCoverPhotoUrl } from '@/lib/propertyPhotos';
+import { loadUnitOccupancyByProperty } from '@/lib/unitOccupancy';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -51,7 +53,21 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     );
   }
 
-  return NextResponse.json({ property: mapPropertyRow(data) });
+  const property = mapPropertyRow(data);
+
+  // Mobile detail-hero enrichment (Proplyst Mobile Design System redesign pass) -- same best-effort,
+  // non-fatal posture as the list route: a photo/occupancy lookup failure must never fail the
+  // property fetch itself.
+  const [coverRow, occupancyByProperty] = await Promise.all([
+    resolveCoverPhotoRow(supabase, id).catch(() => null),
+    loadUnitOccupancyByProperty(supabase, [id]).catch(() => new Map()),
+  ]);
+  const coverPhotoUrl = coverRow ? await signCoverPhotoUrl(supabase, coverRow, 'hero').catch(() => null) : null;
+  const occupancy = occupancyByProperty.get(id) ?? { unitCount: 0, occupiedUnitCount: 0 };
+
+  return NextResponse.json({
+    property: { ...property, coverPhotoUrl, unitCount: occupancy.unitCount, occupiedUnitCount: occupancy.occupiedUnitCount },
+  });
 }
 
 export async function PATCH(request: NextRequest, { params }: RouteParams) {

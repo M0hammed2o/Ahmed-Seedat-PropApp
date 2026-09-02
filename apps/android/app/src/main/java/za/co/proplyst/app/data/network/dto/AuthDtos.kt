@@ -35,6 +35,11 @@ data class RefreshTokenRequest(
 )
 
 @Serializable
+data class RecoverPasswordRequest(
+    val email: String,
+)
+
+@Serializable
 data class AuthErrorResponse(
     @SerialName("error_description") val errorDescription: String? = null,
     val msg: String? = null,

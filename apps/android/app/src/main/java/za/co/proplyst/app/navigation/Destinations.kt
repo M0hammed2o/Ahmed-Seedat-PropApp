@@ -8,7 +8,18 @@ object Destinations {
     const val SIGN_IN = "sign_in"
 
     const val OWNER_ROOT = "owner_root"
+
+    // Proplyst Mobile Design System redesign pass -- owner IA collapsed to 4 primary destinations
+    // (Home/Properties/Activity/More) per the approved Navy Deck direction; every screen that used
+    // to be its own top-level tab (Tenants, Invoices, Payments, Maintenance, Summary, Alerts) is
+    // still reachable, just nested under Properties/Activity/More instead of the bottom nav.
+    // DASHBOARD below IS the Home tab's route (kept as-is, not renamed, so the existing App Links
+    // deep-link contract in AppLinkParser.kt and its tests stay correct).
     const val DASHBOARD = "dashboard"
+    const val OWNER_ACTIVITY = "owner_activity"
+    const val OWNER_MORE = "owner_more"
+    const val APPEARANCE_SETTINGS = "appearance"
+
     const val PROPERTIES_LIST = "properties"
     const val PROPERTY_DETAIL = "properties/{propertyId}"
     const val UNITS_LIST = "properties/{propertyId}/units"
@@ -65,6 +76,13 @@ object Destinations {
     const val TENANT_ROOT = "tenant_root"
     const val PAYMENTS_LIST = "payments"
     const val REPORT_PAYMENT = "payments/report"
+
+    // Proplyst Mobile Design System redesign pass -- tenant IA collapsed to 4 primary destinations
+    // (Home/Payments/Requests/Profile). TENANT_HOME is new; PAYMENTS_LIST/MAINTENANCE_LIST/ACCOUNT
+    // above are reused as the content behind Payments/Requests/Profile respectively, restyled, not
+    // duplicated.
+    const val TENANT_HOME = "tenant_home"
+    const val TENANT_PROFILE = "tenant_profile"
 
     // Invoice V1 completion pass (WORKLOG.md this date) -- the authoritative invoice/balance
     // ledger, distinct from PAYMENTS_LIST above (the tenant-REPORTED payment-CLAIM workflow).

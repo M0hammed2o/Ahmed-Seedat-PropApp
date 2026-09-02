@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"><style>body{margin:0}a{color:#1B6BF2}a:hover{color:#0B3FA8}</style></helmet>
+<div style="font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:#EEF3FB;color:#0F1B2D;min-height:100%;-webkit-font-smoothing:antialiased">
+  <sc-if value="{{ isIOS }}" hint-placeholder-val="{{ true }}"><div style="height:54px"></div></sc-if>
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 20px 0">
+    <div style="display:flex;align-items:center;gap:10px"><div style="width:40px;height:40px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center"><img src="assets/logo-mark.png" alt="Proplyst" style="height:22px;width:auto"></div><div><div style="font-size:12px;color:#5B6B7F">Unit AQ-101 · Atlas Quarter</div><div style="font-size:15px;font-weight:700;margin-top:-1px">Hi Lerato</div></div></div>
+    <button aria-label="Notifications" style="width:40px;height:40px;border-radius:50%;border:0;background:#fff;display:flex;align-items:center;justify-content:center;color:#3A4A5E;cursor:pointer"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"></path><path d="M10 21h4"></path></svg></button>
+  </div>
+  <div style="margin:18px 20px 0;display:flex;align-items:center;gap:10px;height:44px;border-radius:999px;background:#fff;padding:0 16px;color:#7B8794;font-size:14px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>Search my documents</div>
+  <div style="padding:30px 20px 0;text-align:center">
+    <div style="font-size:13px;font-weight:600;color:#1B6BF2;text-transform:uppercase;letter-spacing:.6px">Rent due 1 October</div>
+    <div style="font-size:52px;font-weight:800;letter-spacing:-2px;line-height:1;margin-top:8px">R 14,500</div>
+    <div style="font-size:14px;color:#5B6B7F;margin-top:10px">{{ dueSub }}</div>
+    <button onClick="{{ togglePaid }}" style="height:54px;padding:0 32px;margin-top:18px;border:0;border-radius:999px;background:{{ payBg }};color:{{ payFg }};font:inherit;font-size:15px;font-weight:700;cursor:pointer;box-shadow:{{ payShadow }}">{{ payLabel }}</button>
+    <div style="font-size:12px;color:#7B8794;margin-top:10px">Reported payments are confirmed by management.</div>
+  </div>
+  <div style="margin:26px 20px 0;display:grid;grid-template-columns:1fr 1fr;gap:10px">
+    <div style="background:#fff;border-radius:20px;padding:16px"><div style="font-size:12px;color:#5B6B7F">Lease</div><div style="font-size:22px;font-weight:800;letter-spacing:-0.5px;margin-top:4px">9<span style="font-size:13px;color:#98A2B3;font-weight:600"> / 12 mo</span></div><div style="height:5px;border-radius:999px;background:#EEF3FB;margin-top:10px;overflow:hidden"><div style="width:75%;height:100%;background:#1B6BF2;border-radius:999px"></div></div></div>
+    <div style="background:#fff;border-radius:20px;padding:16px"><div style="font-size:12px;color:#5B6B7F">Balance</div><div style="font-size:22px;font-weight:800;letter-spacing:-0.5px;margin-top:4px">R 0</div><div style="font-size:12px;color:#15803D;font-weight:600;margin-top:8px">Up to date</div></div>
+  </div>
+  <div style="margin:22px 20px 0;background:#fff;border-radius:22px;padding:6px">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px 6px"><span style="font-size:16px;font-weight:700">My requests</span><a href="#" style="font-size:13px;font-weight:600;text-decoration:none">New</a></div>
+    <sc-for list="{{ requests }}" as="r" hint-placeholder-count="2">
+      <button style="width:100%;display:flex;align-items:center;gap:12px;padding:10px 14px;border:0;border-radius:16px;background:#fff;text-align:left;font:inherit;color:inherit;cursor:pointer" style-hover="background:#F3F6FB">
+        <div style="width:44px;height:44px;border-radius:14px;background:repeating-linear-gradient(135deg,#DCE6F7 0 6px,#E8EFFA 6px 12px);flex:none"></div>
+        <div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:600">{{ r.title }}</div><div style="font-size:12px;color:#7B8794;margin-top:2px">{{ r.date }}</div></div>
+        <span style="font-size:12px;font-weight:600;padding:5px 10px;border-radius:999px;background:{{ r.bg }};color:{{ r.fg }}">{{ r.status }}</span>
+      </button>
+    </sc-for>
+  </div>
+  <div style="margin:14px 20px 0;background:#0F1B2D;color:#fff;border-radius:22px;padding:16px 18px;display:flex;gap:12px;align-items:flex-start">
+    <span style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#5EA2FF;padding-top:3px;flex:none">Notice</span>
+    <div><div style="font-size:14px;font-weight:600">Water interruption · Tuesday 08:00–12:00</div><div style="font-size:13px;color:#B7C6E0;margin-top:2px">Municipal maintenance on Main Road.</div></div>
+  </div>
+  <div style="height:110px"></div>
+  <nav style="position:sticky;bottom:{{ navBottom }};margin:0 20px;padding:0 0 12px;display:flex;justify-content:center;pointer-events:none">
+    <div style="pointer-events:auto;display:flex;gap:4px;background:#0F1B2D;border-radius:999px;padding:6px;box-shadow:0 12px 32px rgba(15,27,45,.28)">
+      <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="4"><button style="display:flex;align-items:center;gap:8px;height:48px;padding:0 {{ t.pad }};border:0;border-radius:999px;background:{{ t.pill }};font:inherit;font-size:13px;font-weight:600;color:{{ t.color }};cursor:pointer">{{ t.icon }}<span style="display:{{ t.labelDisplay }}">{{ t.label }}</span></button></sc-for>
+    </div>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:402,&quot;height&quot;:874},&quot;platform&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;ios&quot;,&quot;android&quot;],&quot;default&quot;:&quot;ios&quot;,&quot;tsType&quot;:&quot;'ios'|'android'&quot;}}">
+class Component extends DCLogic {
+  state = { reported: false };
+  icon(d, color) { return React.createElement('svg', { width: 22, height: 22, viewBox: '0 0 24 24', fill: 'none', stroke: color, strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }, ...d.map((p, i) => React.createElement('path', { key: i, d: p }))); }
+  renderVals() {
+    const platform = this.props.platform ?? 'ios', r = this.state.reported;
+    const defs = [['Home', ['M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z']], ['Payments', ['M3 7h18v10H3z', 'M3 11h18', 'M7 15h3']], ['Requests', ['M14.7 6.3a4 4 0 0 0 5 5L13 18a2.5 2.5 0 0 1-3.5-3.5z']], ['Profile', ['M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z', 'M4 21a8 8 0 0 1 16 0']]];
+    const tabs = defs.map(([label, d], i) => { const a = i === 0; return { label, labelDisplay: a ? 'inline' : 'none', color: a ? '#0F1B2D' : '#B7C6E0', icon: this.icon(d, a ? '#0F1B2D' : '#B7C6E0'), pill: a ? '#fff' : 'transparent', pad: a ? '16px' : '13px' }; });
+    return {
+      isIOS: platform === 'ios', navBottom: platform === 'ios' ? '22px' : '8px', tabs,
+      dueSub: r ? 'Payment reported · awaiting confirmation' : 'Due in 29 days',
+      payLabel: r ? 'Payment reported ✓' : 'Report payment', payBg: r ? '#fff' : '#1B6BF2', payFg: r ? '#1B6BF2' : '#fff', payShadow: r ? 'none' : '0 8px 20px rgba(27,107,242,.28)',
+      togglePaid: () => this.setState(s => ({ reported: !s.reported })),
+      requests: [{ title: 'Geyser leak', date: 'Opened 28 Aug', status: 'In progress', bg: '#E8F0FE', fg: '#1B6BF2' }, { title: 'Extractor fan', date: 'Closed 14 Aug', status: 'Completed', bg: '#DCFCE7', fg: '#15803D' }],
+    };
+  }
+}
+</script>
+</body>
+</html>

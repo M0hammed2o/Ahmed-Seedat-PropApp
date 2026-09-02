@@ -2,6 +2,7 @@ package za.co.proplyst.app.data.auth
 
 import za.co.proplyst.app.data.network.PostgrestApi
 import za.co.proplyst.app.data.network.SupabaseAuthApi
+import za.co.proplyst.app.data.network.dto.RecoverPasswordRequest
 import za.co.proplyst.app.data.network.dto.SignInRequest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -79,6 +80,18 @@ class SupabaseAuthRepository @Inject constructor(
     override fun forceSignOutLocally() {
         sessionManager.clear()
         _authState.value = AuthState.Unauthenticated
+    }
+
+    override suspend fun sendPasswordReset(email: String): Result<Unit> {
+        return try {
+            authApi.recoverPassword(RecoverPasswordRequest(email))
+            // Always success from here regardless of the response body/status nuance -- see this
+            // method's own doc comment on AuthRepository for why account existence is never
+            // revealed via this call's outcome.
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
     private suspend fun fetchOrgMemberships(userId: String): List<OrgMembership>? {

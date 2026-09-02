@@ -13,6 +13,8 @@ import za.co.proplyst.app.data.network.dto.MaintenanceDocumentUploadResponse
 import za.co.proplyst.app.data.network.dto.MaintenanceTicketCreateResponse
 import za.co.proplyst.app.data.network.dto.PaymentReportCreateResponse
 import za.co.proplyst.app.data.network.dto.PaymentReportListResponse
+import za.co.proplyst.app.data.network.dto.PropertyCardExtrasDetailResponse
+import za.co.proplyst.app.data.network.dto.PropertyCardExtrasListResponse
 import za.co.proplyst.app.data.network.dto.RecordInvoicePaymentRequest
 import za.co.proplyst.app.data.network.dto.RejectPaymentReportRequest
 import okhttp3.MultipartBody
@@ -163,4 +165,16 @@ interface WebApi {
     @Streaming
     @GET("api/v1/invoices/{id}/pdf")
     suspend fun getInvoicePdf(@Path("id") id: String): Response<ResponseBody>
+
+    /** Proplyst Mobile Design System redesign pass -- card-visual extras (signed cover-photo URL,
+     * real unit/occupancy counts) for the Properties grid and property detail hero, layered onto
+     * the direct-Postgrest property read the rest of [za.co.proplyst.app.data.properties
+     * .PostgrestPropertiesRepository] already does. Same RLS-only authorization as every other
+     * "my own" read; this call is best-effort in the repository (a failure here degrades to
+     * plain cards, never blocks the property list/detail itself). */
+    @GET("api/v1/properties")
+    suspend fun getPropertyCards(): Response<PropertyCardExtrasListResponse>
+
+    @GET("api/v1/properties/{id}")
+    suspend fun getPropertyCard(@Path("id") id: String): Response<PropertyCardExtrasDetailResponse>
 }
