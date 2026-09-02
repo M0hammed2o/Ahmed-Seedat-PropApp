@@ -4,16 +4,9 @@ import type { UtilityHistoryPoint } from '@propvault/types';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { requireOrgRole } from '@/lib/portfolio';
 import { safeErrorMessage } from '@/lib/safeError';
+import { isUnusualUsage as computeIsUnusualUsage, percentChange as computePercentChange } from '@/lib/utilityAnomaly';
 
 type RouteParams = { params: Promise<{ id: string }> };
-
-// §4B: never call this a leak. A percentage alone is meaningless on tiny bases (a 1 L -> 3 L
-// "reading" is a 200% increase and noise, not a signal) -- both an absolute floor AND a percentage
-// floor must be crossed, and at least 2 periods of real history must exist before anomaly
-// detection is attempted at all (matching the audit's "require minimum prior history" rule).
-const ANOMALY_PERCENT_THRESHOLD = 20;
-const ANOMALY_MIN_ABSOLUTE_INCREASE: Record<'L' | 'kWh', number> = { L: 200, kWh: 20 };
-const MIN_HISTORY_PERIODS_FOR_ANOMALY = 2;
 
 interface UtilityReadingRow {
   period_month: string;
@@ -78,20 +71,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       ? null
       : Number(previous.consumption);
 
-    let percentChange: number | null = null;
-    if (consumption !== null && previousConsumption !== null && previousConsumption > 0) {
-      percentChange = Math.round(((consumption - previousConsumption) / previousConsumption) * 1000) / 10;
-    }
-
-    const hasEnoughHistory = index >= MIN_HISTORY_PERIODS_FOR_ANOMALY - 1;
-    const absoluteIncrease =
-      consumption !== null && previousConsumption !== null ? consumption - previousConsumption : null;
-    const isUnusualUsage =
-      hasEnoughHistory &&
-      percentChange !== null &&
-      percentChange >= ANOMALY_PERCENT_THRESHOLD &&
-      absoluteIncrease !== null &&
-      absoluteIncrease >= ANOMALY_MIN_ABSOLUTE_INCREASE[unitOfMeasure];
+    const percentChange = computePercentChange(consumption, previousConsumption);
+    const isUnusualUsage = computeIsUnusualUsage({
+      consumption,
+      previousConsumption,
+      unitOfMeasure,
+      periodIndex: index,
+    });
 
     return {
       periodMonth: row.period_month,

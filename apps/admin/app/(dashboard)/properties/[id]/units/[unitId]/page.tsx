@@ -16,6 +16,7 @@ import { LeasesTable, type LeaseRow } from '@/components/tables/LeasesTable';
 import { ApplicationsTable } from '@/components/tables/ApplicationsTable';
 import { InspectionsTable } from '@/components/tables/InspectionsTable';
 import { UnitActionsPanel } from '@/components/units/UnitActionsPanel';
+import { UnitFinancesPanel } from '@/components/units/UnitFinancesPanel';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 type RouteParams = { params: Promise<{ id: string; unitId: string }> };
@@ -214,6 +215,7 @@ function UnitDetailView({
 }: {
   unit: {
     id: string;
+    orgId: string;
     unitLabel: string;
     bedrooms: number | null;
     bathrooms: number | null;
@@ -345,6 +347,8 @@ function UnitDetailView({
           </div>
         </dl>
       </Panel>
+
+      <UnitFinancesPanel propertyId={propertyId} unitId={unit.id} orgId={unit.orgId} canManage={canEdit} />
 
       <div>
         <div className="flex items-center justify-between">

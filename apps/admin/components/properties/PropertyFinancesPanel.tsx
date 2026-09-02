@@ -241,7 +241,197 @@ export function PropertyFinancesPanel({
           </form>
         ) : null}
       </Panel>
+
+      <AnnualBudgetPanel propertyId={propertyId} orgId={orgId} canManage={canManage} />
     </div>
+  );
+}
+
+function currentYear(): number {
+  return new Date().getFullYear();
+}
+
+/** §13 annual budget planning -- "enter annual amount, distribute evenly across 12 months, allow
+ * month-by-month editing after distribution". The 12 monthly property_budgets rows remain the only
+ * source of truth (migration 164's own design) -- this panel is purely a convenience UI over
+ * set_monthly_budget()/distribute_annual_budget(), never a second stored total. */
+function AnnualBudgetPanel({
+  propertyId,
+  orgId,
+  canManage,
+}: {
+  propertyId: string;
+  orgId: string;
+  canManage: boolean;
+}) {
+  const [year, setYear] = useState(currentYear());
+  const [months, setMonths] = useState<{ month: string; planned: number | null }[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [annualTotal, setAnnualTotal] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [editingMonth, setEditingMonth] = useState<string | null>(null);
+  const [editingAmount, setEditingAmount] = useState('');
+
+  const load = useCallback(async () => {
+    setLoaded(false);
+    const monthKeys = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}-01`);
+    const results = await Promise.all(
+      monthKeys.map((m) =>
+        fetch(`/api/v1/properties/${propertyId}/budget?month=${m}`).then((r) => safeJson(r)),
+      ),
+    );
+    setMonths(
+      monthKeys.map((m, i) => ({
+        month: m,
+        planned: results[i]?.budgetVsActual?.plannedAmount ?? null,
+      })),
+    );
+    setLoaded(true);
+  }, [propertyId, year]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const annualPlannedSum = months.reduce((sum, m) => sum + (m.planned ?? 0), 0);
+  const monthsSet = months.filter((m) => m.planned !== null).length;
+
+  async function handleDistribute(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/v1/properties/${propertyId}/budget/annual`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orgId, year, annualTotal: Number(annualTotal) }),
+      });
+      if (!response.ok) {
+        const body = await safeJson(response);
+        setError(body?.error?.message ?? 'Could not distribute the annual budget.');
+        return;
+      }
+      setAnnualTotal('');
+      await load();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveMonth(month: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/v1/properties/${propertyId}/budget`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orgId, month, plannedAmount: Number(editingAmount) }),
+      });
+      if (!response.ok) {
+        const body = await safeJson(response);
+        setError(body?.error?.message ?? 'Could not save this month.');
+        return;
+      }
+      setEditingMonth(null);
+      await load();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Panel>
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-sm font-semibold">Annual budget</h3>
+        <div className="flex items-center gap-2 text-xs">
+          <button type="button" onClick={() => setYear((y) => y - 1)} className="px-1">
+            ←
+          </button>
+          <span>{year}</span>
+          <button type="button" onClick={() => setYear((y) => y + 1)} className="px-1">
+            →
+          </button>
+        </div>
+      </div>
+
+      {error ? (
+        <div className="mb-3 rounded-md border border-light-danger bg-light-danger/10 px-3 py-2 text-xs text-light-danger dark:border-dark-danger dark:bg-dark-danger/10 dark:text-dark-danger">
+          {error}
+        </div>
+      ) : null}
+
+      {!loaded ? (
+        <p className="text-xs text-muted-foreground">Loading...</p>
+      ) : (
+        <>
+          <div className="mb-3 grid grid-cols-2 gap-3 text-xs">
+            <Metric label="Months with a budget set" value={`${monthsSet} / 12`} />
+            <Metric label={`${year} planned total`} value={`R ${annualPlannedSum.toLocaleString()}`} />
+          </div>
+
+          <div className="mb-4 grid grid-cols-3 gap-2 text-xs sm:grid-cols-4">
+            {months.map((m) => {
+              const label = new Date(`${m.month}T00:00:00Z`).toLocaleDateString('en-ZA', { month: 'short' });
+              const isEditing = editingMonth === m.month;
+              return (
+                <div key={m.month} className="rounded-md border border-light-border p-2 dark:border-dark-border">
+                  <p className="text-muted-foreground">{label}</p>
+                  {isEditing ? (
+                    <div className="mt-1 flex gap-1">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        autoFocus
+                        value={editingAmount}
+                        onChange={(e) => setEditingAmount(e.target.value)}
+                        className="w-16 rounded border border-light-border bg-transparent px-1 py-0.5 dark:border-dark-border"
+                      />
+                      <button type="button" onClick={() => saveMonth(m.month)} disabled={busy} className="text-light-accent dark:text-dark-accent">
+                        ✓
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={!canManage}
+                      onClick={() => {
+                        setEditingMonth(m.month);
+                        setEditingAmount(m.planned !== null ? String(m.planned) : '');
+                      }}
+                      className="mt-1 block font-medium"
+                    >
+                      {m.planned !== null ? `R ${m.planned.toLocaleString()}` : '—'}
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {canManage ? (
+            <form onSubmit={handleDistribute} className="flex items-end gap-2">
+              <label className="block text-xs">
+                <span className="text-muted-foreground">Distribute an annual total evenly across {year}&apos;s 12 months (R)</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  required
+                  value={annualTotal}
+                  onChange={(e) => setAnnualTotal(e.target.value)}
+                  className="mt-1 block w-48 rounded-md border border-light-border bg-transparent px-3 py-2 text-sm dark:border-dark-border"
+                />
+              </label>
+              <Button type="submit" variant="primary" disabled={busy}>
+                Distribute
+              </Button>
+            </form>
+          ) : null}
+        </>
+      )}
+    </Panel>
   );
 }
 

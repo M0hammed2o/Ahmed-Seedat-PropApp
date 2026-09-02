@@ -22,6 +22,7 @@ import { PropertyPhotosPanel } from '@/components/properties/PropertyPhotosPanel
 import { PropertyCompliancePanel } from '@/components/properties/PropertyCompliancePanel';
 import { PropertyManagementPanel } from '@/components/properties/PropertyManagementPanel';
 import { PropertyFinancesPanel } from '@/components/properties/PropertyFinancesPanel';
+import { PropertyUtilityMetersPanel } from '@/components/properties/PropertyUtilityMetersPanel';
 import { PropertyDocumentFolders } from '@/components/properties/PropertyDocumentFolders';
 import { PropertyOwnersPanel } from '@/components/properties/PropertyOwnersPanel';
 import { resolveCoverPhotoRow, signCoverPhotoUrl } from '@/lib/propertyPhotos';
@@ -896,11 +897,19 @@ function PropertyDetailView({
           {
             label: 'Finances',
             content: (
-              <PropertyFinancesPanel
-                propertyId={property.id}
-                orgId={property.orgId}
-                canManage={canManage}
-              />
+              <div className="space-y-4">
+                <PropertyFinancesPanel
+                  propertyId={property.id}
+                  orgId={property.orgId}
+                  canManage={canManage}
+                />
+                <PropertyUtilityMetersPanel
+                  propertyId={property.id}
+                  orgId={property.orgId}
+                  units={units.map((u) => ({ id: u.id, unitLabel: u.unitLabel }))}
+                  canManage={canManage}
+                />
+              </div>
             ),
           },
           {
