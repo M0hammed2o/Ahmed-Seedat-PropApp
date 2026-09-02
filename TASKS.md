@@ -465,17 +465,33 @@ notifications, deep links, biometric auth, tablet behaviour) — specification o
   `payment_reports.status`; `FinancialSummaryRepository`/DI wiring for the dashboard extension
   below. Clean Kotlin compile on first attempt; full Android gate (tests/lint/debug+release
   build/AAB) run — see WORKLOG.md for exact results.
-- [ ] **Deferred, disclosed in `UTILITIES_RATES_BUDGET_IMPLEMENTATION.md`**: Android Owner Home
-  financial-dashboard extension (Utilities/Rates & Levies/Budget/Net Position sections) — blocked
-  on reconciling the new property-scoped financial-summary endpoint with Owner Home's existing
-  portfolio-wide `owner_property_summaries` data source; needs a real design decision
-  (extend the summary job vs. a new org-wide RPC), not a rushed guess. Android Add Expense/Utility
-  Capture/Budget View/Utility History screens (API ready, no mobile UI built). Unit-level web
-  setup UI for rates/levy/responsibility (API supports `unitId`, no panel built). Alerts wired
-  into Needs Attention/Notifications (computed and available via API, not yet pushed anywhere).
-- **Exit criteria**: not met — this is the V1 foundation pass (schema, API, payment-ledger fix,
-  property-level web setup, Android paid/unpaid list). The deferred items above are the actual
-  remaining scope for this milestone to close.
+- [x] **Continuation pass, 2026-09-03**: `UTILITIES_RATES_BUDGET_IMPLEMENTATION.md` §"Continuation
+  pass". New migration `20260101000167_owner_portfolio_financial_summary.sql` — a LIVE,
+  portfolio-wide RPC (chosen over extending the stale-snapshot `owner_property_summaries`, with
+  the reasoning recorded in the doc); pgTAP 11/11 including a cross-org `throws_ok`. Full pgTAP
+  suite now 93 files / 1423 tests. Android: Owner Home dashboard extension (Operating costs/
+  Budget/Net position/Needs Attention merge) now wired to that live RPC for every money figure,
+  not just the new ones; four new screens shipped — Add Expense, Utility Capture, Utility History,
+  Budget View — all reachable via More → Finances; Payment Review and Rent Status polished
+  (method labels, reported-by-tenant-vs-staff, "Confirm payment received" wording, month
+  selector). Web: `UnitFinancesPanel.tsx` (unit-level rates/levy/responsibility, the first pass's
+  disclosed gap, now closed) and `PropertyUtilityMetersPanel.tsx` (create/list meters, record
+  readings, view history — previously the web app had **zero** meter UI, which meant Android's
+  own capture screen pointed nowhere; this was the highest-priority gap closed this pass), plus
+  annual budget distribution on `PropertyFinancesPanel.tsx`. Alerts: `portfolioIntelligence.ts`
+  gained `budget_exceeded`/`budget_approaching`/`unusual_utility_usage` rules in the existing
+  Needs Attention engine (never a competing alert system), with the anomaly threshold logic
+  extracted to a shared `lib/utilityAnomaly.ts` used by both the API route and the new rules — 4
+  new real-Supabase integration tests, 9/9 passing. Android full suite 216/216, 0 lint errors.
+- [ ] **Still deferred, disclosed in `UTILITIES_RATES_BUDGET_IMPLEMENTATION.md`**: vendor
+  selection in Add Expense (Android always sends `vendorId: null`); annual budget progress on
+  Android (web-only this pass); `budget_category_lines` UI (table/RLS exist, nothing reads/writes
+  them); meter reset/rollover handling (a lower reading is stored as-is, by design).
+- **Exit criteria**: substantially met for V1 scope — schema, payment-ledger fix, portfolio-wide
+  live financial summary, the full Android owner workflow set (Home/Rent status/Payment review/
+  Add expense/Utility capture/Utility history/Budget), and web setup (property+unit rates/levy/
+  responsibility, meter management, monthly+annual budgets) are all built and tested. The four
+  remaining items above are genuinely narrow, disclosed V1 scope trims, not blockers.
 
 ## M23 — Automated testing
 

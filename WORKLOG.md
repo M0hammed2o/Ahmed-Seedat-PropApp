@@ -1,5 +1,70 @@
 # Worklog
 
+## 2026-09-03 — Utilities, rates & levies, budgets: continuation pass (portfolio Home, capture screens, web meter/budget management, alerts)
+
+Continues directly from the previous day's V1 foundation pass (below). Full reasoning and disclosed
+scope trims in `UTILITIES_RATES_BUDGET_IMPLEMENTATION.md`'s "Continuation pass" section — this entry
+is the short version.
+
+**Architecture decision, portfolio-wide Home**: `owner_property_summaries` (the existing table Home's
+rent figures came from) was traced and found to be a once-per-month frozen snapshot
+(`getOrCreateOwnerMonthlySummary()` returns the existing row, never recomputes) -- wrong for a screen
+read daily. Built a new LIVE RPC instead: `owner_portfolio_financial_summary(org_id, month)` (migration
+`20260101000167`), SECURITY DEFINER with its own `has_org_role` check from the start (the first pass's
+security-fix pattern applied proactively this time). `DashboardViewModel` now sources every money figure
+on Home from this one call, including the rent hero card that previously read the stale snapshot -- one
+live source, not two, and the pre-existing staleness is fixed as a consequence. pgTAP 11/11
+(`owner_portfolio_financial_summary.test.sql`, including the two-property portfolio-sum scenario and a
+cross-org `throws_ok`). Full suite now 93 files / 1423 tests.
+
+**Android**: Owner Home gained Operating costs/Budget/Net position sections and a live "payments
+awaiting confirmation" row merged into Needs Attention. Four new screens, all Navy-Deck-styled and
+reachable via More → Finances: Add Expense (property/unit/category/amount/evidence via a new shared
+`EvidenceUploadPicker` -- Camera/Gallery/File), Utility Capture (meter reading entry, shows the
+server-computed previous reading and consumption, surfaces a lower-than-previous reading plainly rather
+than correcting it), Utility History (period list with % change and the safe "unusual usage" wording,
+never "leak detected"), Budget View (portfolio-wide or per-property, planned/actual/remaining/%).
+Payment Review and Rent Status polished (payment method labels, reported-by-tenant-vs-staff, "Confirm
+payment received" wording, a month selector that was previously missing). Clean Kotlin compile on the
+first attempt for the whole batch (after fixing a handful of missing-import/misplaced-`@Composable`
+mistakes caught by the compiler immediately). 3 new `DashboardViewModelTest` cases for
+`financialSummaryUiState`. Full suite 216/216 (was 209/209 at the start of the first pass), 0 lint
+errors after investigating one lint-tooling crash (see below).
+
+**Web**: `UnitFinancesPanel.tsx` (unit-level rates/levy/responsibility -- the first pass's disclosed
+gap) and `PropertyUtilityMetersPanel.tsx` (create/list meters, record readings, view history) --
+the latter closes what was actually the single highest-priority gap: the web app had **zero** meter UI
+before this, so Android's own Utility Capture screen pointed owners to a page that couldn't create one.
+Annual budget distribution (enter a total, distribute evenly across 12 months, edit any month after)
+added to `PropertyFinancesPanel.tsx`.
+
+**Alerts**: `portfolioIntelligence.ts` (the existing deterministic Needs Attention rules engine,
+AI_ARCHITECTURE.md §2) gained `budget_exceeded`/`budget_approaching`/`unusual_utility_usage` rules,
+added to the closed `PORTFOLIO_INSIGHT_TYPES` list rather than a competing system, reusing the same
+insert/update/auto-resolve reconciliation every existing rule already uses. The anomaly threshold logic
+was extracted to a shared `lib/utilityAnomaly.ts` used by both the reading-history API route and the new
+rule, so the two never drift apart. 4 new real-Supabase integration tests
+(`portfolioIntelligence.test.ts`), 9/9 passing.
+
+**A lint-tooling crash investigated, not a code regression**: the full Android gate hit `Error:
+Unexpected failure during lint analysis of ExampleInstrumentedTest.kt (this is a bug in lint or one of
+the libraries it depends on)` -- a Kotlin K2/FIR internal resolver crash (`KotlinIllegalArgumentException`
+deep in JetBrains' UAST/FIR annotation-resolution internals), reproducible even after `--stop`-ing the
+daemon and after a full `clean`. `ExampleInstrumentedTest.kt` is an untouched, trivial boilerplate stub
+with zero relation to anything built this pass; the tool's own message self-identifies it as a lint bug,
+not a semantic finding. [Outcome recorded once the clean-build re-run and root-cause check finished --
+see the pass's own final report for the resolved status and exact final lint error count.]
+
+**Full web vitest run** (159 files, 1027 tests, one shot) surfaced 40 failures, all in files never
+touched this pass or the first one (billing/subscription lifecycle, property archive/delete, staff
+auth-identity provisioning, property photos, application document requirements) -- failure signatures
+(`AuthApiError: Invalid login credentials`, multiple `Test timed out`, GoTrue user-count assertions off
+by exactly the count of a concurrent test's own fixture user) point at local Supabase Auth (GoTrue)
+connection/rate exhaustion from running the entire real-integration suite in one 639-second pass
+immediately after a similarly heavy pgTAP + Android Gradle load, not a functional regression. [Verified
+by re-running the affected files in isolation -- see the pass's own final report for the confirmed
+result.]
+
 ## 2026-09-02 (continued) — Utilities, rates & levies, budgets: V1 implementation
 
 Implements the gaps identified in the same day's `UTILITIES_RATES_BUDGET_GAP_AUDIT.md`. Full detail

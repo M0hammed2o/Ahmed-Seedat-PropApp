@@ -134,55 +134,147 @@ deliberate, documented deferral (per the audit's own "document it as future scop
 implementing unsafe assumptions" instruction) — not an oversight. A negative consumption value is a
 data-quality signal the UI should surface, not something the database silently "corrects."
 
-## Owner Home mobile — what shipped and what didn't
+## Continuation pass (same day) — portfolio-wide Home, Android capture screens, web meter/budget management, alerts
 
-**Shipped (Android):**
-- "Rent status" screen (`ui/rentstatus/`) — property picker, month, status filter chips (All/Paid/
-  Partial/Unpaid/Overdue), per-tenant expected/paid/outstanding, reachable via More → Rent status.
-  Server-authoritative from `rent_schedules.status` via the new `tenant-payment-status` endpoint — never
-  inferred from `payment_reports`.
-- `FinancialSummaryRepository`/`WebApi.getFinancialSummary()` — the client plumbing for the one-call
-  owner financial summary endpoint exists and is wired into Hilt DI (mock + real), ready for the Owner
-  Home dashboard extension below.
+The first pass above ended with the Android Home dashboard extension and several capture screens
+deliberately deferred rather than rushed. This continuation pass closes those gaps.
 
-**Not shipped this pass (backend ready, UI deferred):** the Owner Home dashboard extension (Utilities /
-Rates & Levies / Other Expenses / Total Expenses / Budget / Net Position sections from the target
-hierarchy) was not wired into `DashboardScreen.kt`. Reason: `owner_financial_summary()` and
-`budget_vs_actual()` are **property-scoped** (matching how the existing web Reports/Rent-due pages already
-work), but Owner Home is portfolio-wide (the existing rent figures there already come from the
-portfolio-wide `owner_property_summaries` table/job). Reconciling a property-scoped endpoint with a
-portfolio-wide Home screen correctly — either by extending `owner_property_summaries`'s generating job
-(`runOwnerMonthlySummaryJob()`, `lib/systemJobs.ts`) to also compute utilities/rates/budget totals, or by
-adding a genuinely new org-wide aggregation RPC — is real design work that was not rushed under this
-pass's remaining time. Doing it superficially (e.g. summing per-property calls client-side, or silently
-showing only the first property's figures) would have produced a dashboard that is subtly wrong for any
-owner with more than one property, which is worse than not shipping it. This is the most-visible actual
-gap left by this pass — see "Deferred / Next" below.
+### Portfolio-wide financial summary — the architecture decision
 
-**Not shipped (backend ready via existing reusable expense infrastructure, no new mobile UI):** Add
-Expense, Utility Capture (meter/reading entry), Budget View, Utility History screens (§9 C-F). All the
-underlying API routes exist and are tested (`/recurring-costs`, `/utility-settings`, `/utility-meters`,
-`/utility-meters/:id/readings`, `/budget`, `/budget/annual`). Building the mobile capture/browse UI for
-each was not completed within this pass's scope — genuinely deferred, not attempted-and-broken.
+`owner_financial_summary()`/`budget_vs_actual()` (first pass) are **property-scoped**. Android Home is
+**portfolio-wide**. Two options were on the table:
 
-## Web — what shipped
+- **Extend `owner_property_summaries`** (the existing monthly-snapshot table/job Home's rent figures
+  already came from) to also carry utility/rates/budget totals.
+- **A new live, portfolio-wide RPC**, mirroring the property-scoped one but summed across every property
+  in the org.
 
-- Property detail page, new "Finances" tab (`PropertyFinancesPanel.tsx`): property-level rates & taxes
-  and levy (current amount, save), water/electricity responsibility (dropdown, save), this month's
-  budget (planned/actual/remaining/% used, save).
-- Unit-level rates/levy/responsibility setup (§5B) was **not** built this pass — the API
-  (`recurring-costs`/`utility-settings` both already accept an optional `unitId`) supports it; only the
-  unit-detail-page UI panel is missing. Documented here, not silently absent.
+`owner_property_summaries` was traced (`getOrCreateOwnerMonthlySummary()`, `apps/admin/lib/ownerSummary.ts`)
+and found to be a **frozen snapshot**: it returns the existing row for an owner+period if one exists and
+never recomputes it — a new row is only created once per calendar month. That's correct for its actual
+job (a WhatsApp-dispatched monthly report that must read the same weeks later as it did when sent), but
+wrong for a screen an owner checks daily expecting today's real numbers. Extending it would have added
+more stale figures alongside the rent figures Home was *already* showing stale (a pre-existing
+characteristic, not something this pass introduced).
 
-## Deferred / next (explicitly out of scope this pass, per the task's own §20 and the reasoning above)
+**Chosen: a new live RPC, `owner_portfolio_financial_summary(org_id, month)`** (migration 167),
+computed fresh on every call, generalizing the property-scoped logic across every property in the org.
+`DashboardViewModel` now calls this for **every** money figure on Home, including the rent hero card that
+previously read the stale snapshot — this is a deliberate side effect: it resolves the "never mix
+client-side and server-side definitions of monetary truth" rule by giving Home exactly one live source
+for everything, and incidentally fixes the pre-existing rent-figure staleness as a consequence, not as
+separate scope. `owner_property_summaries`/`OwnerSummaryListScreen` ("Monthly summary", still reachable
+via More) are untouched — they keep their own distinct job (the WhatsApp report; maintenance/
+lease-expiry counts this RPC doesn't compute, which is why `DashboardViewModel` still reads
+`OwnerSummaryRepository` for those two KPI-strip figures specifically).
 
-- Owner Home (Android) financial dashboard extension — needs the portfolio-wide aggregation design
-  decision above before it can be built correctly.
-- Unit-level web setup UI for rates/levy/responsibility.
-- Android: Add Expense, Utility Capture, Budget View, Utility History screens.
-- Alerts wired into the existing Needs Attention/Notifications/Activity architecture (budget-exceeded
-  and unusual-usage alerts are computed and available via API today; nothing pushes them into a
-  notification yet).
+The same SECURITY DEFINER-without-its-own-auth-check bug pattern from the first pass's fix was checked
+for here too — `owner_portfolio_financial_summary()` was written with the `has_org_role(org_id, 'viewer')`
+check from the start (pgTAP-verified, `owner_portfolio_financial_summary.test.sql`, cross-org
+`throws_ok`).
+
+### Android — shipped this continuation pass
+
+- **Owner Home dashboard extension**: Operating costs (Utilities/Rates & levies/Other/Total), Budget
+  (planned/used/remaining/%, colour-coded at the 80%/100% thresholds), "Monthly net position" (rent
+  collected − operating expenses, explicitly labelled not-profit with an inline explanation), and Needs
+  Attention now merges the existing Portfolio Intelligence feed with a live "N payments awaiting
+  confirmation" row sourced from the same financial-summary call (never a stale daily-job insight for
+  something this time-sensitive).
+- **Add Expense** (`ui/expenses/`) — property required, unit optional, category (suggested chips +
+  free text, matching the free-text `expenses.category` model), amount, reference, date, notes, evidence
+  (Camera/Gallery/File via the new shared `EvidenceUploadPicker`). Creates exactly one `expenses` row via
+  the existing `POST /api/v1/expenses` — never a second/duplicate financial record. **Vendor selection
+  was not built** — always sends `vendorId: null`; a full vendor search/create picker is real additional
+  scope beyond an "optional" field, disclosed rather than faked.
+- **Utility Capture** (`ui/utilities/`) — property → optional unit → water/electricity → meter → shows
+  the previous reading and computed consumption from the server, current reading, date, optional bill
+  evidence. Never computes "authoritative" consumption itself. A reading lower than the previous one is
+  surfaced plainly ("this reading is lower than the previous one...") rather than silently corrected —
+  meter reset/rollover stays out of scope, per the first pass's own documented limitation. An optional
+  bill photo uploads and links as the *reading's* evidence (`utility_readings.document_id`) — it does
+  **not** create an expense by itself (§6's own rule: only the owner knows the real amount from the
+  bill; that still needs its own Add Expense entry).
+- **Utility History** (`ui/utilities/`) — property/utility-type/meter pickers, a chronological list of
+  periods with usage, previous usage, % change, and the server's `isUnusualUsage` flag rendered as
+  "Unusual usage — consider reviewing for a possible leak or abnormal consumption," never "leak
+  detected."
+- **Budget View** (`ui/budget/`) — portfolio-wide by default (reuses the same live portfolio summary
+  Home uses) or filtered to one property (the property-scoped endpoint). Planned/actual/remaining/% and
+  a category breakdown (utilities/rates & levies/other). **Annual budget progress was not built** on
+  Android — the monthly view is real and server-authoritative; annual is web-only this pass (see below).
+- **Payment Review polish** — payment method shown as a clear label ("EFT / bank transfer"/"Cash"/
+  "Other"), a "Reported by tenant" / "Recorded by staff" / "Cash collected by staff on the tenant's
+  behalf" line (from the already-existing `reported_by_tenant` flag, newly threaded through the Android
+  DTO/domain model — previously silently dropped), and the confirm button now reads "Confirm payment
+  received." **No collector display name** was added — there is no reliable way to resolve
+  `reported_by_user_id` to a safe display name (no profile-name field), so this stays a true/false
+  distinction, never a fabricated name.
+- **Rent Status polish** — a month selector (previous/next chevrons) was added; the screen previously
+  showed the current month only with no way to look back.
+- All new screens reachable from More → a new "Finances" section (Add expense / Utility reading /
+  Utility history / Budget), alongside the first pass's Rent status entry. Bottom navigation
+  (Home/Properties/Activity/More) is unchanged.
+- Tests: `RentStatusViewModelTest` (4 cases, first pass) plus 3 new `DashboardViewModelTest` cases for
+  `financialSummaryUiState` (portfolio call verified via `coVerify`, error surfacing, empty-org
+  handling). Full suite 216/216 (was 209/209 at the very start of this work), 0 lint errors.
+
+### Web — shipped this continuation pass
+
+- **`UnitFinancesPanel.tsx`** (new, on the unit detail page) — the first pass's disclosed gap. Unit-level
+  rates & taxes and levy (effective-dated, blank = not applicable), water/electricity responsibility
+  (`common_area_owner` excluded from the picker — it's property-only, matching the DB CHECK
+  constraint). Reuses the exact same `recurring-costs`/`utility-settings` API as the property panel,
+  always passing this unit's id — no new backend surface.
+- **`PropertyUtilityMetersPanel.tsx`** (new, on the property Finances tab) — this was the most
+  load-bearing gap: the web app previously had **zero** utility-meter UI at all, meaning Android's own
+  Utility Capture screen pointed owners to a web page that couldn't actually create one. Now: list
+  meters, create one (utility type, unit or whole-property, meter number, responsibility, prepaid flag),
+  and per-meter an expandable reading-entry form plus the last 6 periods of history with the anomaly
+  flag. TENANT_PREPAID/TENANT_PAID_DIRECT are never forced to have a meter — the empty state explains
+  why one may not be needed.
+- **Annual budget UI** (added to `PropertyFinancesPanel.tsx`) — enter an annual total, distribute evenly
+  across the selected year's 12 months (`POST .../budget/annual`), then edit any individual month
+  inline afterward. The 12 `property_budgets` rows remain the only source of truth; nothing new is
+  stored for "the annual total" itself, matching migration 164's own design.
+
+### Alerts — wired into the existing Needs Attention / Portfolio Intelligence engine
+
+`apps/admin/lib/portfolioIntelligence.ts` (the existing deterministic rules engine behind Android/web's
+"Needs Attention," AI_ARCHITECTURE.md §2 — never an LLM) gained three new rule types, added to the
+closed `PORTFOLIO_INSIGHT_TYPES` list rather than a competing alert system:
+
+- `budget_exceeded` (urgent) / `budget_approaching` (warning, ≥80%) — evaluated per property+current
+  month from `property_budgets` + `expenses`, reusing the same self-reconciling insert/update/
+  auto-resolve mechanism every existing rule already uses (an insight for a budget that's no longer
+  over/near threshold is auto-dismissed, never left stale).
+- `unusual_utility_usage` (warning, never urgent — §4B's wording rule extends to severity) — evaluated
+  per active meter, comparing the two most recent periods' consumption via the **same** shared
+  `isUnusualUsage()`/`percentChange()` helper (`apps/admin/lib/utilityAnomaly.ts`, extracted in this
+  pass) the reading-history API route uses, so the threshold logic is defined exactly once, not
+  duplicated and liable to drift.
+
+Payment-awaiting-confirmation was deliberately **not** added as a `portfolio_insights` row — this engine
+runs as a periodic job (daily-ish freshness is fine for budget/usage trends), but a just-reported
+payment should show up immediately. It's surfaced instead as a live row computed straight from the same
+portfolio financial-summary call Home already makes every load (see "Android — shipped" above) — no
+new database row, no staleness, no duplicate-alert risk since nothing is persisted to duplicate.
+
+New tests: `apps/admin/lib/__tests__/portfolioIntelligence.test.ts` gained 4 real local-Supabase
+integration cases (budget exceeded, budget approaching + auto-resolve, unusual usage fires with safe
+wording, a large-percentage-on-a-tiny-base increase correctly does NOT fire) — 9/9 passing.
+
+## Deferred / next (explicitly out of scope, per the task's own repeated "do not overbuild V1" instruction)
+
+- **Vendor selection** in Add Expense (Android) — `vendorId` always null from mobile; a full vendor
+  search/create picker is real additional scope, not built.
+- **Annual budget progress on Android** — the web annual UI exists; Android's Budget View is monthly
+  only this pass.
+- **Category breakdown lines** (`budget_category_lines`) — the table and RLS exist (migration 164); no
+  UI (web or Android) reads or writes them yet. The overall planned/actual/% figures shown everywhere
+  are real; only the optional per-category budget split is unbuilt.
+- **Meter reset/rollover handling** — unchanged from the first pass: a lower reading than the previous
+  period is stored as-is (a negative consumption value), not silently "corrected."
 - Shared-meter tenant allocation, tariff engines, IoT/smart-meter integration, automated municipal
-  scraping, advanced/seasonal anomaly detection, tenant utility rebilling, iOS — all explicitly deferred
-  per the task's own instructions, not attempted.
+  scraping, advanced/seasonal anomaly detection (rolling averages, real seasonality), tenant utility
+  rebilling, iOS — all explicitly out of scope per the task's own instructions, not attempted.

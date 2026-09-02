@@ -133,7 +133,8 @@ GET/POST /api/v1/properties/:id/utility-meters               (?unitId= to scope)
 GET/POST /api/v1/utility-meters/:id/readings                  (GET returns consumption history + isUnusualUsage)
 GET/POST /api/v1/properties/:id/budget?month=YYYY-MM-01       (server-authoritative budget-vs-actual)
 POST     /api/v1/properties/:id/budget/annual                 ("distribute evenly across months" convenience — still produces 12 editable monthly rows)
-GET      /api/v1/properties/:id/financial-summary?month=YYYY-MM-01   (the one-call owner dashboard endpoint — rent + expenses + budget + net position, avoids N+1)
+GET      /api/v1/properties/:id/financial-summary?month=YYYY-MM-01   (property-scoped one-call summary — rent + expenses + budget + net position, avoids N+1)
+GET      /api/v1/organizations/:orgId/financial-summary?month=YYYY-MM-01   (continuation pass — the PORTFOLIO-wide equivalent, live/never cached; what Android Home actually calls)
 GET      /api/v1/properties/:id/tenant-payment-status?month=YYYY-MM-01   (paid/unpaid list, reuses rent_schedules.status directly)
 ```
 
