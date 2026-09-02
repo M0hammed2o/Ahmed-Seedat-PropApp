@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -21,8 +22,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,18 +30,19 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import za.co.proplyst.app.data.properties.Property
 import za.co.proplyst.app.ui.common.CachedDataBanner
 import za.co.proplyst.app.ui.common.ErrorStateView
 import za.co.proplyst.app.ui.common.LoadingView
 import za.co.proplyst.app.ui.common.PropertyPhoto
+import za.co.proplyst.app.ui.common.ProplystTextField
+import za.co.proplyst.app.ui.common.navyHeaderGlow
 import za.co.proplyst.app.ui.theme.ProplystPillShape
 import za.co.proplyst.app.ui.theme.ProplystTheme
 
@@ -80,12 +80,12 @@ fun PropertiesListScreen(
                 if (state.cachedAt != null) CachedDataBanner(relativeTime = state.cachedAt)
                 LazyColumn(
                     contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
                     items(state.properties, key = { it.id }) { property ->
                         PropertyCard(property = property, onClick = { onPropertyClick(property.id) })
                     }
-                    item { Spacer(modifier = Modifier.height(80.dp)) }
+                    item { Spacer(modifier = Modifier.height(110.dp)) }
                 }
             }
         }
@@ -104,36 +104,36 @@ private fun PropertiesNavyHeader(
         modifier = Modifier
             .fillMaxWidth()
             .background(ProplystTheme.colors.navy)
+            .navyHeaderGlow()
             .statusBarsPadding()
-            .padding(top = 20.dp, start = 20.dp, end = 20.dp, bottom = 18.dp),
+            .padding(top = 10.dp, start = 20.dp, end = 20.dp, bottom = 20.dp),
     ) {
-        Text("Properties", style = ProplystTheme.type.screenTitle, color = Color.White)
-        if (count != null) {
-            Text(
-                "$count ${if (count == 1) "property" else "properties"}",
-                style = ProplystTheme.type.caption,
-                color = ProplystTheme.colors.navySecondaryOn,
-                modifier = Modifier.padding(top = 2.dp),
-            )
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("Properties", style = ProplystTheme.type.pageTitle, color = Color.White, modifier = Modifier.alignByBaseline())
+            if (count != null) {
+                Text(
+                    "$count ${if (count == 1) "property" else "properties"}",
+                    style = ProplystTheme.type.caption,
+                    color = ProplystTheme.colors.navySecondaryOn,
+                    modifier = Modifier.alignByBaseline(),
+                )
+            }
         }
         Spacer(modifier = Modifier.height(14.dp))
-        OutlinedTextField(
+        ProplystTextField(
             value = query,
             onValueChange = onQueryChange,
-            placeholder = { Text("Search properties", color = ProplystTheme.colors.navyTertiaryOn) },
-            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = ProplystTheme.colors.navyTertiaryOn) },
-            singleLine = true,
-            shape = RoundedCornerShape(14.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = Color.White,
-                unfocusedTextColor = Color.White,
-                focusedBorderColor = Color.White.copy(alpha = 0.24f),
-                unfocusedBorderColor = Color.White.copy(alpha = 0.12f),
-                focusedContainerColor = Color.White.copy(alpha = 0.08f),
-                unfocusedContainerColor = Color.White.copy(alpha = 0.08f),
-                cursorColor = Color.White,
-            ),
-            modifier = Modifier.fillMaxWidth().height(56.dp),
+            placeholder = "Search properties",
+            dark = true,
+            height = 44,
+            leadingIcon = {
+                Icon(
+                    Icons.Filled.Search,
+                    contentDescription = null,
+                    tint = ProplystTheme.colors.navySecondaryOn,
+                    modifier = Modifier.size(18.dp),
+                )
+            },
         )
         Spacer(modifier = Modifier.height(12.dp))
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -184,6 +184,12 @@ private fun PropertyCard(property: Property, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .height(230.dp)
+            .shadow(
+                6.dp,
+                RoundedCornerShape(20.dp),
+                ambientColor = ProplystTheme.colors.navy.copy(alpha = 0.14f),
+                spotColor = ProplystTheme.colors.navy.copy(alpha = 0.14f),
+            )
             .clip(RoundedCornerShape(20.dp))
             .clickable(onClick = onClick),
     ) {
@@ -200,13 +206,17 @@ private fun PropertyCard(property: Property, onClick: () -> Unit) {
                 ),
         )
         Row(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            modifier = Modifier.fillMaxWidth().padding(14.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Surface(color = Color.White.copy(alpha = 0.18f), shape = ProplystPillShape) {
+            Surface(
+                color = Color.White.copy(alpha = 0.16f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)),
+                shape = ProplystPillShape,
+            ) {
                 Text(
                     propertyTypeLabel(property.propertyType),
-                    style = ProplystTheme.type.statusLabel,
+                    style = ProplystTheme.type.chipLabel,
                     color = Color.White,
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
                 )
@@ -223,28 +233,30 @@ private fun PropertyCard(property: Property, onClick: () -> Unit) {
         Column(modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(16.dp)) {
             Text(
                 property.nickname,
-                style = ProplystTheme.type.cardTitle.copy(fontSize = 18.sp),
+                style = ProplystTheme.type.cardTitleLarge,
                 color = Color.White,
-                fontWeight = FontWeight.Bold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
                 property.fullAddress,
-                style = ProplystTheme.type.caption,
+                style = ProplystTheme.type.meta,
                 color = ProplystTheme.colors.navyTertiaryOn,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = 2.dp),
             )
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             if (property.unitCount > 0) {
+                // Design shows Collected · Expected · "n units / % let"; the money aggregates
+                // aren't in the backend's card extras yet, so the audit's own fallback (real
+                // unit/occupancy figures) stands in -- never a fabricated amount.
                 Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                     StatColumn("UNITS", "${property.unitCount}")
                     StatColumn("OCCUPIED", "${property.occupiedUnitCount}/${property.unitCount}")
-                    StatColumn("LET", "${(occupancyFraction * 100).toInt()}%")
+                    StatColumn("LET", "${(occupancyFraction * 100).toInt()}%", alignEnd = true)
                 }
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -265,10 +277,15 @@ private fun PropertyCard(property: Property, onClick: () -> Unit) {
 }
 
 @Composable
-private fun StatColumn(label: String, value: String) {
-    Column {
-        Text(label, style = ProplystTheme.type.statusLabel, color = ProplystTheme.colors.navySecondaryOn)
-        Text(value, style = ProplystTheme.type.cardTitle.copy(fontSize = 15.sp), color = Color.White, modifier = Modifier.padding(top = 2.dp))
+private fun StatColumn(label: String, value: String, alignEnd: Boolean = false) {
+    Column(horizontalAlignment = if (alignEnd) Alignment.End else Alignment.Start) {
+        Text(label.uppercase(), style = ProplystTheme.type.microLabel, color = ProplystTheme.colors.navySecondaryOn)
+        Text(
+            value,
+            style = ProplystTheme.type.cardTitle.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
+            color = Color.White,
+            modifier = Modifier.padding(top = 2.dp),
+        )
     }
 }
 

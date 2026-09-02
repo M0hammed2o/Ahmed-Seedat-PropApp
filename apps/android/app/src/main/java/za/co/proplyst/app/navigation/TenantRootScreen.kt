@@ -3,10 +3,10 @@ package za.co.proplyst.app.navigation
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+import androidx.compose.material.icons.outlined.Build
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -45,10 +45,10 @@ import za.co.proplyst.app.ui.paymentreports.ReportPaymentScreen
  * concept with the ledger. "Requests" is Maintenance; "Profile" replaces the old bare Account
  * entry point with the richer identity/lease summary + settings list. */
 private val TENANT_BOTTOM_NAV_ITEMS: List<FloatingNavItem> = listOf(
-    FloatingNavItem(Destinations.TENANT_HOME, "Home", Icons.Filled.Home),
-    FloatingNavItem(Destinations.INVOICES_LIST, "Payments", Icons.AutoMirrored.Filled.ReceiptLong),
-    FloatingNavItem(Destinations.MAINTENANCE_LIST, "Requests", Icons.Filled.Build),
-    FloatingNavItem(Destinations.TENANT_PROFILE, "Profile", Icons.Filled.Person),
+    FloatingNavItem(Destinations.TENANT_HOME, "Home", Icons.Outlined.Home),
+    FloatingNavItem(Destinations.INVOICES_LIST, "Payments", Icons.AutoMirrored.Outlined.ReceiptLong),
+    FloatingNavItem(Destinations.MAINTENANCE_LIST, "Requests", Icons.Outlined.Build),
+    FloatingNavItem(Destinations.TENANT_PROFILE, "Profile", Icons.Outlined.Person),
 )
 
 @Composable
@@ -77,7 +77,10 @@ fun TenantRootScreen(pendingRoute: String? = null) {
                     onReportPaymentClick = { navController.navigate(Destinations.REPORT_PAYMENT) },
                     onInvoicesClick = { navController.navigate(Destinations.INVOICES_LIST) },
                     onRequestsClick = { navController.navigate(Destinations.MAINTENANCE_LIST) },
+                    onNewRequestClick = { navController.navigate(Destinations.CREATE_MAINTENANCE_TICKET) },
                     onNoticesClick = { navController.navigate(Destinations.ANNOUNCEMENTS_LIST) },
+                    onDocumentsClick = { navController.navigate(Destinations.DOCUMENTS_LIST) },
+                    onAccountClick = { navController.navigate(Destinations.ACCOUNT) },
                 )
             }
             composable(Destinations.INVOICES_LIST) {

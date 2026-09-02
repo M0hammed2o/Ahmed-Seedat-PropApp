@@ -22,7 +22,10 @@ import javax.inject.Singleton
  * emulator smoke test exercise both portals without inventing a real backend switcher.
  */
 @Singleton
-class MockAuthRepository @Inject constructor() : AuthRepository {
+class MockAuthRepository @Inject constructor(
+    private val authEventStore: AuthEventStore,
+    private val sessionManager: SessionManager,
+) : AuthRepository {
     private val _authState = MutableStateFlow<AuthState>(AuthState.Unauthenticated)
     override val authState: StateFlow<AuthState> = _authState.asStateFlow()
 
@@ -38,6 +41,9 @@ class MockAuthRepository @Inject constructor() : AuthRepository {
         if (email.isBlank() || password.isBlank()) {
             return Result.failure(Exception("Email and password are required."))
         }
+        // Same display-identifier persistence as the real repository -- the Owner/Tenant home
+        // avatar initial and the Security screen's account row read it (fidelity audit §2/§6).
+        sessionManager.saveEmail(email.trim())
         _authState.value = if (email.trim().lowercase().startsWith("tenant")) {
             AuthState.Authenticated(
                 userId = "demo-tenant-user-1",
@@ -55,10 +61,14 @@ class MockAuthRepository @Inject constructor() : AuthRepository {
 
     override suspend fun signOut() {
         delay(100)
+        authEventStore.recordUserSignOut()
+        sessionManager.clear()
         _authState.value = AuthState.Unauthenticated
     }
 
     override fun forceSignOutLocally() {
+        authEventStore.recordExpiredIfUnset()
+        sessionManager.clear()
         _authState.value = AuthState.Unauthenticated
     }
 

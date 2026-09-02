@@ -3,14 +3,21 @@ package za.co.proplyst.app.ui.biometric
 import android.content.Context
 import androidx.lifecycle.Lifecycle
 import za.co.proplyst.app.data.biometric.BiometricLockPreferences
+import za.co.proplyst.app.data.biometric.LockRequestBus
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 
 /** Auth/session hardening pass (WORKLOG.md this date) -- pins down the lifecycle-driven lock
@@ -19,10 +26,19 @@ import org.junit.Test
  * Android runtime this pure-JVM test suite doesn't have -- same reasoning TokenAuthenticatorTest
  * uses real OkHttp types but never a real network). `checkBiometricAvailability()` is a top-level
  * function (not injectable) -- mocked via `mockkStatic` on its own file's compiled Kt class. */
+@OptIn(ExperimentalCoroutinesApi::class)
 class BiometricGateViewModelTest {
+
+    @Before
+    fun setUp() {
+        // The fidelity-audit pass added a viewModelScope collector (LockRequestBus) to init{} --
+        // viewModelScope needs a Main dispatcher in pure-JVM tests.
+        Dispatchers.setMain(StandardTestDispatcher())
+    }
 
     @After
     fun tearDown() {
+        Dispatchers.resetMain()
         unmockkStatic("za.co.proplyst.app.ui.biometric.BiometricAuthenticatorKt")
     }
 
@@ -36,7 +52,7 @@ class BiometricGateViewModelTest {
         every { preferences.enabled } returns MutableStateFlow(initialEnabled)
         val context = mockk<Context>(relaxed = true)
         val lifecycle = mockk<Lifecycle>(relaxed = true)
-        return BiometricGateViewModel(preferences, context, lifecycle)
+        return BiometricGateViewModel(preferences, context, lifecycle, LockRequestBus(), mockk(relaxed = true))
     }
 
     @Test

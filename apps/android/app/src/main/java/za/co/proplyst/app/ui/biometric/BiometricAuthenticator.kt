@@ -43,7 +43,11 @@ sealed interface BiometricResult {
  * itself requires a real FragmentActivity host, so this cannot be a Hilt singleton (the Activity
  * is recreated across configuration changes); callers construct/call it per-Activity instead.
  */
-suspend fun authenticateWithBiometrics(activity: FragmentActivity, title: String): BiometricResult =
+suspend fun authenticateWithBiometrics(
+    activity: FragmentActivity,
+    title: String,
+    subtitle: String? = null,
+): BiometricResult =
     suspendCancellableCoroutine { continuation ->
         val executor = ContextCompat.getMainExecutor(activity)
         val prompt = BiometricPrompt(
@@ -75,8 +79,15 @@ suspend fun authenticateWithBiometrics(activity: FragmentActivity, title: String
                 }
             },
         )
+        // Fidelity audit §6: subtitle "Use your fingerprint to continue" on the system sheet. The
+        // audit's `setNegativeButtonText("Use password")` is deliberately NOT applied -- this app
+        // uses BIOMETRIC_STRONG or DEVICE_CREDENTIAL (system PIN/pattern fallback), and
+        // BiometricPrompt rejects a custom negative button in that mode; dropping DEVICE_CREDENTIAL
+        // just for the label would change real unlock behaviour, which this pass must not do. The
+        // design's "Use password instead" affordance lives on the app's own lock screen instead.
         val promptInfo = BiometricPrompt.PromptInfo.Builder()
             .setTitle(title)
+            .apply { if (subtitle != null) setSubtitle(subtitle) }
             .setAllowedAuthenticators(ALLOWED_AUTHENTICATORS)
             .build()
         prompt.authenticate(promptInfo)

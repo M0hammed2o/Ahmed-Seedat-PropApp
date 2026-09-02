@@ -1,7 +1,9 @@
 package za.co.proplyst.app.ui.account
 
 import za.co.proplyst.app.data.auth.AuthRepository
+import za.co.proplyst.app.data.auth.SessionManager
 import za.co.proplyst.app.data.biometric.BiometricLockPreferences
+import za.co.proplyst.app.data.biometric.LockRequestBus
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -52,7 +54,7 @@ class AccountViewModelTest {
     fun `signOut calls through to the repository`() = runTest {
         val authRepository = mockk<AuthRepository>()
         coEvery { authRepository.signOut() } returns Unit
-        val viewModel = AccountViewModel(authRepository, mockBiometricPreferences())
+        val viewModel = AccountViewModel(authRepository, mockBiometricPreferences(), LockRequestBus(), mockk<SessionManager>(relaxed = true))
 
         viewModel.signOut()
         dispatcher.scheduler.advanceUntilIdle()
@@ -65,7 +67,7 @@ class AccountViewModelTest {
         val authRepository = mockk<AuthRepository>()
         val gate = CompletableDeferred<Unit>()
         coEvery { authRepository.signOut() } coAnswers { gate.await() }
-        val viewModel = AccountViewModel(authRepository, mockBiometricPreferences())
+        val viewModel = AccountViewModel(authRepository, mockBiometricPreferences(), LockRequestBus(), mockk<SessionManager>(relaxed = true))
 
         assertEquals(false, viewModel.signingOut.value)
         viewModel.signOut()
@@ -88,7 +90,7 @@ class AccountViewModelTest {
         val authRepository = mockk<AuthRepository>()
         val gate = CompletableDeferred<Unit>()
         coEvery { authRepository.signOut() } coAnswers { gate.await() }
-        val viewModel = AccountViewModel(authRepository, mockBiometricPreferences())
+        val viewModel = AccountViewModel(authRepository, mockBiometricPreferences(), LockRequestBus(), mockk<SessionManager>(relaxed = true))
 
         viewModel.signOut()
         dispatcher.scheduler.advanceUntilIdle()
@@ -105,7 +107,7 @@ class AccountViewModelTest {
     fun `biometricLockEnabled reflects the preferences object, and toggling delegates to it`() {
         val authRepository = mockk<AuthRepository>(relaxed = true)
         val preferences = mockBiometricPreferences(initialEnabled = true)
-        val viewModel = AccountViewModel(authRepository, preferences)
+        val viewModel = AccountViewModel(authRepository, preferences, LockRequestBus(), mockk<SessionManager>(relaxed = true))
 
         assertEquals(true, viewModel.biometricLockEnabled.value)
 

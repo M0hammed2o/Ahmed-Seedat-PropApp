@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import za.co.proplyst.app.data.auth.AuthRepository
 import za.co.proplyst.app.data.auth.AuthState
+import za.co.proplyst.app.data.auth.SessionManager
 import za.co.proplyst.app.data.insights.PortfolioInsight
 import za.co.proplyst.app.data.insights.PortfolioInsightsRepository
 import za.co.proplyst.app.data.insights.PortfolioInsightsResult
@@ -45,7 +46,13 @@ class DashboardViewModel @Inject constructor(
     private val ownerSummaryRepository: OwnerSummaryRepository,
     private val propertiesRepository: PropertiesRepository,
     private val notificationsRepository: NotificationsRepository,
+    sessionManager: SessionManager,
 ) : ViewModel() {
+
+    /** Display identity for the header avatar (fidelity audit §2) -- a stored display email; the
+     * avatar shows its first letter. No profile-name field exists in this backend yet, so the
+     * greeting deliberately stays name-less rather than fabricating one. */
+    val accountEmail: String? = sessionManager.getEmail()
     val isPrincipal: StateFlow<Boolean> = authRepository.authState
         .map { state ->
             (state as? AuthState.Authenticated)?.organizations?.any { it.role == "principal" } ?: false
@@ -63,6 +70,11 @@ class DashboardViewModel @Inject constructor(
 
     private val _recentActivity = MutableStateFlow<List<AppNotification>>(emptyList())
     val recentActivity: StateFlow<List<AppNotification>> = _recentActivity.asStateFlow()
+
+    /** Any unread notification (fidelity audit §2) -- drives the bell's 9 dp unread dot.
+     * Computed from the FULL feed, not the 5-item preview above. */
+    private val _hasUnread = MutableStateFlow(false)
+    val hasUnread: StateFlow<Boolean> = _hasUnread.asStateFlow()
 
     init {
         loadInsights()
@@ -124,9 +136,15 @@ class DashboardViewModel @Inject constructor(
 
     private fun loadRecentActivity() {
         viewModelScope.launch {
-            _recentActivity.value = when (val result = notificationsRepository.getMyNotifications()) {
-                is NotificationsResult.Loaded -> result.notifications.take(5)
-                is NotificationsResult.Error -> emptyList()
+            when (val result = notificationsRepository.getMyNotifications()) {
+                is NotificationsResult.Loaded -> {
+                    _hasUnread.value = result.notifications.any { it.readAt == null }
+                    _recentActivity.value = result.notifications.take(5)
+                }
+                is NotificationsResult.Error -> {
+                    _hasUnread.value = false
+                    _recentActivity.value = emptyList()
+                }
             }
         }
     }

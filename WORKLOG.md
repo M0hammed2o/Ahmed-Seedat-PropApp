@@ -1,5 +1,102 @@
 # Worklog
 
+## 2026-09-02 (continued) — Claude Design fidelity audit implementation (Android)
+
+Implemented `design/New-design_handoff_proplyst_mobile/ANDROID_FIDELITY_AUDIT.md` in its own
+suggested order (§0 globals → §1 login + §6 auth/biometric → §2 Owner Home + §3 Properties → §5
+Tenant Home + §4 More → §11 nav polish). Visual/UX only -- IA, repositories, APIs, auth/session/
+refresh logic, biometric architecture, financial contracts all unchanged.
+
+**§0 globals**: Plus Jakarta Sans BUNDLED locally (`res/font/`, the five official OFL static TTFs
+from github.com/tokotype/PlusJakartaSans -- fetched once at build-authoring time, never a runtime/
+web-font dependency; real ExtraBold instead of Roboto's Bold collapse). `Type.kt` rebuilt to the
+audit's §8 table (pageTitle/settingsTitle/cardTitleLarge/kpiValue/chipLabel/microLabel/etc.).
+`logo-wordmark.png` bundled (`proplyst_wordmark.png`). New dp-correct `Modifier.navyHeaderGlow()`
+(340/360 dp circle anchored to the drawn header's top-right, replacing the density-drifting raw-px
+gradient). New `ProplystTextField` (50/44 dp, radius 14, external label, focus halo, error tint,
+dark on-navy variant) replacing Material's OutlinedTextField on Login and Properties search.
+Shadow spec applied per-surface (1 dp navy-tint list cards, 8 dp overlap cards, 6 dp photo cards).
+
+**§1 Login**: bottom-anchored hero (weight-filled navy, login glow), left-aligned 64×70 mark +
+28/800 title + tagline, sheet 22/24/30 padding on a 10 dp rhythm, banners by kind (invalid = red
+dot + `#FCA5A5` password border; network = wifi-off + underlined working Retry; expired = blue
+clock banner + "Session expired" title + prefilled email), disabled-at-45% Sign in until both
+fields are filled, badged Google boundary (still honestly config-gated), signed-out toast pill,
+restyled Forgot (left title + subtitle; sent = full-navy centred screen with Resend).
+
+**§6 auth/biometric**: sign-out reason now flows from the REAL auth transitions via a new
+presentation-only `AuthEventStore` (USER → toast, EXPIRED → banner; never read by auth logic).
+`SessionManager` gains a display-email slot (saved at sign-in, shown on the lock screen/returning
+row/avatars -- an identifier, not a credential, cleared with the session). Lock overlay rebuilt to
+the approved navy `lock`/`lock-failed` design; "Use password instead" now shows sign-in in
+returning-user mode WITH the stored session intact (the design's own `signin-returning` state --
+its fingerprint pill re-runs the same local gate; a password sign-in replaces the session
+normally); lock-screen "Sign out" wired to the real sign-out (and the redirect effect now clears a
+stale gate). One-time `BiometricOfferScreen` after first sign-in (real system prompt before the
+toggle ever flips; offer-shown flag persisted). AccountScreen rebuilt as Settings › Security
+(eyebrow header, account card with Lock-now + destructive Sign out, fingerprint card with custom
+50×30 switch, INLINE unavailable/not-enrolled states + "Open device settings" enroll intent,
+enable toast, bottom-sheet sign-out confirmation replacing the AlertDialog). System prompt gains
+the subtitle; the audit's `setNegativeButtonText("Use password")` is deliberately NOT applied --
+this app allows DEVICE_CREDENTIAL fallback and BiometricPrompt rejects a custom negative button in
+that mode; dropping the fallback would change real unlock behaviour (disclosed deviation).
+
+**§2 Owner Home**: mark+wordmark header, bordered bell with a real unread dot (from the full
+notification feed), 40 dp avatar (initial from the stored email -- no profile-name field exists,
+so the greeting stays name-less rather than fabricating one), hero with inline %, separate
+Billed/Outstanding row with the audit's "R 20,000" space format, header bottom 64, KPI card at 8 dp
+navy shadow with 20/800 values and amber Open-jobs, SpaceBetween attention header, 14/16 rail
+padding with trailing severity labels, semantic activity glyphs (payment/invoice/maintenance/
+lease) + relative timestamps, top-property tiles with a real units-let second line (per-property
+income aggregates don't exist server-side; audit's own fallback), 24 dp section rhythm, 110 dp
+bottom spacer.
+
+**§3 Properties**: baseline-aligned title+count row, 44 dp dark search (ProplystTextField), 6 dp
+photo-card shadow + 14 dp spacing, bordered frosted type chip, cardTitleLarge name, 12 sp address,
+microLabel stats (Units/Occupied/Let -- the audit's own fallback when Collected/Expected amounts
+are absent from card extras), 110 dp spacer. "Attention" status chip NOT added: no per-property
+outstanding/vacancy signal exists to derive it honestly (disclosed).
+
+**§5 Tenant Home**: header identical treatment to Owner (mark/wordmark/bordered bell/avatar),
+one-line greeting+unit context, stable "R 0" hero when caught up with a real status line
+("Payment reported · awaiting confirmation" bound to an actual pending report), −48 dp action card
+at 8 dp shadow with the reported-state button swap and a bordered 50×50 invoice button, lease
+"{n}/{m} mo" from real lease dates, 20/800 last-payment, per-request cards (44 dp thumbnail,
+status pills), navy-tile notices, documents entry point ("Rent due <date>" copy could not be used
+-- invoices carry no due-date field; the invoice's own period label stands in, disclosed; the
+mock's two named document shortcuts became one honest "View my documents" -- no doc-type tagging
+exists to resolve real names, disclosed).
+
+**§4 More**: eyebrow header, account card first (routes to Security), rows grouped into one card
+per section with hairline dividers, 40 dp glyph tiles, outlined icons, destructive Sign out row
+(routes to Security's confirm), 110 dp spacer.
+
+**§11 nav**: labels 11/600 (was chipLabel 11/700+tracking), outlined icons both portals;
+white-in-both-themes pill unchanged.
+
+Verification and screenshots: see this pass's final report.
+
+**§10 screenshot-driven acceptance (emulator `PropertyVault_Pixel7_API35`)**: captured and
+compared LOGIN, DARK OWNER HOME, LIGHT OWNER HOME, PROPERTIES, ACCOUNT/SECURITY (light + dark),
+SIGN-OUT SHEET, SIGNED-OUT TOAST, TENANT HOME against the matching `B-*.dc.html` mocks. One real
+bug found and fixed during acceptance: `MockAuthRepository` (the emulator-only dev fixture,
+`USE_MOCK_DATA` build-time gated, never compiled into a release build) never called
+`SessionManager.saveEmail()` on sign-in, so the Owner/Tenant Home avatar and the Security screen's
+account row rendered a bare "•" placeholder instead of the real initial in the smoke-test build --
+`SupabaseAuthRepository` already did this correctly; the mock fixture had simply drifted from it.
+Fixed by adding the same `sessionManager.saveEmail(email.trim())` call on sign-in and
+`sessionManager.clear()` on both sign-out paths, mirroring the real repository; new
+`MockAuthRepositoryTest` case (`verify { sessionManager.saveEmail(...) }`) pins it. This is a
+mock-fixture-only fix with no production auth/session behaviour change. Biometric lock/offer
+screens are implemented and unit-tested but could not be emulator-exercised -- the AVD has no
+enrolled fingerprint (`BiometricManager` reports `NOT_ENROLLED`); the Security screen's inline
+NOT_ENROLLED state (captured) stands in as the verified biometric-state screenshot, disclosed as a
+remaining gap in the final report rather than claimed as tested.
+
+**§11 regression gate (final, after the acceptance fix)**: `testDebugUnitTest` 209/209 (0
+failures, 0 errors -- 208 baseline + 1 new), `lintDebug` 0 errors / 62 warnings (unchanged count),
+`assembleDebug`/`assembleRelease`/`bundleRelease` all BUILD SUCCESSFUL.
+
 ## 2026-09-02 — Proplyst Mobile Design System: Navy Deck redesign (Android)
 
 Full visual/navigation redesign of the Android app onto the approved "1b Navy Deck" direction

@@ -43,6 +43,17 @@ class SessionManager @Inject constructor(@ApplicationContext context: Context) {
     fun getRefreshToken(): String? = prefs.getString(KEY_REFRESH_TOKEN, null)
     fun getUserId(): String? = prefs.getString(KEY_USER_ID, null)
 
+    /** Display email for the signed-in account (fidelity audit pass: lock screen / returning-user
+     * row / avatar initial). A display identifier, not a credential -- stored in the same
+     * encrypted prefs purely because that file already carries the account's identity and is
+     * cleared atomically with it on sign-out. Saved separately from [saveSession] so the
+     * TokenAuthenticator refresh path (which has no email in its response) never wipes it. */
+    fun saveEmail(email: String?) {
+        prefs.edit().putString(KEY_EMAIL, email).apply()
+    }
+
+    fun getEmail(): String? = prefs.getString(KEY_EMAIL, null)
+
     fun clear() {
         prefs.edit().clear().apply()
     }
@@ -51,5 +62,6 @@ class SessionManager @Inject constructor(@ApplicationContext context: Context) {
         const val KEY_ACCESS_TOKEN = "access_token"
         const val KEY_REFRESH_TOKEN = "refresh_token"
         const val KEY_USER_ID = "user_id"
+        const val KEY_EMAIL = "email"
     }
 }

@@ -415,6 +415,33 @@ notifications, deep links, biometric auth, tablet behaviour) — specification o
   violation) — see WORKLOG.md's own entry for detail. See this pass's own final report for exact
   test/lint/build verification.
 
+- [x] **Claude Design fidelity audit implementation, 2026-09-02 (continued)**. Implemented
+  `design/New-design_handoff_proplyst_mobile/ANDROID_FIDELITY_AUDIT.md` in its suggested order:
+  §0 globals (Plus Jakarta Sans bundled locally in `res/font/` — real ExtraBold; full §8 type
+  token table; wordmark asset; dp-correct navy-header glow; audit-spec shadows; a custom
+  `ProplystTextField` replacing Material's outlined fields), §1 Login (bottom-anchored hero,
+  kind-specific banners incl. a real session-expired state and signed-out toast driven by actual
+  auth transitions via a presentation-only `AuthEventStore`, 45%-disabled Sign in, badged Google
+  boundary, full-navy forgot-sent state), §6 auth/biometric (approved navy lock screen with
+  failed state and working "Use password instead" → returning-user sign-in with fingerprint
+  shortcut, session intact; one-time biometric offer screen gated on a real system prompt;
+  Settings › Security rebuild with inline unavailable/not-enrolled states, enroll intent, custom
+  50×30 switch, bottom-sheet sign-out), §2 Owner Home, §3 Properties, §5 Tenant Home, §4 More,
+  §11 floating-nav polish (11/600 labels, outlined icons). Security semantics unchanged;
+  disclosed deviations: no BiometricPrompt negative-button label (device-credential fallback
+  would be lost), greeting/avatar names limited to the stored email (no profile-name field),
+  Properties "Attention" chip and per-property income figures omitted (no honest data source),
+  tenant "Rent due <date>" uses the invoice's period label (no due-date field), one documents
+  entry point instead of two fabricated named shortcuts. §10 screenshot acceptance completed on
+  `PropertyVault_Pixel7_API35` against the matching `B-*.dc.html` mocks (login, dark/light owner
+  home, properties, security, sign-out sheet, signed-out toast, tenant home); found and fixed one
+  real bug in the process — the emulator-only `MockAuthRepository` dev fixture never persisted the
+  sign-in email, so the avatar/account-row initial silently fell back to "•" in the smoke-test
+  build (`SupabaseAuthRepository` already did this correctly). Final gate: 209/209 tests, 0 lint
+  errors / 62 warnings, debug/release APK + AAB all build. Lock/offer screens implemented and
+  unit-tested but not emulator-exercised (AVD has no enrolled fingerprint — NOT_ENROLLED state
+  captured instead). See WORKLOG.md and the pass's final report for verification detail.
+
 ## M23 — Automated testing
 
 - [ ] Full `TESTING.md` suite: unit, RLS/policy (highest priority), accounting invariants, integration, API contract, native (iOS/Android), E2E against seeded multi-org staging.

@@ -6,6 +6,10 @@ package za.co.proplyst.app.navigation
 object Destinations {
     const val SPLASH = "splash"
     const val SIGN_IN = "sign_in"
+    // One-time biometric offer after the first successful sign-in (fidelity audit §6) -- shown
+    // between SPLASH's role resolution and the portal, only when hardware is available, the lock
+    // is off, and the offer has never been shown on this install.
+    const val BIO_OFFER = "bio_offer"
 
     const val OWNER_ROOT = "owner_root"
 

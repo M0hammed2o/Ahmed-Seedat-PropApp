@@ -24,6 +24,7 @@ class SupabaseAuthRepository @Inject constructor(
     private val authApi: SupabaseAuthApi,
     private val postgrestApi: PostgrestApi,
     private val sessionManager: SessionManager,
+    private val authEventStore: AuthEventStore,
 ) : AuthRepository {
     private val _authState = MutableStateFlow<AuthState>(AuthState.Loading)
     override val authState: StateFlow<AuthState> = _authState.asStateFlow()
@@ -54,6 +55,7 @@ class SupabaseAuthRepository @Inject constructor(
                 return Result.failure(Exception("Sign-in failed (${response.code()})"))
             }
             sessionManager.saveSession(session.accessToken, session.refreshToken, session.user.id)
+            sessionManager.saveEmail(session.user.email ?: email)
             val memberships = fetchOrgMemberships(session.user.id) ?: emptyList()
             _authState.value = AuthState.Authenticated(
                 session.user.id,
@@ -67,6 +69,7 @@ class SupabaseAuthRepository @Inject constructor(
     }
 
     override suspend fun signOut() {
+        authEventStore.recordUserSignOut()
         try {
             authApi.signOut()
         } catch (_: Exception) {
@@ -78,6 +81,11 @@ class SupabaseAuthRepository @Inject constructor(
     }
 
     override fun forceSignOutLocally() {
+        // Presentation-only signal (fidelity audit §1): reaching here without a preceding
+        // explicit signOut() means the session died underneath the user (unrecoverable refresh
+        // failure) -- the sign-in screen shows the "Session expired" banner for it. Never
+        // consulted by any auth logic. USER (set by signOut() below before it calls this) wins.
+        authEventStore.recordExpiredIfUnset()
         sessionManager.clear()
         _authState.value = AuthState.Unauthenticated
     }

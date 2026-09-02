@@ -37,8 +37,18 @@ class BiometricLockPreferences @Inject constructor(@ApplicationContext context: 
         _enabled.value = enabled
     }
 
+    /** Fidelity audit §6 "Biometric offer after first login": the one-time offer screen is shown
+     * at most once per install -- a plain persisted flag, not a credential, same posture as the
+     * toggle above. */
+    fun isOfferShown(): Boolean = prefs.getBoolean(KEY_OFFER_SHOWN, false)
+
+    fun markOfferShown() {
+        prefs.edit().putBoolean(KEY_OFFER_SHOWN, true).apply()
+    }
+
     private companion object {
         const val PREFS_NAME = "biometric_lock_prefs"
         const val KEY_ENABLED = "enabled"
+        const val KEY_OFFER_SHOWN = "offer_shown"
     }
 }

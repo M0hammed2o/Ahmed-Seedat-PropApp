@@ -16,6 +16,7 @@ import za.co.proplyst.app.data.maintenance.MaintenanceTicket
 import za.co.proplyst.app.data.announcements.Announcement
 import za.co.proplyst.app.data.announcements.AnnouncementsRepository
 import za.co.proplyst.app.data.announcements.AnnouncementsResult
+import za.co.proplyst.app.data.auth.SessionManager
 import za.co.proplyst.app.data.paymentreports.PaymentReport
 import za.co.proplyst.app.data.paymentreports.PaymentReportsRepository
 import za.co.proplyst.app.data.paymentreports.PaymentReportsResult
@@ -42,7 +43,13 @@ class TenantHomeViewModel @Inject constructor(
     private val paymentReportsRepository: PaymentReportsRepository,
     private val maintenanceRepository: MaintenanceRepository,
     private val announcementsRepository: AnnouncementsRepository,
+    sessionManager: SessionManager,
 ) : ViewModel() {
+
+    /** Display identity for the header avatar (fidelity audit §5) -- a stored display email. No
+     * tenant profile-name field exists in this backend, so the greeting stays generic rather
+     * than fabricating a first name. */
+    val accountEmail: String? = sessionManager.getEmail()
 
     // null means "not loaded yet" -- distinct from TenancyLeaseResult.Error, which is a real
     // failure the UI should show, not a loading state.
@@ -54,6 +61,11 @@ class TenantHomeViewModel @Inject constructor(
 
     private val _lastPayment = MutableStateFlow<PaymentReport?>(null)
     val lastPayment: StateFlow<PaymentReport?> = _lastPayment.asStateFlow()
+
+    /** A report the tenant has submitted that management hasn't confirmed/rejected yet -- drives
+     * the "Payment reported ✓" state on the action card (fidelity audit §5). */
+    private val _hasPendingReport = MutableStateFlow(false)
+    val hasPendingReport: StateFlow<Boolean> = _hasPendingReport.asStateFlow()
 
     private val _myRequests = MutableStateFlow<List<MaintenanceTicket>>(emptyList())
     val myRequests: StateFlow<List<MaintenanceTicket>> = _myRequests.asStateFlow()
@@ -80,11 +92,17 @@ class TenantHomeViewModel @Inject constructor(
                 is InvoicesResult.Error -> null
             }
 
-            _lastPayment.value = when (val result = paymentReportsRepository.getMyPaymentReports()) {
-                is PaymentReportsResult.Loaded -> result.reports
-                    .filter { it.status == "confirmed" }
-                    .maxByOrNull { it.paymentDate }
-                is PaymentReportsResult.Error -> null
+            when (val result = paymentReportsRepository.getMyPaymentReports()) {
+                is PaymentReportsResult.Loaded -> {
+                    _lastPayment.value = result.reports
+                        .filter { it.status == "confirmed" }
+                        .maxByOrNull { it.paymentDate }
+                    _hasPendingReport.value = result.reports.any { it.status == "reported" }
+                }
+                is PaymentReportsResult.Error -> {
+                    _lastPayment.value = null
+                    _hasPendingReport.value = false
+                }
             }
 
             _myRequests.value = when (val result = maintenanceRepository.getTickets()) {

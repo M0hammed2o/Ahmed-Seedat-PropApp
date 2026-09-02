@@ -20,6 +20,7 @@ import za.co.proplyst.app.ui.auth.SignInScreen
 import za.co.proplyst.app.ui.auth.SplashScreen
 import za.co.proplyst.app.ui.biometric.BiometricGateViewModel
 import za.co.proplyst.app.ui.biometric.BiometricLockOverlay
+import za.co.proplyst.app.ui.biometric.BiometricOfferScreen
 
 /**
  * Auth shell (NATIVE_ANDROID_SPEC.md "Implement the first verified Android vertical slice:
@@ -58,6 +59,10 @@ fun RootNavGraph() {
     LaunchedEffect(authState, currentRoute) {
         val route = currentRoute?.destination?.route
         if (authState is AuthState.Unauthenticated && route != Destinations.SPLASH && route != Destinations.SIGN_IN) {
+            // A sign-out that happened while the biometric gate was showing must also clear the
+            // gate -- otherwise the stale `locked` flag would re-cover the NEXT session's portal
+            // the moment it authenticates (fidelity-audit pass, lock-screen "Sign out" path).
+            biometricGateViewModel.unlock()
             navController.navigate(Destinations.SIGN_IN) {
                 popUpTo(0) { inclusive = true }
             }
@@ -84,7 +89,17 @@ fun RootNavGraph() {
                                     if (destination == Destinations.TENANT_ROOT) pendingTenantRoute = pending.route
                                 null -> Unit
                             }
-                            navController.navigate(destination) {
+                            // One-time biometric offer (fidelity audit §6): a detour BETWEEN role
+                            // resolution and the portal -- the pending deep-link routes above are
+                            // already captured, so nothing is lost by the extra hop.
+                            val target = if (
+                                destination != Destinations.SIGN_IN && biometricGateViewModel.shouldOfferBiometrics()
+                            ) {
+                                Destinations.BIO_OFFER
+                            } else {
+                                destination
+                            }
+                            navController.navigate(target) {
                                 popUpTo(Destinations.SPLASH) { inclusive = true }
                             }
                         }
@@ -115,6 +130,25 @@ fun RootNavGraph() {
                     },
                 )
             }
+            composable(Destinations.BIO_OFFER) {
+                val destinationAfterOffer = {
+                    val state = authState
+                    val dest = if (state is AuthState.Authenticated) destinationForRole(state) else Destinations.SIGN_IN
+                    navController.navigate(dest) {
+                        popUpTo(Destinations.BIO_OFFER) { inclusive = true }
+                    }
+                }
+                BiometricOfferScreen(
+                    onEnabled = {
+                        biometricGateViewModel.enableFromOffer()
+                        destinationAfterOffer()
+                    },
+                    onSkip = {
+                        biometricGateViewModel.markOfferShown()
+                        destinationAfterOffer()
+                    },
+                )
+            }
             composable(Destinations.OWNER_ROOT) {
                 OwnerRootScreen(pendingRoute = pendingOwnerRoute)
             }
@@ -124,9 +158,28 @@ fun RootNavGraph() {
         }
         // Biometric app-lock (NATIVE_ANDROID_SPEC.md §12) -- only ever shown once a real portal
         // is authenticated (never gates SPLASH/SIGN_IN themselves, which would be pointless --
-        // there is nothing behind them yet to protect).
+        // there is nothing behind them yet to protect). Fidelity audit §6: "Use password instead"
+        // swaps the lock for the sign-in screen in returning-user mode -- the stored session stays
+        // intact (the design's own `signin-returning` state), so the fingerprint shortcut there
+        // can still clear the same local gate, while a fresh password sign-in replaces the session
+        // via the normal server path. Either way [BiometricGateViewModel.unlock] is the only thing
+        // biometrics ever unlock.
+        val usePasswordMode by biometricGateViewModel.usePasswordMode.collectAsState()
         if (locked && authState is AuthState.Authenticated) {
-            BiometricLockOverlay(onUnlocked = biometricGateViewModel::unlock)
+            if (usePasswordMode) {
+                SignInScreen(
+                    onSignedIn = biometricGateViewModel::unlock,
+                    returningUser = true,
+                    onReturningUnlocked = biometricGateViewModel::unlock,
+                )
+            } else {
+                BiometricLockOverlay(
+                    onUnlocked = biometricGateViewModel::unlock,
+                    onUsePassword = biometricGateViewModel::requestUsePassword,
+                    onSignOut = authViewModel::signOut,
+                    accountEmail = biometricGateViewModel.accountEmail(),
+                )
+            }
         }
     }
 }

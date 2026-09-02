@@ -8,10 +8,15 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.launch
+import za.co.proplyst.app.data.auth.SessionManager
 import za.co.proplyst.app.data.biometric.BiometricLockPreferences
+import za.co.proplyst.app.data.biometric.LockRequestBus
 import javax.inject.Inject
 
 /**
@@ -47,6 +52,8 @@ class BiometricGateViewModel @Inject constructor(
     private val preferences: BiometricLockPreferences,
     @ApplicationContext private val context: Context,
     private val processLifecycle: Lifecycle,
+    private val lockRequestBus: LockRequestBus,
+    private val sessionManager: SessionManager,
 ) : ViewModel(), DefaultLifecycleObserver {
 
     val lockEnabled: StateFlow<Boolean> = preferences.enabled
@@ -54,10 +61,46 @@ class BiometricGateViewModel @Inject constructor(
     private val _locked = MutableStateFlow(false)
     val locked: StateFlow<Boolean> = _locked.asStateFlow()
 
+    /** Fidelity audit §6: the lock screen's "Use password instead" swaps the overlay for the
+     * sign-in screen in returning-user mode -- the stored session stays intact (the design's own
+     * `signin-returning` state), so the fingerprint shortcut there can still unlock it, while a
+     * fresh password sign-in simply replaces it. Cleared on any unlock. */
+    private val _usePasswordMode = MutableStateFlow(false)
+    val usePasswordMode: StateFlow<Boolean> = _usePasswordMode.asStateFlow()
+
     private var pendingLock = false
 
     init {
         processLifecycle.addObserver(this)
+        // "Lock Proplyst now" (Security screen) -- drop the seed value; only real requests lock.
+        viewModelScope.launch {
+            lockRequestBus.requests.drop(1).collect {
+                if (lockEnabled.value && checkBiometricAvailability(context) == BiometricAvailability.AVAILABLE) {
+                    _locked.value = true
+                }
+            }
+        }
+    }
+
+    /** Display email for the lock screen (a stored display identifier, never a credential). */
+    fun accountEmail(): String? = sessionManager.getEmail()
+
+    fun requestUsePassword() {
+        _usePasswordMode.value = true
+    }
+
+    /** One-time biometric offer after first sign-in (audit §6): only when hardware is available,
+     * the toggle is off, and the offer has never been shown on this install. */
+    fun shouldOfferBiometrics(): Boolean =
+        !preferences.enabled.value &&
+            !preferences.isOfferShown() &&
+            checkBiometricAvailability(context) == BiometricAvailability.AVAILABLE
+
+    fun markOfferShown() = preferences.markOfferShown()
+
+    fun enableFromOffer() {
+        preferences.setEnabled(true)
+        preferences.markOfferShown()
     }
 
     override fun onCleared() {
@@ -83,5 +126,6 @@ class BiometricGateViewModel @Inject constructor(
 
     fun unlock() {
         _locked.value = false
+        _usePasswordMode.value = false
     }
 }

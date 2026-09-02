@@ -3,7 +3,10 @@ package za.co.proplyst.app.ui.auth
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import za.co.proplyst.app.BuildConfig
+import za.co.proplyst.app.data.auth.AuthEventStore
 import za.co.proplyst.app.data.auth.AuthRepository
+import za.co.proplyst.app.data.auth.SessionManager
+import za.co.proplyst.app.data.auth.SignOutReason
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -13,9 +16,9 @@ import java.io.IOException
 import java.net.UnknownHostException
 import javax.inject.Inject
 
-/** Sign-in banner kind (Proplyst Mobile Design System redesign pass, design handoff
- * §"Sign-in screen layout" -- invalid/network banners render with different colours/copy). */
-enum class SignInErrorKind { INVALID_CREDENTIALS, NETWORK, GENERIC }
+/** Sign-in banner kind (fidelity audit §1 -- invalid / network / expired banners are visually
+ * distinct: red dot, wifi-off + Retry, blue clock respectively). */
+enum class SignInErrorKind { INVALID_CREDENTIALS, NETWORK, SESSION_EXPIRED, GENERIC }
 
 data class SignInUiState(
     val email: String = "",
@@ -27,6 +30,9 @@ data class SignInUiState(
     val mode: SignInMode = SignInMode.SIGN_IN,
     val forgotEmail: String = "",
     val isSendingReset: Boolean = false,
+    /** "You've been signed out" pill toast on the hero (audit §1) -- one-shot, from
+     * [AuthEventStore]. */
+    val showSignedOutToast: Boolean = false,
 )
 
 enum class SignInMode { SIGN_IN, FORGOT_PASSWORD, FORGOT_SENT }
@@ -34,14 +40,35 @@ enum class SignInMode { SIGN_IN, FORGOT_PASSWORD, FORGOT_SENT }
 @HiltViewModel
 class SignInViewModel @Inject constructor(
     private val authRepository: AuthRepository,
+    private val authEventStore: AuthEventStore,
+    private val sessionManager: SessionManager,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SignInUiState())
     val uiState: StateFlow<SignInUiState> = _uiState.asStateFlow()
 
-    /** Google Sign-In (design handoff §"Google Sign-In", spec §7): only ever true when a real
-     * OAuth web client ID has been configured via local.properties -- never fabricated. */
+    /** Google Sign-In (spec §7): only ever true when a real OAuth web client ID has been
+     * configured via local.properties -- never fabricated. */
     val googleSignInAvailable: Boolean = BuildConfig.GOOGLE_WEB_CLIENT_ID.isNotBlank()
+
+    /** Display email for the returning-user row / expired prefill (display identifier only). */
+    val storedEmail: String? = sessionManager.getEmail()
+
+    private var lastOnSuccess: (() -> Unit)? = null
+
+    init {
+        // One-shot: why did we arrive at sign-in? Drives the approved expired-banner /
+        // signed-out-toast visuals (audit §1) -- presentation only, no auth logic reads this.
+        when (authEventStore.consume()) {
+            SignOutReason.EXPIRED -> _uiState.value = _uiState.value.copy(
+                email = storedEmail.orEmpty(),
+                errorKind = SignInErrorKind.SESSION_EXPIRED,
+                errorMessage = "Your session expired. Sign in again to continue.",
+            )
+            SignOutReason.USER -> _uiState.value = _uiState.value.copy(showSignedOutToast = true)
+            null -> Unit
+        }
+    }
 
     fun onEmailChange(value: String) {
         _uiState.value = _uiState.value.copy(email = value, errorMessage = null, errorKind = null)
@@ -88,14 +115,18 @@ class SignInViewModel @Inject constructor(
         )
     }
 
+    /** Underlined "Retry" on the network banner (audit §1) -- re-runs the last attempt. */
+    fun retry() {
+        val onSuccess = lastOnSuccess ?: return
+        signIn(onSuccess)
+    }
+
     fun signIn(onSuccess: () -> Unit) {
         val state = _uiState.value
-        if (state.email.isBlank() || state.password.isBlank()) {
-            _uiState.value = state.copy(errorMessage = "Email and password are required.", errorKind = SignInErrorKind.GENERIC)
-            return
-        }
+        if (state.email.isBlank() || state.password.isBlank()) return // button is disabled anyway
+        lastOnSuccess = onSuccess
         viewModelScope.launch {
-            _uiState.value = state.copy(isSubmitting = true, errorMessage = null, errorKind = null)
+            _uiState.value = state.copy(isSubmitting = true, errorMessage = null, errorKind = null, showSignedOutToast = false)
             val result = authRepository.signIn(state.email.trim(), state.password)
             result.fold(
                 onSuccess = {
@@ -114,9 +145,9 @@ class SignInViewModel @Inject constructor(
                         }
                     }
                     val message = when (kind) {
-                        SignInErrorKind.NETWORK -> "Can't reach Proplyst right now. Check your connection and try again."
+                        SignInErrorKind.NETWORK -> "Can't reach Proplyst right now. Check your connection."
                         SignInErrorKind.INVALID_CREDENTIALS -> "That email and password don't match our records."
-                        SignInErrorKind.GENERIC -> error.message ?: "Sign-in failed."
+                        else -> error.message ?: "Sign-in failed."
                     }
                     _uiState.value = _uiState.value.copy(isSubmitting = false, errorMessage = message, errorKind = kind)
                 },

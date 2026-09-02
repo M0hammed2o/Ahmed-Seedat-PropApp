@@ -19,6 +19,7 @@ import org.junit.Test
 import za.co.proplyst.app.data.auth.AuthRepository
 import za.co.proplyst.app.data.auth.AuthState
 import za.co.proplyst.app.data.auth.OrgMembership
+import za.co.proplyst.app.data.auth.SessionManager
 import za.co.proplyst.app.data.auth.TenancyMembership
 import za.co.proplyst.app.data.insights.PortfolioInsight
 import za.co.proplyst.app.data.insights.PortfolioInsightsRepository
@@ -102,6 +103,7 @@ class DashboardViewModelTest {
         ownerSummaryRepository,
         propertiesRepository,
         notificationsRepository,
+        mockk<SessionManager>(relaxed = true),
     )
 
     @Test

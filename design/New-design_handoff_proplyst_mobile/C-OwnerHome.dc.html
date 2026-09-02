@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"><style>body{margin:0}a{color:#1B6BF2}a:hover{color:#0B3FA8}</style></helmet>
+<div style="font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:#EEF3FB;color:#0F1B2D;min-height:100%;-webkit-font-smoothing:antialiased;position:relative">
+  <sc-if value="{{ isIOS }}" hint-placeholder-val="{{ true }}"><div style="height:54px"></div></sc-if>
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 20px 0">
+    <div style="display:flex;align-items:center;gap:10px"><div style="width:40px;height:40px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center"><img src="assets/logo-mark.png" alt="Proplyst" style="height:22px;width:auto"></div><div><div style="font-size:12px;color:#5B6B7F">Good evening</div><div style="font-size:15px;font-weight:700;margin-top:-1px">Mohammed</div></div></div>
+    <button aria-label="Notifications, 3 unread" style="position:relative;width:40px;height:40px;border-radius:50%;border:0;background:#fff;display:flex;align-items:center;justify-content:center;color:#3A4A5E;cursor:pointer"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"></path><path d="M10 21h4"></path></svg><span style="position:absolute;top:7px;right:8px;width:9px;height:9px;border-radius:50%;background:#1B6BF2;border:2px solid #fff"></span></button>
+  </div>
+  <div style="padding:30px 20px 0">
+    <div style="font-size:13px;font-weight:600;color:#1B6BF2;text-transform:uppercase;letter-spacing:.6px">Collected · September</div>
+    <div style="font-size:52px;font-weight:800;letter-spacing:-2px;line-height:1;margin-top:8px">R 20,000</div>
+    <div style="display:flex;align-items:center;gap:10px;margin-top:16px"><div style="flex:1;height:8px;border-radius:999px;background:#fff;overflow:hidden"><div style="width:94%;height:100%;background:#1B6BF2;border-radius:999px"></div></div><span style="font-size:13px;font-weight:700">94%</span></div>
+    <div style="font-size:14px;color:#5B6B7F;margin-top:8px">of R 21,200 billed · <span style="color:#B45309;font-weight:600">R 1,200 outstanding</span></div>
+  </div>
+  <div style="display:flex;gap:10px;margin:22px 20px 0;overflow:auto">
+    <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="4">
+      <div style="flex:none;background:#fff;border-radius:18px;padding:14px 16px;min-width:112px"><div style="font-size:12px;color:#5B6B7F">{{ k.label }}</div><div style="font-size:24px;font-weight:800;letter-spacing:-0.6px;margin-top:4px;color:{{ k.color }}">{{ k.value }}</div></div>
+    </sc-for>
+  </div>
+  <div style="margin:26px 20px 0;background:#fff;border-radius:22px;padding:6px 6px 6px">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px 6px"><span style="font-size:16px;font-weight:700">Needs attention</span><a href="#" style="font-size:13px;font-weight:600;text-decoration:none">All</a></div>
+    <sc-for list="{{ attention }}" as="a" hint-placeholder-count="3">
+      <button style="width:100%;display:flex;align-items:center;gap:12px;padding:12px 14px;border:0;border-radius:16px;background:#fff;text-align:left;font:inherit;color:inherit;cursor:pointer" style-hover="background:#F3F6FB">
+        <span style="width:40px;height:40px;border-radius:14px;background:{{ a.bg }};color:{{ a.fg }};display:flex;align-items:center;justify-content:center;flex:none;font-size:13px;font-weight:800">{{ a.glyph }}</span>
+        <div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ a.title }}</div><div style="font-size:13px;color:#5B6B7F;margin-top:1px">{{ a.ctx }}</div></div>
+        <span style="font-size:12px;font-weight:600;padding:5px 10px;border-radius:999px;background:{{ a.bg }};color:{{ a.fg }}">{{ a.level }}</span>
+      </button>
+    </sc-for>
+  </div>
+  <div style="margin:22px 20px 0">
+    <div style="font-size:16px;font-weight:700;padding:0 4px">Recent activity</div>
+    <div style="margin-top:10px;display:flex;flex-direction:column">
+      <sc-for list="{{ activity }}" as="ev" hint-placeholder-count="4">
+        <div style="display:flex;gap:14px;padding:10px 4px;align-items:flex-start">
+          <div style="display:flex;flex-direction:column;align-items:center;padding-top:5px"><span style="width:10px;height:10px;border-radius:50%;background:{{ ev.dot }};box-shadow:0 0 0 3px #fff"></span><span style="width:2px;flex:1;min-height:22px;background:#D7E0EE;margin-top:6px"></span></div>
+          <div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;gap:8px"><span style="font-size:14px;font-weight:600">{{ ev.title }}</span><span style="font-size:12px;color:#7B8794;white-space:nowrap">{{ ev.when }}</span></div><div style="font-size:13px;color:#5B6B7F;margin-top:2px">{{ ev.sub }}</div></div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+  <div style="margin:14px 20px 0;background:#fff;border-radius:22px;padding:16px 18px">
+    <div style="display:flex;justify-content:space-between;font-size:13px"><span style="font-weight:700">Occupancy · 6 months</span><span style="color:#5B6B7F">avg 91%</span></div>
+    <div style="display:flex;align-items:flex-end;gap:8px;height:64px;margin-top:14px">
+      <sc-for list="{{ occ }}" as="o" hint-placeholder-count="6"><div style="flex:1;height:{{ o.h }}%;border-radius:999px;background:{{ o.c }}"></div></sc-for>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:11px;color:#7B8794"><span>Apr</span><span>May</span><span>Jun</span><span>Jul</span><span>Aug</span><span>Sep</span></div>
+  </div>
+  <div style="height:110px"></div>
+  <nav style="position:sticky;bottom:{{ navBottom }};margin:0 20px;padding:0 0 12px;display:flex;justify-content:center;pointer-events:none">
+    <div style="pointer-events:auto;display:flex;gap:4px;background:#0F1B2D;border-radius:999px;padding:6px;box-shadow:0 12px 32px rgba(15,27,45,.28)">
+      <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="4"><button onClick="{{ t.go }}" style="display:flex;align-items:center;gap:8px;height:48px;padding:0 {{ t.pad }};border:0;border-radius:999px;background:{{ t.pill }};font:inherit;font-size:13px;font-weight:600;color:{{ t.color }};cursor:pointer">{{ t.icon }}<span style="display:{{ t.labelDisplay }}">{{ t.label }}</span></button></sc-for>
+    </div>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:402,&quot;height&quot;:874},&quot;platform&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;ios&quot;,&quot;android&quot;],&quot;default&quot;:&quot;ios&quot;,&quot;tsType&quot;:&quot;'ios'|'android'&quot;}}">
+class Component extends DCLogic {
+  state = { tab: 0 };
+  icon(d, color) { return React.createElement('svg', { width: 22, height: 22, viewBox: '0 0 24 24', fill: 'none', stroke: color, strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }, ...d.map((p, i) => React.createElement('path', { key: i, d: p }))); }
+  renderVals() {
+    const platform = this.props.platform ?? 'ios', tab = this.state.tab;
+    const defs = [['Home', ['M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z']], ['Properties', ['M4 21V4a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v17', 'M14 9h5a1 1 0 0 1 1 1v11', 'M3 21h18M7 7h2M7 11h2M7 15h2']], ['Activity', ['M3 12h4l3-7 4 14 3-7h4']], ['More', ['M5 12h.01M12 12h.01M19 12h.01', 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z']]];
+    const tabs = defs.map(([label, d], i) => { const a = i === tab; return { label, labelDisplay: a ? 'inline' : 'none', color: a ? '#0F1B2D' : '#B7C6E0', icon: this.icon(d, a ? '#0F1B2D' : '#B7C6E0'), pill: a ? '#fff' : 'transparent', pad: a ? '16px' : '13px', go: () => this.setState({ tab: i }) }; });
+    return {
+      isIOS: platform === 'ios', navBottom: platform === 'ios' ? '22px' : '8px', tabs,
+      kpis: [{ label: 'Occupancy', value: '94.2%', color: '#0F1B2D' }, { label: 'Properties', value: '5', color: '#0F1B2D' }, { label: 'Open jobs', value: '3', color: '#B45309' }, { label: 'Expiring', value: '2', color: '#0F1B2D' }],
+      attention: [
+        { title: 'Geyser leak', ctx: 'Musgrave Flats · Unit 4', level: 'Critical', glyph: '!', bg: '#FEE2E2', fg: '#B91C1C' },
+        { title: 'Arrears · A. Patel', ctx: 'Salta Sibaya · R 1,200 overdue', level: 'High', glyph: 'R', bg: '#FEF3C7', fg: '#B45309' },
+        { title: 'Lease renewal', ctx: 'Midlands Builders · Unit 2 · 30 Sep', level: 'Medium', glyph: '§', bg: '#E8F0FE', fg: '#1B6BF2' },
+      ],
+      activity: [
+        { title: 'Payment recorded', sub: 'R 8,500 · T. Naidoo · Musgrave Flats', when: '2h ago', dot: '#16A34A' },
+        { title: 'Invoice issued', sub: 'INV-0931 · Salta Sibaya · Unit 3', when: 'Today', dot: '#1B6BF2' },
+        { title: 'Maintenance updated', sub: 'Kitchen tap leaking → In progress', when: 'Yesterday', dot: '#D97706' },
+      ],
+      occ: [88, 90, 92, 90, 94, 94].map((h, i) => ({ h, c: i === 5 ? '#1B6BF2' : '#C9DAF6' })),
+    };
+  }
+}
+</script>
+</body>
+</html>

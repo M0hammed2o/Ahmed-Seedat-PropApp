@@ -1,5 +1,6 @@
 package za.co.proplyst.app.data.auth
 
+import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -15,7 +16,7 @@ class MockAuthRepositoryTest {
 
     @Test
     fun `an email starting with tenant signs in as the tenant fixture, no org memberships`() = runTest {
-        val repository = MockAuthRepository()
+        val repository = MockAuthRepository(AuthEventStore(), mockk(relaxed = true))
 
         repository.signIn("tenant@example.com", "anything")
 
@@ -29,7 +30,7 @@ class MockAuthRepositoryTest {
 
     @Test
     fun `a tenant email is matched case-insensitively`() = runTest {
-        val repository = MockAuthRepository()
+        val repository = MockAuthRepository(AuthEventStore(), mockk(relaxed = true))
 
         repository.signIn("TENANT@example.com", "anything")
 
@@ -38,8 +39,18 @@ class MockAuthRepositoryTest {
     }
 
     @Test
+    fun `sign-in persists the display email, same as the real repository`() = runTest {
+        val sessionManager = mockk<SessionManager>(relaxed = true)
+        val repository = MockAuthRepository(AuthEventStore(), sessionManager)
+
+        repository.signIn("  demo@proplyst.test  ", "anything")
+
+        io.mockk.verify { sessionManager.saveEmail("demo@proplyst.test") }
+    }
+
+    @Test
     fun `any other email signs in as the owner staff fixture, unchanged from before this pass`() = runTest {
-        val repository = MockAuthRepository()
+        val repository = MockAuthRepository(AuthEventStore(), mockk(relaxed = true))
 
         repository.signIn("owner@example.com", "anything")
 

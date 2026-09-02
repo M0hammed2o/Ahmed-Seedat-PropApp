@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"><style>body{margin:0}a{color:#1B6BF2}a:hover{color:#0B3FA8}</style></helmet>
+<div style="font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:#F3F5F9;color:#0F1B2D;min-height:100%;-webkit-font-smoothing:antialiased">
+  <div style="background:#0B1220;color:#fff;padding-bottom:64px;position:relative;overflow:hidden">
+    <div style="position:absolute;top:-140px;right:-100px;width:340px;height:340px;border-radius:50%;background:radial-gradient(closest-side,rgba(27,107,242,.4),rgba(27,107,242,0))"></div>
+    <sc-if value="{{ isIOS }}" hint-placeholder-val="{{ true }}"><div style="height:54px"></div></sc-if>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 20px 0;position:relative">
+      <div style="display:flex;align-items:center;gap:8px"><img src="assets/logo-mark.png" alt="" style="height:26px;width:auto"><span style="font-size:16px;font-weight:700;letter-spacing:-0.2px">Prop<span style="color:#5EA2FF">lyst</span></span></div>
+      <div style="display:flex;gap:8px">
+        <button aria-label="Notifications, 3 unread" style="position:relative;width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center;color:#fff;cursor:pointer"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"></path><path d="M10 21h4"></path></svg><span style="position:absolute;top:7px;right:8px;width:9px;height:9px;border-radius:50%;background:#5EA2FF;border:2px solid #0B1220"></span></button>
+        <div style="width:40px;height:40px;border-radius:50%;background:#1B6BF2;color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center">MM</div>
+      </div>
+    </div>
+    <div style="padding:26px 20px 0;position:relative">
+      <div style="font-size:14px;color:#8FA3C2">Good evening, Mohammed</div>
+      <div style="font-size:13px;color:#8FA3C2;margin-top:2px">Collected in September</div>
+      <div style="font-size:44px;font-weight:800;letter-spacing:-1.4px;line-height:1.05;margin-top:8px">R 20,000</div>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:14px"><div style="flex:1;height:6px;border-radius:999px;background:rgba(255,255,255,.14);overflow:hidden"><div style="width:94%;height:100%;background:#5EA2FF;border-radius:999px"></div></div><span style="font-size:13px;font-weight:700;color:#5EA2FF">94%</span></div>
+      <div style="display:flex;gap:18px;margin-top:10px;font-size:13px;color:#8FA3C2"><span>Billed <b style="color:#fff;font-weight:600">R 21,200</b></span><span>Outstanding <b style="color:#FDBA74;font-weight:600">R 1,200</b></span></div>
+    </div>
+  </div>
+  <div style="margin:-44px 20px 0;display:grid;grid-template-columns:repeat(4,1fr);gap:0;background:#fff;border-radius:18px;box-shadow:0 8px 24px rgba(11,18,32,.10);padding:14px 6px;position:relative">
+    <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="4">
+      <div style="text-align:center;border-left:1px solid #EEF1F5;padding:2px 4px"><div style="font-size:20px;font-weight:800;letter-spacing:-0.5px;color:{{ k.color }}">{{ k.value }}</div><div style="font-size:11px;color:#5B6B7F;margin-top:3px;line-height:1.2">{{ k.label }}</div></div>
+    </sc-for>
+  </div>
+  <div style="margin:24px 20px 0">
+    <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:17px;font-weight:700">Needs attention</span><span style="font-size:12px;font-weight:700;color:#fff;background:#0F1B2D;padding:3px 9px;border-radius:999px">3</span></div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:12px">
+      <sc-for list="{{ attention }}" as="a" hint-placeholder-count="3">
+        <button style="display:flex;align-items:center;gap:12px;padding:14px 16px;border:0;border-radius:16px;background:#fff;text-align:left;font:inherit;color:inherit;cursor:pointer;box-shadow:0 1px 2px rgba(15,27,45,.04)" style-active="transform:scale(.99)">
+          <span style="width:4px;height:36px;border-radius:2px;background:{{ a.bar }};flex:none"></span>
+          <div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ a.title }}</div><div style="font-size:13px;color:#5B6B7F;margin-top:2px">{{ a.ctx }}</div></div>
+          <span style="font-size:11px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;color:{{ a.bar }}">{{ a.level }}</span>
+        </button>
+      </sc-for>
+    </div>
+  </div>
+  <div style="margin:24px 20px 0">
+    <span style="font-size:17px;font-weight:700">Recent activity</span>
+    <div style="background:#fff;border-radius:16px;margin-top:12px;padding:4px 16px;box-shadow:0 1px 2px rgba(15,27,45,.04)">
+      <sc-for list="{{ activity }}" as="ev" hint-placeholder-count="4">
+        <div style="display:flex;gap:12px;padding:12px 0;border-top:1px solid #EEF1F5;align-items:center">
+          <div style="width:34px;height:34px;border-radius:10px;background:{{ ev.bg }};color:{{ ev.fg }};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex:none">{{ ev.glyph }}</div>
+          <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:600">{{ ev.title }}</div><div style="font-size:12px;color:#5B6B7F;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ ev.sub }}</div></div>
+          <span style="font-size:12px;color:#98A2B3;white-space:nowrap">{{ ev.when }}</span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+  <div style="margin:24px 20px 0">
+    <span style="font-size:17px;font-weight:700">Top properties</span>
+    <div style="display:flex;gap:12px;margin-top:12px;overflow:auto;padding-bottom:4px">
+      <sc-for list="{{ props }}" as="p" hint-placeholder-count="3">
+        <div style="flex:none;width:170px;height:120px;border-radius:16px;overflow:hidden;position:relative;background:#0F1B2D">
+          <img src="{{ p.img }}" alt="" style="width:100%;height:100%;object-fit:cover;display:block;opacity:.9">
+          <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(11,18,32,0) 40%,rgba(11,18,32,.85))"></div>
+          <div style="position:absolute;left:12px;right:12px;bottom:10px;color:#fff"><div style="font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.name }}</div><div style="font-size:12px;color:#B7C6E0">{{ p.income }}</div></div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+  <div style="height:24px"></div>
+  <sc-if value="{{ isIOS }}" hint-placeholder-val="{{ true }}">
+    <nav style="position:sticky;bottom:0;display:grid;grid-template-columns:repeat(4,1fr);background:rgba(255,255,255,.94);backdrop-filter:blur(12px);border-top:1px solid #E5E9F0;padding:8px 8px 28px">
+      <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="4"><button onClick="{{ t.go }}" style="display:flex;flex-direction:column;align-items:center;gap:4px;border:0;background:transparent;font:inherit;font-size:11px;font-weight:600;color:{{ t.color }};padding:6px 0;min-height:44px;cursor:pointer">{{ t.icon }}<span>{{ t.label }}</span></button></sc-for>
+    </nav>
+  </sc-if>
+  <sc-if value="{{ isAndroid }}" hint-placeholder-val="{{ false }}">
+    <nav style="position:sticky;bottom:0;display:grid;grid-template-columns:repeat(4,1fr);background:#fff;border-top:1px solid #E5E9F0;padding:10px 8px 12px">
+      <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="4"><button onClick="{{ t.go }}" style="display:flex;flex-direction:column;align-items:center;gap:4px;border:0;background:transparent;font:inherit;font-size:12px;font-weight:600;color:{{ t.color }};padding:0;cursor:pointer"><span style="width:60px;height:32px;border-radius:16px;background:{{ t.pill }};display:flex;align-items:center;justify-content:center">{{ t.icon }}</span><span>{{ t.label }}</span></button></sc-for>
+    </nav>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:402,&quot;height&quot;:874},&quot;platform&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;ios&quot;,&quot;android&quot;],&quot;default&quot;:&quot;ios&quot;,&quot;tsType&quot;:&quot;'ios'|'android'&quot;}}">
+class Component extends DCLogic {
+  state = { tab: 0 };
+  icon(d, color) { return React.createElement('svg', { width: 24, height: 24, viewBox: '0 0 24 24', fill: 'none', stroke: color, strokeWidth: 1.9, strokeLinecap: 'round', strokeLinejoin: 'round' }, ...d.map((p, i) => React.createElement('path', { key: i, d: p }))); }
+  renderVals() {
+    const platform = this.props.platform ?? 'ios', tab = this.state.tab;
+    const defs = [['Home', ['M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z']], ['Properties', ['M4 21V4a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v17', 'M14 9h5a1 1 0 0 1 1 1v11', 'M3 21h18M7 7h2M7 11h2M7 15h2']], ['Activity', ['M3 12h4l3-7 4 14 3-7h4']], ['More', ['M5 12h.01M12 12h.01M19 12h.01', 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z']]];
+    const tabs = defs.map(([label, d], i) => ({ label, color: i === tab ? '#0F1B2D' : '#7B8794', icon: this.icon(d, i === tab ? '#1B6BF2' : '#7B8794'), pill: i === tab ? '#E8F0FE' : 'transparent', go: () => this.setState({ tab: i }) }));
+    return {
+      isIOS: platform === 'ios', isAndroid: platform === 'android', tabs,
+      kpis: [{ value: '94%', label: 'Occupancy', color: '#0F1B2D' }, { value: '5', label: 'Properties', color: '#0F1B2D' }, { value: '3', label: 'Open jobs', color: '#D97706' }, { value: '2', label: 'Expiring', color: '#0F1B2D' }],
+      attention: [
+        { title: 'Geyser leak', ctx: 'Musgrave Flats · Unit 4', level: 'Critical', bar: '#DC2626' },
+        { title: 'Arrears · A. Patel', ctx: 'Salta Sibaya · Unit 12 · R 1,200', level: 'High', bar: '#D97706' },
+        { title: 'Lease renewal', ctx: 'Midlands Builders · Unit 2 · 30 Sep', level: 'Medium', bar: '#1B6BF2' },
+      ],
+      activity: [
+        { title: 'Payment recorded', sub: 'R 8,500 · T. Naidoo · Musgrave Flats', when: '2h', glyph: 'R', bg: '#DCFCE7', fg: '#15803D' },
+        { title: 'Invoice issued', sub: 'INV-0931 · Salta Sibaya · Unit 3', when: 'Today', glyph: '#', bg: '#E8F0FE', fg: '#1B6BF2' },
+        { title: 'Maintenance updated', sub: 'Kitchen tap leaking → In progress', when: 'Yest.', glyph: '!', bg: '#FEF3C7', fg: '#B45309' },
+        { title: 'Lease renewed', sub: 'Unit 7 · Midlands Edendale · 12 months', when: 'Mon', glyph: '✓', bg: '#DCFCE7', fg: '#15803D' },
+      ],
+      props: [
+        { name: 'Midlands Edendale', income: 'R 36,500 collected', img: 'assets/prop-edendale.png' },
+        { name: 'Midlands Northdale', income: 'R 18,000 collected', img: 'assets/prop-northdale.png' },
+        { name: 'Salta Sibaya Estate', income: 'Vacant land', img: 'assets/prop-salta.png' },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

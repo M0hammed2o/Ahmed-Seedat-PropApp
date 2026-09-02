@@ -4,10 +4,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.Apartment
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.automirrored.outlined.List
+import androidx.compose.material.icons.outlined.Apartment
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -50,10 +50,10 @@ import za.co.proplyst.app.ui.units.UnitsListScreen
  * reachable, just nested one level deeper (Properties -> property -> Units/Tenants/Maintenance/
  * Documents; More -> Invoices/Tenants/Payment review/Maintenance/Documents/Notices/Reports). */
 private val OWNER_BOTTOM_NAV_ITEMS: List<FloatingNavItem> = listOf(
-    FloatingNavItem(Destinations.DASHBOARD, "Home", Icons.Filled.Home),
-    FloatingNavItem(Destinations.PROPERTIES_LIST, "Properties", Icons.Filled.Apartment),
-    FloatingNavItem(Destinations.OWNER_ACTIVITY, "Activity", Icons.AutoMirrored.Filled.List),
-    FloatingNavItem(Destinations.OWNER_MORE, "More", Icons.Filled.MoreHoriz),
+    FloatingNavItem(Destinations.DASHBOARD, "Home", Icons.Outlined.Home),
+    FloatingNavItem(Destinations.PROPERTIES_LIST, "Properties", Icons.Outlined.Apartment),
+    FloatingNavItem(Destinations.OWNER_ACTIVITY, "Activity", Icons.AutoMirrored.Outlined.List),
+    FloatingNavItem(Destinations.OWNER_MORE, "More", Icons.Outlined.MoreHoriz),
 )
 
 /** OwnerTabView (NATIVE_ANDROID_SPEC.md §2) -- floating white pill bottom nav + a nested NavHost
@@ -85,6 +85,7 @@ fun OwnerRootScreen(pendingRoute: String? = null) {
                 DashboardScreen(
                     onNotificationsClick = { navController.navigate(Destinations.OWNER_ACTIVITY) },
                     onPropertyClick = { propertyId -> navController.navigate(Destinations.propertyDetail(propertyId)) },
+                    onAccountClick = { navController.navigate(Destinations.ACCOUNT) },
                 )
             }
             composable(Destinations.PROPERTIES_LIST) {

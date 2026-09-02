@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -25,7 +24,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import za.co.proplyst.app.ui.theme.ProplystFontFamily
 import za.co.proplyst.app.ui.theme.ProplystLightPalette
 import za.co.proplyst.app.ui.theme.ProplystPillShape
 
@@ -129,7 +132,9 @@ private fun RowScope.FloatingNavEntry(
         }
         Text(
             text = item.label,
-            style = MaterialTheme.typography.labelSmall,
+            // Fidelity audit §11: 11/600, no tracking -- deliberately NOT the chipLabel token
+            // (11/700 + tracking), which is for chips, not nav labels.
+            style = TextStyle(fontFamily = ProplystFontFamily, fontWeight = FontWeight.SemiBold, fontSize = 11.sp),
             color = if (selected) activeColor else inactiveColor,
             modifier = Modifier.padding(top = 2.dp),
         )
