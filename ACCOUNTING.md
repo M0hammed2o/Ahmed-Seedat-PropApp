@@ -75,6 +75,21 @@ Computed on demand from `journal_lines`, filtered to the SA tax year (1 March–
 
 `bank_transactions` are matched to `rent_schedules`/`expenses`/`owner_statements` payouts via `calculateMatchScore` (retained from PropVault, `packages/utils`), which proposes matches — **never auto-confirms them**, carrying forward the existing product principle ("Confirmation is always a customer action... never silently mark paid," migration 000010 comment) unchanged into the new domain. A confirmed match triggers the corresponding `payment`/`owner_payout` journal entry.
 
+## 8a. Tenant-reported payments vs the ledger (V1 utilities/rates/levies pass — full detail in `UTILITIES_RATES_BUDGET_IMPLEMENTATION.md`)
+
+`payment_reports` (a tenant/staff *claim* layer, migration 20260101000106) is not itself the ledger and
+never has been — `confirm_payment_report()` only ever flipped that table's own `status` column. This was
+found, during the same pass, to be a real gap between what the UI implied ("payment confirmed") and what
+`rent_schedules.status` actually showed: an owner tapping Confirm did not move the tenant to "paid."
+
+Fixed in migration 20260101000165 without inventing a second ledger: `confirm_payment_report()` now calls
+`record_invoice_payment()` — the same single entry point §3/§8 above already describe — whenever the
+report references a specific `rent_schedule_id` with a matching *issued* invoice. If no invoice has been
+issued yet, confirmation is refused (`invoice_not_issued`), never silently downgraded to
+acknowledgement-only. If the report isn't tied to a specific schedule at all (an ad-hoc/advance payment),
+it stays acknowledgement-only — a genuine ambiguity about which invoice it would apply to, not a
+shortcut. Idempotent: re-confirming an already-confirmed report never re-allocates (pgTAP-verified).
+
 ## 9. Period locking (added by Production Readiness Review, 2026-07-30 — previously unaddressed: nothing stopped a backdated post into a month an accountant had already reconciled and reported on)
 
 - `accounting_periods` (`DATABASE.md` §9 — `id`, `org_id`, `period_start`, `period_end`, `status enum(open|closed)`, `closed_by`, `closed_at`).

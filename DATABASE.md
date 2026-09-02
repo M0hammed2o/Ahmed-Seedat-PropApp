@@ -325,6 +325,17 @@ Full posting rules in `ACCOUNTING.md`; table shapes here.
 
 - `id PK`, `org_id FK`, `property_id FK`, `vendor_id FK nullable`, `category text`, `amount`, `status enum(recorded|pending|reimbursed|void)`, `document_id FK nullable` (source receipt), `journal_entry_id FK nullable`
 
+### Utilities / rates / levies / budgets [V1 pass — full detail in `UTILITIES_RATES_BUDGET_IMPLEMENTATION.md`, evidence in `UTILITIES_RATES_BUDGET_GAP_AUDIT.md`, migrations 20260101000163-166]
+
+- `recurring_property_costs`: `id PK`, `org_id FK`, `property_id FK`, `unit_id FK nullable` (null = property-level), `cost_type enum(rates_and_taxes|levy)`, `amount`, `effective_from date`, `effective_to date nullable` (null = current). Effective-dated configuration, never overwritten in place — a rate change closes the old row and inserts a new one. Never itself posts to `expenses`.
+- `utility_responsibility_settings`: `id PK`, `org_id FK`, `property_id FK`, `unit_id FK nullable`, `utility_type enum(water|electricity)`, `responsibility_mode enum(owner_paid|tenant_paid_direct|tenant_prepaid|included_in_rent|common_area_owner)`, `active bool`. One active row per scope+utility_type; `common_area_owner` is property-scope only.
+- `utility_meters`: `id PK`, `org_id FK`, `property_id FK`, `unit_id FK nullable`, `utility_type enum(water|electricity)`, `meter_number text nullable`, `responsibility_mode` (denormalized at creation, not kept in sync), `is_prepaid bool`, `active bool`, `installed_date date nullable`.
+- `utility_readings`: `id PK`, `org_id FK`, `meter_id FK`, `period_month date`, `reading_date date`, `reading_value numeric`, `consumption numeric nullable` (server-computed from the prior period, stored for auditability), `unit_of_measure enum(L|kWh)`, `source enum(actual|estimated|manual)`. Unique `(meter_id, period_month)`. Append-only — a same-period correction goes through `record_utility_reading(..., p_replace_existing=true)`, never a bare `UPDATE`. Meter reset/rollover is explicitly unhandled (a lower-than-previous reading is stored as-is, deferred to future scope).
+- `property_budgets`: `id PK`, `org_id FK`, `property_id FK`, `month date` (always day=1), `planned_amount`. Unique `(property_id, month)` — the only source of truth; no separate "annual budget" table (`distribute_annual_budget()` just inserts 12 of these rows).
+- `budget_category_lines`: `id PK`, `budget_id FK`, `org_id FK`, `category text`, `planned_amount`. Optional per-category breakdown within a monthly budget.
+- Actuals are never stored for budgets — `budget_vs_actual(property_id, month)` and `owner_financial_summary(property_id, month)` (both `SECURITY DEFINER`, both explicitly `has_org_role(org_id, 'viewer')`-gated) compute them live from `expenses` on every call.
+- RLS on all six tables: standard org-role shape matching `expenses`/`owner_statements` exactly — `has_org_role(org_id, 'viewer')` to read, `has_org_role(org_id, 'accountant')` to write. No tenant policy on any of them.
+
 ### `owner_statements`
 
 - `id PK`, `org_id FK`, `owner_id FK`, `period_start`, `period_end`, `rent_collected numeric`, `expenses_total numeric`, `management_fee numeric`, `net_payable numeric`, `status enum(draft|issued|paid)`, `payout_matched_transaction_id FK nullable`, `pdf_document_id FK nullable`

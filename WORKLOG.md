@@ -1,5 +1,69 @@
 # Worklog
 
+## 2026-09-02 (continued) — Utilities, rates & levies, budgets: V1 implementation
+
+Implements the gaps identified in the same day's `UTILITIES_RATES_BUDGET_GAP_AUDIT.md`. Full detail
+(authoritative-table boundaries, responsibility modes, budget rules, anomaly wording, payment-
+confirmation behaviour, known limitations) in `UTILITIES_RATES_BUDGET_IMPLEMENTATION.md` — this
+entry is the short version.
+
+**Database** (migrations `20260101000163`-`166`, validated against the local Supabase dev instance
+via `supabase db reset`/`migration up` and pgTAP, never applied to production): `recurring_property_costs`
+(effective-dated rates & taxes/levy configuration, property- or unit-scoped, never overwritten in
+place), `utility_responsibility_settings` (owner_paid/tenant_paid_direct/tenant_prepaid/
+included_in_rent/common_area_owner), `utility_meters`, `utility_readings` (append-only, server-
+computed consumption, meter reset/rollover deliberately unhandled and documented as such),
+`property_budgets`/`budget_category_lines` (monthly rows are the only source of truth; "annual
+budget" is a convenience that inserts 12 of them), `owner_financial_summary()`/`budget_vs_actual()`
+(one-call server-authoritative aggregation, actuals always summed live from `expenses`, never
+stored). New pgTAP: `recurring_property_costs_and_utilities.test.sql` (23),
+`property_budgets.test.sql` (15), `payment_report_ledger_allocation.test.sql` (17),
+`owner_financial_summary.test.sql` (9) — full suite 92 files / 1412 tests, 0 failures (was 91/1403).
+
+**Real bug found and fixed mid-pass**: `budget_vs_actual()` as first written was `SECURITY DEFINER`
+with no authorization check of its own — any authenticated caller could pass any `property_id` and
+read another organization's budget/expense totals. Found by re-reading the function after writing
+`owner_financial_summary()` correctly and noticing the asymmetry; fixed in the same migration set
+before anything shipped, verified by a `throws_ok` pgTAP assertion.
+
+**Payment confirmation, traced then fixed**: `confirm_payment_report()` (existing, migration 106)
+never touched the ledger -- it only flipped `payment_reports.status` and sent a WhatsApp message.
+Audit logging was already correct (both confirm/reject routes call `writeAuditEvent()`) -- that part
+of the prior audit's "unverified" note is now resolved. The real gap: an owner confirming a
+tenant-reported payment did not move `rent_schedules.status`. Fixed: `confirm_payment_report()` now
+calls `record_invoice_payment()` (the existing single allocation entry point) when the report
+references a specific `rent_schedule_id` with a matching issued invoice; refuses
+(`invoice_not_issued`) rather than silently downgrading when no invoice exists yet; stays
+acknowledgement-only (unchanged) when the report isn't tied to a specific schedule at all.
+Idempotent -- pgTAP-verified no double-allocation on re-confirm.
+
+**Backend**: 8 new API routes (`recurring-costs`, `utility-settings`, `utility-meters`,
+`utility-meters/:id/readings`, `budget`, `budget/annual`, `financial-summary`,
+`tenant-payment-status`), all typecheck/lint clean, full `next build` clean. Utility anomaly wording
+requires both a ≥20% period-over-period increase AND an absolute floor (200 L water / 20 kWh
+electricity) before flagging "unusual usage" -- never "leak detected," matching §4B's explicit
+wording rule.
+
+**Web**: property detail page gets a new "Finances" tab (`PropertyFinancesPanel.tsx`) -- property-
+level rates & taxes/levy, water/electricity responsibility, this month's budget vs actual. Unit-level
+setup UI not built this pass (API already supports `unitId`, documented as deferred).
+
+**Android**: new "Rent status" screen (`ui/rentstatus/`, More → Rent status) -- property picker,
+status filter chips, per-tenant expected/paid/outstanding, server-authoritative from
+`rent_schedules.status` via the new `tenant-payment-status` endpoint, never inferred from
+`payment_reports`. `FinancialSummaryRepository` + Hilt DI wiring (mock + real) for the Owner Home
+dashboard extension. Clean Kotlin compile on the first attempt. 4 new `RentStatusViewModelTest`
+cases; full suite 213/213 (was 209/209), 0 lint errors (62 warnings, unchanged), debug/release
+APK + AAB all build.
+
+**Deliberately not built this pass** (disclosed in `UTILITIES_RATES_BUDGET_IMPLEMENTATION.md`, not
+silently dropped): the Owner Home financial-dashboard extension (Utilities/Rates & Levies/Budget/Net
+Position sections) -- blocked on reconciling the new property-scoped summary endpoint with Owner
+Home's existing portfolio-wide `owner_property_summaries` data source, which needs a real design
+decision rather than a rushed guess. Android Add Expense/Utility Capture/Budget View/Utility History
+screens (API ready, no mobile UI). Unit-level web setup UI. Alerts wired into Needs
+Attention/Notifications (computed and available via API, nothing pushes them yet).
+
 ## 2026-09-02 (continued) — Claude Design fidelity audit implementation (Android)
 
 Implemented `design/New-design_handoff_proplyst_mobile/ANDROID_FIDELITY_AUDIT.md` in its own

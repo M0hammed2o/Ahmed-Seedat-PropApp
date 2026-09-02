@@ -442,6 +442,41 @@ notifications, deep links, biometric auth, tablet behaviour) — specification o
   unit-tested but not emulator-exercised (AVD has no enrolled fingerprint — NOT_ENROLLED state
   captured instead). See WORKLOG.md and the pass's final report for verification detail.
 
+## M22a — Utilities, rates & levies, budgets (V1)
+
+- [x] **Evidence-based gap audit, 2026-09-02**: `UTILITIES_RATES_BUDGET_GAP_AUDIT.md`. Confirmed
+  what already existed (expenses, levy statement OCR ingestion, payment review, document
+  categories) vs what was genuinely missing (utility meters/readings, rates/levy configuration,
+  budgets) before writing any code.
+- [x] **Implementation, 2026-09-02 (continued)**: `UTILITIES_RATES_BUDGET_IMPLEMENTATION.md`.
+  Migrations 20260101000163-166: `recurring_property_costs` (effective-dated rates & taxes/levy),
+  `utility_responsibility_settings`, `utility_meters`, `utility_readings`,
+  `property_budgets`/`budget_category_lines`, `owner_financial_summary()`/`budget_vs_actual()`
+  (both `SECURITY DEFINER`, both explicitly org-role gated — a real cross-org data-leak
+  vulnerability was found and fixed in `budget_vs_actual()` before it ever shipped). Payment
+  confirmation traced end-to-end and fixed: `confirm_payment_report()` now allocates through
+  `record_invoice_payment()` (the existing authoritative ledger entry point) instead of only
+  acknowledging the tenant's claim — idempotent, never double-allocates, refuses rather than
+  silently downgrades when no invoice has been issued yet. Full pgTAP suite: 92 files / 1412
+  tests, 0 failures (was 91/1403 before this pass). Backend: 8 new API routes, all typecheck +
+  lint + `next build` clean. Web: property detail page "Finances" tab (rates & taxes, levy, water/
+  electricity responsibility, monthly budget). Android: "Rent status" paid/unpaid tenant list
+  (More → Rent status), server-authoritative from `rent_schedules.status`, never
+  `payment_reports.status`; `FinancialSummaryRepository`/DI wiring for the dashboard extension
+  below. Clean Kotlin compile on first attempt; full Android gate (tests/lint/debug+release
+  build/AAB) run — see WORKLOG.md for exact results.
+- [ ] **Deferred, disclosed in `UTILITIES_RATES_BUDGET_IMPLEMENTATION.md`**: Android Owner Home
+  financial-dashboard extension (Utilities/Rates & Levies/Budget/Net Position sections) — blocked
+  on reconciling the new property-scoped financial-summary endpoint with Owner Home's existing
+  portfolio-wide `owner_property_summaries` data source; needs a real design decision
+  (extend the summary job vs. a new org-wide RPC), not a rushed guess. Android Add Expense/Utility
+  Capture/Budget View/Utility History screens (API ready, no mobile UI built). Unit-level web
+  setup UI for rates/levy/responsibility (API supports `unitId`, no panel built). Alerts wired
+  into Needs Attention/Notifications (computed and available via API, not yet pushed anywhere).
+- **Exit criteria**: not met — this is the V1 foundation pass (schema, API, payment-ledger fix,
+  property-level web setup, Android paid/unpaid list). The deferred items above are the actual
+  remaining scope for this milestone to close.
+
 ## M23 — Automated testing
 
 - [ ] Full `TESTING.md` suite: unit, RLS/policy (highest priority), accounting invariants, integration, API contract, native (iOS/Android), E2E against seeded multi-org staging.

@@ -4,6 +4,8 @@ import za.co.proplyst.app.data.network.dto.AnnouncementListResponse
 import za.co.proplyst.app.data.network.dto.CreateTenantMaintenanceTicketRequest
 import za.co.proplyst.app.data.network.dto.DocumentDetailResponse
 import za.co.proplyst.app.data.network.dto.DocumentListResponse
+import za.co.proplyst.app.data.network.dto.FinancialSummaryResponse
+import za.co.proplyst.app.data.network.dto.TenantPaymentStatusResponse
 import za.co.proplyst.app.data.network.dto.InsightListResponse
 import za.co.proplyst.app.data.network.dto.InvoiceDetailResponse
 import za.co.proplyst.app.data.network.dto.InvoiceListResponse
@@ -177,4 +179,21 @@ interface WebApi {
 
     @GET("api/v1/properties/{id}")
     suspend fun getPropertyCard(@Path("id") id: String): Response<PropertyCardExtrasDetailResponse>
+
+    /** V1 utilities/rates/levies pass (UTILITIES_RATES_BUDGET_GAP_AUDIT.md §6/§8/§16) -- the one
+     * server-authoritative owner financial dashboard call (rent + expenses + budget + net
+     * position), avoiding N+1 on Owner Home. */
+    @GET("api/v1/properties/{id}/financial-summary")
+    suspend fun getFinancialSummary(
+        @Path("id") propertyId: String,
+        @Query("month") month: String,
+    ): Response<FinancialSummaryResponse>
+
+    /** §6 paid/unpaid tenant list -- reuses rent_schedules.status directly, never
+     * payment_reports.status. */
+    @GET("api/v1/properties/{id}/tenant-payment-status")
+    suspend fun getTenantPaymentStatus(
+        @Path("id") propertyId: String,
+        @Query("month") month: String,
+    ): Response<TenantPaymentStatusResponse>
 }

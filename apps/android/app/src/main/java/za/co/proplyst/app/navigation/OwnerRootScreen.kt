@@ -36,6 +36,7 @@ import za.co.proplyst.app.ui.notifications.NotificationsListScreen
 import za.co.proplyst.app.ui.notificationprefs.NotificationPreferencesScreen
 import za.co.proplyst.app.ui.paymentreview.PaymentReviewListScreen
 import za.co.proplyst.app.ui.ownersummary.OwnerSummaryListScreen
+import za.co.proplyst.app.ui.rentstatus.RentStatusListScreen
 import za.co.proplyst.app.ui.announcements.AnnouncementsListScreen
 import za.co.proplyst.app.ui.properties.PropertiesListScreen
 import za.co.proplyst.app.ui.properties.PropertyDetailScreen
@@ -177,6 +178,9 @@ fun OwnerRootScreen(pendingRoute: String? = null) {
             composable(Destinations.OWNER_SUMMARY_LIST) {
                 OwnerSummaryListScreen()
             }
+            composable(Destinations.RENT_STATUS_LIST) {
+                RentStatusListScreen(onBack = { navController.popBackStack() })
+            }
             composable(Destinations.OWNER_ACTIVITY) {
                 NotificationsListScreen(
                     onSettingsClick = { navController.navigate(Destinations.NOTIFICATION_SETTINGS) },
@@ -191,6 +195,7 @@ fun OwnerRootScreen(pendingRoute: String? = null) {
                     onInvoicesClick = { navController.navigate(Destinations.INVOICES_LIST) },
                     onTenantsClick = { navController.navigate(Destinations.TENANTS_LIST) },
                     onPaymentReviewClick = { navController.navigate(Destinations.PAYMENT_REVIEW_LIST) },
+                    onRentStatusClick = { navController.navigate(Destinations.RENT_STATUS_LIST) },
                     onMaintenanceClick = { navController.navigate(Destinations.MAINTENANCE_LIST) },
                     onNoticesClick = { navController.navigate(Destinations.ANNOUNCEMENTS_LIST) },
                     onSummaryClick = { navController.navigate(Destinations.OWNER_SUMMARY_LIST) },

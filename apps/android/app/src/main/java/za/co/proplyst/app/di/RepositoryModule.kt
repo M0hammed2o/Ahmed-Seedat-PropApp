@@ -23,6 +23,9 @@ import za.co.proplyst.app.data.announcements.WebApiAnnouncementsRepository
 import za.co.proplyst.app.data.documents.MockTenantDocumentsRepository
 import za.co.proplyst.app.data.documents.TenantDocumentsRepository
 import za.co.proplyst.app.data.documents.WebApiTenantDocumentsRepository
+import za.co.proplyst.app.data.financials.FinancialSummaryRepository
+import za.co.proplyst.app.data.financials.MockFinancialSummaryRepository
+import za.co.proplyst.app.data.financials.WebApiFinancialSummaryRepository
 import za.co.proplyst.app.data.insights.MockPortfolioInsightsRepository
 import za.co.proplyst.app.data.insights.PortfolioInsightsRepository
 import za.co.proplyst.app.data.insights.WebApiPortfolioInsightsRepository
@@ -119,6 +122,13 @@ object RepositoryModule {
         real: WebApiPortfolioInsightsRepository,
         mock: MockPortfolioInsightsRepository,
     ): PortfolioInsightsRepository = if (BuildConfig.USE_MOCK_DATA) mock else real
+
+    @Provides
+    @Singleton
+    fun provideFinancialSummaryRepository(
+        real: WebApiFinancialSummaryRepository,
+        mock: MockFinancialSummaryRepository,
+    ): FinancialSummaryRepository = if (BuildConfig.USE_MOCK_DATA) mock else real
 
     @Provides
     @Singleton

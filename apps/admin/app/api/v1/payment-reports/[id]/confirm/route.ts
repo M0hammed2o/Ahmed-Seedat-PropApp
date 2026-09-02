@@ -50,16 +50,26 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     org_id: string | null;
     tenant_id: string | null;
     amount: number | null;
+    ledger_allocated: boolean;
+    invoice_payment_id: string | null;
   };
 
   if (!result.success) {
     const status =
       result.error_code === 'forbidden' ? 403 : result.error_code === 'not_found' ? 404 : 409;
+    // invoice_not_issued/ledger_allocation_failed (migration 165's ledger-allocation fix) get a
+    // more specific message than the generic already_confirmed/already_rejected conflict cases.
+    const message =
+      result.error_code === 'invoice_not_issued'
+        ? 'This payment references a rent period that has not been invoiced yet -- issue the invoice first, then confirm this report.'
+        : result.error_code === 'ledger_allocation_failed'
+          ? 'This payment could not be allocated against the invoice (it may already be fully paid, or the amount does not match the outstanding balance). No changes were made.'
+          : 'Could not confirm this payment report.';
     return NextResponse.json(
       {
         error: {
           code: result.error_code ?? 'unknown',
-          message: 'Could not confirm this payment report.',
+          message,
         },
       },
       { status },
@@ -122,5 +132,9 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     }
   }
 
-  return NextResponse.json({ confirmed: true });
+  return NextResponse.json({
+    confirmed: true,
+    ledgerAllocated: result.ledger_allocated,
+    invoicePaymentId: result.invoice_payment_id,
+  });
 }

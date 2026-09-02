@@ -9,6 +9,7 @@ export * from './portfolio';
 export * from './leasing';
 export * from './operations';
 export * from './accounting';
+export * from './utilities';
 export * from './notifications';
 export * from './email';
 export * from './whatsapp';

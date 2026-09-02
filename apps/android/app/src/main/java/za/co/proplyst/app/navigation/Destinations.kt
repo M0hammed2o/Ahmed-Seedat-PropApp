@@ -65,6 +65,10 @@ object Destinations {
     // Owner monthly property summary (same pass, Phase 8).
     const val OWNER_SUMMARY_LIST = "owner_summary"
 
+    // V1 utilities/rates/levies/budgets pass (UTILITIES_RATES_BUDGET_GAP_AUDIT.md §6) -- paid/
+    // unpaid rent status per property+month, server-authoritative from rent_schedules.
+    const val RENT_STATUS_LIST = "rent_status"
+
     // In-app notifications + settings (same pass, Phase 7/9) -- shared route names across both
     // the Owner and Tenant nested NavHosts (each has its own NavController, so no collision).
     const val NOTIFICATIONS_LIST = "notifications"

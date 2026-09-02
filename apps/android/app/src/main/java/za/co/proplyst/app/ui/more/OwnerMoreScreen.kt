@@ -27,6 +27,7 @@ import androidx.compose.material.icons.outlined.CreditCard
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.People
+import androidx.compose.material.icons.outlined.PriceCheck
 import androidx.compose.material.icons.outlined.Receipt
 import androidx.compose.material.icons.outlined.RequestQuote
 import androidx.compose.material.icons.outlined.Security
@@ -63,6 +64,7 @@ fun OwnerMoreScreen(
     onInvoicesClick: () -> Unit,
     onTenantsClick: () -> Unit,
     onPaymentReviewClick: () -> Unit,
+    onRentStatusClick: () -> Unit,
     onMaintenanceClick: () -> Unit,
     onNoticesClick: () -> Unit,
     onSummaryClick: () -> Unit,
@@ -129,6 +131,8 @@ fun OwnerMoreScreen(
                 MoreRow("Tenants", "Everyone renting across your portfolio", Icons.Outlined.People, onTenantsClick)
                 RowDivider()
                 MoreRow("Payment review", "Confirm or reject reported payments", Icons.Outlined.Receipt, onPaymentReviewClick)
+                RowDivider()
+                MoreRow("Rent status", "Who has paid, who hasn't", Icons.Outlined.PriceCheck, onRentStatusClick)
                 RowDivider()
                 MoreRow("Maintenance", "Every open and completed request", Icons.Outlined.Build, onMaintenanceClick)
                 RowDivider()

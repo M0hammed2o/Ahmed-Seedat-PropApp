@@ -21,6 +21,7 @@ import { ValuationForm } from '@/components/properties/ValuationForm';
 import { PropertyPhotosPanel } from '@/components/properties/PropertyPhotosPanel';
 import { PropertyCompliancePanel } from '@/components/properties/PropertyCompliancePanel';
 import { PropertyManagementPanel } from '@/components/properties/PropertyManagementPanel';
+import { PropertyFinancesPanel } from '@/components/properties/PropertyFinancesPanel';
 import { PropertyDocumentFolders } from '@/components/properties/PropertyDocumentFolders';
 import { PropertyOwnersPanel } from '@/components/properties/PropertyOwnersPanel';
 import { resolveCoverPhotoRow, signCoverPhotoUrl } from '@/lib/propertyPhotos';
@@ -891,6 +892,16 @@ function PropertyDetailView({
           {
             label: 'Management',
             content: <PropertyManagementPanel propertyId={property.id} canManage={canManage} />,
+          },
+          {
+            label: 'Finances',
+            content: (
+              <PropertyFinancesPanel
+                propertyId={property.id}
+                orgId={property.orgId}
+                canManage={canManage}
+              />
+            ),
           },
           {
             label: `Documents (${documents.length})`,
