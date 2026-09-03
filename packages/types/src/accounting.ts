@@ -8,6 +8,7 @@ import type {
   BankTransactionMatchStatus,
   InvoiceStatus,
   ExpenseStatus,
+  ExpenseCategoryCode,
   OwnerStatementStatus,
 } from './enums';
 
@@ -207,6 +208,7 @@ export interface Expense {
   unitId: string | null;
   vendorId: string | null;
   category: string;
+  categoryCode: ExpenseCategoryCode;
   amount: number;
   status: ExpenseStatus;
   documentId: string | null;

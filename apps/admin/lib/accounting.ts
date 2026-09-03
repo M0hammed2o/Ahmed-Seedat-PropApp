@@ -106,6 +106,7 @@ interface ExpenseRow {
   unit_id: string | null;
   vendor_id: string | null;
   category: string;
+  category_code: string;
   amount: number;
   status: string;
   document_id: string | null;
@@ -125,6 +126,7 @@ export function mapExpenseRow(row: ExpenseRow): Expense {
     unitId: row.unit_id,
     vendorId: row.vendor_id,
     category: row.category,
+    categoryCode: row.category_code as Expense['categoryCode'],
     amount: row.amount,
     status: row.status as Expense['status'],
     documentId: row.document_id,

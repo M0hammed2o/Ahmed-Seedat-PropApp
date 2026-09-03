@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { EXPENSE_CATEGORY_CODES } from '@propvault/types';
 
 // Accounting periods API (apps/admin/app/api/v1/accounting-periods -- ACCOUNTING.md §9,
 // TASKS.md M14). No journal-entry create schema here on purpose: ACCOUNTING.md §3 -- "no generic
@@ -20,6 +21,11 @@ export const expenseCreateSchema = z.object({
   unitId: z.string().uuid().optional().nullable(),
   vendorId: z.string().uuid().optional().nullable(),
   category: z.string().min(1, 'Category is required').max(100),
+  // Web financials V1 pass, part 2 (WORKLOG.md this date): the canonical classification, distinct
+  // from `category` above (which stays a free-text label). Required for new rows -- the DB-level
+  // enum + expenses_infer_category_code trigger (migration 20260101000168) is the compatibility
+  // fallback for callers that predate this field, not something new writes should rely on.
+  categoryCode: z.enum(EXPENSE_CATEGORY_CODES),
   amount: z.number().min(0),
   documentId: z.string().uuid().optional().nullable(),
   referenceNumber: z.string().max(100).optional().nullable(),

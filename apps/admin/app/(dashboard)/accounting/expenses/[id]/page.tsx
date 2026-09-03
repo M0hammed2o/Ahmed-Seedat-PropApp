@@ -24,6 +24,7 @@ const DEMO_EXPENSE: Expense = {
   unitId: null,
   vendorId: null,
   category: 'Plumbing repair',
+  categoryCode: 'maintenance',
   amount: 1850,
   status: 'pending',
   documentId: null,

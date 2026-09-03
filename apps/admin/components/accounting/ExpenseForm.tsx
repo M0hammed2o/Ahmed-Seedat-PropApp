@@ -2,9 +2,11 @@
 
 import { useMemo, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import type { ExpenseCategoryCode } from '@propvault/types';
 import { Button } from '@/components/ui/Button';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { uploadEvidenceDocument } from '@/lib/uploadEvidenceDocument';
+import { EXPENSE_CATEGORY_OPTIONS, EXPENSE_CATEGORY_LABELS } from '@/lib/expenseCategories';
 
 // Create-only (POST /api/v1/expenses always inserts status='pending' -- recording is the separate
 // RecordExpenseButton action).
@@ -17,6 +19,15 @@ import { uploadEvidenceDocument } from '@/lib/uploadEvidenceDocument';
 // optional here -- a 'pending' expense may exist with no proof at all (the posting-time evidence
 // gate in POST /api/v1/expenses/:id/record/route.ts is what actually enforces accountability, not
 // this form).
+//
+// Web financials V1 pass, part 2 (WORKLOG.md this date): Category is now a controlled dropdown
+// (EXPENSE_CATEGORY_OPTIONS) driving the new `categoryCode` field -- the ONLY thing dashboard/
+// reports financial bucketing ever reads (migration 20260101000168). The free-text `category`
+// column this form used to let an owner type anything into (e.g. "Plumbing repair") is now set
+// automatically from the chosen option's label, so it stays a meaningful display string without
+// ever being able to drift from the actual classification. Anyone who wants to record a specific
+// description (e.g. "eThekwini Municipality September account") still can -- that's what Notes is
+// for, and it is never read by financial bucketing either.
 
 interface FormOption {
   id: string;
@@ -51,7 +62,9 @@ export function ExpenseForm({
   const [propertyId, setPropertyId] = useState(properties[0]?.id ?? '');
   const [unitId, setUnitId] = useState('');
   const [vendorId, setVendorId] = useState('');
-  const [category, setCategory] = useState('');
+  const [categoryCode, setCategoryCode] = useState<ExpenseCategoryCode>(
+    EXPENSE_CATEGORY_OPTIONS[0]!.value,
+  );
   const [amount, setAmount] = useState('');
   const [referenceNumber, setReferenceNumber] = useState('');
   const [invoiceDate, setInvoiceDate] = useState('');
@@ -99,7 +112,8 @@ export function ExpenseForm({
           propertyId,
           unitId: unitId || null,
           vendorId: vendorId || null,
-          category,
+          category: EXPENSE_CATEGORY_LABELS[categoryCode],
+          categoryCode,
           amount: Number(amount),
           documentId,
           referenceNumber: referenceNumber || null,
@@ -175,17 +189,25 @@ export function ExpenseForm({
 
         <label className="block text-xs">
           <span className="text-light-textMuted dark:text-dark-textMuted">Category</span>
-          <input
+          <select
             required
-            maxLength={100}
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
+            value={categoryCode}
+            onChange={(e) => setCategoryCode(e.target.value as ExpenseCategoryCode)}
             className={inputClass}
-            placeholder="e.g. Plumbing repair"
-          />
-          {fieldErrors.category?.length ? (
+          >
+            {EXPENSE_CATEGORY_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-[11px] text-light-textMuted dark:text-dark-textMuted">
+            Determines how this expense counts toward dashboard/reports totals. Add a specific
+            description in Notes below if useful — it doesn&apos;t affect the category.
+          </p>
+          {fieldErrors.categoryCode?.length ? (
             <p className="mt-1 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">
-              {fieldErrors.category[0]}
+              {fieldErrors.categoryCode[0]}
             </p>
           ) : null}
         </label>

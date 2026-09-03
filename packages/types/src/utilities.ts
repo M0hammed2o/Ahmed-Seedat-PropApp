@@ -147,8 +147,15 @@ export interface OwnerFinancialSummary {
   rentPlanned: number;
   rentCollected: number;
   rentOutstanding: number;
+  /** water + electricity. Kept for backward compatibility -- see the split fields below. */
   utilitiesExpense: number;
+  waterExpense: number;
+  electricityExpense: number;
+  /** ratesTaxesExpense + leviesExpense. Kept for backward compatibility -- see the split fields
+   *  below (web financials V1 pass, part 2, this date: previously the only figure available). */
   ratesAndLeviesExpense: number;
+  ratesTaxesExpense: number;
+  leviesExpense: number;
   otherExpenses: number;
   totalExpenses: number;
   budgetPlanned: number | null;

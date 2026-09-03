@@ -309,6 +309,24 @@ export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
 export const EXPENSE_STATUSES = ['recorded', 'pending', 'reimbursed', 'void'] as const;
 export type ExpenseStatus = (typeof EXPENSE_STATUSES)[number];
 
+// Web financials V1 pass, part 2 (WORKLOG.md this date, migration 20260101000168): the canonical
+// classification every expense is bucketed by for dashboard/reports financial totals -- entirely
+// independent of the free-text `category`/`notes` fields, which remain purely descriptive and are
+// never read by any financial-summary calculation.
+export const EXPENSE_CATEGORY_CODES = [
+  'rates_taxes',
+  'levies',
+  'water',
+  'electricity',
+  'maintenance',
+  'security',
+  'insurance',
+  'cleaning',
+  'management',
+  'other',
+] as const;
+export type ExpenseCategoryCode = (typeof EXPENSE_CATEGORY_CODES)[number];
+
 export const OWNER_STATEMENT_STATUSES = ['draft', 'issued', 'paid'] as const;
 export type OwnerStatementStatus = (typeof OWNER_STATEMENT_STATUSES)[number];
 
