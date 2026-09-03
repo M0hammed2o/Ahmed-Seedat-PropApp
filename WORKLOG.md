@@ -1,5 +1,93 @@
 # Worklog
 
+## 2026-09-03 (continued, 3) — Web financials V1 part 2: rates & taxes split from levies via a canonical expense_category_code, Reports unified with Dashboard/Property Finances
+
+Not a freeze pass -- Mohammed's own words: fixing the exact gaps the previous pass's final report
+disclosed (combined rates-and-levies figure, free-text category-matching reliability, Reports'
+independent figures). No Android/iOS work. No production migrations -- `supabase db reset --local`
+and `supabase test db --local` throughout.
+
+**Root fix, at the database layer, not in React**: `expenses.category` was always free text (`e.g.
+Plumbing repair`), and both financial-summary RPCs bucketed it via case-insensitive string matching
+-- unable to distinguish rates from levies (one combined `rates_and_levies_expense`), and silently
+inaccurate for any expense not typed with one of a fixed list of strings. Migration
+`20260101000168_expense_category_code.sql` adds a real Postgres enum column,
+`expenses.category_code` (rates_taxes/levies/water/electricity/maintenance/security/insurance/
+cleaning/management/other) -- entirely independent of the free-text `category`/`notes` fields, which
+stay purely descriptive. A `BEFORE INSERT OR UPDATE` trigger infers a code from free text ONLY when
+the caller doesn't supply one explicitly (never overwrites an explicit value), so every pre-existing
+row (backfilled once) and every not-yet-updated caller (including this migration's own and the prior
+passes' pgTAP fixtures) keeps working unchanged -- confirmed, not assumed: the full pgTAP suite (93
+files / 1423 tests) and the full pre-existing `owner_financial_summary.test.sql`/
+`owner_portfolio_financial_summary.test.sql` pass with zero edits needed. `owner_financial_summary()`
+/`owner_portfolio_financial_summary()` were dropped and recreated (Postgres disallows
+`CREATE OR REPLACE` on a table-function's column list) with 4 new output columns each
+(water_expense/electricity_expense/rates_taxes_expense/levies_expense) alongside the original
+utilities_expense/rates_and_levies_expense/other_expenses/total_expenses, kept with unchanged
+meaning for backward compatibility (Android's FinancialSummaryDto, untouched, still resolves).
+
+New `supabase/tests/expense_category_code.test.sql` (13 pgTAP assertions) proves the exact scenarios
+asked for: a R1,500 rates + R2,200 levies split reads back as 1500/2200/3700 (never merged); a
+R2,400 water + R1,100 electricity split reads back as 2400/1100/3500; an expense described
+"eThekwini Municipality September account" with category_code=rates_taxes still counts as rates
+(classification is driven by the code, never the text); a settlement expense whose text mentions
+"water"/"electricity"/"rates" but is classified OTHER never leaks into those buckets; an explicitly-
+set category_code survives an unrelated UPDATE (e.g. editing notes) without being silently
+re-inferred; and an unrecognised category_code is rejected by the enum type itself.
+
+**Found and fixed, blocking**: `supabase db reset` from a genuinely empty local instance had never
+actually worked -- migration `20260101000110_provision_first_platform_admin.sql` unconditionally
+inserted a `platform_admin_users` row referencing a specific `auth.users` id that only ever existed
+because it was created via a real signup in a long-lived local session, never by a migration or seed
+file. Guarded with an existence check (skip instead of abort) -- no behavioural change anywhere the
+referenced row already exists (every environment this has already run against, including the linked
+remote project, confirmed still at its own migration 162 and untouched by this session).
+
+**Web -- one financial truth**: `FinancialOverviewSection`'s Operating Costs card now shows Water/
+Electricity (+ their Total utilities subtotal) and Rates & taxes/Levies (+ their Total rates & levies
+subtotal) as their own figures, not one combined number, on both the Dashboard and the property
+Finances tab. `/reports` previously computed its own income/expense figures independently (raw
+`rent_schedules`/`expenses` queries, bucketed by `created_at` not `invoice_date`, no rates/levies/
+utilities split at all) -- now renders the exact same `FinancialOverviewSection`, fed by the same
+`loadPortfolioFinancialOverview()` call Dashboard uses, so Reports and Dashboard are guaranteed
+identical for the same org+month by construction, not by coincidence. The pre-existing 6-month trend/
+occupancy/tenant-status/maintenance charts are a genuinely different concept (portfolio history, not
+a point-in-time summary) and were left alone.
+
+**Web -- expense entry**: Category is now a controlled dropdown (10 canonical options) driving
+`categoryCode`, replacing the free-text input that used to double as both classification and
+description -- Notes (already existed) remains the place for a specific description. `category`
+(the display label) is now set automatically from the chosen option, so it can no longer drift from
+the actual classification. API-level: `expenseCreateSchema` requires `categoryCode` and rejects any
+value outside the canonical set (Zod `z.enum`, backed by the DB enum as a second, unconditional
+layer). Property/unit "rates & levies" panels relabelled "(expected/configured)" with explicit
+"Expected monthly rates & taxes"/"Expected monthly levy" field labels, distinct from the actual
+rates/levies figures shown above them in Financial overview -- never fabricates an actual cost from
+a recurring-cost setting.
+
+**Investigated, not fixed**: the previous pass's final report disclosed a floating widget overlapping
+form content at some mobile scroll positions. Direct DOM/computed-style inspection (not just
+screenshots) at the exact viewports/pages where it appeared found no real fixed or sticky element at
+that position -- `document.elementFromPoint()` and a full-page fixed/sticky-element scan both came up
+empty; the sidebar's own fixed element resolves to a genuine 0x0 `display:none` rect below the `lg`
+(1280px) breakpoint. Root-caused to a Playwright `fullPage` screenshot stitching artifact (a
+`display:none` fixed-position element's last-rendered content getting composited into the output PNG
+at a frozen position) -- never present in an actual rendered page. No code changed; there was nothing
+to fix, and "fixing" already-correct code to chase a screenshot artifact would have been the actual
+mistake.
+
+**Verification**: `tsc --noEmit` clean across `packages/types`, `packages/validation`, `apps/admin`.
+Full-repo `eslint .` clean across the same three. `next build` succeeds. Full pgTAP suite (93/1423,
+including the 13 new assertions and the two untouched pre-existing financial-summary test files) and
+the targeted, directly-relevant Vitest suites (`dashboardKpis`, `expenseCategories`,
+`portfolioIntelligence` -- real local Supabase, unaffected by the category_code change --
+`expenses/:id/record` route) all pass. New Vitest coverage: `expenseCreateSchema` rejects a missing/
+invalid `categoryCode` and accepts every canonical value (`packages/validation`);
+`EXPENSE_CATEGORY_LABELS`/`EXPENSE_CATEGORY_OPTIONS` drift-guarded 1:1 against the canonical set
+(`apps/admin`). Browser-verified (real Playwright screenshots, demo mode, light+dark, 1440/1024/768):
+Dashboard, property Finances tab, Reports, and the expense-entry form's new category dropdown all
+render cleanly with no clipping/overflow.
+
 ## 2026-09-03 (continued, 2) — Web owner financial dashboard: dashboard + property Finances tab wired to the RPCs, budget/utility panel polish, demo-mode fixtures
 
 Follows directly from the same-day continuation pass below, which built `owner_portfolio_financial_summary()`/
