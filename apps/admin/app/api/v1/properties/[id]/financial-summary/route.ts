@@ -10,7 +10,11 @@ interface SummaryRow {
   rent_collected: string;
   rent_outstanding: string;
   utilities_expense: string;
+  water_expense: string;
+  electricity_expense: string;
   rates_and_levies_expense: string;
+  rates_taxes_expense: string;
+  levies_expense: string;
   other_expenses: string;
   total_expenses: string;
   awaiting_confirmation_count: number;
@@ -83,7 +87,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   const rentCollected = Number(summary?.rent_collected ?? 0);
   const rentOutstanding = Number(summary?.rent_outstanding ?? 0);
   const utilitiesExpense = Number(summary?.utilities_expense ?? 0);
+  const waterExpense = Number(summary?.water_expense ?? 0);
+  const electricityExpense = Number(summary?.electricity_expense ?? 0);
   const ratesAndLeviesExpense = Number(summary?.rates_and_levies_expense ?? 0);
+  const ratesTaxesExpense = Number(summary?.rates_taxes_expense ?? 0);
+  const leviesExpense = Number(summary?.levies_expense ?? 0);
   const otherExpenses = Number(summary?.other_expenses ?? 0);
   const totalExpenses = Number(summary?.total_expenses ?? 0);
 
@@ -107,7 +115,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     rentCollected,
     rentOutstanding,
     utilitiesExpense,
+    waterExpense,
+    electricityExpense,
     ratesAndLeviesExpense,
+    ratesTaxesExpense,
+    leviesExpense,
     otherExpenses,
     totalExpenses,
     budgetPlanned,

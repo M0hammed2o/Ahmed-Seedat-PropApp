@@ -9,7 +9,11 @@ interface PortfolioSummaryRow {
   rent_collected: string;
   rent_outstanding: string;
   utilities_expense: string;
+  water_expense: string;
+  electricity_expense: string;
   rates_and_levies_expense: string;
+  rates_taxes_expense: string;
+  levies_expense: string;
   other_expenses: string;
   total_expenses: string;
   budget_planned: string;
@@ -96,7 +100,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     rentCollected,
     rentOutstanding: Number(row?.rent_outstanding ?? 0),
     utilitiesExpense: Number(row?.utilities_expense ?? 0),
+    waterExpense: Number(row?.water_expense ?? 0),
+    electricityExpense: Number(row?.electricity_expense ?? 0),
     ratesAndLeviesExpense: Number(row?.rates_and_levies_expense ?? 0),
+    ratesTaxesExpense: Number(row?.rates_taxes_expense ?? 0),
+    leviesExpense: Number(row?.levies_expense ?? 0),
     otherExpenses: Number(row?.other_expenses ?? 0),
     totalExpenses,
     budgetPlanned: budgetPlanned || null,

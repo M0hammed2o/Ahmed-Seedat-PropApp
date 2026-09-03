@@ -245,21 +245,22 @@ export function PropertyFinancesPanel({
       ) : null}
 
       <Panel>
-        <h3 className="mb-3 text-sm font-semibold">Property-level rates & levies</h3>
+        <h3 className="mb-3 text-sm font-semibold">Property-level rates & levies (expected/configured)</h3>
         <p className="mb-3 text-xs text-muted-foreground">
           For a property owned as a whole building/complex. If this property is sectional-title
           (individually owned units), set rates & taxes and levies per unit instead, on each unit's
-          own page.
+          own page. These are the recurring amounts you expect to pay each month -- not the same as
+          the actual rates/levies expenses recorded above, which come only from posted expenses.
         </p>
         <div className="grid grid-cols-2 gap-4">
           <RecurringCostField
-            label="Rates & taxes"
+            label="Expected monthly rates & taxes"
             current={currentRates}
             disabled={!manageable || busy}
             onSave={(amount) => setCost('rates_and_taxes', amount)}
           />
           <RecurringCostField
-            label="Levy"
+            label="Expected monthly levy"
             current={currentLevy}
             disabled={!manageable || busy}
             onSave={(amount) => setCost('levy', amount)}

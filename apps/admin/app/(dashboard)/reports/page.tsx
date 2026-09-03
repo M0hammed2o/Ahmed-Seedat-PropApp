@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Download } from 'lucide-react';
-import { MAINTENANCE_STATUSES, RENT_SCHEDULE_STATUSES } from '@propvault/types';
+import { MAINTENANCE_STATUSES, RENT_SCHEDULE_STATUSES, type OwnerFinancialSummary } from '@propvault/types';
 import { MiniBarChart } from '@/components/ui/MiniBarChart';
 import { MiniLineChart } from '@/components/ui/MiniLineChart';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -9,6 +9,10 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { Panel } from '@/components/ui/Panel';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
+import { resolvePortalSession } from '@/lib/orgSession';
+import { resolveSummaryMonth, resolvePeriodRange } from '@/lib/dashboardKpis';
+import { loadPortfolioFinancialOverview } from '@/lib/financialOverview';
+import { FinancialOverviewSection } from '@/components/dashboard/FinancialOverviewSection';
 
 function currency(n: number): string {
   return `R${Math.round(n).toLocaleString('en-ZA')}`;
@@ -72,6 +76,25 @@ export default async function ReportsPage() {
           </div>
         ))}
       </div>
+
+      {/* Web financials V1 pass, part 2 (WORKLOG.md this date): Reports previously computed its
+          own income/expense figures independently of Dashboard/Property Finances (raw
+          rent_schedules/expenses queries, bucketed by created_at rather than invoice_date, no
+          rates/levies/utilities split at all) -- the exact "multiple independent definitions of
+          the same concept" the task's own audit flagged. This reuses the SAME
+          FinancialOverviewSection component, fed by the SAME loadPortfolioFinancialOverview() call
+          the dashboard uses, for the current month -- by construction, Reports and Dashboard show
+          identical rent/utilities/rates & taxes/levies/other/total/operating-position figures for
+          the same org+month. The chart panels below (6-month trend, occupancy, etc.) are a
+          different, genuinely distinct concept (a portfolio-wide history/breakdown) and are left as
+          they were. */}
+      <FinancialOverviewSection
+        summary={data.financialOverview}
+        monthLabel={data.financialOverviewMonthLabel}
+        periodLabel={data.financialOverviewMonthLabel}
+        manageBudgetHref="/properties"
+        manageUtilitiesHref="/properties"
+      />
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <Panel title="Income vs Expense Trend">
@@ -186,6 +209,8 @@ interface ReportsData {
     collectionRatePct: number;
     maintenanceSpendYtd: number;
   };
+  financialOverview: OwnerFinancialSummary | null;
+  financialOverviewMonthLabel: string;
 }
 
 function demoData(): ReportsData {
@@ -210,6 +235,30 @@ function demoData(): ReportsData {
       avgOccupancyPct: 92,
       collectionRatePct: 94,
       maintenanceSpendYtd: 1850,
+    },
+    financialOverviewMonthLabel: 'August 2026',
+    financialOverview: {
+      propertyId: null,
+      propertyCount: 4,
+      month: '2026-08-01',
+      rentPlanned: 90700,
+      rentCollected: 84500,
+      rentOutstanding: 6200,
+      utilitiesExpense: 2850,
+      waterExpense: 1650,
+      electricityExpense: 1200,
+      ratesAndLeviesExpense: 3100,
+      ratesTaxesExpense: 1950,
+      leviesExpense: 1150,
+      otherExpenses: 1450,
+      totalExpenses: 7400,
+      budgetPlanned: 9000,
+      budgetUsedPercent: 82.2,
+      budgetRemaining: 1600,
+      netOperatingPosition: 77100,
+      awaitingConfirmationCount: 1,
+      budgetAlerts: [],
+      utilityAnomalyAlerts: [],
     },
   };
 }
@@ -309,11 +358,25 @@ async function loadData(): Promise<ReportsData> {
     .filter((b) => b.status === 'paid')
     .reduce((sum, b) => sum + Number(b.amount), 0);
 
+  // Web financials V1 pass, part 2 (WORKLOG.md this date): the one authoritative financial
+  // summary, same source Dashboard's own FinancialOverviewSection uses -- current month, portfolio-
+  // wide (Reports has no property filter of its own).
+  const session = await resolvePortalSession();
+  const activeOrgId = session?.organizations.find((m) => m.status === 'active')?.orgId;
+  const { month: summaryMonth, monthLabel: financialOverviewMonthLabel } = resolveSummaryMonth(
+    resolvePeriodRange('this_month', {}, new Date()),
+  );
+  const financialOverview = activeOrgId
+    ? await loadPortfolioFinancialOverview(supabase, activeOrgId, summaryMonth)
+    : null;
+
   return {
     incomeExpense,
     occupancy,
     rentStatusCounts,
     maintenanceStatusCounts,
     stats: { revenueYtd, avgOccupancyPct, collectionRatePct, maintenanceSpendYtd },
+    financialOverview,
+    financialOverviewMonthLabel,
   };
 }

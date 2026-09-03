@@ -186,21 +186,21 @@ export function UnitFinancesPanel({
         </div>
       ) : null}
 
-      <Panel title="Rates, taxes & levy (unit level)">
+      <Panel title="Rates, taxes & levy (unit level, expected/configured)">
         <p className="mb-3 text-xs text-muted-foreground">
           For a sectional-title unit owned individually. Leave blank if not applicable -- e.g. a
           whole-building owner sets rates at the property level instead, and levies may not apply
-          at all.
+          at all. These are expected monthly amounts, not the same as actual recorded expenses.
         </p>
         <div className="grid grid-cols-2 gap-4">
           <RecurringCostField
-            label="Rates & taxes"
+            label="Expected monthly rates & taxes"
             current={currentRates}
             disabled={!manageable || busy}
             onSave={(amount) => setCost('rates_and_taxes', amount)}
           />
           <RecurringCostField
-            label="Levy"
+            label="Expected monthly levy"
             current={currentLevy}
             disabled={!manageable || busy}
             onSave={(amount) => setCost('levy', amount)}

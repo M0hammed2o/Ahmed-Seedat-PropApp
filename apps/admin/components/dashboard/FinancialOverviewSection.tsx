@@ -98,17 +98,54 @@ export function FinancialOverviewSection({
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        {/* Operating costs breakdown */}
+        {/* Operating costs breakdown -- web financials V1 pass, part 2 (this date): rates & taxes
+            and levies now come from expenses.category_code (migration 20260101000168), never
+            free-text matching, and are shown as their own figures rather than one combined
+            "Rates & levies" total -- grouped visually with a small subtotal each, so the section
+            still reads as a hierarchy (Utilities / Rates & levies / Other -> Total) instead of six
+            flat, equally-weighted numbers. */}
         <div className="rounded-2xl border border-border p-4">
           <p className="mb-3 text-[11px] font-semibold tracking-[0.1em] text-muted-foreground uppercase">
             Operating costs
           </p>
-          <div className="grid grid-cols-2 gap-3">
-            <CostTile icon={Droplets} label="Utilities" value={summary.utilitiesExpense} />
-            <CostTile icon={Zap} label="Rates &amp; levies" value={summary.ratesAndLeviesExpense} />
-            <CostTile icon={Receipt} label="Other expenses" value={summary.otherExpenses} />
-            <CostTile icon={Banknote} label="Total expenses" value={summary.totalExpenses} emphasize />
+
+          <div className="space-y-3">
+            <CostGroup
+              icon={Droplets}
+              subtotalLabel="Total utilities"
+              subtotal={summary.waterExpense + summary.electricityExpense}
+              items={[
+                { label: 'Water', value: summary.waterExpense },
+                { label: 'Electricity', value: summary.electricityExpense },
+              ]}
+            />
+            <CostGroup
+              icon={Zap}
+              subtotalLabel="Total rates & levies"
+              subtotal={summary.ratesTaxesExpense + summary.leviesExpense}
+              items={[
+                { label: 'Rates & taxes', value: summary.ratesTaxesExpense },
+                { label: 'Levies', value: summary.leviesExpense },
+              ]}
+            />
+            <div className="flex items-center justify-between border-t border-border pt-3">
+              <span className="flex items-center gap-2 text-[13px] text-muted-foreground">
+                <Receipt className="h-3.5 w-3.5" aria-hidden="true" /> Other expenses
+              </span>
+              <span className="tabular text-[13px] font-semibold text-foreground">
+                {currency(summary.otherExpenses)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between border-t border-border pt-3">
+              <span className="flex items-center gap-2 text-[13px] font-semibold text-foreground">
+                <Banknote className="h-3.5 w-3.5" aria-hidden="true" /> Total expenses
+              </span>
+              <span className="tabular font-display text-[16px] font-bold text-foreground">
+                {currency(summary.totalExpenses)}
+              </span>
+            </div>
           </div>
+
           <Link
             href={manageUtilitiesHref}
             className="mt-3 inline-block text-[11px] font-medium text-primary hover:underline"
@@ -177,6 +214,37 @@ export function FinancialOverviewSection({
         </div>
       </div>
     </Panel>
+  );
+}
+
+function CostGroup({
+  icon: Icon,
+  subtotalLabel,
+  subtotal,
+  items,
+}: {
+  icon: typeof Banknote;
+  subtotalLabel: string;
+  subtotal: number;
+  items: { label: string; value: number }[];
+}) {
+  return (
+    <div className="rounded-xl bg-surface/60 p-3">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+          <Icon className="h-3.5 w-3.5" aria-hidden="true" /> {subtotalLabel}
+        </span>
+        <span className="tabular text-[13px] font-bold text-foreground">{currency(subtotal)}</span>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {items.map((item) => (
+          <div key={item.label}>
+            <p className="truncate text-[11px] text-muted-foreground">{item.label}</p>
+            <p className="tabular text-[13px] font-medium text-foreground">{currency(item.value)}</p>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
