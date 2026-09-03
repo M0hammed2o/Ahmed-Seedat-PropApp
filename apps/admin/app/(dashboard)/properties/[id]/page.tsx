@@ -26,13 +26,21 @@ import { PropertyUtilityMetersPanel } from '@/components/properties/PropertyUtil
 import { PropertyDocumentFolders } from '@/components/properties/PropertyDocumentFolders';
 import { PropertyOwnersPanel } from '@/components/properties/PropertyOwnersPanel';
 import { resolveCoverPhotoRow, signCoverPhotoUrl } from '@/lib/propertyPhotos';
-import { resolvePeriodRange, computeDashboardKpis, type DashboardPeriod } from '@/lib/dashboardKpis';
+import {
+  resolvePeriodRange,
+  computeDashboardKpis,
+  resolveSummaryMonth,
+  type DashboardPeriod,
+} from '@/lib/dashboardKpis';
 import { PropertyAccountingFilterBar } from '@/components/properties/PropertyAccountingFilterBar';
 import { PropertyActionsPanel } from '@/components/properties/PropertyActionsPanel';
+import { loadPropertyFinancialOverview } from '@/lib/financialOverview';
+import { FinancialOverviewSection } from '@/components/dashboard/FinancialOverviewSection';
+import type { OwnerFinancialSummary } from '@propvault/types';
 
 type RouteParams = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ period?: string; from?: string; to?: string }>;
+  searchParams: Promise<{ period?: string; from?: string; to?: string; tab?: string }>;
 };
 
 interface PropertyTenant {
@@ -150,9 +158,30 @@ const DEMO_TENANTS: PropertyTenant[] = [
   { id: 'demo-tenant-1', fullName: 'Naledi Khumalo', unitLabel: 'Unit 1', rentAmount: 12500, leaseStatus: 'active' },
 ];
 
+const DEMO_FINANCIAL_OVERVIEW: OwnerFinancialSummary = {
+  propertyId: 'demo-property-1',
+  month: '2026-08-01',
+  rentPlanned: 12500,
+  rentCollected: 12500,
+  rentOutstanding: 0,
+  utilitiesExpense: 950,
+  ratesAndLeviesExpense: 2200,
+  otherExpenses: 1050,
+  totalExpenses: 4200,
+  budgetPlanned: 5000,
+  budgetUsedPercent: 84,
+  budgetRemaining: 800,
+  netOperatingPosition: 8300,
+  awaitingConfirmationCount: 0,
+  budgetAlerts: [
+    { propertyId: 'demo-property-1', month: '2026-08-01', level: 'approaching', percentUsed: 84 },
+  ],
+  utilityAnomalyAlerts: [],
+};
+
 export default async function PropertyDetailPage({ params, searchParams }: RouteParams) {
   const { id } = await params;
-  const { period: periodParam, from, to } = await searchParams;
+  const { period: periodParam, from, to, tab } = await searchParams;
   const period: DashboardPeriod =
     periodParam === 'last_month' || periodParam === 'ytd' || periodParam === 'custom'
       ? periodParam
@@ -181,6 +210,8 @@ export default async function PropertyDetailPage({ params, searchParams }: Route
           paymentsAwaitingConfirmation: 0,
           recentTransactions: [],
         }}
+        financialOverview={DEMO_FINANCIAL_OVERVIEW}
+        financialOverviewMonthLabel="August 2026"
         canManage
         isPrincipal
         coverPhotoUrl={null}
@@ -192,6 +223,7 @@ export default async function PropertyDetailPage({ params, searchParams }: Route
           hasLease: true,
           hasDocuments: true,
         }}
+        defaultTab={tab === 'Finances' ? 'Finances' : undefined}
       />
     );
   }
@@ -246,15 +278,27 @@ export default async function PropertyDetailPage({ params, searchParams }: Route
     .select('id, slug, label');
   const categoryLabelById = new Map((categoryRows ?? []).map((c) => [c.id, c.label]));
 
-  const [tenants, applications, accounting, accountingDetail, coverPhotoUrl, setupProgress] =
-    await Promise.all([
-      loadPropertyTenants(supabase, units),
-      loadPropertyApplications(supabase, units),
-      loadPropertyAccounting(supabase, units),
-      loadPropertyAccountingDetail(supabase, id, units, period, { from, to }),
-      loadCoverPhotoUrl(supabase, id),
-      loadSetupProgress(supabase, id, units, property.estimatedValue !== null),
-    ]);
+  const { month: summaryMonth, monthLabel: financialOverviewMonthLabel } = resolveSummaryMonth(
+    resolvePeriodRange(period, { from, to }, new Date()),
+  );
+
+  const [
+    tenants,
+    applications,
+    accounting,
+    accountingDetail,
+    coverPhotoUrl,
+    setupProgress,
+    financialOverview,
+  ] = await Promise.all([
+    loadPropertyTenants(supabase, units),
+    loadPropertyApplications(supabase, units),
+    loadPropertyAccounting(supabase, units),
+    loadPropertyAccountingDetail(supabase, id, units, period, { from, to }),
+    loadCoverPhotoUrl(supabase, id),
+    loadSetupProgress(supabase, id, units, property.estimatedValue !== null),
+    loadPropertyFinancialOverview(supabase, id, summaryMonth),
+  ]);
 
   const session = await resolvePortalSession();
   const membership = session ? findActiveMembership(session, property.orgId) : undefined;
@@ -272,10 +316,13 @@ export default async function PropertyDetailPage({ params, searchParams }: Route
       categoryLabelById={categoryLabelById}
       accounting={accounting}
       accountingDetail={accountingDetail}
+      financialOverview={financialOverview}
+      financialOverviewMonthLabel={financialOverviewMonthLabel}
       canManage={canManage}
       isPrincipal={isPrincipal}
       coverPhotoUrl={coverPhotoUrl}
       setupProgress={setupProgress}
+      defaultTab={tab === 'Finances' ? 'Finances' : undefined}
     />
   );
 }
@@ -606,10 +653,13 @@ function PropertyDetailView({
   categoryLabelById,
   accounting,
   accountingDetail,
+  financialOverview,
+  financialOverviewMonthLabel,
   canManage,
   isPrincipal,
   coverPhotoUrl,
   setupProgress,
+  defaultTab,
 }: {
   property: Property;
   units: UnitRow[];
@@ -620,10 +670,13 @@ function PropertyDetailView({
   categoryLabelById: Map<string, string>;
   accounting: PropertyAccounting;
   accountingDetail: PropertyAccountingDetail;
+  financialOverview: OwnerFinancialSummary | null;
+  financialOverviewMonthLabel: string;
   canManage: boolean;
   isPrincipal: boolean;
   coverPhotoUrl: string | null;
   setupProgress: SetupProgress;
+  defaultTab?: string;
 }) {
   const addUnitAction = (
     <Link
@@ -757,7 +810,7 @@ function PropertyDetailView({
       ) : null}
 
       <SimpleTabs
-        defaultTab="Overview"
+        defaultTab={defaultTab ?? 'Overview'}
         tabs={[
           {
             label: 'Overview',
@@ -898,16 +951,25 @@ function PropertyDetailView({
             label: 'Finances',
             content: (
               <div className="space-y-4">
+                <FinancialOverviewSection
+                  summary={financialOverview}
+                  monthLabel={financialOverviewMonthLabel}
+                  periodLabel={financialOverviewMonthLabel}
+                  manageBudgetHref="#property-budget"
+                  manageUtilitiesHref="#property-utility-meters"
+                />
                 <PropertyFinancesPanel
                   propertyId={property.id}
                   orgId={property.orgId}
                   canManage={canManage}
+                  demoMode={ADMIN_DEMO_MODE}
                 />
                 <PropertyUtilityMetersPanel
                   propertyId={property.id}
                   orgId={property.orgId}
                   units={units.map((u) => ({ id: u.id, unitLabel: u.unitLabel }))}
                   canManage={canManage}
+                  demoMode={ADMIN_DEMO_MODE}
                 />
               </div>
             ),

@@ -31,16 +31,60 @@ const UNIT_RESPONSIBILITY_MODES = (Object.keys(RESPONSIBILITY_LABELS) as Utility
   (mode) => mode !== 'common_area_owner',
 );
 
+// Demo mode fixture (§13, web owner financial dashboard pass, this date) -- same rule
+// PropertyFinancesPanel's own DEMO_COSTS/DEMO_SETTINGS follow.
+const DEMO_UNIT_TIMESTAMPS = { createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' };
+const DEMO_UNIT_COSTS: RecurringPropertyCost[] = [
+  {
+    id: 'demo-unit-cost-levy',
+    orgId: 'demo-org-1',
+    propertyId: 'demo-property-1',
+    unitId: 'demo-unit-1',
+    costType: 'levy',
+    amount: 950,
+    effectiveFrom: '2026-01-01',
+    effectiveTo: null,
+    notes: null,
+    ...DEMO_UNIT_TIMESTAMPS,
+  },
+];
+const DEMO_UNIT_SETTINGS: UtilityResponsibilitySetting[] = [
+  {
+    id: 'demo-unit-setting-water',
+    orgId: 'demo-org-1',
+    propertyId: 'demo-property-1',
+    unitId: 'demo-unit-1',
+    utilityType: 'water',
+    responsibilityMode: 'owner_paid',
+    active: true,
+    notes: null,
+    ...DEMO_UNIT_TIMESTAMPS,
+  },
+  {
+    id: 'demo-unit-setting-electricity',
+    orgId: 'demo-org-1',
+    propertyId: 'demo-property-1',
+    unitId: 'demo-unit-1',
+    utilityType: 'electricity',
+    responsibilityMode: 'tenant_prepaid',
+    active: true,
+    notes: null,
+    ...DEMO_UNIT_TIMESTAMPS,
+  },
+];
+
 export function UnitFinancesPanel({
   propertyId,
   unitId,
   orgId,
   canManage,
+  demoMode,
 }: {
   propertyId: string;
   unitId: string;
   orgId: string;
   canManage: boolean;
+  demoMode?: boolean;
 }) {
   const [costs, setCosts] = useState<RecurringPropertyCost[]>([]);
   const [settings, setSettings] = useState<UtilityResponsibilitySetting[]>([]);
@@ -50,8 +94,15 @@ export function UnitFinancesPanel({
 
   const [waterMode, setWaterMode] = useState<UtilityResponsibilityMode>('owner_paid');
   const [electricityMode, setElectricityMode] = useState<UtilityResponsibilityMode>('owner_paid');
+  const manageable = canManage && !demoMode;
 
   const load = useCallback(async () => {
+    if (demoMode) {
+      setCosts(DEMO_UNIT_COSTS);
+      setSettings(DEMO_UNIT_SETTINGS);
+      setLoaded(true);
+      return;
+    }
     setError(null);
     const [costsRes, settingsRes] = await Promise.all([
       fetch(`/api/v1/properties/${propertyId}/recurring-costs?unitId=${unitId}`),
@@ -62,7 +113,7 @@ export function UnitFinancesPanel({
     if (costsBody) setCosts(costsBody.recurringCosts ?? []);
     if (settingsBody) setSettings(settingsBody.utilitySettings ?? []);
     setLoaded(true);
-  }, [propertyId, unitId]);
+  }, [propertyId, unitId, demoMode]);
 
   useEffect(() => {
     load();
@@ -135,7 +186,7 @@ export function UnitFinancesPanel({
         </div>
       ) : null}
 
-      <Panel title="Rates, taxes & levy">
+      <Panel title="Rates, taxes & levy (unit level)">
         <p className="mb-3 text-xs text-muted-foreground">
           For a sectional-title unit owned individually. Leave blank if not applicable -- e.g. a
           whole-building owner sets rates at the property level instead, and levies may not apply
@@ -145,24 +196,24 @@ export function UnitFinancesPanel({
           <RecurringCostField
             label="Rates & taxes"
             current={currentRates}
-            disabled={!canManage || busy}
+            disabled={!manageable || busy}
             onSave={(amount) => setCost('rates_and_taxes', amount)}
           />
           <RecurringCostField
             label="Levy"
             current={currentLevy}
-            disabled={!canManage || busy}
+            disabled={!manageable || busy}
             onSave={(amount) => setCost('levy', amount)}
           />
         </div>
       </Panel>
 
-      <Panel title="Utility responsibility">
+      <Panel title="Utility responsibility (unit level)">
         <div className="grid grid-cols-2 gap-4">
           <ResponsibilityField
             label="Water"
             value={currentWater?.responsibilityMode ?? waterMode}
-            disabled={!canManage || busy}
+            disabled={!manageable || busy}
             onChange={(mode) => {
               setWaterMode(mode);
               setResponsibility('water', mode);
@@ -171,7 +222,7 @@ export function UnitFinancesPanel({
           <ResponsibilityField
             label="Electricity"
             value={currentElectricity?.responsibilityMode ?? electricityMode}
-            disabled={!canManage || busy}
+            disabled={!manageable || busy}
             onChange={(mode) => {
               setElectricityMode(mode);
               setResponsibility('electricity', mode);

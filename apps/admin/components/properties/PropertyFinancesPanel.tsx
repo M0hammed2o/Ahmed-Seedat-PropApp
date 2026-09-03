@@ -8,8 +8,17 @@ import type {
   BudgetVsActual,
 } from '@propvault/types';
 import { Button } from '@/components/ui/Button';
+import { Meter } from '@/components/ui/Meter';
 import { Panel } from '@/components/ui/Panel';
+import { Pill, type PillTone } from '@/components/ui/Pill';
 import { safeJson } from '@/lib/safeJson';
+
+function budgetStatus(percentUsed: number | null): { label: string; tone: PillTone } {
+  if (percentUsed === null) return { label: 'Not configured', tone: 'neutral' };
+  if (percentUsed >= 100) return { label: 'Over budget', tone: 'destructive' };
+  if (percentUsed >= 80) return { label: 'Approaching budget', tone: 'warning' };
+  return { label: 'On track', tone: 'success' };
+}
 
 // V1 utilities/rates/levies/budgets pass (UTILITIES_RATES_BUDGET_GAP_AUDIT.md §5A,
 // UTILITIES_RATES_BUDGET_IMPLEMENTATION.md). Property-level setup only -- unit-level rates/levy/
@@ -30,14 +39,82 @@ function currentMonth(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
 }
 
+// Demo mode fixture (§13, web owner financial dashboard pass, this date): ADMIN_DEMO_MODE's
+// property detail page reuses this exact client component rather than a separate demo view, but
+// 'demo-property-1' is not a real row in any backing Supabase project -- without this, the panel's
+// own fetch()es would 404/error against whatever project is actually configured. `demoMode` skips
+// the network call entirely and renders realistic static figures instead, same rule DEMO_DATA on
+// the main dashboard already follows.
+const DEMO_TIMESTAMPS = { createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' };
+const DEMO_COSTS: RecurringPropertyCost[] = [
+  {
+    id: 'demo-cost-rates',
+    orgId: 'demo-org-1',
+    propertyId: 'demo-property-1',
+    unitId: null,
+    costType: 'rates_and_taxes',
+    amount: 1450,
+    effectiveFrom: '2026-01-01',
+    effectiveTo: null,
+    notes: null,
+    ...DEMO_TIMESTAMPS,
+  },
+  {
+    id: 'demo-cost-levy',
+    orgId: 'demo-org-1',
+    propertyId: 'demo-property-1',
+    unitId: null,
+    costType: 'levy',
+    amount: 750,
+    effectiveFrom: '2026-01-01',
+    effectiveTo: null,
+    notes: null,
+    ...DEMO_TIMESTAMPS,
+  },
+];
+const DEMO_SETTINGS: UtilityResponsibilitySetting[] = [
+  {
+    id: 'demo-setting-water',
+    orgId: 'demo-org-1',
+    propertyId: 'demo-property-1',
+    unitId: null,
+    utilityType: 'water',
+    responsibilityMode: 'owner_paid',
+    active: true,
+    notes: null,
+    ...DEMO_TIMESTAMPS,
+  },
+  {
+    id: 'demo-setting-electricity',
+    orgId: 'demo-org-1',
+    propertyId: 'demo-property-1',
+    unitId: null,
+    utilityType: 'electricity',
+    responsibilityMode: 'tenant_prepaid',
+    active: true,
+    notes: null,
+    ...DEMO_TIMESTAMPS,
+  },
+];
+const DEMO_BUDGET: BudgetVsActual = {
+  budgetId: 'demo-budget-1',
+  plannedAmount: 5000,
+  actualAmount: 4200,
+  remainingAmount: 800,
+  varianceAmount: -800,
+  percentUsed: 84,
+};
+
 export function PropertyFinancesPanel({
   propertyId,
   orgId,
   canManage,
+  demoMode,
 }: {
   propertyId: string;
   orgId: string;
   canManage: boolean;
+  demoMode?: boolean;
 }) {
   const [costs, setCosts] = useState<RecurringPropertyCost[]>([]);
   const [settings, setSettings] = useState<UtilityResponsibilitySetting[]>([]);
@@ -50,8 +127,16 @@ export function PropertyFinancesPanel({
   const [electricityMode, setElectricityMode] = useState<UtilityResponsibilityMode>('owner_paid');
   const [budgetAmount, setBudgetAmount] = useState('');
   const month = currentMonth();
+  const manageable = canManage && !demoMode;
 
   const load = useCallback(async () => {
+    if (demoMode) {
+      setCosts(DEMO_COSTS);
+      setSettings(DEMO_SETTINGS);
+      setBudgetVsActual(DEMO_BUDGET);
+      setLoaded(true);
+      return;
+    }
     setError(null);
     const [costsRes, settingsRes, budgetRes] = await Promise.all([
       fetch(`/api/v1/properties/${propertyId}/recurring-costs`),
@@ -65,7 +150,7 @@ export function PropertyFinancesPanel({
     if (settingsBody) setSettings(settingsBody.utilitySettings);
     if (budgetBody) setBudgetVsActual(budgetBody.budgetVsActual);
     setLoaded(true);
-  }, [propertyId, month]);
+  }, [propertyId, month, demoMode]);
 
   useEffect(() => {
     load();
@@ -170,25 +255,25 @@ export function PropertyFinancesPanel({
           <RecurringCostField
             label="Rates & taxes"
             current={currentRates}
-            disabled={!canManage || busy}
+            disabled={!manageable || busy}
             onSave={(amount) => setCost('rates_and_taxes', amount)}
           />
           <RecurringCostField
             label="Levy"
             current={currentLevy}
-            disabled={!canManage || busy}
+            disabled={!manageable || busy}
             onSave={(amount) => setCost('levy', amount)}
           />
         </div>
       </Panel>
 
       <Panel>
-        <h3 className="mb-3 text-sm font-semibold">Utility responsibility</h3>
+        <h3 className="mb-3 text-sm font-semibold">Utility responsibility (property level)</h3>
         <div className="grid grid-cols-2 gap-4">
           <ResponsibilityField
             label="Water"
             value={currentWater?.responsibilityMode ?? waterMode}
-            disabled={!canManage || busy}
+            disabled={!manageable || busy}
             onChange={(mode) => {
               setWaterMode(mode);
               setResponsibility('water', mode);
@@ -197,7 +282,7 @@ export function PropertyFinancesPanel({
           <ResponsibilityField
             label="Electricity"
             value={currentElectricity?.responsibilityMode ?? electricityMode}
-            disabled={!canManage || busy}
+            disabled={!manageable || busy}
             onChange={(mode) => {
               setElectricityMode(mode);
               setResponsibility('electricity', mode);
@@ -206,22 +291,43 @@ export function PropertyFinancesPanel({
         </div>
       </Panel>
 
-      <Panel>
-        <h3 className="mb-3 text-sm font-semibold">Monthly budget</h3>
+      <Panel id="property-budget">
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-sm font-semibold">Monthly budget</h3>
+          {budgetVsActual?.plannedAmount !== null && budgetVsActual?.plannedAmount !== undefined ? (
+            <Pill tone={budgetStatus(budgetVsActual.percentUsed ?? null).tone}>
+              {budgetStatus(budgetVsActual.percentUsed ?? null).label}
+            </Pill>
+          ) : null}
+        </div>
         {budgetVsActual?.plannedAmount !== null && budgetVsActual?.plannedAmount !== undefined ? (
-          <div className="mb-3 grid grid-cols-4 gap-3 text-xs">
-            <Metric label="Planned" value={`R ${budgetVsActual.plannedAmount.toLocaleString()}`} />
-            <Metric label="Actual" value={`R ${budgetVsActual.actualAmount.toLocaleString()}`} />
-            <Metric
-              label="Remaining"
-              value={`R ${(budgetVsActual.remainingAmount ?? 0).toLocaleString()}`}
-            />
-            <Metric label="% used" value={`${budgetVsActual.percentUsed ?? 0}%`} />
-          </div>
+          <>
+            <div className="mb-3 grid grid-cols-4 gap-3 text-xs">
+              <Metric label="Planned" value={`R ${budgetVsActual.plannedAmount.toLocaleString()}`} />
+              <Metric label="Actual" value={`R ${budgetVsActual.actualAmount.toLocaleString()}`} />
+              <Metric
+                label="Remaining"
+                value={`R ${(budgetVsActual.remainingAmount ?? 0).toLocaleString()}`}
+              />
+              <Metric label="% used" value={`${budgetVsActual.percentUsed ?? 0}%`} />
+            </div>
+            <div className="mb-3">
+              <Meter
+                value={budgetVsActual.percentUsed ?? 0}
+                tone={
+                  (budgetVsActual.percentUsed ?? 0) >= 100
+                    ? 'destructive'
+                    : (budgetVsActual.percentUsed ?? 0) >= 80
+                      ? 'warning'
+                      : 'success'
+                }
+              />
+            </div>
+          </>
         ) : (
-          <p className="mb-3 text-xs text-muted-foreground">No budget set for this month yet.</p>
+          <p className="mb-3 text-xs text-muted-foreground">Budget not configured for this month yet.</p>
         )}
-        {canManage ? (
+        {manageable ? (
           <form onSubmit={handleBudgetSubmit} className="flex items-end gap-2">
             <label className="block text-xs">
               <span className="text-muted-foreground">This month&apos;s planned amount (R)</span>
@@ -242,7 +348,7 @@ export function PropertyFinancesPanel({
         ) : null}
       </Panel>
 
-      <AnnualBudgetPanel propertyId={propertyId} orgId={orgId} canManage={canManage} />
+      <AnnualBudgetPanel propertyId={propertyId} orgId={orgId} canManage={manageable} demoMode={demoMode} />
     </div>
   );
 }
@@ -259,10 +365,12 @@ function AnnualBudgetPanel({
   propertyId,
   orgId,
   canManage,
+  demoMode,
 }: {
   propertyId: string;
   orgId: string;
   canManage: boolean;
+  demoMode?: boolean;
 }) {
   const [year, setYear] = useState(currentYear());
   const [months, setMonths] = useState<{ month: string; planned: number | null }[]>([]);
@@ -276,6 +384,13 @@ function AnnualBudgetPanel({
   const load = useCallback(async () => {
     setLoaded(false);
     const monthKeys = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}-01`);
+    if (demoMode) {
+      // A realistic partial year -- most months set, the current one still open, matching what an
+      // owner who has only just started budgeting would actually see.
+      setMonths(monthKeys.map((m, i) => ({ month: m, planned: i < 8 ? 5000 : null })));
+      setLoaded(true);
+      return;
+    }
     const results = await Promise.all(
       monthKeys.map((m) =>
         fetch(`/api/v1/properties/${propertyId}/budget?month=${m}`).then((r) => safeJson(r)),
@@ -288,7 +403,7 @@ function AnnualBudgetPanel({
       })),
     );
     setLoaded(true);
-  }, [propertyId, year]);
+  }, [propertyId, year, demoMode]);
 
   useEffect(() => {
     load();

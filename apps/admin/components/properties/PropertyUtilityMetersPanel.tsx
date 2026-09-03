@@ -25,16 +25,66 @@ interface UnitOption {
   unitLabel: string;
 }
 
+// Demo mode fixture (§13, web owner financial dashboard pass, this date) -- same rule
+// PropertyFinancesPanel's own DEMO_COSTS/DEMO_SETTINGS follow: 'demo-property-1' has no real
+// backing row, so a live fetch() here would 404/error. Two meters with a few months of readings,
+// one flagged unusual, gives a realistic look at the anomaly indicator without a live meter.
+const DEMO_METER_TIMESTAMPS = { createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' };
+const DEMO_METERS: UtilityMeter[] = [
+  {
+    id: 'demo-meter-water',
+    orgId: 'demo-org-1',
+    propertyId: 'demo-property-1',
+    unitId: 'demo-unit-1',
+    utilityType: 'water',
+    meterNumber: 'W-4821',
+    responsibilityMode: 'owner_paid',
+    isPrepaid: false,
+    active: true,
+    installedDate: '2026-01-01',
+    notes: null,
+    ...DEMO_METER_TIMESTAMPS,
+  },
+  {
+    id: 'demo-meter-electricity',
+    orgId: 'demo-org-1',
+    propertyId: 'demo-property-1',
+    unitId: 'demo-unit-1',
+    utilityType: 'electricity',
+    meterNumber: 'E-1092',
+    responsibilityMode: 'tenant_prepaid',
+    isPrepaid: true,
+    active: true,
+    installedDate: '2026-01-01',
+    notes: null,
+    ...DEMO_METER_TIMESTAMPS,
+  },
+];
+const DEMO_READINGS: Record<string, UtilityHistoryPoint[]> = {
+  'demo-meter-water': [
+    { periodMonth: '2026-06-01', readingValue: 1200, consumption: 180, previousConsumption: null, percentChange: null, isUnusualUsage: false },
+    { periodMonth: '2026-07-01', readingValue: 1395, consumption: 195, previousConsumption: 180, percentChange: 8.3, isUnusualUsage: false },
+    { periodMonth: '2026-08-01', readingValue: 1700, consumption: 305, previousConsumption: 195, percentChange: 56.4, isUnusualUsage: true },
+  ],
+  'demo-meter-electricity': [
+    { periodMonth: '2026-06-01', readingValue: 4100, consumption: 410, previousConsumption: null, percentChange: null, isUnusualUsage: false },
+    { periodMonth: '2026-07-01', readingValue: 4520, consumption: 420, previousConsumption: 410, percentChange: 2.4, isUnusualUsage: false },
+    { periodMonth: '2026-08-01', readingValue: 4950, consumption: 430, previousConsumption: 420, percentChange: 2.4, isUnusualUsage: false },
+  ],
+};
+
 export function PropertyUtilityMetersPanel({
   propertyId,
   orgId,
   units,
   canManage,
+  demoMode,
 }: {
   propertyId: string;
   orgId: string;
   units: UnitOption[];
   canManage: boolean;
+  demoMode?: boolean;
 }) {
   const [meters, setMeters] = useState<UtilityMeter[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -50,12 +100,17 @@ export function PropertyUtilityMetersPanel({
   const [creating, setCreating] = useState(false);
 
   const load = useCallback(async () => {
+    if (demoMode) {
+      setMeters(DEMO_METERS);
+      setLoaded(true);
+      return;
+    }
     setError(null);
     const response = await fetch(`/api/v1/properties/${propertyId}/utility-meters`);
     const body = await safeJson(response);
     if (body?.utilityMeters) setMeters(body.utilityMeters);
     setLoaded(true);
-  }, [propertyId]);
+  }, [propertyId, demoMode]);
 
   useEffect(() => {
     load();
@@ -100,7 +155,7 @@ export function PropertyUtilityMetersPanel({
   }
 
   return (
-    <Panel title="Utility meters">
+    <Panel title="Utility meters" id="property-utility-meters">
       {error ? (
         <div className="mb-3 rounded-md border border-light-danger bg-light-danger/10 px-3 py-2 text-xs text-light-danger dark:border-dark-danger dark:bg-dark-danger/10 dark:text-dark-danger">
           {error}
@@ -121,13 +176,14 @@ export function PropertyUtilityMetersPanel({
               unitLabel={units.find((u) => u.id === meter.unitId)?.unitLabel}
               expanded={expandedMeterId === meter.id}
               onToggle={() => setExpandedMeterId(expandedMeterId === meter.id ? null : meter.id)}
-              canManage={canManage}
+              canManage={canManage && !demoMode}
+              demoMode={demoMode}
             />
           ))}
         </div>
       )}
 
-      {canManage ? (
+      {canManage && !demoMode ? (
         showCreate ? (
           <form onSubmit={handleCreate} className="space-y-3 rounded-md border border-light-border p-3 text-xs dark:border-dark-border">
             <div className="grid grid-cols-2 gap-3">
@@ -211,12 +267,14 @@ function MeterRow({
   expanded,
   onToggle,
   canManage,
+  demoMode,
 }: {
   meter: UtilityMeter;
   unitLabel: string | undefined;
   expanded: boolean;
   onToggle: () => void;
   canManage: boolean;
+  demoMode?: boolean;
 }) {
   return (
     <div className="rounded-md border border-light-border dark:border-dark-border">
@@ -235,7 +293,9 @@ function MeterRow({
           {meter.isPrepaid ? ' · Prepaid' : ''}
         </span>
       </button>
-      {expanded ? <MeterReadings meterId={meter.id} utilityType={meter.utilityType} canManage={canManage} /> : null}
+      {expanded ? (
+        <MeterReadings meterId={meter.id} utilityType={meter.utilityType} canManage={canManage} demoMode={demoMode} />
+      ) : null}
     </div>
   );
 }
@@ -244,10 +304,12 @@ function MeterReadings({
   meterId,
   utilityType,
   canManage,
+  demoMode,
 }: {
   meterId: string;
   utilityType: string;
   canManage: boolean;
+  demoMode?: boolean;
 }) {
   const [history, setHistory] = useState<UtilityHistoryPoint[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -259,11 +321,16 @@ function MeterReadings({
   const unitOfMeasure = utilityType === 'water' ? 'L' : 'kWh';
 
   const load = useCallback(async () => {
+    if (demoMode) {
+      setHistory(DEMO_READINGS[meterId] ?? []);
+      setLoaded(true);
+      return;
+    }
     const response = await fetch(`/api/v1/utility-meters/${meterId}/readings`);
     const body = await safeJson(response);
     if (body?.history) setHistory(body.history);
     setLoaded(true);
-  }, [meterId]);
+  }, [meterId, demoMode]);
 
   useEffect(() => {
     load();

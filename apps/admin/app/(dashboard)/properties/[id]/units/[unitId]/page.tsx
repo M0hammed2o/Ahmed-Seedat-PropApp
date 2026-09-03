@@ -348,7 +348,13 @@ function UnitDetailView({
         </dl>
       </Panel>
 
-      <UnitFinancesPanel propertyId={propertyId} unitId={unit.id} orgId={unit.orgId} canManage={canEdit} />
+      <UnitFinancesPanel
+        propertyId={propertyId}
+        unitId={unit.id}
+        orgId={unit.orgId}
+        canManage={canEdit}
+        demoMode={ADMIN_DEMO_MODE}
+      />
 
       <div>
         <div className="flex items-center justify-between">
