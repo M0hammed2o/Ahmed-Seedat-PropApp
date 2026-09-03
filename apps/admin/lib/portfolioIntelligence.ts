@@ -287,7 +287,13 @@ async function evaluateBudgetRules(
         dataSource: {
           insight_type: 'budget_exceeded',
           triggering_records: [
-            { table: 'property_budgets', id: budget.id as string, planned_amount: planned, actual_amount: actual },
+            {
+              table: 'property_budgets',
+              id: budget.id as string,
+              property_id: budget.property_id as string,
+              planned_amount: planned,
+              actual_amount: actual,
+            },
           ],
         },
         severity: severityForBudgetExceeded(),
@@ -300,7 +306,13 @@ async function evaluateBudgetRules(
         dataSource: {
           insight_type: 'budget_approaching',
           triggering_records: [
-            { table: 'property_budgets', id: budget.id as string, planned_amount: planned, actual_amount: actual },
+            {
+              table: 'property_budgets',
+              id: budget.id as string,
+              property_id: budget.property_id as string,
+              planned_amount: planned,
+              actual_amount: actual,
+            },
           ],
         },
         severity: severityForBudgetApproaching(),
@@ -316,7 +328,7 @@ async function evaluateUtilityAnomalyRules(
 ): Promise<void> {
   const { data: meters, error: metersError } = await client
     .from('utility_meters')
-    .select('id, utility_type')
+    .select('id, utility_type, property_id')
     .eq('org_id', orgId)
     .eq('active', true);
   if (metersError) throw new Error(`Portfolio Intelligence meter query failed: ${metersError.message}`);
@@ -373,6 +385,7 @@ async function evaluateUtilityAnomalyRules(
             table: 'utility_readings',
             id: `${meterId}:${latest.periodMonth}`,
             meter_id: meterId,
+            property_id: meter.property_id as string,
             utility_type: utilityType,
             period_month: latest.periodMonth,
             consumption: latest.consumption,

@@ -62,6 +62,22 @@ export function resolvePeriodRange(
   return { startIso: toIsoDate(start), endIso: toIsoDate(end), label: monthLabel(start) };
 }
 
+/**
+ * Web dashboard financial-overview pass (this date): owner_financial_summary()/
+ * owner_portfolio_financial_summary() are month-granular RPCs (migrations 166/167), but the
+ * dashboard's own period filter also supports ytd/custom ranges. Rather than silently picking an
+ * arbitrary month for those two periods, this resolves the SAME month the filter's own resolved
+ * range ends in (this_month/last_month land on their own obvious month; ytd/custom anchor to the
+ * month containing the range's end date) -- and the caller always renders the resolved month's own
+ * label next to the section, so it is never ambiguous which month a shown figure covers, even when
+ * it doesn't match the period filter's own label one-for-one.
+ */
+export function resolveSummaryMonth(range: PeriodRange): { month: string; monthLabel: string } {
+  const end = new Date(`${range.endIso}T00:00:00`);
+  const month = `${end.getFullYear()}-${pad2(end.getMonth() + 1)}-01`;
+  return { month, monthLabel: monthLabel(end) };
+}
+
 export interface RentScheduleLike {
   dueDate: string;
   amount: number | string;

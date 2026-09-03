@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeDashboardKpis, resolvePeriodRange } from '../dashboardKpis';
+import { computeDashboardKpis, resolvePeriodRange, resolveSummaryMonth } from '../dashboardKpis';
 
 // Portfolio dashboard filters pass (V1 launch-completion, this date): pure-function unit coverage
 // for the plain-language KPI summary added to the main dashboard. No Supabase needed -- these are
@@ -44,6 +44,30 @@ describe('resolvePeriodRange', () => {
     const missingBoth = resolvePeriodRange('custom', {}, REFERENCE);
     expect(missingTo).toEqual({ startIso: '2026-08-01', endIso: '2026-08-31', label: 'August 2026' });
     expect(missingBoth).toEqual(missingTo);
+  });
+});
+
+describe('resolveSummaryMonth', () => {
+  const REFERENCE = new Date(2026, 7, 27); // 27 Aug 2026
+
+  it('anchors this_month to the containing month', () => {
+    const range = resolvePeriodRange('this_month', {}, REFERENCE);
+    expect(resolveSummaryMonth(range)).toEqual({ month: '2026-08-01', monthLabel: 'August 2026' });
+  });
+
+  it('anchors last_month to the previous month', () => {
+    const range = resolvePeriodRange('last_month', {}, REFERENCE);
+    expect(resolveSummaryMonth(range)).toEqual({ month: '2026-07-01', monthLabel: 'July 2026' });
+  });
+
+  it('anchors ytd to the month containing the range end date, not January', () => {
+    const range = resolvePeriodRange('ytd', {}, REFERENCE);
+    expect(resolveSummaryMonth(range)).toEqual({ month: '2026-08-01', monthLabel: 'August 2026' });
+  });
+
+  it('anchors a custom range to the month containing its end date', () => {
+    const range = resolvePeriodRange('custom', { from: '2026-03-01', to: '2026-05-15' }, REFERENCE);
+    expect(resolveSummaryMonth(range)).toEqual({ month: '2026-05-01', monthLabel: 'May 2026' });
   });
 });
 

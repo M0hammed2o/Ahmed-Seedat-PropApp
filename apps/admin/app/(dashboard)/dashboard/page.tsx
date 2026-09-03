@@ -5,8 +5,10 @@ import {
   Building2,
   CircleCheck,
   Clock,
+  Droplets,
   FileSignature,
   Home,
+  PiggyBank,
   Plus,
   Receipt,
   ShieldAlert,
@@ -33,7 +35,18 @@ import {
 } from '@/components/dashboard/DashboardFiltersBar';
 import { resolvePortalSession } from '@/lib/orgSession';
 import { resolveOnboardingProgress, type OnboardingProgress } from '@/lib/onboarding';
-import { resolvePeriodRange, computeDashboardKpis, type DashboardPeriod } from '@/lib/dashboardKpis';
+import {
+  resolvePeriodRange,
+  computeDashboardKpis,
+  resolveSummaryMonth,
+  type DashboardPeriod,
+} from '@/lib/dashboardKpis';
+import {
+  loadPortfolioFinancialOverview,
+  loadPropertyFinancialOverview,
+} from '@/lib/financialOverview';
+import { FinancialOverviewSection } from '@/components/dashboard/FinancialOverviewSection';
+import type { OwnerFinancialSummary } from '@propvault/types';
 
 // Owner Dashboard, rebuilt against reference/lovable-ui-reference's routes/index.tsx literal
 // structure (2026-08-04 Lovable-adoption batch, UI_INTEGRATION_PLAN.md) -- same KPI set, same
@@ -86,6 +99,13 @@ interface DashboardData {
   netIncome: number;
   paymentsAwaitingConfirmation: number;
   periodLabel: string;
+  /** Web owner financial dashboard pass (this date): server-authoritative operating costs/budget/
+   *  operating position, sourced from owner_financial_summary()/owner_portfolio_financial_summary()
+   *  (migrations 166/167) via lib/financialOverview.ts. Null only on an RPC error -- rendered as an
+   *  honest "not available" state, never a fabricated zero. Always month-granular (resolveSummaryMonth),
+   *  independent of the rent KPIs above which stay period-flexible (ytd/custom included). */
+  financialOverview: OwnerFinancialSummary | null;
+  financialOverviewMonthLabel: string;
   propertyOptions: DashboardPropertyOption[];
   selectedPropertyId: string;
   selectedPeriod: DashboardPeriod;
@@ -115,6 +135,7 @@ interface DashboardInsight {
   severity: 'info' | 'warning' | 'urgent';
   insightType: string;
   generatedAt: string;
+  propertyId: string | null;
 }
 
 const DEMO_DATA: DashboardData = {
@@ -136,6 +157,26 @@ const DEMO_DATA: DashboardData = {
   netIncome: 77100,
   paymentsAwaitingConfirmation: 2400,
   periodLabel: 'August 2026',
+  financialOverviewMonthLabel: 'August 2026',
+  financialOverview: {
+    propertyId: null,
+    propertyCount: 4,
+    month: '2026-08-01',
+    rentPlanned: 90700,
+    rentCollected: 84500,
+    rentOutstanding: 6200,
+    utilitiesExpense: 2850,
+    ratesAndLeviesExpense: 3100,
+    otherExpenses: 1450,
+    totalExpenses: 7400,
+    budgetPlanned: 9000,
+    budgetUsedPercent: 82.2,
+    budgetRemaining: 1600,
+    netOperatingPosition: 77100,
+    awaitingConfirmationCount: 1,
+    budgetAlerts: [{ propertyId: 'demo-org-1', month: '2026-08-01', level: 'approaching', percentUsed: 82.2 }],
+    utilityAnomalyAlerts: [],
+  },
   propertyOptions: [{ id: 'demo-property-1', nickname: 'Sea Point Apartment' }],
   selectedPropertyId: '',
   selectedPeriod: 'this_month',
@@ -204,6 +245,15 @@ const DEMO_DATA: DashboardData = {
       severity: 'warning',
       insightType: 'rent_overdue',
       generatedAt: new Date().toISOString(),
+      propertyId: 'demo-property-1',
+    },
+    {
+      id: 'demo-insight-2',
+      message: 'Budget for Sea Point Apartment is 82% used with 9 days left in August.',
+      severity: 'warning',
+      insightType: 'budget_approaching',
+      generatedAt: new Date().toISOString(),
+      propertyId: 'demo-property-1',
     },
   ],
 };
@@ -407,10 +457,22 @@ export default async function DashboardPage({ searchParams }: SearchParams) {
   // task system by explicit prior product decision (DECISIONS.md 2026-07-29: task workflows live
   // inline within Maintenance/Inspections/Leases, not as their own module) -- omitted rather than
   // pointed at a fake page. The other five all have real destinations.
+  // Web owner financial dashboard pass (this date): "Manage budget"/"Record meter reading" added
+  // per the new Financial overview section above -- both need a specific property, so they point
+  // at the selected property's Finances tab when one is filtered, or /properties to pick one
+  // otherwise (same fallback the section's own CTAs use). "Review payments" was already reachable
+  // only via the "Payments awaiting confirmation" KPI tile with no direct action link -- added here
+  // as its own quick action rather than a second, competing entry point.
+  const financesHref = data.selectedPropertyId
+    ? `/properties/${data.selectedPropertyId}?tab=Finances`
+    : '/properties';
   const quickActions = [
     { label: 'Add property', icon: Building2, href: '/properties/new' },
     { label: 'New lease', icon: FileSignature, href: '/properties' },
     { label: 'Record payment', icon: Receipt, href: '/accounting/bank-transactions/new' },
+    { label: 'Review payments', icon: Clock, href: '/accounting' },
+    { label: 'Manage budget', icon: PiggyBank, href: financesHref },
+    { label: 'Record meter reading', icon: Droplets, href: financesHref },
     { label: 'Log maintenance', icon: Wrench, href: '/properties' },
     { label: 'Invite tenant', icon: Users, href: '/tenants' },
   ];
@@ -470,6 +532,18 @@ export default async function DashboardPage({ searchParams }: SearchParams) {
           </div>
         ))}
       </div>
+
+      <FinancialOverviewSection
+        summary={data.financialOverview}
+        monthLabel={data.financialOverviewMonthLabel}
+        periodLabel={data.periodLabel}
+        manageBudgetHref={
+          data.selectedPropertyId ? `/properties/${data.selectedPropertyId}?tab=Finances` : '/properties'
+        }
+        manageUtilitiesHref={
+          data.selectedPropertyId ? `/properties/${data.selectedPropertyId}?tab=Finances` : '/properties'
+        }
+      />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {secondary.map((s) => (
@@ -830,13 +904,17 @@ async function loadData(filters: {
       .order('created_at', { ascending: false })
       .limit(8),
     supabase.from('leases').select('id, unit_id, rent_amount, status, end_date'),
+    // data_source carries a triggering_records[0].property_id for budget_exceeded/
+    // budget_approaching/unusual_utility_usage (added this pass, lib/portfolioIntelligence.ts) --
+    // portfolio_insights itself has no property_id column (it's an org-wide table), so this is the
+    // only way to build a per-property "View X" link for those types.
     supabase
       .from('portfolio_insights')
-      .select('id, message, severity, insight_type, generated_at')
+      .select('id, message, severity, insight_type, generated_at, data_source')
       .is('dismissed_at', null)
       .order('severity', { ascending: false })
       .order('generated_at', { ascending: false })
-      .limit(5),
+      .limit(8),
     (async () => {
       const {
         data: { user },
@@ -1041,6 +1119,14 @@ async function loadData(filters: {
 
   const recentPayments = await loadRecentPayments(supabase, unitPropertyById, properties);
 
+  const { month: summaryMonth, monthLabel: financialOverviewMonthLabel } =
+    resolveSummaryMonth(periodRange);
+  const financialOverview = filters.propertyId
+    ? await loadPropertyFinancialOverview(supabase, filters.propertyId, summaryMonth)
+    : activeOrgId
+      ? await loadPortfolioFinancialOverview(supabase, activeOrgId, summaryMonth)
+      : null;
+
   return {
     totalProperties: properties.length,
     totalActiveProperties: properties.length,
@@ -1062,6 +1148,8 @@ async function loadData(filters: {
     netIncome: kpis.netIncome,
     paymentsAwaitingConfirmation: kpis.paymentsAwaitingConfirmation,
     periodLabel: periodRange.label,
+    financialOverview,
+    financialOverviewMonthLabel,
     propertyOptions: properties.map((p) => ({ id: p.id, nickname: p.nickname })),
     selectedPropertyId: filters.propertyId ?? '',
     selectedPeriod: filters.period,
@@ -1079,13 +1167,19 @@ async function loadData(filters: {
     topProperties,
     mappableProperties,
     recentPayments,
-    insights: (insightResult.data ?? []).map((row) => ({
-      id: row.id as string,
-      message: row.message as string,
-      severity: row.severity as DashboardInsight['severity'],
-      insightType: row.insight_type as string,
-      generatedAt: row.generated_at as string,
-    })),
+    insights: (insightResult.data ?? []).map((row) => {
+      const dataSource = row.data_source as
+        | { triggering_records?: { property_id?: string }[] }
+        | null;
+      return {
+        id: row.id as string,
+        message: row.message as string,
+        severity: row.severity as DashboardInsight['severity'],
+        insightType: row.insight_type as string,
+        generatedAt: row.generated_at as string,
+        propertyId: dataSource?.triggering_records?.[0]?.property_id ?? null,
+      };
+    }),
     displayFirstName: profileResult.data?.display_name?.split(' ')[0] || undefined,
     orgId: activeOrgId,
     orgName: orgName?.trading_name || orgName?.legal_name || undefined,

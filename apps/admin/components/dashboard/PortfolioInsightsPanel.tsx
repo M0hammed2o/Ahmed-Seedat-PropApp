@@ -18,6 +18,12 @@ export interface DashboardInsightSummary {
   severity: 'info' | 'warning' | 'urgent';
   insightType: string;
   generatedAt: string;
+  /** Web owner financial dashboard pass (this date): budget_exceeded/budget_approaching/
+   *  unusual_utility_usage carry the triggering property's id in data_source now (see
+   *  lib/portfolioIntelligence.ts) so this panel can deep-link straight to that property's
+   *  Finances tab instead of only a generic list page. Null for insight types that don't carry one,
+   *  or if this row predates the property_id addition. */
+  propertyId: string | null;
 }
 
 const SEVERITY_TONE: Record<DashboardInsightSummary['severity'], PillTone> = {
@@ -36,6 +42,27 @@ const INSIGHT_TYPE_LINK: Record<string, { href: string; label: string }> = {
   maintenance_open: { href: '/maintenance', label: 'View maintenance' },
   invoice_unpaid: { href: '/accounting', label: 'View accounting' },
 };
+
+// Web owner financial dashboard pass (this date): budget/utility insights carry a propertyId
+// (see DashboardInsightSummary), so their link goes straight to that property's Finances tab
+// instead of a generic list page -- falls back to /properties (browse and pick one) if the
+// property id is ever missing, rather than showing no link at all.
+const PROPERTY_SCOPED_INSIGHT_LABEL: Record<string, string> = {
+  budget_exceeded: 'View budget',
+  budget_approaching: 'View budget',
+  unusual_utility_usage: 'View utilities',
+};
+
+function linkFor(insight: DashboardInsightSummary): { href: string; label: string } | undefined {
+  const scopedLabel = PROPERTY_SCOPED_INSIGHT_LABEL[insight.insightType];
+  if (scopedLabel) {
+    return {
+      href: insight.propertyId ? `/properties/${insight.propertyId}?tab=Finances` : '/properties',
+      label: scopedLabel,
+    };
+  }
+  return INSIGHT_TYPE_LINK[insight.insightType];
+}
 
 function relativeTime(iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime();
@@ -81,7 +108,7 @@ export function PortfolioInsightsPanel({ insights }: { insights: DashboardInsigh
       </p>
       <ul className="space-y-2">
         {items.map((insight) => {
-          const link = INSIGHT_TYPE_LINK[insight.insightType];
+          const link = linkFor(insight);
           return (
             <li
               key={insight.id}
