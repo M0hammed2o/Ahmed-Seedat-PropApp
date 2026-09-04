@@ -461,21 +461,24 @@ export default async function DashboardPage({ searchParams }: SearchParams) {
   // task system by explicit prior product decision (DECISIONS.md 2026-07-29: task workflows live
   // inline within Maintenance/Inspections/Leases, not as their own module) -- omitted rather than
   // pointed at a fake page. The other five all have real destinations.
-  // Web owner financial dashboard pass (this date): "Manage budget"/"Record meter reading" added
-  // per the new Financial overview section above -- both need a specific property, so they point
-  // at the selected property's Finances tab when one is filtered, or /properties to pick one
-  // otherwise (same fallback the section's own CTAs use). "Review payments" was already reachable
-  // only via the "Payments awaiting confirmation" KPI tile with no direct action link -- added here
-  // as its own quick action rather than a second, competing entry point.
+  // Web owner financial dashboard pass (this date): "Record meter reading" needs a specific
+  // property, so it points at the selected property's Finances tab when one is filtered, or
+  // /properties to pick one otherwise (same fallback the section's own CTAs use). "Review
+  // payments" was already reachable only via the "Payments awaiting confirmation" KPI tile with no
+  // direct action link -- added here as its own quick action rather than a second, competing entry
+  // point. "Manage budget" now points at the dedicated /budget page (web property financial setup
+  // pass, §12/§11 -- previously pointed at a single property's Finances tab, forcing the owner to
+  // pick a property just to see budget status portfolio-wide).
   const financesHref = data.selectedPropertyId
     ? `/properties/${data.selectedPropertyId}?tab=Finances`
     : '/properties';
+  const budgetHref = data.selectedPropertyId ? `/budget?propertyId=${data.selectedPropertyId}` : '/budget';
   const quickActions = [
     { label: 'Add property', icon: Building2, href: '/properties/new' },
     { label: 'New lease', icon: FileSignature, href: '/properties' },
     { label: 'Record payment', icon: Receipt, href: '/accounting/bank-transactions/new' },
     { label: 'Review payments', icon: Clock, href: '/accounting' },
-    { label: 'Manage budget', icon: PiggyBank, href: financesHref },
+    { label: 'Manage budget', icon: PiggyBank, href: budgetHref },
     { label: 'Record meter reading', icon: Droplets, href: financesHref },
     { label: 'Log maintenance', icon: Wrench, href: '/properties' },
     { label: 'Invite tenant', icon: Users, href: '/tenants' },
@@ -541,9 +544,7 @@ export default async function DashboardPage({ searchParams }: SearchParams) {
         summary={data.financialOverview}
         monthLabel={data.financialOverviewMonthLabel}
         periodLabel={data.periodLabel}
-        manageBudgetHref={
-          data.selectedPropertyId ? `/properties/${data.selectedPropertyId}?tab=Finances` : '/properties'
-        }
+        manageBudgetHref={budgetHref}
         manageUtilitiesHref={
           data.selectedPropertyId ? `/properties/${data.selectedPropertyId}?tab=Finances` : '/properties'
         }

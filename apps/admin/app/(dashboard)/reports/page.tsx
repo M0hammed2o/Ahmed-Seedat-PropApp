@@ -92,7 +92,7 @@ export default async function ReportsPage() {
         summary={data.financialOverview}
         monthLabel={data.financialOverviewMonthLabel}
         periodLabel={data.financialOverviewMonthLabel}
-        manageBudgetHref="/properties"
+        manageBudgetHref="/budget"
         manageUtilitiesHref="/properties"
       />
 

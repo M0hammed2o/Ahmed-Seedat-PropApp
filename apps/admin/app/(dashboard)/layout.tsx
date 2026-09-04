@@ -23,6 +23,7 @@ import {
   FileText,
   Bell,
   Megaphone,
+  PiggyBank,
 } from 'lucide-react';
 import { branding } from '@propvault/config';
 import { resolvePortalSession } from '@/lib/orgSession';
@@ -85,6 +86,7 @@ const NAV_SECTIONS: NavSection[] = [
       { href: '/accounting/invoices', label: 'Invoices', icon: navIcon(FileStack) },
       { href: '/accounting/rent-due', label: 'Rent Due', icon: navIcon(Receipt) },
       { href: '/accounting/expenses', label: 'Expenses', icon: navIcon(Wallet) },
+      { href: '/budget', label: 'Budget', icon: navIcon(PiggyBank) },
       { href: '/accounting/bank-accounts', label: 'Bank Accounts', icon: navIcon(Landmark) },
       {
         href: '/accounting/bank-transactions',
