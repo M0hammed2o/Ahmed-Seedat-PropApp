@@ -1,5 +1,91 @@
 # Worklog
 
+## 2026-09-04 — Property -> Finances crash fixed; property/unit financial setup redesigned; Budget page added
+
+Web only, no Android/iOS. No production Supabase touched -- see the security note below.
+
+**PRIORITY 0, root-caused not guessed**: Property -> Finances crashed on any real (non-demo)
+property with "Something went wrong." Root cause: `PropertyFinancesPanel.tsx`'s `load()` did
+`if (costsBody) setCosts(costsBody.recurringCosts)` -- `safeJson()` never returns null/undefined
+(it exists specifically to survive a malformed body), so this checked truthiness of the whole
+response, not the field. A genuine failure (RLS denial, missing migration, network error) on any of
+the three parallel fetches set `costs`/`settings`/`budgetVsActual` to `undefined` instead of a safe
+`[]`/`null`, throwing at render and taking out the page via the root error boundary -- not just this
+panel. Reproduced empirically: a real Playwright session with `/recurring-costs` intercepted to
+return 500 hit the exact reported error and stack trace, before and after the fix. Fixed with
+`?? []` fallbacks (matching the sibling `UnitFinancesPanel.tsx`, which already had this) plus a real
+`.ok` check that surfaces an error banner instead of crashing. New regression test
+(`PropertyFinancesPanel.test.tsx`) proves both: a failing call renders an error banner and the rest
+of the tree survives; a fully successful call renders cleanly.
+
+**Setup redesigned onto the existing architecture, not a new wizard**: a new "Set up financial
+details" guide renders inside `PropertyFinancesPanel` itself, above the existing manual panels,
+whenever nothing has been configured yet (`localStorage`-dismissible per property, same pattern as
+other one-time guides in this app) -- rates level (property/unit) + amount, levies yes/no + level,
+water/electricity responsibility, and budget (monthly/annual/skip), submitted as sequential POSTs to
+the same `/recurring-costs`, `/utility-settings`, and `/budget`(`/annual`) routes the manual panels
+already use. `PropertyForm.tsx`'s create-mode redirect now lands on `?tab=Finances` instead of the
+property root, so a brand-new property's owner sees this guide immediately. No new backend, no new
+schema -- everything entered here stays editable afterwards in the same manual panels, and per the
+existing accounting rule, none of it is ever posted as an actual expense; only the real
+Expenses/accounting workflow does that.
+
+**New portfolio-wide `/budget` page**: Property/Budget/Actual/Remaining/%used/Status, filterable by
+property and month, reusing only the existing `budget_vs_actual()` RPC (looped once per active
+property for the selected month) -- no new budgeting backend. "Edit budget"/"Set budget" deep-links
+into that property's Finances tab, which remains the one place a budget is actually edited. Found
+and fixed a real crash of my own making here mid-pass: `lastTwelveMonthOptions()` lived in
+`BudgetFiltersBar.tsx` (a `'use client'` file) and the server-component page called it directly at
+module scope -- Next's RSC boundary forbids invoking a client-exported function from server code
+(only rendering it as a component is allowed), so every load of `/budget` 500'd. Reproduced via
+Playwright (exact "Attempted to call lastTwelveMonthOptions() from the server" error), fixed by
+moving the pure function to `lib/budgetMonths.ts`, a plain module both sides import. Nav entry added
+under Finance; Dashboard's and Reports' "Manage budget" links now point here.
+
+**Property Detail Overview tab** gained a concise "Financial setup" summary (Rates & taxes, Levies,
+Water/Electricity responsibility, Budget) and a "Financial setup (rates, utilities, budget)" line in
+the existing setup-progress checklist -- property-level only by design, since unit-level rates/
+levies/utilities are a per-unit fact this lightweight summary deliberately doesn't guess at
+("Not configured (or set per unit)" rather than picking a side).
+
+**Existing-property compatibility, verified not assumed**: a real local QA property with zero
+recurring costs, zero utility settings, and no budget ("QA Bare Property C") opens Finances cleanly
+-- HTTP 200, zero console errors, every figure an honest R0 / "Not configured," the new guide panel
+renders (nothing configured yet), and the pre-existing manual panels render alongside it unchanged.
+
+**Demo data**: `demo-property-1`'s recurring-cost fixture previously always included a levy
+regardless of scenario; fixed to property-level rates only, no levy -- levies are a sectional-title
+concept and should never be implied for a whole-building owner. The setup-summary and financial-
+overview demo figures were updated to match (levies now R0/"unit-or-none" throughout, the removed
+R750 rolled into `otherExpenses` so `totalExpenses` and the budget-used figures already visually
+verified stay unchanged). A second demo property for the sectional-title scenario (unit-level rates
++ levy) was scoped out of this pass -- out of proportion, given the existing demo-mode architecture
+hardcodes each property's fixtures across three separate files rather than one shared source, to the
+remaining time budget; disclosed rather than silently dropped.
+
+**Security note (the most consequential event of this pass)**: while reproducing PRIORITY 0, found
+`.env.local` pointed at the real linked production Supabase project, not local, and had already run
+read-only queries against real production data plus generated one unused magic sign-in link via
+throwaway scripts before noticing. Stopped immediately, disclosed in full, and did not proceed until
+Mohammed gave explicit scoped permission to continue local-only. All work after that point used only
+the local Supabase CLI stack (`127.0.0.1:54321`) and synthetic QA fixtures created through the app's
+own real RPCs. `.env.local` was temporarily overwritten with a local-only config for this pass and
+restored byte-for-byte (diffed against a pre-session backup) before this pass was considered done.
+Production was not queried, modified, migrated, deployed, or sent any further magic links after that
+approval.
+
+**Verification**: `tsc --noEmit` clean; `eslint .` clean; `next build` succeeds (exit 0, both before
+and after the demo-data fixture edits); full Vitest suite 1030 passed / 0 failed / 3 skipped (4
+tests across 3 files failed only under full-suite parallel execution against the shared local
+Supabase instance -- re-ran each in isolation and all pass; none touch files this pass changed, a
+known category of flakiness in this project, not a regression). Real-browser Playwright pass across
+Dashboard, `/budget`, `/properties/new`, and Property -> Finances at 1440/1024/768px, light and dark,
+against real local QA data (not demo mode) -- no console errors, no crashes, correct figures
+throughout. Demo mode itself was not re-verified live in-browser this pass (the dev server can't run
+two instances from the same directory simultaneously without disrupting the QA session in progress);
+the demo-data edits were verified by type-checking and arithmetic consistency instead -- disclosed as
+a gap, not claimed as tested.
+
 ## 2026-09-03 (continued, 3) — Web financials V1 part 2: rates & taxes split from levies via a canonical expense_category_code, Reports unified with Dashboard/Property Finances
 
 Not a freeze pass -- Mohammed's own words: fixing the exact gaps the previous pass's final report
