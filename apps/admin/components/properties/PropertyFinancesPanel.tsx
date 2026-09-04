@@ -25,6 +25,14 @@ function budgetStatus(percentUsed: number | null): { label: string; tone: PillTo
 // responsibility setup is the corresponding panel on the unit detail page (§5B), not duplicated
 // here. Rendered as the property detail page's "Finances" tab, alongside the existing
 // LevyStatementsPanel (Management tab) rather than replacing it.
+//
+// Restructured (WORKLOG.md this date, "500s + duplicated setup UI" follow-up pass): this used to
+// render the setup guide, a "Property-level rates & levies" panel, and a "Utility responsibility"
+// panel all at once, fully duplicating every field once anything was configured. Now there is ONE
+// authoritative "Financial setup" area -- the full form only while nothing is configured yet or the
+// owner explicitly clicks "Edit setup"; a compact summary otherwise. Section B in the task's own
+// A/B/C/D/E structure (A = FinancialOverviewSection above this component; C = the Monthly/Annual
+// budget panels below; D = PropertyUtilityMetersPanel, rendered by the parent page after this one).
 
 const RESPONSIBILITY_LABELS: Record<UtilityResponsibilityMode, string> = {
   owner_paid: 'Owner pays',
@@ -37,6 +45,10 @@ const RESPONSIBILITY_LABELS: Record<UtilityResponsibilityMode, string> = {
 function currentMonth(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+}
+
+function currentYear(): number {
+  return new Date().getFullYear();
 }
 
 // Demo mode fixture (§13, web owner financial dashboard pass, this date): ADMIN_DEMO_MODE's
@@ -112,11 +124,8 @@ export function PropertyFinancesPanel({
   const [budgetVsActual, setBudgetVsActual] = useState<BudgetVsActual | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  const [waterMode, setWaterMode] = useState<UtilityResponsibilityMode>('owner_paid');
-  const [electricityMode, setElectricityMode] = useState<UtilityResponsibilityMode>('owner_paid');
   const [budgetAmount, setBudgetAmount] = useState('');
+  const [busy, setBusy] = useState(false);
   const month = currentMonth();
   const manageable = canManage && !demoMode;
 
@@ -169,51 +178,6 @@ export function PropertyFinancesPanel({
   const currentWater = settings.find((s) => s.utilityType === 'water' && !s.unitId);
   const currentElectricity = settings.find((s) => s.utilityType === 'electricity' && !s.unitId);
 
-  async function setCost(costType: 'rates_and_taxes' | 'levy', amount: string) {
-    setBusy(true);
-    setError(null);
-    try {
-      const response = await fetch(`/api/v1/properties/${propertyId}/recurring-costs`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orgId,
-          costType,
-          amount: amount.trim() === '' ? null : Number(amount),
-          effectiveFrom: new Date().toISOString().slice(0, 10),
-        }),
-      });
-      if (!response.ok) {
-        const body = await safeJson(response);
-        setError(body?.error?.message ?? 'Could not save this amount.');
-        return;
-      }
-      await load();
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function setResponsibility(utilityType: 'water' | 'electricity', mode: UtilityResponsibilityMode) {
-    setBusy(true);
-    setError(null);
-    try {
-      const response = await fetch(`/api/v1/properties/${propertyId}/utility-settings`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orgId, utilityType, responsibilityMode: mode }),
-      });
-      if (!response.ok) {
-        const body = await safeJson(response);
-        setError(body?.error?.message ?? 'Could not save responsibility.');
-        return;
-      }
-      await load();
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function handleBudgetSubmit(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -248,6 +212,8 @@ export function PropertyFinancesPanel({
     }
   }
 
+  const [editingSetup, setEditingSetup] = useState(false);
+
   if (!loaded) {
     return (
       <Panel>
@@ -256,19 +222,14 @@ export function PropertyFinancesPanel({
     );
   }
 
-  // Web property financial setup pass (WORKLOG.md this date): these questions used to only exist
-  // as raw, unlabeled form fields an owner had to already know to come looking for -- "naturally
-  // incorporated into setup" per the task's own framing. Shown once, the first time a property has
-  // genuinely nothing configured (no recurring costs, no utility settings, no budget) -- reuses
-  // every existing API this same panel's own fields already call, never a second backend. Once
-  // anything is saved (through the guide or dismissed in favour of the fields below), it never
-  // shows again for this property (localStorage, per-viewer -- not a new DB column for a one-time
-  // UI nudge).
+  // Web property financial setup pass (WORKLOG.md this date): true the first time a property has
+  // genuinely nothing configured (no recurring costs, no utility settings, no budget) -- the setup
+  // form shows automatically in that case, without an "Edit setup" click first.
   const nothingConfiguredYet =
     costs.length === 0 &&
     settings.length === 0 &&
     (budgetVsActual?.plannedAmount === null || budgetVsActual?.plannedAmount === undefined);
-  const showGuide = manageable && nothingConfiguredYet && !guideDismissed;
+  const showSetupForm = manageable && ((nothingConfiguredYet && !guideDismissed) || editingSetup);
 
   return (
     <div className="space-y-4">
@@ -278,64 +239,37 @@ export function PropertyFinancesPanel({
         </div>
       ) : null}
 
-      {showGuide ? (
-        <FinancialSetupGuide
+      {showSetupForm ? (
+        <FinancialSetupForm
           propertyId={propertyId}
           orgId={orgId}
+          isFirstTime={nothingConfiguredYet && !editingSetup}
+          currentRates={currentRates}
+          currentLevy={currentLevy}
+          currentWater={currentWater}
+          currentElectricity={currentElectricity}
           onDone={async () => {
+            setEditingSetup(false);
             await load();
           }}
-          onSkip={dismissGuide}
+          onCancel={() => {
+            // Always close the form back to the summary. When nothing is actually saved yet, also
+            // remember (localStorage) that it was dismissed, so it doesn't pop open automatically
+            // on the next visit -- re-opening it is then a deliberate "Edit setup" click.
+            if (nothingConfiguredYet) dismissGuide();
+            setEditingSetup(false);
+          }}
         />
-      ) : null}
-
-      <Panel>
-        <h3 className="mb-3 text-sm font-semibold">Property-level rates & levies (expected/configured)</h3>
-        <p className="mb-3 text-xs text-muted-foreground">
-          For a property owned as a whole building/complex. If this property is sectional-title
-          (individually owned units), set rates & taxes and levies per unit instead, on each unit's
-          own page. These are the recurring amounts you expect to pay each month -- not the same as
-          the actual rates/levies expenses recorded above, which come only from posted expenses.
-        </p>
-        <div className="grid grid-cols-2 gap-4">
-          <RecurringCostField
-            label="Expected monthly rates & taxes"
-            current={currentRates}
-            disabled={!manageable || busy}
-            onSave={(amount) => setCost('rates_and_taxes', amount)}
-          />
-          <RecurringCostField
-            label="Expected monthly levy"
-            current={currentLevy}
-            disabled={!manageable || busy}
-            onSave={(amount) => setCost('levy', amount)}
-          />
-        </div>
-      </Panel>
-
-      <Panel>
-        <h3 className="mb-3 text-sm font-semibold">Utility responsibility (property level)</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <ResponsibilityField
-            label="Water"
-            value={currentWater?.responsibilityMode ?? waterMode}
-            disabled={!manageable || busy}
-            onChange={(mode) => {
-              setWaterMode(mode);
-              setResponsibility('water', mode);
-            }}
-          />
-          <ResponsibilityField
-            label="Electricity"
-            value={currentElectricity?.responsibilityMode ?? electricityMode}
-            disabled={!manageable || busy}
-            onChange={(mode) => {
-              setElectricityMode(mode);
-              setResponsibility('electricity', mode);
-            }}
-          />
-        </div>
-      </Panel>
+      ) : (
+        <FinancialSetupSummary
+          currentRates={currentRates}
+          currentLevy={currentLevy}
+          currentWater={currentWater}
+          currentElectricity={currentElectricity}
+          canEdit={manageable}
+          onEdit={() => setEditingSetup(true)}
+        />
+      )}
 
       <Panel id="property-budget">
         <div className="mb-3 flex items-center justify-between">
@@ -399,57 +333,128 @@ export function PropertyFinancesPanel({
   );
 }
 
+/** Compact, read-only view of what's configured -- shown once anything has been set, replacing the
+ *  full form so the same fields aren't rendered twice at once. "Not configured" is shown honestly
+ *  rather than defaulting any value visually (§6 of the task: no false defaults). */
+function FinancialSetupSummary({
+  currentRates,
+  currentLevy,
+  currentWater,
+  currentElectricity,
+  canEdit,
+  onEdit,
+}: {
+  currentRates: RecurringPropertyCost | undefined;
+  currentLevy: RecurringPropertyCost | undefined;
+  currentWater: UtilityResponsibilitySetting | undefined;
+  currentElectricity: UtilityResponsibilitySetting | undefined;
+  canEdit: boolean;
+  onEdit: () => void;
+}) {
+  return (
+    <Panel>
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-sm font-semibold">Financial setup</h3>
+        {canEdit ? (
+          <Button type="button" onClick={onEdit}>
+            Edit setup
+          </Button>
+        ) : null}
+      </div>
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-xs sm:grid-cols-4">
+        <div>
+          <dt className="text-muted-foreground">Rates &amp; taxes</dt>
+          <dd className="mt-0.5 font-medium text-foreground">
+            {currentRates ? `R ${currentRates.amount.toLocaleString()}/mo (property-level)` : 'Not configured'}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">Levies</dt>
+          <dd className="mt-0.5 font-medium text-foreground">
+            {currentLevy ? `R ${currentLevy.amount.toLocaleString()}/mo` : 'Not applicable, or set per unit'}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">Water</dt>
+          <dd className="mt-0.5 font-medium text-foreground">
+            {currentWater ? RESPONSIBILITY_LABELS[currentWater.responsibilityMode] : 'Not configured'}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">Electricity</dt>
+          <dd className="mt-0.5 font-medium text-foreground">
+            {currentElectricity ? RESPONSIBILITY_LABELS[currentElectricity.responsibilityMode] : 'Not configured'}
+          </dd>
+        </div>
+      </dl>
+    </Panel>
+  );
+}
+
 type RatesLevel = 'property' | 'unit';
 
-/** Web property financial setup pass (WORKLOG.md this date): the guided "ask these questions
- *  during setup" flow -- rates/taxes level+amount, levies applicable+level+amount, water/
- *  electricity responsibility, budget monthly/annual/skip. Every save goes through the exact same
- *  API routes the plain fields below already use (POST recurring-costs/utility-settings/budget/
- *  budget/annual) -- this is a friendlier front door onto existing endpoints, not a new backend.
- *  Meter creation is deliberately NOT part of this guide -- the "Utility meters" panel is already
- *  the one place a meter gets created; duplicating that here would be a second data-entry path for
- *  the same thing. Property-level rates/levies are the only recurring-cost amounts collected here
- *  -- unit-level ones are collected per-unit, on that unit's own page/form, once the owner picks
- *  "unit-level" here (§4 of the task: "do not require one property-wide amount" for a unit-level
- *  cost). */
-function FinancialSetupGuide({
+/** Web property financial setup pass (WORKLOG.md this date): the ONE authoritative financial-setup
+ *  form -- rates/taxes level+amount, levies applicable+level+amount, water/electricity
+ *  responsibility, all editable afterwards through the same form (`isFirstTime` only changes the
+ *  copy and button labels, never the fields). Every save goes through the exact same API routes the
+ *  rest of this panel already uses -- a friendlier front door onto existing endpoints, never a new
+ *  backend. Meter creation is deliberately NOT part of this form -- PropertyUtilityMetersPanel
+ *  (rendered by the parent page, Section D) is already the one place a meter gets created;
+ *  duplicating that here would be a second data-entry path for the same thing. Property-level
+ *  rates/levies are the only recurring-cost amounts collected here -- unit-level ones are collected
+ *  per-unit, on that unit's own page/form, once the owner picks "unit-level" here (§4 of the
+ *  original task: "do not require one property-wide amount" for a unit-level cost). Budget is
+ *  intentionally NOT asked here -- Section C (Monthly/Annual budget panels, right below) is already
+ *  the one place a budget is set, so asking here too would be exactly the duplication this pass
+ *  removes. */
+function FinancialSetupForm({
   propertyId,
   orgId,
+  isFirstTime,
+  currentRates,
+  currentLevy,
+  currentWater,
+  currentElectricity,
   onDone,
-  onSkip,
+  onCancel,
 }: {
   propertyId: string;
   orgId: string;
+  isFirstTime: boolean;
+  currentRates: RecurringPropertyCost | undefined;
+  currentLevy: RecurringPropertyCost | undefined;
+  currentWater: UtilityResponsibilitySetting | undefined;
+  currentElectricity: UtilityResponsibilitySetting | undefined;
   onDone: () => Promise<void>;
-  onSkip: () => void;
+  onCancel: () => void;
 }) {
   const [ratesLevel, setRatesLevel] = useState<RatesLevel>('property');
-  const [ratesAmount, setRatesAmount] = useState('');
-  const [leviesApplicable, setLeviesApplicable] = useState<'yes' | 'no' | ''>('');
+  const [ratesAmount, setRatesAmount] = useState(currentRates ? String(currentRates.amount) : '');
+  const [leviesApplicable, setLeviesApplicable] = useState<'yes' | 'no' | ''>(currentLevy ? 'yes' : '');
   const [leviesLevel, setLeviesLevel] = useState<RatesLevel>('property');
-  const [leviesAmount, setLeviesAmount] = useState('');
-  const [waterResponsibility, setWaterResponsibility] = useState<UtilityResponsibilityMode | ''>('');
-  const [electricityResponsibility, setElectricityResponsibility] = useState<UtilityResponsibilityMode | ''>('');
-  const [budgetChoice, setBudgetChoice] = useState<'monthly' | 'annual' | 'skip' | ''>('');
-  const [budgetMonthlyAmount, setBudgetMonthlyAmount] = useState('');
-  const [budgetAnnualAmount, setBudgetAnnualAmount] = useState('');
+  const [leviesAmount, setLeviesAmount] = useState(currentLevy ? String(currentLevy.amount) : '');
+  const [waterResponsibility, setWaterResponsibility] = useState<UtilityResponsibilityMode | ''>(
+    currentWater?.responsibilityMode ?? '',
+  );
+  const [electricityResponsibility, setElectricityResponsibility] = useState<UtilityResponsibilityMode | ''>(
+    currentElectricity?.responsibilityMode ?? '',
+  );
   const [submitting, setSubmitting] = useState(false);
-  const [guideError, setGuideError] = useState<string | null>(null);
-  const month = currentMonth();
+  const [formError, setFormError] = useState<string | null>(null);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setSubmitting(true);
-    setGuideError(null);
+    setFormError(null);
     try {
-      if (ratesLevel === 'property' && ratesAmount.trim() !== '') {
+      if (ratesLevel === 'property') {
         const res = await fetch(`/api/v1/properties/${propertyId}/recurring-costs`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             orgId,
             costType: 'rates_and_taxes',
-            amount: Number(ratesAmount),
+            amount: ratesAmount.trim() === '' ? null : Number(ratesAmount),
             effectiveFrom: new Date().toISOString().slice(0, 10),
           }),
         });
@@ -459,20 +464,37 @@ function FinancialSetupGuide({
         }
       }
 
-      if (leviesApplicable === 'yes' && leviesLevel === 'property' && leviesAmount.trim() !== '') {
+      if (leviesApplicable === 'yes' && leviesLevel === 'property') {
         const res = await fetch(`/api/v1/properties/${propertyId}/recurring-costs`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             orgId,
             costType: 'levy',
-            amount: Number(leviesAmount),
+            amount: leviesAmount.trim() === '' ? null : Number(leviesAmount),
             effectiveFrom: new Date().toISOString().slice(0, 10),
           }),
         });
         if (!res.ok) {
           const body = await safeJson(res);
           throw new Error(body?.error?.message ?? 'Could not save the levy.');
+        }
+      } else if (leviesApplicable === 'no' && currentLevy) {
+        // Clearing a previously-set levy: save it as not applicable rather than leaving a stale
+        // amount behind once the owner explicitly says "No" during an edit.
+        const res = await fetch(`/api/v1/properties/${propertyId}/recurring-costs`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orgId,
+            costType: 'levy',
+            amount: null,
+            effectiveFrom: new Date().toISOString().slice(0, 10),
+          }),
+        });
+        if (!res.ok) {
+          const body = await safeJson(res);
+          throw new Error(body?.error?.message ?? 'Could not update the levy.');
         }
       }
 
@@ -492,31 +514,9 @@ function FinancialSetupGuide({
         }
       }
 
-      if (budgetChoice === 'monthly' && budgetMonthlyAmount.trim() !== '') {
-        const res = await fetch(`/api/v1/properties/${propertyId}/budget`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ orgId, month, plannedAmount: Number(budgetMonthlyAmount) }),
-        });
-        if (!res.ok) {
-          const body = await safeJson(res);
-          throw new Error(body?.error?.message ?? 'Could not save the monthly budget.');
-        }
-      } else if (budgetChoice === 'annual' && budgetAnnualAmount.trim() !== '') {
-        const res = await fetch(`/api/v1/properties/${propertyId}/budget/annual`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ orgId, year: currentYear(), annualTotal: Number(budgetAnnualAmount) }),
-        });
-        if (!res.ok) {
-          const body = await safeJson(res);
-          throw new Error(body?.error?.message ?? 'Could not distribute the annual budget.');
-        }
-      }
-
       await onDone();
     } catch (err) {
-      setGuideError(err instanceof Error ? err.message : 'Could not save financial setup.');
+      setFormError(err instanceof Error ? err.message : 'Could not save financial setup.');
     } finally {
       setSubmitting(false);
     }
@@ -524,18 +524,26 @@ function FinancialSetupGuide({
 
   return (
     <Panel
-      title="Set up financial details"
-      description="A few quick questions -- every answer stays editable afterwards, and you can skip this and configure things manually below at any time."
+      title="Financial setup"
+      description={
+        isFirstTime
+          ? 'A few quick questions -- every answer stays editable afterwards, and you can skip this and configure things manually later.'
+          : 'Every answer stays editable -- change anything below and save again at any time.'
+      }
     >
       <form onSubmit={handleSubmit} className="space-y-5">
-        {guideError ? (
+        {formError ? (
           <div className="rounded-md border border-light-danger bg-light-danger/10 px-3 py-2 text-xs text-light-danger dark:border-dark-danger dark:bg-dark-danger/10 dark:text-dark-danger">
-            {guideError}
+            {formError}
           </div>
         ) : null}
 
         <fieldset className="space-y-2">
           <legend className="text-xs font-semibold">Rates &amp; taxes</legend>
+          <p className="text-[11px] text-muted-foreground">
+            An expected recurring amount, not proof of an actual payment -- editable at any time, and
+            never posted as an expense on its own.
+          </p>
           <div className="flex gap-4 text-xs">
             <label className="flex items-center gap-1.5">
               <input
@@ -653,7 +661,7 @@ function FinancialSetupGuide({
                 onChange={(e) => setWaterResponsibility(e.target.value as UtilityResponsibilityMode | '')}
                 className="mt-1 block w-full rounded-md border border-light-border bg-transparent px-3 py-2 text-sm dark:border-dark-border"
               >
-                <option value="">Not applicable / skip for now</option>
+                <option value="">Not configured</option>
                 {(Object.keys(RESPONSIBILITY_LABELS) as UtilityResponsibilityMode[]).map((mode) => (
                   <option key={mode} value={mode}>
                     {RESPONSIBILITY_LABELS[mode]}
@@ -668,7 +676,7 @@ function FinancialSetupGuide({
                 onChange={(e) => setElectricityResponsibility(e.target.value as UtilityResponsibilityMode | '')}
                 className="mt-1 block w-full rounded-md border border-light-border bg-transparent px-3 py-2 text-sm dark:border-dark-border"
               >
-                <option value="">Not applicable / skip for now</option>
+                <option value="">Not configured</option>
                 {(Object.keys(RESPONSIBILITY_LABELS) as UtilityResponsibilityMode[]).map((mode) => (
                   <option key={mode} value={mode}>
                     {RESPONSIBILITY_LABELS[mode]}
@@ -691,81 +699,17 @@ function FinancialSetupGuide({
           ) : null}
         </fieldset>
 
-        <fieldset className="space-y-2">
-          <legend className="text-xs font-semibold">Budget</legend>
-          <p className="text-[11px] text-muted-foreground">Would you like to set a property budget?</p>
-          <div className="flex flex-wrap gap-4 text-xs">
-            <label className="flex items-center gap-1.5">
-              <input
-                type="radio"
-                name="budget-choice"
-                checked={budgetChoice === 'monthly'}
-                onChange={() => setBudgetChoice('monthly')}
-              />
-              Monthly budget
-            </label>
-            <label className="flex items-center gap-1.5">
-              <input
-                type="radio"
-                name="budget-choice"
-                checked={budgetChoice === 'annual'}
-                onChange={() => setBudgetChoice('annual')}
-              />
-              Annual budget
-            </label>
-            <label className="flex items-center gap-1.5">
-              <input
-                type="radio"
-                name="budget-choice"
-                checked={budgetChoice === 'skip'}
-                onChange={() => setBudgetChoice('skip')}
-              />
-              Skip for now
-            </label>
-          </div>
-          {budgetChoice === 'monthly' ? (
-            <label className="block text-xs">
-              <span className="text-muted-foreground">Planned operating spend this month (R)</span>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={budgetMonthlyAmount}
-                onChange={(e) => setBudgetMonthlyAmount(e.target.value)}
-                className="mt-1 block w-48 rounded-md border border-light-border bg-transparent px-3 py-2 text-sm dark:border-dark-border"
-              />
-            </label>
-          ) : null}
-          {budgetChoice === 'annual' ? (
-            <label className="block text-xs">
-              <span className="text-muted-foreground">Annual planned operating spend (R) -- distributed evenly across 12 months, editable after</span>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={budgetAnnualAmount}
-                onChange={(e) => setBudgetAnnualAmount(e.target.value)}
-                className="mt-1 block w-48 rounded-md border border-light-border bg-transparent px-3 py-2 text-sm dark:border-dark-border"
-              />
-            </label>
-          ) : null}
-        </fieldset>
-
         <div className="flex gap-2 pt-2">
           <Button type="submit" variant="primary" disabled={submitting}>
-            {submitting ? 'Saving…' : 'Save financial setup'}
+            {submitting ? 'Saving…' : isFirstTime ? 'Save financial setup' : 'Save changes'}
           </Button>
-          <Button type="button" onClick={onSkip} disabled={submitting}>
-            Skip -- I&apos;ll configure this later
+          <Button type="button" onClick={onCancel} disabled={submitting}>
+            {isFirstTime ? "Skip -- I'll configure this later" : 'Cancel'}
           </Button>
         </div>
       </form>
     </Panel>
   );
-}
-
-function currentYear(): number {
-  return new Date().getFullYear();
 }
 
 /** §13 annual budget planning -- "enter annual amount, distribute evenly across 12 months, allow
@@ -794,25 +738,20 @@ function AnnualBudgetPanel({
 
   const load = useCallback(async () => {
     setLoaded(false);
-    const monthKeys = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}-01`);
     if (demoMode) {
       // A realistic partial year -- most months set, the current one still open, matching what an
       // owner who has only just started budgeting would actually see.
+      const monthKeys = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}-01`);
       setMonths(monthKeys.map((m, i) => ({ month: m, planned: i < 8 ? 5000 : null })));
       setLoaded(true);
       return;
     }
-    const results = await Promise.all(
-      monthKeys.map((m) =>
-        fetch(`/api/v1/properties/${propertyId}/budget?month=${m}`).then((r) => safeJson(r)),
-      ),
-    );
-    setMonths(
-      monthKeys.map((m, i) => ({
-        month: m,
-        planned: results[i]?.budgetVsActual?.plannedAmount ?? null,
-      })),
-    );
+    // §7 audit (WORKLOG.md this date): this used to fire 12 separate GET /budget?month=X requests
+    // per load. One batched request now returns the same budget_vs_actual() data for all 12 months.
+    const res = await fetch(`/api/v1/properties/${propertyId}/budget/annual?year=${year}`);
+    const body = await safeJson(res);
+    const monthsBody = (body?.months ?? []) as { month: string; budgetVsActual: BudgetVsActual }[];
+    setMonths(monthsBody.map((m) => ({ month: m.month, planned: m.budgetVsActual?.plannedAmount ?? null })));
     setLoaded(true);
   }, [propertyId, year, demoMode]);
 
@@ -967,72 +906,5 @@ function Metric({ label, value }: { label: string; value: string }) {
       <p className="text-muted-foreground">{label}</p>
       <p className="font-semibold">{value}</p>
     </div>
-  );
-}
-
-function RecurringCostField({
-  label,
-  current,
-  disabled,
-  onSave,
-}: {
-  label: string;
-  current: RecurringPropertyCost | undefined;
-  disabled: boolean;
-  onSave: (amount: string) => void;
-}) {
-  const [value, setValue] = useState(current ? String(current.amount) : '');
-  useEffect(() => {
-    setValue(current ? String(current.amount) : '');
-  }, [current]);
-
-  return (
-    <label className="block text-xs">
-      <span className="text-muted-foreground">{label} (R/month, blank = not applicable)</span>
-      <div className="mt-1 flex gap-2">
-        <input
-          type="number"
-          min="0"
-          step="0.01"
-          value={value}
-          disabled={disabled}
-          onChange={(e) => setValue(e.target.value)}
-          className="block w-full rounded-md border border-light-border bg-transparent px-3 py-2 text-sm dark:border-dark-border"
-        />
-        <Button type="button" disabled={disabled} onClick={() => onSave(value)}>
-          Save
-        </Button>
-      </div>
-    </label>
-  );
-}
-
-function ResponsibilityField({
-  label,
-  value,
-  disabled,
-  onChange,
-}: {
-  label: string;
-  value: UtilityResponsibilityMode;
-  disabled: boolean;
-  onChange: (mode: UtilityResponsibilityMode) => void;
-}) {
-  return (
-    <label className="block text-xs">
-      <span className="text-muted-foreground">{label}</span>
-      <select
-        value={value}
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.value as UtilityResponsibilityMode)}
-        className="mt-1 block w-full rounded-md border border-light-border bg-transparent px-3 py-2 text-sm dark:border-dark-border"
-      >
-        {(Object.keys(RESPONSIBILITY_LABELS) as UtilityResponsibilityMode[]).map((mode) => (
-            <option key={mode} value={mode}>
-              {RESPONSIBILITY_LABELS[mode]}
-            </option>
-          ))}
-      </select>
-    </label>
   );
 }

@@ -92,8 +92,6 @@ export function UnitFinancesPanel({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const [waterMode, setWaterMode] = useState<UtilityResponsibilityMode>('owner_paid');
-  const [electricityMode, setElectricityMode] = useState<UtilityResponsibilityMode>('owner_paid');
   const manageable = canManage && !demoMode;
 
   const load = useCallback(async () => {
@@ -212,21 +210,15 @@ export function UnitFinancesPanel({
         <div className="grid grid-cols-2 gap-4">
           <ResponsibilityField
             label="Water"
-            value={currentWater?.responsibilityMode ?? waterMode}
+            value={currentWater?.responsibilityMode ?? ''}
             disabled={!manageable || busy}
-            onChange={(mode) => {
-              setWaterMode(mode);
-              setResponsibility('water', mode);
-            }}
+            onChange={(mode) => setResponsibility('water', mode)}
           />
           <ResponsibilityField
             label="Electricity"
-            value={currentElectricity?.responsibilityMode ?? electricityMode}
+            value={currentElectricity?.responsibilityMode ?? ''}
             disabled={!manageable || busy}
-            onChange={(mode) => {
-              setElectricityMode(mode);
-              setResponsibility('electricity', mode);
-            }}
+            onChange={(mode) => setResponsibility('electricity', mode)}
           />
         </div>
       </Panel>
@@ -278,7 +270,7 @@ function ResponsibilityField({
   onChange,
 }: {
   label: string;
-  value: UtilityResponsibilityMode;
+  value: UtilityResponsibilityMode | '';
   disabled: boolean;
   onChange: (mode: UtilityResponsibilityMode) => void;
 }) {
@@ -288,9 +280,13 @@ function ResponsibilityField({
       <select
         value={value}
         disabled={disabled}
-        onChange={(e) => onChange(e.target.value as UtilityResponsibilityMode)}
+        onChange={(e) => {
+          const next = e.target.value as UtilityResponsibilityMode | '';
+          if (next) onChange(next);
+        }}
         className="mt-1 block w-full rounded-md border border-light-border bg-transparent px-3 py-2 text-sm dark:border-dark-border"
       >
+        <option value="">Not configured</option>
         {UNIT_RESPONSIBILITY_MODES.map((mode) => (
           <option key={mode} value={mode}>
             {RESPONSIBILITY_LABELS[mode]}

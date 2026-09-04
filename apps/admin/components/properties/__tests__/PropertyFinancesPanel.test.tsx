@@ -68,8 +68,8 @@ describe('PropertyFinancesPanel', () => {
     );
     // The panel's own headings still render -- proof the component tree survived instead of being
     // replaced by the root error boundary. `getByRole('heading', ...)` (not getByText) because the
-    // "nothing configured yet" guide panel added later also has a "Monthly budget" radio option.
-    expect(screen.getByText('Property-level rates & levies (expected/configured)')).toBeTruthy();
+    // "nothing configured yet" setup form also has a "Monthly budget" radio option.
+    expect(screen.getByRole('heading', { name: 'Financial setup' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Monthly budget' })).toBeTruthy();
   });
 
@@ -87,5 +87,73 @@ describe('PropertyFinancesPanel', () => {
 
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Monthly budget' })).toBeTruthy());
     expect(screen.queryByText(/Simulated failure/)).toBeNull();
+  });
+
+  // Real bug found and fixed (WORKLOG.md this date, "500s + duplicated setup UI" follow-up pass):
+  // once anything was configured, the setup guide AND the manual rates/levies/utility-responsibility
+  // panels rendered simultaneously, fully duplicating every field. Now there is exactly one
+  // authoritative setup area -- the full form only while unconfigured or explicitly editing, a
+  // compact summary otherwise, never both.
+  it('shows a compact summary, not the full setup form, once rates/levies/utilities are configured', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          recurringCosts: [
+            {
+              id: 'cost-1',
+              orgId: 'org-1',
+              propertyId: 'property-1',
+              unitId: null,
+              costType: 'rates_and_taxes',
+              amount: 2100,
+              effectiveFrom: '2026-01-01',
+              effectiveTo: null,
+              notes: null,
+              createdAt: '2026-01-01T00:00:00Z',
+              updatedAt: '2026-01-01T00:00:00Z',
+            },
+          ],
+          utilitySettings: [],
+          budgetVsActual: null,
+        }),
+      }),
+    );
+
+    render(<PropertyFinancesPanel propertyId="property-1" orgId="org-1" canManage={true} />);
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Financial setup' })).toBeTruthy());
+    // The summary, not the form: "Edit setup" button present, no "Save financial setup"/"Save
+    // changes" submit button, and the rates value renders as read-only text, not an editable input.
+    expect(screen.getByRole('button', { name: 'Edit setup' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Save (financial setup|changes)/ })).toBeNull();
+    expect(screen.getByText(/^R.*100\/mo \(property-level\)$/)).toBeTruthy();
+    // Never duplicated: only one "Financial setup" heading on the page.
+    expect(screen.getAllByRole('heading', { name: 'Financial setup' })).toHaveLength(1);
+  });
+
+  // Real bug found and fixed (same pass): water/electricity responsibility selects defaulted their
+  // VISUAL value to "Owner pays" even when nothing had actually been saved (`currentWater?.mode ??
+  // waterMode` where `waterMode` itself defaulted to `'owner_paid'`), implying a configured choice
+  // that was never made. Now an unconfigured utility reads "Not configured" until an explicit save.
+  it('shows "Not configured" for water/electricity responsibility, never a false "Owner pays" default', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ recurringCosts: [], utilitySettings: [], budgetVsActual: null }),
+      }),
+    );
+
+    render(<PropertyFinancesPanel propertyId="property-1" orgId="org-1" canManage={true} />);
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Financial setup' })).toBeTruthy());
+    const waterSelect = screen.getByLabelText('Water') as HTMLSelectElement;
+    const electricitySelect = screen.getByLabelText('Electricity') as HTMLSelectElement;
+    expect(waterSelect.value).toBe('');
+    expect(electricitySelect.value).toBe('');
   });
 });
