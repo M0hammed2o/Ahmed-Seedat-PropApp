@@ -1,5 +1,64 @@
 # Worklog
 
+## 2026-09-04 (continued) — Property -> Finances "500s" traced to production schema drift; setup UI de-duplicated; false defaults removed; annual budget batched
+
+Follow-up to the same-day crash/redesign pass below, triggered by a fresh manual test report of
+repeated HTTP 500s on `utility-meters`/`utility-settings`/`recurring-costs`/monthly-budget
+endpoints. Web only, no Android/iOS, no production migrations applied.
+
+**500 root cause, evidence-based not guessed**: reproduced every one of the reported endpoints --
+GET and POST, on both an already-configured property and a brand-new one, plus a full save-then-
+reload cycle -- against local Supabase with zero failures. The exact failing endpoints are backed by
+`recurring_property_costs`/`utility_responsibility_settings`/`utility_meters`/`property_budgets`,
+introduced by migrations `20260101000163`/`164`; an earlier pass this same day (WORKLOG.md, "web
+financials V1 part 2") documented the linked production Supabase project confirmed still on
+migration 162, and no production migrations have been applied since. Mohammed confirmed the manual
+test was against production (`.env.local` was pointed there per his own explicit end-of-session
+restore instruction from the prior pass). No code fix applied or needed here -- production is
+missing schema, not running broken code; closing this requires applying migrations 163-168 to
+production, explicitly out of scope for this pass (production migrations forbidden).
+
+**Real bug found and fixed along the way**: the new `/budget` page (added in the crash/redesign pass
+below) 500'd on every load -- `lastTwelveMonthOptions()` lived in a `'use client'` file
+(`BudgetFiltersBar.tsx`) and the server-component page called it directly; Next's RSC boundary
+forbids invoking a client-exported function from server code. Moved the pure function to
+`lib/budgetMonths.ts`, imported by both sides.
+
+**Duplicated setup UI removed** (`PropertyFinancesPanel.tsx`): the guide, the "Property-level rates &
+levies" panel, and the "Utility responsibility" panel all rendered simultaneously once anything was
+configured, fully repeating every field. Replaced with one authoritative `FinancialSetupForm` --
+full form only while unconfigured or explicitly editing (`Edit setup` button), a compact
+`FinancialSetupSummary` otherwise, never both. Budget setup was deliberately dropped from this
+form -- the Monthly/Annual budget panels immediately below are already the one place a budget is
+set, so asking there too would reintroduce the exact duplication being removed.
+
+**False "Owner pays" default removed**: `waterMode`/`electricityMode` state defaulted to
+`'owner_paid'` and was shown whenever nothing had actually been saved (`currentWater?.mode ??
+waterMode`), implying a configured choice that was never made. Fixed in both
+`PropertyFinancesPanel.tsx` and the sibling `UnitFinancesPanel.tsx` (same bug, same fix) -- an
+unconfigured responsibility now reads "Not configured" in a blank-default `<select>`, matching the
+project's existing "never fabricate a financial value" rule.
+
+**Annual budget batched** (§7 audit): the Annual budget panel fired 12 separate `GET
+/budget?month=X` requests per page load. New `GET /budget/annual?year=YYYY` (added to the existing
+`budget/annual/route.ts`, alongside its `POST`) batches the same `budget_vs_actual()` RPC
+server-side into one response -- confirmed via live measurement: 1 request instead of 12+ on a real
+page load. Not a new budgeting backend -- same RPC, same authorization, fewer round trips.
+
+**Verification**: real Playwright reproduction against local Supabase across a brand-new property, an
+already-configured one (rates+utilities+budget), a unit-level-only property (property-level summary
+correctly shows "Not configured" rather than guessing), and an existing zero-configured property --
+save, reload, edit-prefill, and cancel all confirmed correct, zero console errors, zero 500s. New/
+updated Vitest: `PropertyFinancesPanel.test.tsx` (dedup + no-false-default regression tests added)
+and a new `budget/annual/__tests__/route.test.ts` (4 tests, real local Supabase integration) all
+pass. `tsc --noEmit`, `eslint .`, and `next build` all clean. Full Vitest suite: 13 failures
+remained under heavy full-suite parallel load against the shared local Supabase instance, none in
+files this pass touched, non-deterministic across repeated runs (a different specific test failed
+each time) and traced to my own `next dev` server running concurrently against the same local
+Supabase instance during the first run -- stopping it and re-running dropped failures from 83 to 13,
+and the same 5 failing files pass individually. Pre-existing infra flakiness under load, not a
+regression.
+
 ## 2026-09-04 — Property -> Finances crash fixed; property/unit financial setup redesigned; Budget page added
 
 Web only, no Android/iOS. No production Supabase touched -- see the security note below.
