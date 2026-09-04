@@ -123,7 +123,14 @@ export function PropertyForm({ mode, orgId, property }: PropertyFormProps) {
         setUpgradeRequired(body.error?.upgradeRequired === true);
         return;
       }
-      router.push(`/properties/${body.property.id}`);
+      // Web property financial setup pass (WORKLOG.md this date): a brand-new property used to
+      // land on Overview, silently leaving rates/levies/utilities/budget to be discovered later
+      // (or never) -- landing straight on the Finances tab surfaces that setup naturally, right
+      // after creation, without a separate wizard flow (PropertyFinancesPanel's own guided
+      // "Set up financial details" empty state, below, is what actually asks the questions).
+      // Editing an existing property still returns to its normal Overview -- this is a
+      // create-only nudge, not a change to how the detail page opens otherwise.
+      router.push(mode === 'create' ? `/properties/${body.property.id}?tab=Finances` : `/properties/${body.property.id}`);
       router.refresh();
     } catch {
       setError(`Failed to ${mode === 'create' ? 'create' : 'save'} property -- check your connection and try again.`);

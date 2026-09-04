@@ -46,6 +46,9 @@ function currentMonth(): string {
 // the network call entirely and renders realistic static figures instead, same rule DEMO_DATA on
 // the main dashboard already follows.
 const DEMO_TIMESTAMPS = { createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' };
+// Property-level rates, no levy (WORKLOG.md this date, property/unit financial setup pass) --
+// a whole-building owner scenario, matching the "Property A" demo scenario requirement: rates &
+// taxes at the property level, no levy at all (never forced on an owner who isn't sectional-title).
 const DEMO_COSTS: RecurringPropertyCost[] = [
   {
     id: 'demo-cost-rates',
@@ -54,18 +57,6 @@ const DEMO_COSTS: RecurringPropertyCost[] = [
     unitId: null,
     costType: 'rates_and_taxes',
     amount: 1450,
-    effectiveFrom: '2026-01-01',
-    effectiveTo: null,
-    notes: null,
-    ...DEMO_TIMESTAMPS,
-  },
-  {
-    id: 'demo-cost-levy',
-    orgId: 'demo-org-1',
-    propertyId: 'demo-property-1',
-    unitId: null,
-    costType: 'levy',
-    amount: 750,
     effectiveFrom: '2026-01-01',
     effectiveTo: null,
     notes: null,
@@ -146,9 +137,26 @@ export function PropertyFinancesPanel({
     const costsBody = await safeJson(costsRes);
     const settingsBody = await safeJson(settingsRes);
     const budgetBody = await safeJson(budgetRes);
-    if (costsBody) setCosts(costsBody.recurringCosts);
-    if (settingsBody) setSettings(settingsBody.utilitySettings);
-    if (budgetBody) setBudgetVsActual(budgetBody.budgetVsActual);
+    // Real bug found and fixed (WORKLOG.md this date): `if (costsBody) setCosts(costsBody.recurringCosts)`
+    // checked truthiness of the RESPONSE BODY, not the field -- safeJson() never returns null/
+    // undefined, so this was always true, including on a genuine failure (e.g. costsRes.ok false),
+    // where costsBody is `{error: {...}}` and `.recurringCosts` is undefined. That set `costs` to
+    // undefined instead of leaving it `[]`, and the very next line's `costs.find(...)` threw --
+    // caught by the root error boundary as "Something went wrong," taking out the whole page, not
+    // just this panel. `UnitFinancesPanel.tsx`'s equivalent load() already had the `?? []` guard;
+    // this one didn't. Also now surfaces a real error message on any actual failure, instead of
+    // silently rendering an empty-looking panel.
+    if (!costsRes.ok || !settingsRes.ok || !budgetRes.ok) {
+      setError(
+        costsBody?.error?.message ??
+          settingsBody?.error?.message ??
+          budgetBody?.error?.message ??
+          'Could not load this property’s financial setup. Try again.',
+      );
+    }
+    setCosts(costsBody?.recurringCosts ?? []);
+    setSettings(settingsBody?.utilitySettings ?? []);
+    setBudgetVsActual(budgetBody?.budgetVsActual ?? null);
     setLoaded(true);
   }, [propertyId, month, demoMode]);
 
@@ -228,6 +236,18 @@ export function PropertyFinancesPanel({
     }
   }
 
+  const [guideDismissed, setGuideDismissed] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    setGuideDismissed(window.localStorage.getItem(`financeGuideDismissed:${propertyId}`) === '1');
+  }, [propertyId]);
+  function dismissGuide() {
+    setGuideDismissed(true);
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(`financeGuideDismissed:${propertyId}`, '1');
+    }
+  }
+
   if (!loaded) {
     return (
       <Panel>
@@ -236,12 +256,37 @@ export function PropertyFinancesPanel({
     );
   }
 
+  // Web property financial setup pass (WORKLOG.md this date): these questions used to only exist
+  // as raw, unlabeled form fields an owner had to already know to come looking for -- "naturally
+  // incorporated into setup" per the task's own framing. Shown once, the first time a property has
+  // genuinely nothing configured (no recurring costs, no utility settings, no budget) -- reuses
+  // every existing API this same panel's own fields already call, never a second backend. Once
+  // anything is saved (through the guide or dismissed in favour of the fields below), it never
+  // shows again for this property (localStorage, per-viewer -- not a new DB column for a one-time
+  // UI nudge).
+  const nothingConfiguredYet =
+    costs.length === 0 &&
+    settings.length === 0 &&
+    (budgetVsActual?.plannedAmount === null || budgetVsActual?.plannedAmount === undefined);
+  const showGuide = manageable && nothingConfiguredYet && !guideDismissed;
+
   return (
     <div className="space-y-4">
       {error ? (
         <div className="rounded-md border border-light-danger bg-light-danger/10 px-3 py-2 text-xs text-light-danger dark:border-dark-danger dark:bg-dark-danger/10 dark:text-dark-danger">
           {error}
         </div>
+      ) : null}
+
+      {showGuide ? (
+        <FinancialSetupGuide
+          propertyId={propertyId}
+          orgId={orgId}
+          onDone={async () => {
+            await load();
+          }}
+          onSkip={dismissGuide}
+        />
       ) : null}
 
       <Panel>
@@ -351,6 +396,371 @@ export function PropertyFinancesPanel({
 
       <AnnualBudgetPanel propertyId={propertyId} orgId={orgId} canManage={manageable} demoMode={demoMode} />
     </div>
+  );
+}
+
+type RatesLevel = 'property' | 'unit';
+
+/** Web property financial setup pass (WORKLOG.md this date): the guided "ask these questions
+ *  during setup" flow -- rates/taxes level+amount, levies applicable+level+amount, water/
+ *  electricity responsibility, budget monthly/annual/skip. Every save goes through the exact same
+ *  API routes the plain fields below already use (POST recurring-costs/utility-settings/budget/
+ *  budget/annual) -- this is a friendlier front door onto existing endpoints, not a new backend.
+ *  Meter creation is deliberately NOT part of this guide -- the "Utility meters" panel is already
+ *  the one place a meter gets created; duplicating that here would be a second data-entry path for
+ *  the same thing. Property-level rates/levies are the only recurring-cost amounts collected here
+ *  -- unit-level ones are collected per-unit, on that unit's own page/form, once the owner picks
+ *  "unit-level" here (§4 of the task: "do not require one property-wide amount" for a unit-level
+ *  cost). */
+function FinancialSetupGuide({
+  propertyId,
+  orgId,
+  onDone,
+  onSkip,
+}: {
+  propertyId: string;
+  orgId: string;
+  onDone: () => Promise<void>;
+  onSkip: () => void;
+}) {
+  const [ratesLevel, setRatesLevel] = useState<RatesLevel>('property');
+  const [ratesAmount, setRatesAmount] = useState('');
+  const [leviesApplicable, setLeviesApplicable] = useState<'yes' | 'no' | ''>('');
+  const [leviesLevel, setLeviesLevel] = useState<RatesLevel>('property');
+  const [leviesAmount, setLeviesAmount] = useState('');
+  const [waterResponsibility, setWaterResponsibility] = useState<UtilityResponsibilityMode | ''>('');
+  const [electricityResponsibility, setElectricityResponsibility] = useState<UtilityResponsibilityMode | ''>('');
+  const [budgetChoice, setBudgetChoice] = useState<'monthly' | 'annual' | 'skip' | ''>('');
+  const [budgetMonthlyAmount, setBudgetMonthlyAmount] = useState('');
+  const [budgetAnnualAmount, setBudgetAnnualAmount] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [guideError, setGuideError] = useState<string | null>(null);
+  const month = currentMonth();
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+    setGuideError(null);
+    try {
+      if (ratesLevel === 'property' && ratesAmount.trim() !== '') {
+        const res = await fetch(`/api/v1/properties/${propertyId}/recurring-costs`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orgId,
+            costType: 'rates_and_taxes',
+            amount: Number(ratesAmount),
+            effectiveFrom: new Date().toISOString().slice(0, 10),
+          }),
+        });
+        if (!res.ok) {
+          const body = await safeJson(res);
+          throw new Error(body?.error?.message ?? 'Could not save rates & taxes.');
+        }
+      }
+
+      if (leviesApplicable === 'yes' && leviesLevel === 'property' && leviesAmount.trim() !== '') {
+        const res = await fetch(`/api/v1/properties/${propertyId}/recurring-costs`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orgId,
+            costType: 'levy',
+            amount: Number(leviesAmount),
+            effectiveFrom: new Date().toISOString().slice(0, 10),
+          }),
+        });
+        if (!res.ok) {
+          const body = await safeJson(res);
+          throw new Error(body?.error?.message ?? 'Could not save the levy.');
+        }
+      }
+
+      for (const [utilityType, mode] of [
+        ['water', waterResponsibility],
+        ['electricity', electricityResponsibility],
+      ] as const) {
+        if (!mode) continue;
+        const res = await fetch(`/api/v1/properties/${propertyId}/utility-settings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orgId, utilityType, responsibilityMode: mode }),
+        });
+        if (!res.ok) {
+          const body = await safeJson(res);
+          throw new Error(body?.error?.message ?? `Could not save ${utilityType} responsibility.`);
+        }
+      }
+
+      if (budgetChoice === 'monthly' && budgetMonthlyAmount.trim() !== '') {
+        const res = await fetch(`/api/v1/properties/${propertyId}/budget`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orgId, month, plannedAmount: Number(budgetMonthlyAmount) }),
+        });
+        if (!res.ok) {
+          const body = await safeJson(res);
+          throw new Error(body?.error?.message ?? 'Could not save the monthly budget.');
+        }
+      } else if (budgetChoice === 'annual' && budgetAnnualAmount.trim() !== '') {
+        const res = await fetch(`/api/v1/properties/${propertyId}/budget/annual`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orgId, year: currentYear(), annualTotal: Number(budgetAnnualAmount) }),
+        });
+        if (!res.ok) {
+          const body = await safeJson(res);
+          throw new Error(body?.error?.message ?? 'Could not distribute the annual budget.');
+        }
+      }
+
+      await onDone();
+    } catch (err) {
+      setGuideError(err instanceof Error ? err.message : 'Could not save financial setup.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Panel
+      title="Set up financial details"
+      description="A few quick questions -- every answer stays editable afterwards, and you can skip this and configure things manually below at any time."
+    >
+      <form onSubmit={handleSubmit} className="space-y-5">
+        {guideError ? (
+          <div className="rounded-md border border-light-danger bg-light-danger/10 px-3 py-2 text-xs text-light-danger dark:border-dark-danger dark:bg-dark-danger/10 dark:text-dark-danger">
+            {guideError}
+          </div>
+        ) : null}
+
+        <fieldset className="space-y-2">
+          <legend className="text-xs font-semibold">Rates &amp; taxes</legend>
+          <div className="flex gap-4 text-xs">
+            <label className="flex items-center gap-1.5">
+              <input
+                type="radio"
+                name="rates-level"
+                checked={ratesLevel === 'property'}
+                onChange={() => setRatesLevel('property')}
+              />
+              Property-level
+            </label>
+            <label className="flex items-center gap-1.5">
+              <input
+                type="radio"
+                name="rates-level"
+                checked={ratesLevel === 'unit'}
+                onChange={() => setRatesLevel('unit')}
+              />
+              Unit-level (sectional title)
+            </label>
+          </div>
+          {ratesLevel === 'property' ? (
+            <label className="block text-xs">
+              <span className="text-muted-foreground">Expected monthly rates &amp; taxes (R, blank = not applicable)</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={ratesAmount}
+                onChange={(e) => setRatesAmount(e.target.value)}
+                className="mt-1 block w-48 rounded-md border border-light-border bg-transparent px-3 py-2 text-sm dark:border-dark-border"
+              />
+            </label>
+          ) : (
+            <p className="text-[11px] text-muted-foreground">
+              You&apos;ll set the amount when you add or edit each unit.
+            </p>
+          )}
+        </fieldset>
+
+        <fieldset className="space-y-2">
+          <legend className="text-xs font-semibold">Levies</legend>
+          <p className="text-[11px] text-muted-foreground">
+            Does this property have levies? A whole-building owner often has none.
+          </p>
+          <div className="flex gap-4 text-xs">
+            <label className="flex items-center gap-1.5">
+              <input
+                type="radio"
+                name="levies-applicable"
+                checked={leviesApplicable === 'yes'}
+                onChange={() => setLeviesApplicable('yes')}
+              />
+              Yes
+            </label>
+            <label className="flex items-center gap-1.5">
+              <input
+                type="radio"
+                name="levies-applicable"
+                checked={leviesApplicable === 'no'}
+                onChange={() => setLeviesApplicable('no')}
+              />
+              No
+            </label>
+          </div>
+          {leviesApplicable === 'yes' ? (
+            <>
+              <div className="flex gap-4 text-xs">
+                <label className="flex items-center gap-1.5">
+                  <input
+                    type="radio"
+                    name="levies-level"
+                    checked={leviesLevel === 'property'}
+                    onChange={() => setLeviesLevel('property')}
+                  />
+                  Property-level
+                </label>
+                <label className="flex items-center gap-1.5">
+                  <input
+                    type="radio"
+                    name="levies-level"
+                    checked={leviesLevel === 'unit'}
+                    onChange={() => setLeviesLevel('unit')}
+                  />
+                  Unit-level (sectional title)
+                </label>
+              </div>
+              {leviesLevel === 'property' ? (
+                <label className="block text-xs">
+                  <span className="text-muted-foreground">Expected monthly levy (R)</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={leviesAmount}
+                    onChange={(e) => setLeviesAmount(e.target.value)}
+                    className="mt-1 block w-48 rounded-md border border-light-border bg-transparent px-3 py-2 text-sm dark:border-dark-border"
+                  />
+                </label>
+              ) : (
+                <p className="text-[11px] text-muted-foreground">
+                  You&apos;ll set the amount when you add or edit each unit.
+                </p>
+              )}
+            </>
+          ) : null}
+        </fieldset>
+
+        <fieldset className="space-y-2">
+          <legend className="text-xs font-semibold">Utility responsibility</legend>
+          <div className="grid grid-cols-2 gap-4">
+            <label className="block text-xs">
+              <span className="text-muted-foreground">Water</span>
+              <select
+                value={waterResponsibility}
+                onChange={(e) => setWaterResponsibility(e.target.value as UtilityResponsibilityMode | '')}
+                className="mt-1 block w-full rounded-md border border-light-border bg-transparent px-3 py-2 text-sm dark:border-dark-border"
+              >
+                <option value="">Not applicable / skip for now</option>
+                {(Object.keys(RESPONSIBILITY_LABELS) as UtilityResponsibilityMode[]).map((mode) => (
+                  <option key={mode} value={mode}>
+                    {RESPONSIBILITY_LABELS[mode]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-xs">
+              <span className="text-muted-foreground">Electricity</span>
+              <select
+                value={electricityResponsibility}
+                onChange={(e) => setElectricityResponsibility(e.target.value as UtilityResponsibilityMode | '')}
+                className="mt-1 block w-full rounded-md border border-light-border bg-transparent px-3 py-2 text-sm dark:border-dark-border"
+              >
+                <option value="">Not applicable / skip for now</option>
+                {(Object.keys(RESPONSIBILITY_LABELS) as UtilityResponsibilityMode[]).map((mode) => (
+                  <option key={mode} value={mode}>
+                    {RESPONSIBILITY_LABELS[mode]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {waterResponsibility === 'tenant_prepaid' || electricityResponsibility === 'tenant_prepaid' ? (
+            <p className="text-[11px] text-muted-foreground">
+              Tenant prepaid means the tenant buys their own prepaid water/electricity vouchers --
+              you don&apos;t need to record those purchases as portfolio expenses.
+            </p>
+          ) : null}
+          {waterResponsibility === 'owner_paid' || electricityResponsibility === 'owner_paid' ? (
+            <p className="text-[11px] text-muted-foreground">
+              If there&apos;s a real meter to track, add it in the Utility meters section below once
+              you&apos;re done here.
+            </p>
+          ) : null}
+        </fieldset>
+
+        <fieldset className="space-y-2">
+          <legend className="text-xs font-semibold">Budget</legend>
+          <p className="text-[11px] text-muted-foreground">Would you like to set a property budget?</p>
+          <div className="flex flex-wrap gap-4 text-xs">
+            <label className="flex items-center gap-1.5">
+              <input
+                type="radio"
+                name="budget-choice"
+                checked={budgetChoice === 'monthly'}
+                onChange={() => setBudgetChoice('monthly')}
+              />
+              Monthly budget
+            </label>
+            <label className="flex items-center gap-1.5">
+              <input
+                type="radio"
+                name="budget-choice"
+                checked={budgetChoice === 'annual'}
+                onChange={() => setBudgetChoice('annual')}
+              />
+              Annual budget
+            </label>
+            <label className="flex items-center gap-1.5">
+              <input
+                type="radio"
+                name="budget-choice"
+                checked={budgetChoice === 'skip'}
+                onChange={() => setBudgetChoice('skip')}
+              />
+              Skip for now
+            </label>
+          </div>
+          {budgetChoice === 'monthly' ? (
+            <label className="block text-xs">
+              <span className="text-muted-foreground">Planned operating spend this month (R)</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={budgetMonthlyAmount}
+                onChange={(e) => setBudgetMonthlyAmount(e.target.value)}
+                className="mt-1 block w-48 rounded-md border border-light-border bg-transparent px-3 py-2 text-sm dark:border-dark-border"
+              />
+            </label>
+          ) : null}
+          {budgetChoice === 'annual' ? (
+            <label className="block text-xs">
+              <span className="text-muted-foreground">Annual planned operating spend (R) -- distributed evenly across 12 months, editable after</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={budgetAnnualAmount}
+                onChange={(e) => setBudgetAnnualAmount(e.target.value)}
+                className="mt-1 block w-48 rounded-md border border-light-border bg-transparent px-3 py-2 text-sm dark:border-dark-border"
+              />
+            </label>
+          ) : null}
+        </fieldset>
+
+        <div className="flex gap-2 pt-2">
+          <Button type="submit" variant="primary" disabled={submitting}>
+            {submitting ? 'Saving…' : 'Save financial setup'}
+          </Button>
+          <Button type="button" onClick={onSkip} disabled={submitting}>
+            Skip -- I&apos;ll configure this later
+          </Button>
+        </div>
+      </form>
+    </Panel>
   );
 }
 
