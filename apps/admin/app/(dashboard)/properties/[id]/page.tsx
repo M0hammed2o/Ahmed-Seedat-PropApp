@@ -38,6 +38,17 @@ import { loadPropertyFinancialOverview } from '@/lib/financialOverview';
 import { FinancialOverviewSection } from '@/components/dashboard/FinancialOverviewSection';
 import type { OwnerFinancialSummary } from '@propvault/types';
 
+// Mirrors PropertyFinancesPanel.tsx's own RESPONSIBILITY_LABELS (not exported from a 'use client'
+// component into this server component -- a small local copy for the Overview tab's summary,
+// rather than restructuring that file's module boundary for one shared constant).
+const UTILITY_RESPONSIBILITY_SUMMARY_LABELS: Record<string, string> = {
+  owner_paid: 'Owner pays',
+  tenant_paid_direct: 'Tenant pays directly',
+  tenant_prepaid: 'Tenant prepaid (voucher/token)',
+  included_in_rent: 'Included in rent',
+  common_area_owner: 'Common area (owner)',
+};
+
 type RouteParams = {
   params: Promise<{ id: string }>;
   searchParams: Promise<{ period?: string; from?: string; to?: string; tab?: string }>;
@@ -158,6 +169,19 @@ const DEMO_TENANTS: PropertyTenant[] = [
   { id: 'demo-tenant-1', fullName: 'Naledi Khumalo', unitLabel: 'Unit 1', rentAmount: 12500, leaseStatus: 'active' },
 ];
 
+// "Property A" demo scenario (WORKLOG.md this date, property/unit financial setup pass): a
+// whole-building owner with property-level rates and no levy at all -- matches loadFinancialSetupSummary's
+// real 'unit-or-none' value for a property with no property-level levy row (never forced on an
+// owner who isn't sectional-title).
+const DEMO_FINANCIAL_SETUP_SUMMARY: FinancialSetupSummary = {
+  ratesConfigured: 'property',
+  ratesAmount: 1450,
+  leviesConfigured: 'unit-or-none',
+  leviesAmount: null,
+  waterResponsibility: 'owner_paid',
+  electricityResponsibility: 'tenant_prepaid',
+};
+
 const DEMO_FINANCIAL_OVERVIEW: OwnerFinancialSummary = {
   propertyId: 'demo-property-1',
   month: '2026-08-01',
@@ -167,10 +191,10 @@ const DEMO_FINANCIAL_OVERVIEW: OwnerFinancialSummary = {
   utilitiesExpense: 950,
   waterExpense: 550,
   electricityExpense: 400,
-  ratesAndLeviesExpense: 2200,
+  ratesAndLeviesExpense: 1450,
   ratesTaxesExpense: 1450,
-  leviesExpense: 750,
-  otherExpenses: 1050,
+  leviesExpense: 0,
+  otherExpenses: 1800,
   totalExpenses: 4200,
   budgetPlanned: 5000,
   budgetUsedPercent: 84,
@@ -215,6 +239,7 @@ export default async function PropertyDetailPage({ params, searchParams }: Route
           recentTransactions: [],
         }}
         financialOverview={DEMO_FINANCIAL_OVERVIEW}
+        financialSetupSummary={DEMO_FINANCIAL_SETUP_SUMMARY}
         financialOverviewMonthLabel="August 2026"
         canManage
         isPrincipal
@@ -226,6 +251,7 @@ export default async function PropertyDetailPage({ params, searchParams }: Route
           hasTenantOrApplication: true,
           hasLease: true,
           hasDocuments: true,
+          hasFinancialSetup: true,
         }}
         defaultTab={tab === 'Finances' ? 'Finances' : undefined}
       />
@@ -294,6 +320,7 @@ export default async function PropertyDetailPage({ params, searchParams }: Route
     coverPhotoUrl,
     setupProgress,
     financialOverview,
+    financialSetupSummary,
   ] = await Promise.all([
     loadPropertyTenants(supabase, units),
     loadPropertyApplications(supabase, units),
@@ -302,6 +329,7 @@ export default async function PropertyDetailPage({ params, searchParams }: Route
     loadCoverPhotoUrl(supabase, id),
     loadSetupProgress(supabase, id, units, property.estimatedValue !== null),
     loadPropertyFinancialOverview(supabase, id, summaryMonth),
+    loadFinancialSetupSummary(supabase, id),
   ]);
 
   const session = await resolvePortalSession();
@@ -322,6 +350,7 @@ export default async function PropertyDetailPage({ params, searchParams }: Route
       accountingDetail={accountingDetail}
       financialOverview={financialOverview}
       financialOverviewMonthLabel={financialOverviewMonthLabel}
+      financialSetupSummary={financialSetupSummary}
       canManage={canManage}
       isPrincipal={isPrincipal}
       coverPhotoUrl={coverPhotoUrl}
@@ -477,6 +506,7 @@ export interface SetupProgress {
   hasTenantOrApplication: boolean;
   hasLease: boolean;
   hasDocuments: boolean;
+  hasFinancialSetup: boolean;
 }
 
 // Stage 16: setup guidance computed live from real rows every time (never local browser state, per
@@ -490,7 +520,8 @@ async function loadSetupProgress(
   hasValuation: boolean,
 ): Promise<SetupProgress> {
   const unitIds = units.map((u) => u.id);
-  const [ownersResult, applicationsResult, leasesResult, documentsResult] = await Promise.all([
+  const [ownersResult, applicationsResult, leasesResult, documentsResult, financialSetupResult] =
+    await Promise.all([
     supabase
       .from('property_owners')
       .select('owner_id', { count: 'exact', head: true })
@@ -517,6 +548,28 @@ async function loadSetupProgress(
       .select('id', { count: 'exact', head: true })
       .eq('property_id', propertyId)
       .is('deleted_at', null),
+    // Web property financial setup pass (WORKLOG.md this date): "financial setup" means at least
+    // one of rates/levies, utility responsibility, or a budget has been configured -- property- or
+    // unit-level, matching FinancialSetupGuide's own "nothing configured yet" condition so this
+    // checklist item and that guide agree on what "done" means. Computed live, same rule this
+    // function's own header comment already states for every other step -- never a new completion
+    // column.
+    supabase
+      .from('recurring_property_costs')
+      .select('id', { count: 'exact', head: true })
+      .eq('property_id', propertyId)
+      .is('effective_to', null),
+  ]);
+
+  const [utilitySettingsCount, budgetCount] = await Promise.all([
+    supabase
+      .from('utility_responsibility_settings')
+      .select('id', { count: 'exact', head: true })
+      .eq('property_id', propertyId),
+    supabase
+      .from('property_budgets')
+      .select('id', { count: 'exact', head: true })
+      .eq('property_id', propertyId),
   ]);
 
   return {
@@ -526,6 +579,60 @@ async function loadSetupProgress(
     hasTenantOrApplication: (applicationsResult.count ?? 0) > 0,
     hasLease: (leasesResult.count ?? 0) > 0,
     hasDocuments: (documentsResult.count ?? 0) > 0,
+    hasFinancialSetup:
+      (financialSetupResult.count ?? 0) > 0 ||
+      (utilitySettingsCount.count ?? 0) > 0 ||
+      (budgetCount.count ?? 0) > 0,
+  };
+}
+
+export interface FinancialSetupSummary {
+  ratesConfigured: 'property' | 'unit-or-none' | 'none';
+  ratesAmount: number | null;
+  leviesConfigured: 'property' | 'unit-or-none' | 'none';
+  leviesAmount: number | null;
+  waterResponsibility: string | null;
+  electricityResponsibility: string | null;
+}
+
+// Web property financial setup pass (WORKLOG.md this date): the concise Overview-tab indicators
+// (§14 of the task) -- "the owner should not need to enter Finances just to understand setup
+// status." Property-level only (unit-level rates/levies/utilities are a per-unit fact, not a
+// single property-wide one to summarize honestly in one line) -- when no property-level row
+// exists, this can't distinguish "genuinely not configured" from "configured per unit instead"
+// without an extra per-unit query this summary is deliberately too lightweight for, so it says
+// "Not configured (or set per unit)" rather than guessing either way.
+async function loadFinancialSetupSummary(
+  supabase: Awaited<ReturnType<typeof getServerSupabaseClient>>,
+  propertyId: string,
+): Promise<FinancialSetupSummary> {
+  const [costsResult, settingsResult] = await Promise.all([
+    supabase
+      .from('recurring_property_costs')
+      .select('cost_type, amount')
+      .eq('property_id', propertyId)
+      .is('unit_id', null)
+      .is('effective_to', null),
+    supabase
+      .from('utility_responsibility_settings')
+      .select('utility_type, responsibility_mode')
+      .eq('property_id', propertyId)
+      .is('unit_id', null),
+  ]);
+  const costs = costsResult.data ?? [];
+  const settings = settingsResult.data ?? [];
+  const rates = costs.find((c) => c.cost_type === 'rates_and_taxes');
+  const levy = costs.find((c) => c.cost_type === 'levy');
+  const water = settings.find((s) => s.utility_type === 'water');
+  const electricity = settings.find((s) => s.utility_type === 'electricity');
+
+  return {
+    ratesConfigured: rates ? 'property' : 'unit-or-none',
+    ratesAmount: rates ? Number(rates.amount) : null,
+    leviesConfigured: levy ? 'property' : 'unit-or-none',
+    leviesAmount: levy ? Number(levy.amount) : null,
+    waterResponsibility: water?.responsibility_mode ?? null,
+    electricityResponsibility: electricity?.responsibility_mode ?? null,
   };
 }
 
@@ -659,6 +766,7 @@ function PropertyDetailView({
   accountingDetail,
   financialOverview,
   financialOverviewMonthLabel,
+  financialSetupSummary,
   canManage,
   isPrincipal,
   coverPhotoUrl,
@@ -676,6 +784,7 @@ function PropertyDetailView({
   accountingDetail: PropertyAccountingDetail;
   financialOverview: OwnerFinancialSummary | null;
   financialOverviewMonthLabel: string;
+  financialSetupSummary: FinancialSetupSummary;
   canManage: boolean;
   isPrincipal: boolean;
   coverPhotoUrl: string | null;
@@ -819,36 +928,92 @@ function PropertyDetailView({
           {
             label: 'Overview',
             content: (
-              <Panel title="Property details">
-                <dl className="grid grid-cols-2 gap-x-4 gap-y-5 text-sm lg:grid-cols-4">
-                  <div>
-                    <dt className="text-muted-foreground">Type</dt>
-                    <dd className="mt-0.5 text-foreground">
-                      {PROPERTY_TYPE_LABELS[property.propertyType]}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground">Municipal account</dt>
-                    <dd className="mt-0.5 text-foreground">
-                      {property.municipalAccountNumber ?? '—'}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground">Postal code</dt>
-                    <dd className="mt-0.5 text-foreground">{property.postalCode ?? '—'}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground">Country</dt>
-                    <dd className="mt-0.5 text-foreground">{property.country}</dd>
-                  </div>
-                </dl>
-                {property.notes ? (
-                  <div className="mt-5 border-t border-border pt-5">
-                    <h3 className="text-sm font-medium text-foreground">Notes</h3>
-                    <p className="mt-1 text-sm text-muted-foreground">{property.notes}</p>
-                  </div>
-                ) : null}
-              </Panel>
+              <div className="space-y-4">
+                <Panel title="Property details">
+                  <dl className="grid grid-cols-2 gap-x-4 gap-y-5 text-sm lg:grid-cols-4">
+                    <div>
+                      <dt className="text-muted-foreground">Type</dt>
+                      <dd className="mt-0.5 text-foreground">
+                        {PROPERTY_TYPE_LABELS[property.propertyType]}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Municipal account</dt>
+                      <dd className="mt-0.5 text-foreground">
+                        {property.municipalAccountNumber ?? '—'}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Postal code</dt>
+                      <dd className="mt-0.5 text-foreground">{property.postalCode ?? '—'}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Country</dt>
+                      <dd className="mt-0.5 text-foreground">{property.country}</dd>
+                    </div>
+                  </dl>
+                  {property.notes ? (
+                    <div className="mt-5 border-t border-border pt-5">
+                      <h3 className="text-sm font-medium text-foreground">Notes</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">{property.notes}</p>
+                    </div>
+                  ) : null}
+                </Panel>
+
+                {/* Web property financial setup pass (WORKLOG.md this date), §14: concise setup-
+                    status indicators so the owner doesn't need to open Finances just to see what's
+                    configured. */}
+                <Panel
+                  title="Financial setup"
+                  description="A quick summary -- see the Finances tab to configure or edit any of this."
+                >
+                  <dl className="grid grid-cols-2 gap-x-4 gap-y-5 text-sm lg:grid-cols-3">
+                    <div>
+                      <dt className="text-muted-foreground">Rates &amp; taxes</dt>
+                      <dd className="mt-0.5 text-foreground">
+                        {financialSetupSummary.ratesAmount !== null
+                          ? `${currency(financialSetupSummary.ratesAmount)}/mo (property-level)`
+                          : 'Not configured (or set per unit)'}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Levies</dt>
+                      <dd className="mt-0.5 text-foreground">
+                        {financialSetupSummary.leviesAmount !== null
+                          ? `${currency(financialSetupSummary.leviesAmount)}/mo (property-level)`
+                          : 'Not applicable, or set per unit'}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Water</dt>
+                      <dd className="mt-0.5 text-foreground">
+                        {financialSetupSummary.waterResponsibility
+                          ? UTILITY_RESPONSIBILITY_SUMMARY_LABELS[financialSetupSummary.waterResponsibility] ??
+                            financialSetupSummary.waterResponsibility
+                          : 'Not configured'}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Electricity</dt>
+                      <dd className="mt-0.5 text-foreground">
+                        {financialSetupSummary.electricityResponsibility
+                          ? UTILITY_RESPONSIBILITY_SUMMARY_LABELS[
+                              financialSetupSummary.electricityResponsibility
+                            ] ?? financialSetupSummary.electricityResponsibility
+                          : 'Not configured'}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Budget</dt>
+                      <dd className="mt-0.5 text-foreground">
+                        {financialOverview?.budgetPlanned != null
+                          ? `${currency(financialOverview.budgetPlanned)} this month`
+                          : 'Not configured'}
+                      </dd>
+                    </div>
+                  </dl>
+                </Panel>
+              </div>
             ),
           },
           {
@@ -1136,6 +1301,7 @@ function SetupProgressPanel({ progress }: { progress: SetupProgress }) {
     { label: 'Lease', done: progress.hasLease },
   ];
   const optionalSteps = [
+    { label: 'Financial setup (rates, utilities, budget)', done: progress.hasFinancialSetup },
     { label: 'Valuation (optional)', done: progress.hasValuation },
     { label: 'Documents (optional)', done: progress.hasDocuments },
   ];
