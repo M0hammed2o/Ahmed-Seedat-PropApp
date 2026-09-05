@@ -161,8 +161,8 @@ describeIfSupabase('GET /api/v1/properties/:id/budget/annual (real local Supabas
     expect(body.months[0].month).toBe(`${year}-01-01`);
     expect(body.months[11].month).toBe(`${year}-12-01`);
     for (const m of body.months) {
-      expect(m.budgetVsActual.plannedAmount).toBeNull();
-      expect(m.budgetVsActual.actualAmount).toBe(0);
+      expect(m.plannedAmount).toBeNull();
+      expect(m.actualAmount).toBe(0);
     }
   });
 
@@ -179,8 +179,18 @@ describeIfSupabase('GET /api/v1/properties/:id/budget/annual (real local Supabas
     const body = await response.json();
     expect(body.months).toHaveLength(12);
     for (const m of body.months) {
-      expect(m.budgetVsActual.plannedAmount).toBe(1000);
+      expect(m.plannedAmount).toBe(1000);
     }
+    // Phase A budget-hierarchy pass: the annual rollup is a pure sum of these same 12 months --
+    // 1000 planned x 12 = 12000, zero actual expenses recorded.
+    expect(body.annual).toEqual({
+      year,
+      monthsPlanned: 12,
+      annualPlanned: 12000,
+      annualActual: 0,
+      annualRemaining: 12000,
+      annualPercentUsed: 0,
+    });
   });
 
   it('requires authentication', async () => {

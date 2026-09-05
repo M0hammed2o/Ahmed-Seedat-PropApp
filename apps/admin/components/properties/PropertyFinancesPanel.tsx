@@ -12,6 +12,7 @@ import { Meter } from '@/components/ui/Meter';
 import { Panel } from '@/components/ui/Panel';
 import { Pill, type PillTone } from '@/components/ui/Pill';
 import { safeJson } from '@/lib/safeJson';
+import type { AnnualBudgetSummary } from '@/lib/annualBudgetSummary';
 
 function budgetStatus(percentUsed: number | null): { label: string; tone: PillTone } {
   if (percentUsed === null) return { label: 'Not configured', tone: 'neutral' };
@@ -729,6 +730,7 @@ function AnnualBudgetPanel({
 }) {
   const [year, setYear] = useState(currentYear());
   const [months, setMonths] = useState<{ month: string; planned: number | null }[]>([]);
+  const [annual, setAnnual] = useState<AnnualBudgetSummary | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [annualTotal, setAnnualTotal] = useState('');
   const [busy, setBusy] = useState(false);
@@ -742,25 +744,28 @@ function AnnualBudgetPanel({
       // A realistic partial year -- most months set, the current one still open, matching what an
       // owner who has only just started budgeting would actually see.
       const monthKeys = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}-01`);
-      setMonths(monthKeys.map((m, i) => ({ month: m, planned: i < 8 ? 5000 : null })));
+      const demoMonths = monthKeys.map((m, i) => ({ month: m, planned: i < 8 ? 5000 : null }));
+      setMonths(demoMonths);
+      setAnnual({ year, monthsPlanned: 8, annualPlanned: 40000, annualActual: 33600, annualRemaining: 6400, annualPercentUsed: 84 });
       setLoaded(true);
       return;
     }
     // §7 audit (WORKLOG.md this date): this used to fire 12 separate GET /budget?month=X requests
     // per load. One batched request now returns the same budget_vs_actual() data for all 12 months.
+    // Phase A budget-hierarchy pass: the `annual` rollup comes straight from the server (a sum of
+    // these same 12 already-authoritative months) -- never recomputed here, so this can never drift
+    // from what the portfolio-wide Budget page or Android compute from the same endpoint shape.
     const res = await fetch(`/api/v1/properties/${propertyId}/budget/annual?year=${year}`);
     const body = await safeJson(res);
-    const monthsBody = (body?.months ?? []) as { month: string; budgetVsActual: BudgetVsActual }[];
-    setMonths(monthsBody.map((m) => ({ month: m.month, planned: m.budgetVsActual?.plannedAmount ?? null })));
+    const monthsBody = (body?.months ?? []) as { month: string; plannedAmount: number | null }[];
+    setMonths(monthsBody.map((m) => ({ month: m.month, planned: m.plannedAmount ?? null })));
+    setAnnual((body?.annual as AnnualBudgetSummary | undefined) ?? null);
     setLoaded(true);
   }, [propertyId, year, demoMode]);
 
   useEffect(() => {
     load();
   }, [load]);
-
-  const annualPlannedSum = months.reduce((sum, m) => sum + (m.planned ?? 0), 0);
-  const monthsSet = months.filter((m) => m.planned !== null).length;
 
   async function handleDistribute(e: FormEvent) {
     e.preventDefault();
@@ -830,10 +835,24 @@ function AnnualBudgetPanel({
         <p className="text-xs text-muted-foreground">Loading...</p>
       ) : (
         <>
-          <div className="mb-3 grid grid-cols-2 gap-3 text-xs">
-            <Metric label="Months with a budget set" value={`${monthsSet} / 12`} />
-            <Metric label={`${year} planned total`} value={`R ${annualPlannedSum.toLocaleString()}`} />
+          <div className="mb-3 grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
+            <Metric label="Months with a budget set" value={`${annual?.monthsPlanned ?? 0} / 12`} />
+            <Metric label="Annual planned" value={`R ${(annual?.annualPlanned ?? 0).toLocaleString()}`} />
+            <Metric label="Annual actual" value={`R ${(annual?.annualActual ?? 0).toLocaleString()}`} />
+            <Metric
+              label="Annual remaining"
+              value={annual?.annualPercentUsed === null ? '—' : `R ${(annual?.annualRemaining ?? 0).toLocaleString()}`}
+            />
           </div>
+          {annual?.annualPercentUsed !== null && annual?.annualPercentUsed !== undefined ? (
+            <div className="mb-4">
+              <Meter
+                value={annual.annualPercentUsed}
+                tone={annual.annualPercentUsed >= 100 ? 'destructive' : annual.annualPercentUsed >= 80 ? 'warning' : 'success'}
+              />
+              <p className="mt-1 text-[11px] text-muted-foreground">{annual.annualPercentUsed}% of the {year} planned total used so far</p>
+            </div>
+          ) : null}
 
           <div className="mb-4 grid grid-cols-3 gap-2 text-xs sm:grid-cols-4">
             {months.map((m) => {

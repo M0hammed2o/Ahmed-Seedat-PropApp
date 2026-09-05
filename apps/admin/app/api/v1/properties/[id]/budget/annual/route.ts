@@ -4,6 +4,7 @@ import type { BudgetVsActual } from '@propvault/types';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { requireOrgRole } from '@/lib/portfolio';
 import { safeErrorMessage } from '@/lib/safeError';
+import { summarizeAnnualBudget } from '@/lib/annualBudgetSummary';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -76,21 +77,24 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     );
   }
 
-  const monthsOut = months.map((month, i) => ({
-    month,
-    budgetVsActual: results[i]!.data
-      ? mapRow(results[i]!.data as BudgetVsActualRow)
-      : ({
-          budgetId: null,
-          plannedAmount: null,
-          actualAmount: 0,
-          remainingAmount: null,
-          varianceAmount: null,
-          percentUsed: null,
-        } satisfies BudgetVsActual),
-  }));
+  // Flat {month, plannedAmount, actualAmount} per month -- deliberately the same shape as the
+  // portfolio-wide GET /organizations/:orgId/budget/annual (Phase A budget-hierarchy pass,
+  // WORKLOG.md this date), so Android can share one AnnualBudgetResponse DTO for both endpoints.
+  // budget_vs_actual()'s other per-month fields (budgetId/remainingAmount/varianceAmount/
+  // percentUsed) aren't read by any current UI -- the year-level `annual` summary below already
+  // carries the aggregate remaining/%used that matters.
+  const monthsOut = months.map((month, i) => {
+    const bva = results[i]!.data ? mapRow(results[i]!.data as BudgetVsActualRow) : null;
+    return {
+      month,
+      plannedAmount: bva?.plannedAmount ?? null,
+      actualAmount: bva?.actualAmount ?? 0,
+    };
+  });
 
-  return NextResponse.json({ months: monthsOut });
+  const annual = summarizeAnnualBudget(year, monthsOut);
+
+  return NextResponse.json({ months: monthsOut, annual });
 }
 
 /**
