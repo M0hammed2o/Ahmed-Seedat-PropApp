@@ -40,11 +40,15 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+import androidx.compose.material.icons.filled.PieChart
 import androidx.hilt.navigation.compose.hiltViewModel
+import za.co.proplyst.app.data.financials.FinancialSummary
 import za.co.proplyst.app.data.properties.Property
 import za.co.proplyst.app.ui.common.EmptyStateView
 import za.co.proplyst.app.ui.common.LoadingView
 import za.co.proplyst.app.ui.common.PropertyPhoto
+import za.co.proplyst.app.ui.common.formatCurrency
 import za.co.proplyst.app.ui.theme.ProplystPillShape
 import za.co.proplyst.app.ui.theme.ProplystTheme
 
@@ -62,6 +66,8 @@ fun PropertyDetailScreen(
     onViewUnits: () -> Unit,
     onViewTenants: () -> Unit,
     onViewMaintenance: () -> Unit,
+    onViewRentStatus: () -> Unit,
+    onViewBudget: () -> Unit,
     viewModel: PropertyDetailViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -75,6 +81,23 @@ fun PropertyDetailScreen(
                 item {
                     Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
                         SummaryRow(property = state.property)
+                    }
+                }
+                item {
+                    // Phase A budget-hierarchy pass (WORKLOG.md this date): the one section this
+                    // screen was missing entirely -- rent/expenses/budget/operating position, using
+                    // the exact same server-authoritative financial-summary call Home and Budget
+                    // already use for this property. A load failure here shows its own inline error
+                    // and never blocks the rest of the (already-loaded) property detail.
+                    Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+                        Text("Finances", style = ProplystTheme.type.sectionHeading, modifier = Modifier.padding(bottom = 10.dp))
+                        FinancialSection(
+                            loading = state.financialSummaryLoading,
+                            error = state.financialSummaryError,
+                            summary = state.financialSummary,
+                            onViewRentStatus = onViewRentStatus,
+                            onViewBudget = onViewBudget,
+                        )
                         Spacer(modifier = Modifier.height(20.dp))
                         Text("Manage", style = ProplystTheme.type.sectionHeading)
                         Spacer(modifier = Modifier.height(10.dp))
@@ -130,6 +153,80 @@ private fun SummaryRow(property: Property) {
             SummaryStat("Let", "$occupancyPct%", Modifier.weight(1f))
             SummaryStat("Status", if (property.status == "active") "Active" else "Archived", Modifier.weight(1f))
         }
+    }
+}
+
+@Composable
+private fun FinancialSection(
+    loading: Boolean,
+    error: String?,
+    summary: FinancialSummary?,
+    onViewRentStatus: () -> Unit,
+    onViewBudget: () -> Unit,
+) {
+    val colors = ProplystTheme.colors
+    val type = ProplystTheme.type
+    when {
+        loading -> androidx.compose.material3.CircularProgressIndicator(modifier = Modifier.padding(vertical = 12.dp).size(20.dp))
+        error != null -> Text(error, style = type.caption, color = colors.critical)
+        summary == null -> Text("Financial data is not available right now.", style = type.body, color = colors.textSecondary)
+        else -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(16.dp), shadowElevation = 1.dp, modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                        FinancialStat("Rent planned", summary.rentPlanned, Modifier.weight(1f))
+                        FinancialStat("Collected", summary.rentCollected, Modifier.weight(1f))
+                        FinancialStat("Outstanding", summary.rentOutstanding, Modifier.weight(1f))
+                    }
+                    Spacer(Modifier.height(14.dp))
+                    androidx.compose.material3.HorizontalDivider(color = colors.divider)
+                    Spacer(Modifier.height(14.dp))
+                    Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                        FinancialStat("Total expenses", summary.totalExpenses, Modifier.weight(1f))
+                        FinancialStat("Operating position", summary.netOperatingPosition, Modifier.weight(1f))
+                        androidx.compose.foundation.layout.Box(modifier = Modifier.weight(1f))
+                    }
+                }
+            }
+            ContextualLinkRow(
+                link = ContextualLink("Rent status", "Who's paid, who's overdue", Icons.AutoMirrored.Filled.ReceiptLong, onViewRentStatus),
+            )
+            if (summary.budgetPlanned != null) {
+                Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(14.dp), shadowElevation = 1.dp, modifier = Modifier.fillMaxWidth().clickable(onClick = onViewBudget)) {
+                    Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(colors.blueTint),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(Icons.Filled.PieChart, contentDescription = null, tint = colors.primary, modifier = Modifier.size(18.dp))
+                        }
+                        Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
+                            Text("Budget", style = type.cardTitle.copy(fontSize = 15.sp))
+                            val pct = summary.budgetUsedPercent
+                            Text(
+                                "R ${formatCurrency(summary.totalExpenses)} of R ${formatCurrency(summary.budgetPlanned)}" +
+                                    if (pct != null) " · ${"%.0f".format(pct)}% used" else "",
+                                style = type.caption,
+                                color = colors.textSecondary,
+                            )
+                        }
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = colors.textTertiary)
+                    }
+                }
+            } else {
+                ContextualLinkRow(
+                    link = ContextualLink("Budget", "Not configured for this month yet", Icons.Filled.PieChart, onViewBudget),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FinancialStat(label: String, amount: Double, modifier: Modifier = Modifier) {
+    Column(modifier = modifier) {
+        Text(label, style = ProplystTheme.type.caption, color = ProplystTheme.colors.textSecondary)
+        Text("R ${formatCurrency(amount)}", style = ProplystTheme.type.captionEmphasis.copy(fontWeight = FontWeight.Bold), color = ProplystTheme.colors.textPrimary, modifier = Modifier.padding(top = 2.dp))
     }
 }
 

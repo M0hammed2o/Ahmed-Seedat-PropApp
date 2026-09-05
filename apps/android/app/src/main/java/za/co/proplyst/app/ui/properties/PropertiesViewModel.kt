@@ -3,6 +3,9 @@ package za.co.proplyst.app.ui.properties
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import za.co.proplyst.app.data.financials.FinancialSummary
+import za.co.proplyst.app.data.financials.FinancialSummaryRepository
+import za.co.proplyst.app.data.financials.FinancialSummaryResult
 import za.co.proplyst.app.data.properties.Property
 import za.co.proplyst.app.data.properties.PropertiesRepository
 import za.co.proplyst.app.data.properties.PropertiesResult
@@ -12,6 +15,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.text.DateFormat
+import java.time.LocalDate
 import java.util.Date
 import javax.inject.Inject
 
@@ -109,13 +113,24 @@ class PropertiesListViewModel @Inject constructor(
 
 sealed interface PropertyDetailUiState {
     data object Loading : PropertyDetailUiState
-    data class Loaded(val property: Property) : PropertyDetailUiState
+    /** Phase A budget-hierarchy pass (WORKLOG.md this date): [financialSummary] loads alongside
+     *  the property itself and is genuinely nullable while its own request is still in flight or
+     *  failed -- a real failure here must never block the rest of the (already-loaded) property
+     *  detail screen from rendering, so it is surfaced as its own optional field, not folded into
+     *  the top-level Loading/NotFound states. */
+    data class Loaded(
+        val property: Property,
+        val financialSummary: FinancialSummary? = null,
+        val financialSummaryLoading: Boolean = true,
+        val financialSummaryError: String? = null,
+    ) : PropertyDetailUiState
     data object NotFound : PropertyDetailUiState
 }
 
 @HiltViewModel
 class PropertyDetailViewModel @Inject constructor(
     private val repository: PropertiesRepository,
+    private val financialSummaryRepository: FinancialSummaryRepository,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -127,11 +142,32 @@ class PropertyDetailViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             val property = repository.getPropertyById(propertyId)
-            _uiState.value = if (property != null) {
-                PropertyDetailUiState.Loaded(property)
-            } else {
-                PropertyDetailUiState.NotFound
+            if (property == null) {
+                _uiState.value = PropertyDetailUiState.NotFound
+                return@launch
+            }
+            _uiState.value = PropertyDetailUiState.Loaded(property)
+            loadFinancialSummary()
+        }
+    }
+
+    private fun loadFinancialSummary() {
+        viewModelScope.launch {
+            val loaded = _uiState.value as? PropertyDetailUiState.Loaded ?: return@launch
+            val month = currentMonthIso()
+            when (val result = financialSummaryRepository.getFinancialSummary(propertyId, month)) {
+                is FinancialSummaryResult.Loaded -> {
+                    _uiState.value = loaded.copy(financialSummary = result.summary, financialSummaryLoading = false)
+                }
+                is FinancialSummaryResult.Error -> {
+                    _uiState.value = loaded.copy(financialSummaryLoading = false, financialSummaryError = result.message)
+                }
             }
         }
+    }
+
+    private fun currentMonthIso(): String {
+        val now = LocalDate.now()
+        return LocalDate.of(now.year, now.month, 1).toString()
     }
 }

@@ -91,6 +91,11 @@ fun OwnerRootScreen(pendingRoute: String? = null) {
                     onNotificationsClick = { navController.navigate(Destinations.OWNER_ACTIVITY) },
                     onPropertyClick = { propertyId -> navController.navigate(Destinations.propertyDetail(propertyId)) },
                     onAccountClick = { navController.navigate(Destinations.ACCOUNT) },
+                    onRecordPayment = { navController.navigate(Destinations.INVOICES_LIST) },
+                    onAddExpense = { navController.navigate(Destinations.ADD_EXPENSE) },
+                    onRecordMeterReading = { navController.navigate(Destinations.UTILITY_CAPTURE) },
+                    onReviewRentStatus = { navController.navigate(Destinations.RENT_STATUS_LIST) },
+                    onManageBudget = { navController.navigate(Destinations.BUDGET_VIEW) },
                 )
             }
             composable(Destinations.PROPERTIES_LIST) {
@@ -107,6 +112,8 @@ fun OwnerRootScreen(pendingRoute: String? = null) {
                     onViewUnits = { navController.navigate(Destinations.unitsList(propertyId)) },
                     onViewTenants = { navController.navigate(Destinations.TENANTS_LIST) },
                     onViewMaintenance = { navController.navigate(Destinations.MAINTENANCE_LIST) },
+                    onViewRentStatus = { navController.navigate(Destinations.RENT_STATUS_LIST) },
+                    onViewBudget = { navController.navigate(Destinations.BUDGET_VIEW) },
                 )
             }
             composable(Destinations.UNITS_LIST) { backStackEntry ->
