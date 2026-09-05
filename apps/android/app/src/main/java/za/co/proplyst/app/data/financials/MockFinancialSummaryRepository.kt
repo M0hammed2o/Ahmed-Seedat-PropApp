@@ -16,7 +16,11 @@ class MockFinancialSummaryRepository @Inject constructor() : FinancialSummaryRep
                 rentCollected = 18000.0,
                 rentOutstanding = 3300.0,
                 utilitiesExpense = 2400.0,
+                waterExpense = 1400.0,
+                electricityExpense = 1000.0,
                 ratesAndLeviesExpense = 3700.0,
+                ratesTaxesExpense = 2450.0,
+                leviesExpense = 1250.0,
                 otherExpenses = 900.0,
                 totalExpenses = 7000.0,
                 budgetPlanned = 25000.0,
@@ -39,7 +43,11 @@ class MockFinancialSummaryRepository @Inject constructor() : FinancialSummaryRep
                 rentCollected = 18000.0,
                 rentOutstanding = 3300.0,
                 utilitiesExpense = 2400.0,
+                waterExpense = 1400.0,
+                electricityExpense = 1000.0,
                 ratesAndLeviesExpense = 3700.0,
+                ratesTaxesExpense = 2450.0,
+                leviesExpense = 1250.0,
                 otherExpenses = 900.0,
                 totalExpenses = 7000.0,
                 budgetPlanned = 25000.0,
@@ -49,6 +57,41 @@ class MockFinancialSummaryRepository @Inject constructor() : FinancialSummaryRep
                 awaitingConfirmationCount = 1,
                 budgetAlertLevel = null,
             ),
+        )
+    }
+
+    override suspend fun getPropertyBudgetAnnual(propertyId: String, year: Int): AnnualBudgetResult {
+        delay(200)
+        return AnnualBudgetResult.Loaded(mockAnnualBudget(year, monthlyPlanned = 8200.0, monthsSet = 8))
+    }
+
+    override suspend fun getPortfolioBudgetAnnual(orgId: String, year: Int): AnnualBudgetResult {
+        delay(200)
+        return AnnualBudgetResult.Loaded(mockAnnualBudget(year, monthlyPlanned = 25000.0, monthsSet = 8))
+    }
+
+    /** A realistic partial year -- most months set, the current one still open, matching what an
+     *  owner who has only just started budgeting would actually see (same convention the web
+     *  Annual budget panel's own demo-mode fixture uses). */
+    private fun mockAnnualBudget(year: Int, monthlyPlanned: Double, monthsSet: Int): AnnualBudget {
+        val months = (1..12).map { m ->
+            val planned = if (m <= monthsSet) monthlyPlanned else null
+            AnnualBudgetMonth(
+                month = "$year-${m.toString().padStart(2, '0')}-01",
+                plannedAmount = planned,
+                actualAmount = if (planned != null) planned * 0.82 else 0.0,
+            )
+        }
+        val annualPlanned = months.sumOf { it.plannedAmount ?: 0.0 }
+        val annualActual = months.sumOf { it.actualAmount }
+        return AnnualBudget(
+            year = year,
+            monthsPlanned = monthsSet,
+            annualPlanned = annualPlanned,
+            annualActual = annualActual,
+            annualRemaining = annualPlanned - annualActual,
+            annualPercentUsed = if (annualPlanned == 0.0) null else (annualActual / annualPlanned) * 100,
+            months = months,
         )
     }
 

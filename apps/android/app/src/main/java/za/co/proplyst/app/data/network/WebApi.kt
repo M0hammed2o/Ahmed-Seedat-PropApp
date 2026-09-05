@@ -1,6 +1,7 @@
 package za.co.proplyst.app.data.network
 
 import za.co.proplyst.app.data.network.dto.AnnouncementListResponse
+import za.co.proplyst.app.data.network.dto.AnnualBudgetResponse
 import za.co.proplyst.app.data.network.dto.CreateTenantMaintenanceTicketRequest
 import za.co.proplyst.app.data.network.dto.DocumentDetailResponse
 import za.co.proplyst.app.data.network.dto.DocumentCategoryListResponse
@@ -215,6 +216,26 @@ interface WebApi {
         @Path("id") propertyId: String,
         @Query("month") month: String,
     ): Response<TenantPaymentStatusResponse>
+
+    /** Phase A budget-hierarchy pass (WORKLOG.md this date): batches budget_vs_actual() across all
+     * 12 months of `year` server-side, plus a pre-summed annual planned/actual/remaining/%used --
+     * never computed by summing 12 client-side calls. Property-scoped; see
+     * [getPortfolioBudgetAnnual] for the portfolio-wide counterpart the Budget screen's "Portfolio"
+     * tab uses. */
+    @GET("api/v1/properties/{id}/budget/annual")
+    suspend fun getPropertyBudgetAnnual(
+        @Path("id") propertyId: String,
+        @Query("year") year: Int,
+    ): Response<AnnualBudgetResponse>
+
+    /** Portfolio-wide counterpart of [getPropertyBudgetAnnual] -- sums owner_portfolio_financial_
+     * summary() across all 12 months of `year` server-side (itself already a sum of every
+     * property's own monthly budget, migration 167). */
+    @GET("api/v1/organizations/{orgId}/budget/annual")
+    suspend fun getPortfolioBudgetAnnual(
+        @Path("orgId") orgId: String,
+        @Query("year") year: Int,
+    ): Response<AnnualBudgetResponse>
 
     /** Owner Add Expense (UTILITIES_RATES_BUDGET_GAP_AUDIT.md §5) -- creates ONE authoritative
      * expenses row via the existing, unchanged POST /api/v1/expenses (§20's "no duplicate

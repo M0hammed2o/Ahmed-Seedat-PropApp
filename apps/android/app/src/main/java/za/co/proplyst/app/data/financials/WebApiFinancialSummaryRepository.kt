@@ -1,6 +1,8 @@
 package za.co.proplyst.app.data.financials
 
 import za.co.proplyst.app.data.network.WebApi
+import za.co.proplyst.app.data.network.dto.AnnualBudgetMonthDto
+import za.co.proplyst.app.data.network.dto.AnnualBudgetResponse
 import za.co.proplyst.app.data.network.dto.FinancialSummaryDto
 import za.co.proplyst.app.data.network.dto.TenantPaymentStatusRowDto
 import za.co.proplyst.app.data.network.dto.WebApiErrorBody
@@ -58,6 +60,32 @@ class WebApiFinancialSummaryRepository @Inject constructor(
         }
     }
 
+    override suspend fun getPropertyBudgetAnnual(propertyId: String, year: Int): AnnualBudgetResult {
+        return try {
+            val response = webApi.getPropertyBudgetAnnual(propertyId, year)
+            if (!response.isSuccessful) {
+                return AnnualBudgetResult.Error(errorMessage(response) ?: "Failed to load the annual budget.")
+            }
+            val body = response.body() ?: return AnnualBudgetResult.Error("Failed to load the annual budget.")
+            AnnualBudgetResult.Loaded(body.toDomain())
+        } catch (e: Exception) {
+            AnnualBudgetResult.Error(e.message ?: "Failed to load the annual budget -- check your connection.")
+        }
+    }
+
+    override suspend fun getPortfolioBudgetAnnual(orgId: String, year: Int): AnnualBudgetResult {
+        return try {
+            val response = webApi.getPortfolioBudgetAnnual(orgId, year)
+            if (!response.isSuccessful) {
+                return AnnualBudgetResult.Error(errorMessage(response) ?: "Failed to load the annual budget.")
+            }
+            val body = response.body() ?: return AnnualBudgetResult.Error("Failed to load the annual budget.")
+            AnnualBudgetResult.Loaded(body.toDomain())
+        } catch (e: Exception) {
+            AnnualBudgetResult.Error(e.message ?: "Failed to load the annual budget -- check your connection.")
+        }
+    }
+
     private fun errorMessage(response: Response<*>): String? {
         val raw = response.errorBody()?.string() ?: return null
         return try {
@@ -74,7 +102,11 @@ class WebApiFinancialSummaryRepository @Inject constructor(
         rentCollected = rentCollected,
         rentOutstanding = rentOutstanding,
         utilitiesExpense = utilitiesExpense,
+        waterExpense = waterExpense,
+        electricityExpense = electricityExpense,
         ratesAndLeviesExpense = ratesAndLeviesExpense,
+        ratesTaxesExpense = ratesTaxesExpense,
+        leviesExpense = leviesExpense,
         otherExpenses = otherExpenses,
         totalExpenses = totalExpenses,
         budgetPlanned = budgetPlanned,
@@ -83,6 +115,22 @@ class WebApiFinancialSummaryRepository @Inject constructor(
         netOperatingPosition = netOperatingPosition,
         awaitingConfirmationCount = awaitingConfirmationCount,
         budgetAlertLevel = budgetAlerts.firstOrNull()?.level,
+    )
+
+    private fun AnnualBudgetResponse.toDomain() = AnnualBudget(
+        year = annual.year,
+        monthsPlanned = annual.monthsPlanned,
+        annualPlanned = annual.annualPlanned,
+        annualActual = annual.annualActual,
+        annualRemaining = annual.annualRemaining,
+        annualPercentUsed = annual.annualPercentUsed,
+        months = months.map { it.toDomain() },
+    )
+
+    private fun AnnualBudgetMonthDto.toDomain() = AnnualBudgetMonth(
+        month = month,
+        plannedAmount = plannedAmount,
+        actualAmount = actualAmount,
     )
 
     private fun TenantPaymentStatusRowDto.toDomain() = TenantPaymentStatusRow(

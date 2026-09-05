@@ -5,6 +5,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,10 +27,15 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Payments
+import androidx.compose.material.icons.outlined.PieChart
+import androidx.compose.material.icons.outlined.PriceCheck
+import androidx.compose.material.icons.outlined.RequestQuote
+import androidx.compose.material.icons.outlined.WaterDrop
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
@@ -72,6 +79,11 @@ fun DashboardScreen(
     onNotificationsClick: () -> Unit,
     onPropertyClick: (String) -> Unit,
     onAccountClick: () -> Unit,
+    onRecordPayment: () -> Unit,
+    onAddExpense: () -> Unit,
+    onRecordMeterReading: () -> Unit,
+    onReviewRentStatus: () -> Unit,
+    onManageBudget: () -> Unit,
     viewModel: DashboardViewModel = hiltViewModel(),
 ) {
     val insightsState by viewModel.insightsUiState.collectAsState()
@@ -105,6 +117,16 @@ fun DashboardScreen(
             item { OperatingPositionSection(financialSummaryState = financialSummaryState) }
             item { Spacer(modifier = Modifier.height(24.dp)) }
             item { NeedsAttentionSection(insightsState = insightsState, financialSummaryState = financialSummaryState) }
+            item { Spacer(modifier = Modifier.height(24.dp)) }
+            item {
+                QuickActionsSection(
+                    onRecordPayment = onRecordPayment,
+                    onAddExpense = onAddExpense,
+                    onRecordMeterReading = onRecordMeterReading,
+                    onReviewRentStatus = onReviewRentStatus,
+                    onManageBudget = onManageBudget,
+                )
+            }
             item { Spacer(modifier = Modifier.height(24.dp)) }
             item { RecentActivitySection(activity = recentActivity) }
             item { Spacer(modifier = Modifier.height(24.dp)) }
@@ -345,7 +367,12 @@ private fun KpiColumn(label: String, value: String, modifier: Modifier = Modifie
 /** UTILITIES_RATES_BUDGET_IMPLEMENTATION.md "Owner Home mobile" -- Utilities/Rates & levies/Other/
  * Total, from the same live portfolio financial summary the hero card reads. Loading/error states
  * are already shown on the hero card above; this section renders nothing extra for those (avoiding
- * two duplicate spinners/error banners on one screen) and simply waits for Loaded. */
+ * two duplicate spinners/error banners on one screen) and simply waits for Loaded.
+ *
+ * Phase A budget-hierarchy pass (WORKLOG.md this date): split Water/Electricity out of the
+ * combined Utilities figure and Rates & taxes/Levies out of the combined Rates & levies figure --
+ * the same server-computed fields the web Dashboard/Budget page already show split; this brought
+ * Home into parity with them. */
 @Composable
 private fun OperatingCostsSection(financialSummaryState: FinancialSummaryUiState) {
     val summary = (financialSummaryState as? FinancialSummaryUiState.Loaded)?.summary ?: return
@@ -362,14 +389,77 @@ private fun OperatingCostsSection(financialSummaryState: FinancialSummaryUiState
                 .shadow(1.dp, RoundedCornerShape(16.dp), ambientColor = colors.navy.copy(alpha = 0.10f), spotColor = colors.navy.copy(alpha = 0.10f)),
         ) {
             Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                ExpenseLineRow("Utilities", summary.utilitiesExpense)
+                ExpenseLineRow("Water", summary.waterExpense)
                 DividerLine()
-                ExpenseLineRow("Rates & levies", summary.ratesAndLeviesExpense)
+                ExpenseLineRow("Electricity", summary.electricityExpense)
+                DividerLine()
+                ExpenseLineRow("Rates & taxes", summary.ratesTaxesExpense)
+                DividerLine()
+                ExpenseLineRow("Levies", summary.leviesExpense)
                 DividerLine()
                 ExpenseLineRow("Other expenses", summary.otherExpenses)
                 DividerLine()
                 ExpenseLineRow("Total expenses", summary.totalExpenses, emphasize = true)
             }
+        }
+    }
+}
+
+/** Owner Home Quick Actions (Phase A budget-hierarchy pass, WORKLOG.md this date) -- a small,
+ *  deliberately short row of the actions an owner reaches for most often day to day. "Record
+ *  payment" opens the existing Invoices list (the one real place a payment gets recorded against a
+ *  specific invoice, §13's own architecture) rather than a bare form with no invoice context.
+ *  Never more than 5 actions -- kept to exactly the set named in the task, no extra ones added. */
+@Composable
+private fun QuickActionsSection(
+    onRecordPayment: () -> Unit,
+    onAddExpense: () -> Unit,
+    onRecordMeterReading: () -> Unit,
+    onReviewRentStatus: () -> Unit,
+    onManageBudget: () -> Unit,
+) {
+    val colors = ProplystTheme.colors
+    val type = ProplystTheme.type
+    Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+        Text("Quick actions", style = type.sectionHeading, color = colors.textPrimary)
+        Spacer(modifier = Modifier.height(12.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            QuickActionChip("Record\npayment", Icons.Outlined.RequestQuote, onRecordPayment)
+            QuickActionChip("Add\nexpense", Icons.AutoMirrored.Outlined.ReceiptLong, onAddExpense)
+            QuickActionChip("Meter\nreading", Icons.Outlined.WaterDrop, onRecordMeterReading)
+            QuickActionChip("Rent\nstatus", Icons.Outlined.PriceCheck, onReviewRentStatus)
+            QuickActionChip("Manage\nbudget", Icons.Outlined.PieChart, onManageBudget)
+        }
+    }
+}
+
+@Composable
+private fun QuickActionChip(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
+    val colors = ProplystTheme.colors
+    val type = ProplystTheme.type
+    Surface(
+        color = colors.surface,
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier
+            .width(84.dp)
+            .clickable(onClick = onClick)
+            .shadow(1.dp, RoundedCornerShape(16.dp), ambientColor = colors.navy.copy(alpha = 0.10f), spotColor = colors.navy.copy(alpha = 0.10f)),
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(vertical = 14.dp, horizontal = 8.dp),
+        ) {
+            Box(
+                modifier = Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(colors.blueTint),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(icon, contentDescription = null, tint = colors.primary, modifier = Modifier.size(20.dp))
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(label, style = type.microLabel, color = colors.textSecondary, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         }
     }
 }

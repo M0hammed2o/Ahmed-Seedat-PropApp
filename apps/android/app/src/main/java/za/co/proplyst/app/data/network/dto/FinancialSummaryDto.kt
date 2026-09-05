@@ -15,8 +15,14 @@ data class FinancialSummaryDto(
     val rentPlanned: Double,
     val rentCollected: Double,
     val rentOutstanding: Double,
+    /** water + electricity, kept for backward compatibility -- see the split fields below. */
     val utilitiesExpense: Double,
+    val waterExpense: Double = 0.0,
+    val electricityExpense: Double = 0.0,
+    /** rates & taxes + levies, kept for backward compatibility -- see the split fields below. */
     val ratesAndLeviesExpense: Double,
+    val ratesTaxesExpense: Double = 0.0,
+    val leviesExpense: Double = 0.0,
     val otherExpenses: Double,
     val totalExpenses: Double,
     val budgetPlanned: Double? = null,
@@ -37,6 +43,33 @@ data class BudgetAlertDto(
 
 @Serializable
 data class FinancialSummaryResponse(val financialSummary: FinancialSummaryDto)
+
+/** GET api/v1/properties/{id}/budget/annual?year=YYYY, GET api/v1/organizations/{orgId}/budget/
+ * annual?year=YYYY -- Phase A budget-hierarchy pass (WORKLOG.md this date). `annual` is a pure
+ * server-side sum of the 12 `months` in the same response -- never recomputed on-device, so this
+ * can never drift from what the web Budget page or Property Finances tab show for the same year. */
+@Serializable
+data class AnnualBudgetMonthDto(
+    val month: String,
+    val plannedAmount: Double? = null,
+    val actualAmount: Double = 0.0,
+)
+
+@Serializable
+data class AnnualBudgetSummaryDto(
+    val year: Int,
+    val monthsPlanned: Int,
+    val annualPlanned: Double,
+    val annualActual: Double,
+    val annualRemaining: Double,
+    val annualPercentUsed: Double? = null,
+)
+
+@Serializable
+data class AnnualBudgetResponse(
+    val months: List<AnnualBudgetMonthDto>,
+    val annual: AnnualBudgetSummaryDto,
+)
 
 /** GET api/v1/properties/{id}/tenant-payment-status?month=... -- reuses rent_schedules directly
  * (never payment_reports, never a duplicate status table -- see the route's own doc comment). */
