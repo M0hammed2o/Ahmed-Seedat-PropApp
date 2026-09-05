@@ -1,5 +1,59 @@
 # Worklog
 
+## 2026-09-05 — Budget hierarchy verified; Android owner Home/Budget/Property Detail finished
+
+Phase A (verify the budget model) + Phase B (Android owner app). Web only for Phase A; Android-only
+code changes for Phase B. No production migrations, no production deploy, local Supabase only.
+
+**Phase A, live-verified against local Supabase**: created Property A/B/C with exact
+R25,000/R8,000/R40,000 monthly budgets and R18,000/R6,000/R30,000 actuals (a Unit 1 repair + Unit 2
+water + property-level security expense summing to the expected R6,500 subtotal, proving unit-tagged
+expenses roll into their parent property's actual via `expenses.property_id`, never a separate unit
+budget). `owner_portfolio_financial_summary()` returned exactly R73,000/R54,000/R19,000/74% -- the
+portfolio budget was already a true `sum(property_budgets)`, computed server-side, not client-side.
+The one real gap: no portfolio-wide **annual** aggregation existed anywhere. Added
+`GET /api/v1/organizations/:orgId/budget/annual?year=YYYY` (sums `owner_portfolio_financial_summary()`
+across 12 months server-side) and made it share one flat `{month, plannedAmount, actualAmount}` shape
+plus a pre-summed `annual` object with the pre-existing property-level `.../budget/annual` (which
+previously nested a `budgetVsActual` object instead -- fixed for Android to share one DTO shape,
+safe since neither had shipped). `budget_category_lines` confirmed still completely unused anywhere
+in the app -- left as optional/future, not exposed this pass.
+
+**Phase B, Android owner app**: Home's Operating Costs previously showed only the old combined
+Utilities/Rates & levies figures -- now shows the same Water/Electricity/Rates & taxes/Levies/Other
+split the web already has (`FinancialSummaryDto`/`FinancialSummary` gained the split fields,
+additive/backward-compatible). Added Quick Actions to Home (Record payment/Add expense/Meter
+reading/Rent status/Manage budget -- absent before this pass). Budget screen gained a Monthly/Annual
+toggle -- Annual was explicitly disclosed as deferred in an earlier pass pending this same day's
+server-side aggregation; now shows planned/actual/remaining/%used for the year plus a month-by-month
+progress list, read verbatim from the new endpoint. Property Detail previously showed zero financial
+data at all -- added a Finances section (rent planned/collected/outstanding, expenses, operating
+position) plus Rent status/Budget links.
+
+**Verified real, not assumed**: 226 Android unit tests (10 new) pass, 0 failures; `lintDebug` and
+`assembleDebug` both clean; emulator acceptance pass (login, Home, Quick Actions navigation,
+Properties, Property Detail, Budget Monthly/Annual toggle, Activity, More, Appearance, dark mode) all
+physically clicked through on a real AVD against `USE_MOCK_DATA=true` (see gap below).
+
+**Real bugs found and fixed along the way**: a Gradle incremental-build staleness (`assembleDebug`
+reported `compileDebugKotlin` as unrelated-looking output while actually serving a stale class file)
+made an early UI change appear not to have taken effect -- resolved with `clean assembleDebug`;
+resolved by always clean-building after this class of edit when verifying visually.
+
+**Disclosed, not fixed this pass**: attempted a genuine real-backend (non-mock) emulator run against
+local Supabase + a local Next.js dev server -- blocked by a Windows Firewall rule silently refusing
+inbound TCP to the dev server's port from the emulator's virtual network adapter (confirmed via raw
+`nc` from inside the emulator: port 54321/Docker-networked Supabase connects fine, port 3000/bare
+`next dev` on Windows is refused; adding a firewall rule requires admin rights this session does not
+have). The API contract itself was separately verified for real via the Vitest integration tests
+against local Supabase and direct HTTP calls earlier the same day -- just not exercised through the
+compiled Android binary. Also not built this pass: a standalone "Utility Overview" screen (only
+Capture + History exist), a "document expiring" insight type (no detection rule exists server-side
+for it), per-card rent/budget/attention-badge fields on the Properties list, and a signed release
+build (no keystore exists in the repo; `assembleRelease`/`bundleRelease` both succeed but produce an
+unsigned APK / a bundle signed with a non-verified default key respectively -- not attempted to fix,
+since generating a new signing identity is not a decision to make unilaterally).
+
 ## 2026-09-04 (continued) — Property -> Finances "500s" traced to production schema drift; setup UI de-duplicated; false defaults removed; annual budget batched
 
 Follow-up to the same-day crash/redesign pass below, triggered by a fresh manual test report of
