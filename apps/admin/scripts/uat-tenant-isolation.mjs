@@ -169,7 +169,7 @@ async function main() {
     for (const [name, path] of [
       ['Tenant cannot read owner portfolio financial summary', `/api/v1/organizations/${org.id}/financial-summary?month=2026-09-01`],
       ['Tenant cannot read owner org activity feed', `/api/v1/organizations/${org.id}/activity`],
-      ['Tenant cannot read owner property rent status', `/api/v1/properties/${B.lease.units.property_id}/rent-status?month=2026-09-01`],
+      ['Tenant cannot read owner property rent status', `/api/v1/properties/${B.lease.units.property_id}/tenant-payment-status?month=2026-09-01`],
     ]) {
       const res = await probe(cookie, path);
       const denied = res.status >= 400;

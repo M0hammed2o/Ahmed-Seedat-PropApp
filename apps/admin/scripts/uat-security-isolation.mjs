@@ -41,9 +41,25 @@ function record(name, passed, detail) {
   console.log(`${passed ? 'PASS' : 'FAIL'}  ${name}${detail ? ` -- ${detail}` : ''}`);
 }
 
+/**
+ * GoTrue has no "get user by email", only a paginated list. A single perPage page silently stops
+ * finding an existing user once the local database grows past it (this dev DB is well past 200
+ * users from months of test runs), which made the script try to re-create the probe account and
+ * die on email_exists. Page until found rather than assuming one page is enough.
+ */
+async function findUserByEmail(email) {
+  for (let page = 1; page <= 50; page += 1) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
+    if (error) throw error;
+    const hit = data.users.find((u) => u.email === email);
+    if (hit) return hit;
+    if (data.users.length < 200) return null; // last page
+  }
+  return null;
+}
+
 async function ensureAttacker() {
-  const { data: list } = await admin.auth.admin.listUsers({ perPage: 200 });
-  let user = list.users.find((u) => u.email === ATTACKER_EMAIL);
+  let user = await findUserByEmail(ATTACKER_EMAIL);
   if (!user) {
     const { data, error } = await admin.auth.admin.createUser({
       email: ATTACKER_EMAIL,
@@ -162,7 +178,7 @@ async function main() {
     ['Cross-org: read victim property units', `/api/v1/properties/${victim.propertyId}/units`],
     ['Cross-org: read victim property utility meters', `/api/v1/properties/${victim.propertyId}/utility-meters`],
     ['Cross-org: read victim property utility settings', `/api/v1/properties/${victim.propertyId}/utility-settings`],
-    ['Cross-org: read victim property rent status', `/api/v1/properties/${victim.propertyId}/rent-status?month=2026-09-01`],
+    ['Cross-org: read victim property rent status', `/api/v1/properties/${victim.propertyId}/tenant-payment-status?month=2026-09-01`],
   ];
 
   for (const [name, path] of probes) {
