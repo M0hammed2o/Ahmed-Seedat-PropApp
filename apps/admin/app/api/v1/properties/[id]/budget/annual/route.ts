@@ -64,16 +64,27 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     months.map((month) => supabase.rpc('budget_vs_actual', { p_property_id: id, p_month: month }).maybeSingle()),
   );
 
+  // budget_vs_actual() raises an authorization exception ("Caller does not have access to this
+  // organization's budget") for a property outside the caller's org -- an ordinary, expected
+  // permission denial, not a server fault. Mapping it to 500 (as this route previously did) both
+  // reported the wrong thing to the client and polluted the 5xx error budget with routine denials,
+  // masking genuine outages. Mirrors the identical mapping already used by this route's three
+  // siblings: properties/:id/financial-summary, organizations/:orgId/financial-summary, and
+  // organizations/:orgId/budget/annual. Found by the V1 release-gate cross-org API isolation probe
+  // (scripts/uat-security-isolation.mjs), which saw a 500 where every sibling returned 403.
   const firstError = results.find((r) => r.error)?.error;
   if (firstError) {
+    const forbidden = firstError.message.includes('does not have access');
     return NextResponse.json(
       {
         error: {
-          code: 'budget_vs_actual_failed',
-          message: safeErrorMessage(firstError, 'Could not load the annual budget.', 'budget_vs_actual'),
+          code: forbidden ? 'forbidden' : 'budget_vs_actual_failed',
+          message: forbidden
+            ? "You do not have permission to view this property's budget."
+            : safeErrorMessage(firstError, 'Could not load the annual budget.', 'budget_vs_actual'),
         },
       },
-      { status: 500 },
+      { status: forbidden ? 403 : 500 },
     );
   }
 

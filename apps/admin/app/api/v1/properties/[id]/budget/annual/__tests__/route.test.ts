@@ -207,4 +207,36 @@ describeIfSupabase('GET /api/v1/properties/:id/budget/annual (real local Supabas
     const invalid = await GET(getRequest(propertyId, 'not-a-year'), { params: Promise.resolve({ id: propertyId }) });
     expect(invalid.status).toBe(400);
   });
+
+  // V1 release-gate pass: the cross-org API isolation probe caught this route returning 500 where
+  // all three of its siblings (properties/:id/financial-summary, organizations/:orgId/
+  // financial-summary, organizations/:orgId/budget/annual) return 403 -- budget_vs_actual()'s
+  // authorization exception was being funnelled into the generic "RPC failed" 500 branch. The data
+  // was never exposed (RLS held), but a routine permission denial was being reported as a server
+  // fault. This test pins the corrected status so the inconsistency cannot silently return.
+  it('returns 403, not 500, for a signed-in user from a different organization', async () => {
+    const suffix = Date.now();
+    const outsiderEmail = `budget-annual-outsider-${suffix}@propertyvault.example`;
+    const outsiderCreated = await adminFetch('/auth/v1/admin/users', {
+      email: outsiderEmail,
+      password,
+      email_confirm: true,
+    });
+    const outsiderId = outsiderCreated.id as string;
+    try {
+      const outsiderToken = await signIn(outsiderEmail, password);
+      mockAuthorizationHeader = `Bearer ${outsiderToken}`;
+
+      const response = await GET(getRequest(propertyId, year), {
+        params: Promise.resolve({ id: propertyId }),
+      });
+      expect(response.status).toBe(403);
+      const body = await response.json();
+      expect(body.error.code).toBe('forbidden');
+      // The denial must not echo the underlying Postgres exception text back to the caller.
+      expect(JSON.stringify(body)).not.toContain('does not have access');
+    } finally {
+      await serviceClient.auth.admin.deleteUser(outsiderId);
+    }
+  });
 });
