@@ -25,5 +25,24 @@ export default defineConfig({
     // *.spec.ts file anywhere in the project and tries (and fails) to execute Playwright's own
     // test() as if it were a vitest test.
     exclude: ['**/node_modules/**', '**/e2e/**'],
+    // Run test FILES one at a time (V1 release-gate pass). Almost every suite here is a real
+    // integration test against ONE shared local Supabase instance, not an isolated unit test, so
+    // parallel files actively fight each other over shared global state. Before this, a full run
+    // failed 6 files / 11 tests that every one of which passed when run individually:
+    //
+    //   - GoTrue auth throttling under parallel sign-in churn surfaced as
+    //     "AuthApiError: Invalid login credentials" in propertyLifecycle.test.ts, which looks
+    //     exactly like a real authorization regression and is not one.
+    //   - Storage/Postgres contention pushed photos/, documents/ and whatsappDispatch past their
+    //     5s/10s test and hook timeouts.
+    //   - daily-jobs' idempotency test sweeps EVERY org in the database twice and asserts the
+    //     second sweep creates nothing; any other file creating a lease in between makes that
+    //     assertion fail (it reported 42 created rows), which reads as a broken idempotency
+    //     guarantee when the guarantee is actually intact.
+    //
+    // The cost is wall-clock time; the benefit is that a red suite now means a real defect
+    // instead of a coin flip, which is the only way this suite can gate a release. Individual
+    // files still run their own tests concurrently -- only cross-file parallelism is disabled.
+    fileParallelism: false,
   },
 });
