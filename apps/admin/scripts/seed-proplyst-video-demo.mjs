@@ -465,13 +465,11 @@ async function seedTenanciesAndRent(orgId, ownerUserId) {
   const invoicePaymentRows = [];
   const paymentReportRows = [];
 
-  let tenantCounter = 0;
   let phoneCounter = 100;
 
   for (const p of PROPERTIES) {
     for (const u of p.units) {
       if (u.profile === 'vacant') continue;
-      tenantCounter += 1;
       phoneCounter += 1;
       const slug = u.tenant.toLowerCase().replace(/[^a-z]+/g, '.');
       const tenantId = randomUUID();

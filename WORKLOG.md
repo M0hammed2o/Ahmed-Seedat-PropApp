@@ -1,5 +1,74 @@
 # Worklog
 
+## 2026-09-06 (later) — V1 release-gate pass: security probes, parity, four real bug fixes
+
+Feature-frozen pass aimed at one question: is Proplyst genuinely ready for internal UAT, a pilot
+customer, demo recording, and production? Local-only throughout. No production deploy, no production
+migration, no production data touched, not pushed.
+
+**Four real defects found and fixed** (each found by building the check first, not by reading code):
+
+1. **Cross-org annual budget returned 500 instead of 403.** `budget_vs_actual()`'s authorization
+   exception was funnelled into the generic "RPC failed" branch, so a routine permission denial was
+   reported as a server fault — polluting the 5xx budget and putting an API 500 on camera. Its three
+   sibling routes already mapped this correctly. No data was ever exposed (RLS held). Regression test
+   added; the route's existing four tests had no outsider coverage at all, which is why it slipped.
+
+2. **Portfolio `property_count` included archived properties** (migration 169). The Dashboard read
+   "11 properties" beside a Properties screen listing 10 — two contradictory numbers in one app.
+   Deliberately narrow fix: only the count changed, via a new `active_org_properties` CTE. The money
+   CTEs still span archived properties, because rent and expenses incurred before archival genuinely
+   happened and must not vanish from a month's totals. Both halves now covered by pgTAP.
+
+3. **Android Home understated the portfolio.** The "Properties" KPI fell back to the size of the Top
+   Properties strip, which is deliberately truncated with `.take(6)`, so a 10-property portfolio read
+   "6 Properties" on Home while the Properties tab and web both said 10. It now reads the same
+   server-computed `property_count` the web dashboard uses (already loaded on that screen), and shows
+   an em dash rather than inferring a number from a truncated list.
+
+4. **The web test suite was not trustworthy.** A full run failed 6 files / 11 tests, every one of
+   which passed in isolation: GoTrue throttling under parallel sign-in churn surfaced as
+   `Invalid login credentials` (indistinguishable from a real authorization regression), storage
+   contention blew test timeouts, and daily-jobs' idempotency assertion — which sweeps every org
+   twice — was broken by other files creating leases in between (it reported 42 created rows, reading
+   as a broken idempotency guarantee that is in fact intact). These are integration tests against one
+   shared local Supabase, so `fileParallelism: false` is the honest configuration. Result: 163 files
+   passed, 0 failed.
+
+**Security, tested at the API layer rather than assumed.** pgTAP proves RLS policies are correct but
+cannot catch a route that uses the service-role client (bypassing RLS) on a caller-supplied id, so
+two live probes were written: cross-organisation (19/19) and tenant-to-tenant inside the same org
+(15/15), both signing in through the real auth route and using real session cookies. Findings were
+verified by inspecting payloads, not status codes — `/api/v1/tenants` returns exactly 1 of the org's
+34 tenants to a tenant caller, and a cross-org `tenant-payment-status` call returns `[]` where the
+legitimate owner gets six rows. Two false passes in the probes themselves were caught and fixed: one
+targeted a route that does not exist (so its 404 proved nothing), and the GoTrue lookup read a single
+200-user page in a database that has outgrown it. pgTAP: 94 files, 0 failures.
+
+**Web ↔ Android parity: 31/31**, including the three figures most at risk of drifting — portfolio
+budget is an exact SUM of property budgets, per-property totals sum to the portfolio, and net
+operating position is `collected − expenses` (a cash position, never labelled accounting profit).
+
+**WhatsApp: blocked, not verified.** No `WHATSAPP_ACCESS_TOKEN`/`PHONE_NUMBER_ID`/`WEBHOOK_SECRET`
+exist here, so `getWhatsAppProvider()` returns `MockWhatsAppProvider` and nothing leaves the server.
+Per instruction, that portion was stopped rather than routed elsewhere — no message was sent to the
+UAT number. What was built instead: a fail-closed `WHATSAPP_UAT_OVERRIDE_NUMBER` (hard production
+block; suppresses the send outright if the number is unparseable, since falling through would deliver
+to the real tenant — the exact thing the variable exists to prevent; truthful audit trail recording
+where the message actually went), plus scenario coverage driving all nine supported templates through
+the real dispatch pipeline. Inbound WhatsApp resolution exists but `verified_phone_numbers` has no
+populate path, so every real inbound message resolves to UNAUTHENTICATED today.
+
+**Demo portfolio** extended to 10 properties / 39 units / 92.3% occupancy, now including a commercial
+business park (the Properties list's "Commercial" filter previously resolved to an empty screen) and
+eight owner notifications tied to genuinely seeded conditions (the Activity inbox was empty). The
+seed's own idempotency was broken by the same GoTrue paging bug and is fixed; it now also archives
+demo properties that leave the definition, since properties can never be deleted
+(`audit_events.property_id` is a real FK and those rows are immutable).
+
+Recording-route smoke check: 70/70, 0 server errors. Android 238 unit tests, lint clean. ESLint clean,
+typecheck clean.
+
 ## 2026-09-06 — Real local Android UAT, Utility Overview + property health cards, video demo portfolio
 
 Continuation pass, local-only throughout: local Supabase, local Next.js dev server, ADB reverse.
