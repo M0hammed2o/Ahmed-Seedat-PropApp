@@ -114,7 +114,8 @@ describeIfSupabase('POST /api/v1/webhooks/whatsapp (real route, real Meta payloa
   });
 
   it('rejects a payload whose signature does not match, with 401 and no stored event', async () => {
-    const payload = metaStatusPayload(`wamid.bad-sig-${crypto.randomUUID()}`, 'delivered');
+    const id = `wamid.bad-sig-${crypto.randomUUID()}`;
+    const payload = metaStatusPayload(id, 'delivered');
     const raw = JSON.stringify(payload);
     const res = await POST(postRequest(payload, { signature: sign(raw, 'the-wrong-secret') }));
 
@@ -122,7 +123,6 @@ describeIfSupabase('POST /api/v1/webhooks/whatsapp (real route, real Meta payloa
     expect((await res.json()).error.code).toBe('invalid_signature');
 
     // Nothing may be recorded for a request that failed authentication.
-    const id = payload.entry[0].changes[0].value.statuses[0].id;
     const { count } = await serviceClient
       .from('whatsapp_webhook_events')
       .select('id', { count: 'exact', head: true })
