@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createClient } from '@supabase/supabase-js';
 import { randomUUID } from 'node:crypto';
 import { dispatchWhatsApp } from '../whatsappDispatch';
@@ -203,4 +203,61 @@ describe('WhatsApp UAT scenarios (real dispatch pipeline, mock provider unless c
       expect(isWhatsAppTemplateApproved(s.template), `${s.template} not approved`).toBe(true);
     }
   });
+
+  // The destination guarantee that makes it safe to switch real Meta credentials on. It holds
+  // identically whether the provider is the mock or the real one, because the redirect happens in
+  // the dispatcher before the provider is ever called -- so proving it now means turning
+  // credentials on later cannot surprise anyone by messaging a real tenant.
+  it('with the UAT override active, EVERY scenario is addressed to the UAT number and none to a persona number', async () => {
+    const UAT_NUMBER = '+27837866021';
+    vi.stubEnv('WHATSAPP_UAT_OVERRIDE_NUMBER', UAT_NUMBER);
+    vi.stubEnv('NODE_ENV', 'development');
+
+    const { data: org } = await supabase
+      .from('organizations')
+      .select('id')
+      .ilike('legal_name', 'Proplyst Demo Portfolio%')
+      .maybeSingle();
+    if (!org) {
+      console.warn('Demo portfolio org not found -- run scripts/seed-proplyst-video-demo.mjs first.');
+      return;
+    }
+
+    const ids: string[] = [];
+    for (const s of scenarios) {
+      const result = await dispatchWhatsApp(supabase, {
+        orgId: org.id,
+        toPhone: PERSONA_NUMBER,
+        toUserId: null,
+        actorUserId: null,
+        templateName: s.template,
+        variables: s.variables,
+        relatedEntityType: 'uat_destination_audit',
+        relatedEntityId: randomUUID(),
+      });
+      expect(result.sent, `${s.label} -> ${result.reason}`).toBe(true);
+      if (result.whatsappMessageId) ids.push(result.whatsappMessageId);
+    }
+
+    const { data: rows } = await supabase
+      .from('whatsapp_messages')
+      .select('id, to_number')
+      .in('id', ids);
+
+    expect(rows?.length).toBe(scenarios.length);
+    for (const row of rows ?? []) {
+      expect(row.to_number).toBe(UAT_NUMBER);
+      // The decisive assertion: the persona's own number must appear nowhere.
+      expect(row.to_number).not.toBe(PERSONA_NUMBER);
+    }
+
+    // The override must never have rewritten source data -- no tenant may carry the UAT number.
+    const { count: tenantsWithUat } = await supabase
+      .from('tenants')
+      .select('id', { count: 'exact', head: true })
+      .eq('phone', UAT_NUMBER);
+    expect(tenantsWithUat ?? 0).toBe(0);
+
+    for (const id of ids) await supabase.from('whatsapp_messages').delete().eq('id', id);
+  }, 60000);
 });
