@@ -40,6 +40,7 @@ import za.co.proplyst.app.ui.rentstatus.RentStatusListScreen
 import za.co.proplyst.app.ui.expenses.AddExpenseScreen
 import za.co.proplyst.app.ui.utilities.UtilityCaptureScreen
 import za.co.proplyst.app.ui.utilities.UtilityHistoryScreen
+import za.co.proplyst.app.ui.utilities.UtilityOverviewScreen
 import za.co.proplyst.app.ui.budget.BudgetViewScreen
 import za.co.proplyst.app.ui.announcements.AnnouncementsListScreen
 import za.co.proplyst.app.ui.properties.PropertiesListScreen
@@ -207,6 +208,13 @@ fun OwnerRootScreen(pendingRoute: String? = null) {
             composable(Destinations.UTILITY_HISTORY) {
                 UtilityHistoryScreen(onBack = { navController.popBackStack() })
             }
+            composable(Destinations.UTILITY_OVERVIEW) {
+                UtilityOverviewScreen(
+                    onBack = { navController.popBackStack() },
+                    onRecordReading = { navController.navigate(Destinations.UTILITY_CAPTURE) },
+                    onViewHistory = { navController.navigate(Destinations.UTILITY_HISTORY) },
+                )
+            }
             composable(Destinations.BUDGET_VIEW) {
                 BudgetViewScreen(onBack = { navController.popBackStack() })
             }
@@ -226,6 +234,7 @@ fun OwnerRootScreen(pendingRoute: String? = null) {
                     onPaymentReviewClick = { navController.navigate(Destinations.PAYMENT_REVIEW_LIST) },
                     onRentStatusClick = { navController.navigate(Destinations.RENT_STATUS_LIST) },
                     onAddExpenseClick = { navController.navigate(Destinations.ADD_EXPENSE) },
+                    onUtilityOverviewClick = { navController.navigate(Destinations.UTILITY_OVERVIEW) },
                     onUtilityCaptureClick = { navController.navigate(Destinations.UTILITY_CAPTURE) },
                     onUtilityHistoryClick = { navController.navigate(Destinations.UTILITY_HISTORY) },
                     onBudgetClick = { navController.navigate(Destinations.BUDGET_VIEW) },

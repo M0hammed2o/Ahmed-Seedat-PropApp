@@ -7,9 +7,18 @@
      dev values (http://10.0.2.2:3000, http://10.0.2.2:54321, the Android emulator's alias for the
      host machine). This narrowly permits cleartext ONLY to that one loopback alias, ONLY in debug
      builds. Production endpoints (proplyst.co.za, the real Supabase project) are https and need no
-     exception; the release build ships with zero cleartext permissions, the secure default. -->
+     exception; the release build ships with zero cleartext permissions, the secure default.
+
+     127.0.0.1 added (real-local-backend UAT pass, WORKLOG.md this date): 10.0.2.2's slirp NAT path
+     to the host was silently refused by a Windows Firewall rule the emulator's virtual adapter hit,
+     but this session had no admin rights to fix (confirmed real: ping succeeded, raw TCP connect to
+     the dev server's port did not). "adb reverse tcp:PORT tcp:PORT" tunnels the emulator's own
+     127.0.0.1:PORT to the ADB host's 127.0.0.1:PORT over the ADB protocol itself, bypassing that
+     NIC-level firewall path entirely, but only once local.properties's URLs are changed to match
+     127.0.0.1 instead of 10.0.2.2, which then needs its own cleartext exception here. -->
 <network-security-config>
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="false">10.0.2.2</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
     </domain-config>
 </network-security-config>

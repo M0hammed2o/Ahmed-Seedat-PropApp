@@ -10,6 +10,8 @@ import za.co.proplyst.app.data.properties.Property
 import za.co.proplyst.app.data.properties.PropertiesRepository
 import za.co.proplyst.app.data.properties.PropertiesResult
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -22,9 +24,36 @@ import javax.inject.Inject
 sealed interface PropertiesListUiState {
     data object Loading : PropertiesListUiState
     data class Empty(val message: String) : PropertiesListUiState
-    data class Loaded(val properties: List<Property>, val cachedAt: String? = null) : PropertiesListUiState
+    /** [financials] is keyed by property id, populated best-effort alongside the properties
+     *  themselves (V1 owner-app completion pass, WORKLOG.md this date) so each card can show a
+     *  real rent-collected/outstanding/budget-status glance -- a property whose summary hasn't
+     *  loaded yet (or failed) simply has no entry and its card falls back to occupancy-only,
+     *  never a fabricated figure. */
+    data class Loaded(
+        val properties: List<Property>,
+        val cachedAt: String? = null,
+        val financials: Map<String, FinancialSummary> = emptyMap(),
+    ) : PropertiesListUiState
     data class Error(val message: String) : PropertiesListUiState
 }
+
+/** Property list card "how is this property doing?" status (V1 owner-app completion pass) --
+ *  derived from the same server-computed [FinancialSummary.budgetAlertLevel]/[FinancialSummary.budgetPlanned]
+ *  the Budget screen already uses, never a new client-side threshold. */
+enum class PropertyBudgetStatus { ON_TRACK, APPROACHING, OVER_BUDGET, NOT_CONFIGURED }
+
+fun budgetStatusFor(summary: FinancialSummary?): PropertyBudgetStatus = when {
+    summary?.budgetPlanned == null -> PropertyBudgetStatus.NOT_CONFIGURED
+    summary.budgetAlertLevel == "exceeded" -> PropertyBudgetStatus.OVER_BUDGET
+    summary.budgetAlertLevel == "approaching" -> PropertyBudgetStatus.APPROACHING
+    else -> PropertyBudgetStatus.ON_TRACK
+}
+
+/** A card needs a glance-worthy attention indicator when there's real outstanding rent, a
+ *  budget alert, or a payment awaiting confirmation -- all server-authoritative, never invented
+ *  for the card. */
+fun needsAttention(summary: FinancialSummary?): Boolean =
+    summary != null && (summary.rentOutstanding > 0 || summary.budgetAlertLevel != null || summary.awaitingConfirmationCount > 0)
 
 /** Properties grid filter chips (design handoff: "All / Residential / Commercial / Land") --
  * mapped from the real `Property.propertyType` values (`packages/types/src/enums.ts`
@@ -34,10 +63,12 @@ enum class PropertyCategoryFilter { ALL, RESIDENTIAL, COMMERCIAL, LAND }
 @HiltViewModel
 class PropertiesListViewModel @Inject constructor(
     private val repository: PropertiesRepository,
+    private val financialSummaryRepository: FinancialSummaryRepository,
 ) : ViewModel() {
 
     private var rawProperties: List<Property> = emptyList()
     private var cachedAtLabel: String? = null
+    private var financials: Map<String, FinancialSummary> = emptyMap()
 
     private val _uiState = MutableStateFlow<PropertiesListUiState>(PropertiesListUiState.Loading)
     val uiState: StateFlow<PropertiesListUiState> = _uiState.asStateFlow()
@@ -70,7 +101,25 @@ class PropertiesListViewModel @Inject constructor(
                 }
             }
             applyFilters()
+            loadFinancials()
         }
+    }
+
+    private fun loadFinancials() {
+        viewModelScope.launch {
+            val month = currentMonthIso()
+            financials = rawProperties
+                .map { property -> async { property.id to financialSummaryRepository.getFinancialSummary(property.id, month) } }
+                .awaitAll()
+                .mapNotNull { (id, result) -> (result as? FinancialSummaryResult.Loaded)?.summary?.let { id to it } }
+                .toMap()
+            applyFilters()
+        }
+    }
+
+    private fun currentMonthIso(): String {
+        val now = LocalDate.now()
+        return LocalDate.of(now.year, now.month, 1).toString()
     }
 
     fun onSearchQueryChange(query: String) {
@@ -99,7 +148,7 @@ class PropertiesListViewModel @Inject constructor(
             matchesQuery && matchesCategory
         }
         _uiState.value = when {
-            filtered.isNotEmpty() -> PropertiesListUiState.Loaded(filtered, cachedAtLabel)
+            filtered.isNotEmpty() -> PropertiesListUiState.Loaded(filtered, cachedAtLabel, financials)
             rawProperties.isEmpty() -> PropertiesListUiState.Empty("No properties yet")
             else -> PropertiesListUiState.Empty("No properties match your search")
         }

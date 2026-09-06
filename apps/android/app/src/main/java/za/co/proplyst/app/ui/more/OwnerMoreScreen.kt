@@ -70,6 +70,7 @@ fun OwnerMoreScreen(
     onPaymentReviewClick: () -> Unit,
     onRentStatusClick: () -> Unit,
     onAddExpenseClick: () -> Unit,
+    onUtilityOverviewClick: () -> Unit,
     onUtilityCaptureClick: () -> Unit,
     onUtilityHistoryClick: () -> Unit,
     onBudgetClick: () -> Unit,
@@ -153,6 +154,8 @@ fun OwnerMoreScreen(
             SectionLabel("Finances")
             GroupCard {
                 MoreRow("Add expense", "Record a property operating expense", Icons.AutoMirrored.Outlined.ReceiptLong, onAddExpenseClick)
+                RowDivider()
+                MoreRow("Utility overview", "Responsibility, readings and usage per property", Icons.Outlined.WaterDrop, onUtilityOverviewClick)
                 RowDivider()
                 MoreRow("Utility reading", "Record a water or electricity meter reading", Icons.Outlined.WaterDrop, onUtilityCaptureClick)
                 RowDivider()

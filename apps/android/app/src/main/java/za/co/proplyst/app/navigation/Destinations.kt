@@ -73,6 +73,7 @@ object Destinations {
     const val ADD_EXPENSE = "add_expense"
     const val UTILITY_CAPTURE = "utility_capture"
     const val UTILITY_HISTORY = "utility_history"
+    const val UTILITY_OVERVIEW = "utility_overview"
     const val BUDGET_VIEW = "budget_view"
 
     // In-app notifications + settings (same pass, Phase 7/9) -- shared route names across both

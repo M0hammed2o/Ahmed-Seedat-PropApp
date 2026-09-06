@@ -36,8 +36,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import za.co.proplyst.app.data.financials.FinancialSummary
 import za.co.proplyst.app.data.properties.Property
 import za.co.proplyst.app.ui.common.CachedDataBanner
+import za.co.proplyst.app.ui.common.formatCurrency
 import za.co.proplyst.app.ui.common.ErrorStateView
 import za.co.proplyst.app.ui.common.LoadingView
 import za.co.proplyst.app.ui.common.PropertyPhoto
@@ -83,7 +85,11 @@ fun PropertiesListScreen(
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
                     items(state.properties, key = { it.id }) { property ->
-                        PropertyCard(property = property, onClick = { onPropertyClick(property.id) })
+                        PropertyCard(
+                            property = property,
+                            financialSummary = state.financials[property.id],
+                            onClick = { onPropertyClick(property.id) },
+                        )
                     }
                     item { Spacer(modifier = Modifier.height(110.dp)) }
                 }
@@ -174,11 +180,13 @@ private fun FilterChip(filter: PropertyCategoryFilter, selected: Boolean, onClic
 }
 
 @Composable
-private fun PropertyCard(property: Property, onClick: () -> Unit) {
+private fun PropertyCard(property: Property, financialSummary: FinancialSummary?, onClick: () -> Unit) {
     val statusLabel = if (property.status == "active") "Active" else "Archived"
     val statusColor = if (property.status == "active") ProplystTheme.colors.success else ProplystTheme.colors.textTertiary
     val statusBg = if (property.status == "active") ProplystTheme.colors.successBg else ProplystTheme.colors.divider
     val occupancyFraction = if (property.unitCount > 0) property.occupiedUnitCount.toFloat() / property.unitCount else 0f
+    val budgetStatus = budgetStatusFor(financialSummary)
+    val attentionNeeded = needsAttention(financialSummary)
 
     Box(
         modifier = Modifier
@@ -221,13 +229,25 @@ private fun PropertyCard(property: Property, onClick: () -> Unit) {
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
                 )
             }
-            Surface(color = statusBg, shape = ProplystPillShape) {
-                Text(
-                    statusLabel,
-                    style = ProplystTheme.type.statusLabel,
-                    color = statusColor,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                )
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (attentionNeeded) {
+                    Surface(color = ProplystTheme.colors.warningDeep.copy(alpha = 0.18f), shape = ProplystPillShape) {
+                        Text(
+                            "Needs attention",
+                            style = ProplystTheme.type.statusLabel,
+                            color = ProplystTheme.colors.warningDeep,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                        )
+                    }
+                }
+                Surface(color = statusBg, shape = ProplystPillShape) {
+                    Text(
+                        statusLabel,
+                        style = ProplystTheme.type.statusLabel,
+                        color = statusColor,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                    )
+                }
             }
         }
         Column(modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(16.dp)) {
@@ -272,7 +292,31 @@ private fun PropertyCard(property: Property, onClick: () -> Unit) {
                     )
                 }
             }
+            if (financialSummary != null) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "Collected R ${formatCurrency(financialSummary.rentCollected)}",
+                        style = ProplystTheme.type.caption,
+                        color = ProplystTheme.colors.navyTertiaryOn,
+                    )
+                    BudgetStatusPill(budgetStatus)
+                }
+            }
         }
+    }
+}
+
+@Composable
+private fun BudgetStatusPill(status: PropertyBudgetStatus) {
+    val (label, color) = when (status) {
+        PropertyBudgetStatus.ON_TRACK -> "On track" to ProplystTheme.colors.success
+        PropertyBudgetStatus.APPROACHING -> "Approaching budget" to ProplystTheme.colors.warningDeep
+        PropertyBudgetStatus.OVER_BUDGET -> "Over budget" to ProplystTheme.colors.critical
+        PropertyBudgetStatus.NOT_CONFIGURED -> "Budget not set" to ProplystTheme.colors.navyTertiaryOn
+    }
+    Surface(color = color.copy(alpha = 0.18f), shape = ProplystPillShape) {
+        Text(label, style = ProplystTheme.type.chipLabel, color = color, modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp))
     }
 }
 
