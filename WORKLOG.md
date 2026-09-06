@@ -1,5 +1,59 @@
 # Worklog
 
+## 2026-09-06 (external comms) — WhatsApp inbound verified, preferences proven, delivery still blocked
+
+Narrow pass on the two pilot blockers the previous release gate failed on: real WhatsApp and real
+email. Local-only throughout; nothing pushed, no production migration, deploy or data touched.
+
+**Credentials are still absent, and that is still the blocker.** Checked by name across `.env.local`,
+the shell and every env file: none of `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`,
+`WHATSAPP_WEBHOOK_SECRET`, `WHATSAPP_WEBHOOK_VERIFY_TOKEN`, `RESEND_API_KEY` or
+`RESEND_FROM_ADDRESS` exists. So `getWhatsAppProvider()` and `getEmailProvider()` both return mocks
+that log and return a synthetic id but send nothing. Per instruction the real-send portion was
+stopped rather than routed elsewhere: **no message was sent to the UAT number.** Note the naming —
+this codebase uses `RESEND_FROM_ADDRESS`; there is no `EMAIL_FROM`/`EMAIL_FROM_NAME`.
+`ENVIRONMENT.md` now carries a go-live checklist naming the exact vendor screen each value comes
+from, since none of it can be generated from this repo.
+
+**Inbound WhatsApp went from unverified to verified.** The resolution path was fully built but
+unreachable: `resolve_whatsapp_sender()` reads `verified_phone_numbers`, and the OTP flow that
+would populate it is undesigned, so every real inbound resolved to 0 matches. The demo seed now
+creates a UAT-only mapping (localhost-gated, explicitly not an OTP flow, tenant records untouched —
+it is a separate identity table), and a new probe drives the **live** webhook endpoint with real
+Meta payloads and real `X-Hub-Signature-256` HMACs. 15/15: correct tenant and org resolution,
+replay creating no second record, forged signature refused with 401 storing nothing, malformed body
+400 rather than a 5xx retry loop, unknown number recorded but attached to no org, and no cross-org
+leakage. The probe refuses to run without a webhook secret, because against the mock (signature
+always valid, different payload dialect) a green run would prove nothing.
+
+**The webhook route itself had no tests at all** — only the function beneath it. Added 12 covering
+what only exists at that boundary, driven with real Meta shapes and HMACs. The first draft used the
+mock and *passed its status assertions while silently writing rows under random ids*; that is
+precisely the hollow green the real provider avoids.
+
+**Preferences are enforced server-side, per channel.** Six tests prove the property that matters:
+disabling WhatsApp for a category does not mute email for it, and vice versa — a shared "notify me"
+flag dressed as per-channel controls would pass a naive test and fail these. Org-level and
+user-level both covered, cross-category leakage checked, and the UAT override confirmed *not* to
+bypass suppression. **Push is not asserted on: nothing anywhere sends a push.** `push_enabled` is
+stored and returned by the preferences API, and `device-push-tokens` only registers tokens — there
+is no dispatcher to enforce it against.
+
+**Template gap check, honestly.** `DispatchableWhatsAppType` is a closed 14-member union, so the
+type system itself prevents WhatsApp for categories without a template. There is no approved
+template for unusual utility usage, budget approaching/exceeded, announcements, security,
+inspections, compliance or promotional — and no fake approval state was created for any of them.
+Those alerts are delivered as in-app `portfolio_insights` (Needs Attention) plus `notifications`
+rows; that is the actual V1 channel, not a broken gate.
+
+**Owner payment confirmation** needed no new work: pgTAP already proves a second confirm returns
+success, leaves exactly one `invoice_payments` row (R12,500, not R25,000), fires `payment.recorded`
+once, and refuses a tenant caller.
+
+Gates re-run: pgTAP 94/94, Vitest 166 files passed / 1 skipped / 0 failed, TypeScript clean, ESLint
+clean, Android 238 tests + 0 lint errors + APK built, cross-org 19/19, tenant 15/15, parity 31/31,
+recording route 70/70 with 0 server errors, inbound 15/15.
+
 ## 2026-09-06 (later) — V1 release-gate pass: security probes, parity, four real bug fixes
 
 Feature-frozen pass aimed at one question: is Proplyst genuinely ready for internal UAT, a pilot
