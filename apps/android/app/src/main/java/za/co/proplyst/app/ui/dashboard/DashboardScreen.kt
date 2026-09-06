@@ -108,7 +108,13 @@ fun DashboardScreen(
                     onAccountClick = onAccountClick,
                 )
             }
-            item { KpiStrip(summaryState = summaryState, properties = topProperties) }
+            item {
+                KpiStrip(
+                    summaryState = summaryState,
+                    financialSummaryState = financialSummaryState,
+                    properties = topProperties,
+                )
+            }
             item { Spacer(modifier = Modifier.height(24.dp)) }
             item { OperatingCostsSection(financialSummaryState = financialSummaryState) }
             item { Spacer(modifier = Modifier.height(24.dp)) }
@@ -301,11 +307,32 @@ private fun financialSummaryMonthLabel(state: FinancialSummaryUiState): String {
     }
 }
 
+/**
+ * Home's "Properties" KPI. Portfolio size must come from a server-computed count and NEVER from the
+ * Top Properties list, which is deliberately truncated to 6 (DashboardViewModel's `.take(6)`).
+ * Falling back to that list's size made a 10-property portfolio report "6 Properties" on Home while
+ * the Properties tab and the web dashboard both said 10 -- a visible contradiction between two
+ * screens of the same app (V1 release-gate pass).
+ *
+ * [financialCount] is owner_portfolio_financial_summary().property_count, the same authoritative
+ * figure the web dashboard renders, and Home already loads it for the hero and expense sections.
+ * [monthlySummaryCount] is the owner monthly summary's own count, used only if the financial summary
+ * has not loaded. When neither is available the count is genuinely unknown, so this shows an em dash
+ * rather than guessing -- an understated portfolio reads as fact, and is worse than an honest blank.
+ */
+internal fun resolvePropertyCountLabel(financialCount: Int?, monthlySummaryCount: Int?): String =
+    financialCount?.toString() ?: monthlySummaryCount?.toString() ?: "—"
+
 @Composable
-private fun KpiStrip(summaryState: OwnerSummaryUiState, properties: List<Property>) {
+private fun KpiStrip(
+    summaryState: OwnerSummaryUiState,
+    financialSummaryState: FinancialSummaryUiState,
+    properties: List<Property>,
+) {
     val colors = ProplystTheme.colors
     val type = ProplystTheme.type
     val summary = (summaryState as? OwnerSummaryUiState.Loaded)?.summary
+    val financialSummary = (financialSummaryState as? FinancialSummaryUiState.Loaded)?.summary
     // Real occupancy across the properties this account can see (unitCount/occupiedUnitCount are
     // the real, backend-computed counts) -- never fabricated; "—" only with zero units.
     val totalUnits = properties.sumOf { it.unitCount }
@@ -324,7 +351,11 @@ private fun KpiStrip(summaryState: OwnerSummaryUiState, properties: List<Propert
         Row(modifier = Modifier.padding(vertical = 14.dp, horizontal = 6.dp)) {
             KpiColumn("Occupancy", occupancyLabel, Modifier.weight(1f))
             KpiDivider()
-            KpiColumn("Properties", summary?.propertyCount?.toString() ?: properties.size.toString(), Modifier.weight(1f))
+            KpiColumn(
+                "Properties",
+                resolvePropertyCountLabel(financialSummary?.propertyCount, summary?.propertyCount),
+                Modifier.weight(1f),
+            )
             KpiDivider()
             KpiColumn(
                 "Open jobs",
