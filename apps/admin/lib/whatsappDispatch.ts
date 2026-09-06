@@ -152,6 +152,68 @@ const PLATFORM_WHATSAPP_NUMBER = '+27000000000'; // TO_BE_CONFIRMED
 // tenant_account_invitation is transactional, same as member_invited's email equivalent: a tenant
 // can't meaningfully "opt out" of the one message that grants them portal access in the first
 // place.
+/**
+ * UAT recipient override (V1 release-gate pass). Set WHATSAPP_UAT_OVERRIDE_NUMBER to an E.164
+ * number and EVERY outbound WhatsApp message is redirected to it instead of the real tenant/owner,
+ * so a single reviewer's handset can exercise every template and persona without needing one real
+ * device per fictional tenant -- and, more importantly, without editing real tenant phone numbers
+ * in the data to achieve it (which would corrupt the records themselves and outlive the test).
+ *
+ * Three deliberate safety properties:
+ *
+ * 1. HARD PRODUCTION BLOCK. If NODE_ENV === 'production' the override is ignored entirely and a
+ *    loud error is logged. A misconfigured deploy must never silently funnel every customer's rent
+ *    reminder to one person's phone -- that is a data-breach-shaped failure, not a test artifact.
+ *    Mirrors lib/billing.ts's own `mock provider in production` guard convention.
+ * 2. TRUTHFUL AUDIT TRAIL. whatsapp_messages.to_number records where the message ACTUALLY went
+ *    (the override), never the address it was meant for, so the ledger never claims a tenant was
+ *    contacted when they were not. The intended recipient is preserved alongside it in the audit
+ *    event payload, so the redirection is reconstructable rather than erased.
+ * 3. NO SILENT ACTIVATION. Every redirect logs a warning naming both numbers.
+ *
+ * Returns `{ kind: 'inactive' }` on the normal production path, `{ kind: 'redirect' }` when a valid
+ * override applies, or `{ kind: 'blocked' }` when the variable is set but unusable.
+ *
+ * That last case fails CLOSED on purpose. toE164() only validates E.164, it never converts, so a
+ * plausible local-format value like "083 786 6021" does not parse. Ignoring it and continuing would
+ * send the message to the REAL tenant -- precisely the outcome the operator was trying to prevent by
+ * setting the variable at all. A misconfigured redirect must suppress the send, never leak past it.
+ */
+export type WhatsAppUatOverride =
+  | { kind: 'inactive' }
+  | { kind: 'redirect'; to: string }
+  | { kind: 'blocked'; reason: string };
+
+export function resolveWhatsAppUatOverride(intendedNumber: string): WhatsAppUatOverride {
+  const override = process.env.WHATSAPP_UAT_OVERRIDE_NUMBER?.trim();
+  if (!override) return { kind: 'inactive' };
+
+  if (process.env.NODE_ENV === 'production') {
+    console.error(
+      '[dispatchWhatsApp] WHATSAPP_UAT_OVERRIDE_NUMBER is set in a PRODUCTION build and has been IGNORED. ' +
+        'This variable is a UAT-only testing aid; leaving it set in production would redirect every ' +
+        'customer message to a single number. Unset it.',
+    );
+    return { kind: 'inactive' };
+  }
+
+  const normalized = toE164(override);
+  if (!normalized) {
+    console.error(
+      `[dispatchWhatsApp] WHATSAPP_UAT_OVERRIDE_NUMBER is set but is not valid E.164 (${override}). ` +
+        'Suppressing the send rather than delivering to the real recipient. ' +
+        'Use the full international form, e.g. +27837866021 (not 083 786 6021).',
+    );
+    return { kind: 'blocked', reason: 'invalid_uat_override_number' };
+  }
+  if (normalized === intendedNumber) return { kind: 'inactive' };
+
+  console.warn(
+    `[dispatchWhatsApp] UAT OVERRIDE ACTIVE -- redirecting message intended for ${intendedNumber} to ${normalized}`,
+  );
+  return { kind: 'redirect', to: normalized };
+}
+
 const TEMPLATE_CATEGORY: Partial<
   Record<DispatchableWhatsAppType, 'rent' | 'maintenance' | 'lease' | 'owner_summary'>
 > = {
@@ -221,7 +283,10 @@ export interface DispatchWhatsAppResult {
     | 'preference_disabled'
     | 'already_sent'
     | 'template_not_approved'
-    | 'send_failed';
+    | 'send_failed'
+    /** WHATSAPP_UAT_OVERRIDE_NUMBER is set but unusable -- the send is suppressed rather than
+     * allowed to reach the real recipient. See resolveWhatsAppUatOverride(). */
+    | 'uat_override_invalid';
   whatsappMessageId?: string;
   /** False whenever this dispatch went through MockWhatsAppProvider (no WHATSAPP_ACCESS_TOKEN/
    * WHATSAPP_PHONE_NUMBER_ID/WHATSAPP_WEBHOOK_SECRET configured) -- mirrors
@@ -308,10 +373,19 @@ export async function dispatchWhatsApp(
   // an uncaught exception here would turn a successful approval into a misleading 500 to the
   // staff member, not roll back anything real, just lie about the outcome. Fail soft, once,
   // centrally, for every current and future caller of this single dispatch function.
+  // UAT override is applied at this single choke point -- after every preference/approval gate, so
+  // a redirected test message still obeys exactly the same suppression rules a real one would, and
+  // before the provider call, so nothing downstream can observe the original address.
+  const uatOverride = resolveWhatsAppUatOverride(toNumber);
+  if (uatOverride.kind === 'blocked') {
+    return { sent: false, reason: 'uat_override_invalid', deliveryConfigured };
+  }
+  const deliveredTo = uatOverride.kind === 'redirect' ? uatOverride.to : toNumber;
+
   try {
     const provider = getWhatsAppProvider();
     const result = await provider.sendTemplateMessage({
-      to: toNumber,
+      to: deliveredTo,
       templateName: input.templateName,
       variables: input.variables,
       orgId: input.orgId,
@@ -322,7 +396,9 @@ export async function dispatchWhatsApp(
       .insert({
         org_id: input.orgId,
         direction: 'outbound',
-        to_number: toNumber,
+        // Where it ACTUALLY went -- never the intended address when redirected, so the ledger can
+        // never imply a tenant was contacted when the message went to a UAT handset instead.
+        to_number: deliveredTo,
         from_number: PLATFORM_WHATSAPP_NUMBER,
         related_entity_type: input.relatedEntityType,
         related_entity_id: input.relatedEntityId,
@@ -341,7 +417,16 @@ export async function dispatchWhatsApp(
       action: 'whatsapp_sent',
       entityType: input.relatedEntityType,
       entityId: input.relatedEntityId,
-      after: { templateName: input.templateName, toNumber, status: 'queued' },
+      after: {
+        templateName: input.templateName,
+        toNumber: deliveredTo,
+        status: 'queued',
+        // Present only during UAT, so the redirection is reconstructable from the audit trail
+        // rather than erased by it.
+        ...(uatOverride.kind === 'redirect'
+          ? { uatOverride: true, intendedRecipient: toNumber }
+          : {}),
+      },
     });
 
     return { sent: true, whatsappMessageId: message.id, deliveryConfigured };
