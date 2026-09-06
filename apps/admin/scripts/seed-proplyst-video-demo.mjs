@@ -219,6 +219,7 @@ async function resetDemoData(orgId, ownerUserId) {
     'rent_schedules',
     'lease_tenants',
     'leases',
+    'verified_phone_numbers',
     'tenants',
     'units',
     // properties deliberately excluded -- audit_events.property_id is a real FK, and audit_events
@@ -843,6 +844,57 @@ async function seedActivity(orgId, ownerUserId) {
 // Needs Attention), so the feed stays truthful rather than decorative: every row below is something
 // the data genuinely supports.
 // ---------------------------------------------------------------------------
+/**
+ * UAT-ONLY inbound WhatsApp phone mapping.
+ *
+ * Inbound resolution (WHATSAPP.md §1.2, resolve_whatsapp_sender()) is fully built: a sender number
+ * is looked up in verified_phone_numbers, where 0 matches = UNAUTHENTICATED, exactly 1 = RESOLVED,
+ * and 2+ = AMBIGUOUS (never guessed between). The only thing missing in V1 is a way to POPULATE
+ * that table: the OTP verification flow that would normally write it is undesigned, so in practice
+ * every real inbound message resolves to 0 matches and can never reach a tenant context.
+ *
+ * That makes inbound impossible to exercise in UAT without seeding the mapping directly, which is
+ * what this does -- for the demo organisation only, in a script that refuses to run anywhere but
+ * localhost. It is NOT an OTP flow and must never be mistaken for one: verification_method is left
+ * at its 'otp' default because the column's CHECK permits nothing else, so these rows are flagged
+ * as UAT purely by belonging to the demo org.
+ *
+ * The number is the UAT destination handset. Mapping it to ONE demo tenant is deliberate: it makes
+ * a real inbound message from that phone resolve to exactly one tenant (RESOLVED), which is the
+ * branch worth demonstrating. Mapping it to several would produce AMBIGUOUS and prove less.
+ *
+ * No tenant record is altered -- tenants.phone keeps its own fictional demo number. This table is a
+ * separate identity mapping, so seeding it changes nothing about the tenant's own data.
+ */
+const UAT_INBOUND_PHONE_E164 = process.env.WHATSAPP_UAT_OVERRIDE_NUMBER ?? '+27837866021';
+
+async function seedUatInboundPhoneMapping(orgId) {
+  if (!/^\+[1-9]\d{6,14}$/.test(UAT_INBOUND_PHONE_E164)) {
+    console.log(`Skipped UAT inbound phone mapping -- ${UAT_INBOUND_PHONE_E164} is not valid E.164.`);
+    return;
+  }
+
+  // The primary tenant of the first occupied unit -- a stable, meaningful choice for a demo.
+  const anchor = PROPERTIES.flatMap((p) => p.units).find((u) => u.profile !== 'vacant' && u.tenantId);
+  if (!anchor) {
+    console.log('Skipped UAT inbound phone mapping -- no occupied unit with a tenant was seeded.');
+    return;
+  }
+
+  const { error } = await supabase.from('verified_phone_numbers').insert({
+    org_id: orgId,
+    entity_type: 'tenant',
+    entity_id: anchor.tenantId,
+    phone_number_e164: UAT_INBOUND_PHONE_E164,
+  });
+  if (error) fail('seed UAT inbound phone mapping', error);
+
+  console.log(
+    `Seeded UAT inbound phone mapping: ${UAT_INBOUND_PHONE_E164} -> tenant "${anchor.tenant}" (${anchor.label}).`,
+  );
+  console.log('  An inbound WhatsApp from that handset now resolves to exactly this tenant (RESOLVED).');
+}
+
 async function seedNotifications(orgId, ownerUserId) {
   const byKey = Object.fromEntries(PROPERTIES.map((p) => [p.key, p]));
   const overdueUnit = byKey.berea.units.find((u) => u.profile === 'current_overdue');
@@ -1014,6 +1066,7 @@ async function main() {
   await seedDocuments(orgId, userId);
   await seedActivity(orgId, userId);
   await seedNotifications(orgId, userId);
+  await seedUatInboundPhoneMapping(orgId);
 
   const ok = await verify(orgId);
 
