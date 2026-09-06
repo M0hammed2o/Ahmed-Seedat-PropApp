@@ -1,5 +1,77 @@
 # Worklog
 
+## 2026-09-06 — Real local Android UAT, Utility Overview + property health cards, video demo portfolio
+
+Continuation pass, local-only throughout: local Supabase, local Next.js dev server, ADB reverse.
+No production migrations, no production deploy, no production data touched, not pushed.
+
+**Part A -- real local Android connectivity, confirmed via `adb reverse` (not Windows Firewall)**:
+`adb reverse tcp:3000 tcp:3000` + `tcp:54321 tcp:54321`, with `local.properties`'s URLs switched to
+`127.0.0.1` and a matching cleartext exception added to the debug network security config, exactly as
+the prior pass's own fix intended. Real sign-in as the demo owner succeeded (Supabase Auth session,
+role-resolution REST call against local Postgres, both confirmed via logcat) after working through
+several purely environment-level obstacles along the way: host CPU-pressure-driven ANRs on both the
+launcher and the app itself (`/proc/pressure/cpu some avg10` up to 61%, correlating with concurrent
+Gradle/seed-script load -- confirmed via `adb logcat`'s own ANR traces, not guessed), and one genuine
+intermittent `SocketTimeoutException` on the ADB-tunnelled connection under that same load, both
+consistent with this dev machine's already-documented bursty-contention characteristic.
+
+**Part B -- closed the three disclosed owner-app gaps**:
+- New **Utility Overview** screen (`ui/utilities/UtilityOverviewScreen.kt`/`ViewModel.kt`): property
+  selector, Water/Electricity sections built directly on the existing `UtilitiesRepository.getMeters()`/
+  `getReadingHistory()` calls (no new API surface) -- responsibility label, last/current/previous
+  reading, % change, and status ("Tenant prepaid" / "No meter configured" / "Unusual water usage",
+  never "Leak detected") all read straight from server-computed fields, never recomputed on-device.
+  Owner cost is shown per utility section (from the property's own financial summary) only when at
+  least one meter of that type is actually owner-paid -- never next to a tenant-prepaid meter.
+- **Property list health cards** (`PropertiesListScreen.kt`/`PropertiesViewModel.kt`): each card now
+  shows rent collected and a budget-status pill (On track/Approaching/Over/Not configured, derived
+  from the same server `budgetAlertLevel` the Budget screen already uses -- never a new client
+  threshold) plus an attention indicator (real outstanding rent, a budget alert, or an
+  awaiting-confirmation payment), fetched concurrently per property alongside the existing list load.
+- Real local network fix (network_security_config.xml's `127.0.0.1` cleartext exception) committed.
+
+8 new unit tests (5 Utility Overview, 3 property health cards); 234 Android unit tests pass, 0
+failures; lint clean (0 errors); `assembleDebug` succeeds.
+
+**Part C -- repeatable video-demo portfolio** (`apps/admin/scripts/seed-proplyst-video-demo.mjs`):
+one clearly-synthetic local org ("Proplyst Demo Portfolio"), 10 properties / 37 units / 34 tenants
+across real Durban-area suburbs, 12 months of rent/invoice/payment history, utility meters with one
+deliberate ~28% water-usage anomaly, monthly budgets sized for On track/Approaching/Over/Not-configured
+variety, maintenance tickets, and document fixtures -- all via direct service-role inserts (the
+RPCs that would normally write these tables all gate on `auth.uid()`/`has_org_role`, which a
+service-role connection has none of; the seed script's own comment documents exactly why for each
+one). Hard safety check refuses anything but `127.0.0.1`/`localhost`. `--reset` reuses existing
+property/unit rows rather than deleting them, since `audit_events.property_id` is a real FK and
+`audit_events` rows are permanently immutable once written (discovered the hard way, fixed).
+
+Built-in reconciliation (also runnable standalone via `--verify-only`, signs in as the demo owner
+and calls the real `owner_portfolio_financial_summary()`/`budget_vs_actual()` RPCs): rent planned
+R346,950, collected 93.0%, portfolio budget an exact `sum()` of the 9 configured property budgets,
+91.9% occupancy, all 9 properties' budget status matching their intended state exactly. **Live-verified
+end-to-end against the real Android app over ADB reverse** (screenshot evidence for each): Property
+Detail Finances (3 properties, exact rand-for-rand match), Rent Status (exact per-tenant amounts and
+Paid/Overdue badges), Properties list health cards (exact aggregates and status pills), Utility
+Overview and Utility History (the seeded anomaly correctly flagged at exactly +28.0%, tenant-prepaid
+meters correctly showing no fabricated cost), and the portfolio Budget screen (R82,721 of R107,000 =
+77.3%, category breakdown summing exactly to the total) -- all reconciling to the same figures.
+Dark mode ("Navy Deck") verified rendering correctly on Home and More.
+
+**Disclosed, not fixed this pass**: the Home dashboard's portfolio-wide "Collected" stat intermittently
+shows "timeout" (a real, gracefully-handled client-side timeout on the portfolio-summary call under
+host load, not a crash -- the same underlying RPC returns correctly on retry/from other screens) and
+its "Properties" stat once showed 6 instead of the true 10 on the same load, most likely a
+partial/cached render tied to that same timeout rather than a separate defect -- not root-caused
+further this pass. Android's bottom-nav "Activity" tab reads a separate in-app-notifications table,
+not the `audit_events` audit trail the seed script populates for the web Activity page's benefit --
+seeded maintenance tickets and the three manual `audit_events` rows will not appear there; this is a
+genuine scope mismatch between the two platforms, not something this pass's data can fix. Release
+signing intentionally out of scope (no Play Store keystore created).
+
+`.env.local` restored to the production backup; `tmp-create-demo-owner.mjs` deleted (fully superseded
+by the seed script's own idempotent `ensureDemoOrgAndOwner()`); ADB reverse tunnels removed; local dev
+server was already stopped. Not pushed -- 11 commits ahead of `origin/main`.
+
 ## 2026-09-05 — Budget hierarchy verified; Android owner Home/Budget/Property Detail finished
 
 Phase A (verify the budget model) + Phase B (Android owner app). Web only for Phase A; Android-only
