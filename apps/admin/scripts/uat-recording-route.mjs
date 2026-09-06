@@ -67,8 +67,10 @@ async function main() {
   const { data: org } = await admin
     .from('organizations').select('id').ilike('legal_name', 'Proplyst Demo Portfolio%').maybeSingle();
   if (!org) throw new Error('Demo portfolio org not found -- run the seed script first.');
+  // Active only: both the Properties list and (since migration 169) the Dashboard count exclude
+  // archived properties, so an archived one must not be treated as a missing screen here.
   const { data: props } = await admin
-    .from('properties').select('id, nickname').eq('org_id', org.id).order('nickname');
+    .from('properties').select('id, nickname').eq('org_id', org.id).eq('status', 'active').order('nickname');
 
   const cookie = await signIn();
   record('Login (real session cookies issued)', true);
@@ -78,7 +80,11 @@ async function main() {
     ['Dashboard renders', '/dashboard'],
     ['Properties list renders', '/properties'],
     [`Property detail renders (${props[0].nickname})`, `/properties/${props[0].id}`],
-    ['Payments/invoices screen renders', '/invoices'],
+    ['Budget screen renders', '/budget'],
+    ['Payments: invoices screen renders', '/accounting/invoices'],
+    ['Payments: rent due screen renders', '/accounting/rent-due'],
+    ['Payments: payment reports screen renders', '/accounting/payment-reports'],
+    ['Payments: expenses screen renders', '/accounting/expenses'],
   ]) {
     const r = await page(cookie, path);
     const ok = r.status === 200 && !/Something went wrong|Application error|Internal Server Error/i.test(r.html);
@@ -123,17 +129,23 @@ async function main() {
   // The Properties list filter chips must not resolve to an empty screen on camera.
   const RESIDENTIAL = new Set(['house', 'apartment', 'apartment_building', 'townhouse', 'student_accommodation']);
   const COMMERCIAL = new Set(['commercial', 'retail', 'office', 'industrial', 'mixed_use']);
-  const { data: typed } = await admin.from('properties').select('property_type').eq('org_id', org.id);
+  const { data: typed } = await admin
+    .from('properties').select('property_type').eq('org_id', org.id).eq('status', 'active');
   const residential = typed.filter((p) => RESIDENTIAL.has(p.property_type)).length;
   const commercial = typed.filter((p) => COMMERCIAL.has(p.property_type)).length;
   record('Properties "Residential" filter has results', residential > 0, `${residential} properties`);
   record('Properties "Commercial" filter has results', commercial > 0, `${commercial} properties`);
 
+  let ownerId = null;
+  for (let page = 1; page <= 50 && !ownerId; page += 1) {
+    const { data } = await admin.auth.admin.listUsers({ page, perPage: 200 });
+    ownerId = data.users.find((u) => u.email === 'demo-owner@proplyst-demo.local')?.id ?? null;
+    if (data.users.length < 200) break;
+  }
   const { count: notifications } = await admin
     .from('notifications')
     .select('id', { count: 'exact', head: true })
-    .eq('user_id', (await admin.auth.admin.listUsers({ perPage: 200 })).data.users
-      .find((u) => u.email === 'demo-owner@proplyst-demo.local').id);
+    .eq('user_id', ownerId);
   record('Owner notifications/activity inbox is not empty', (notifications ?? 0) > 0, `${notifications} notifications`);
 
   const failed = results.filter((r) => !r.passed);

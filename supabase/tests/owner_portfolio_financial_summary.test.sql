@@ -2,7 +2,7 @@
 -- property-scoped), live (never cached), with cross-org authorization.
 
 begin;
-select plan(11);
+select plan(13);
 
 insert into auth.users (id, email) values
   ('b5000000-0000-0000-0000-000000000001', 'b5-accountant@test.propertyvault.example'),
@@ -166,5 +166,38 @@ select is(
 );
 reset role;
 
+-- === V1 release-gate pass: archived properties must not inflate property_count ===
+-- The Properties list shows active properties only, so a Dashboard that counted archived ones too
+-- put two contradictory numbers on screen in the same app (it read 11 beside a list of 10). Reuses
+-- the two-property fixture org above (a fresh org cannot add properties without commercial setup),
+-- archiving one of them. The money aggregates deliberately still span archived properties -- rent
+-- and expenses that really happened before archival must not vanish from that month's totals -- so
+-- both halves are asserted here.
+set local role authenticated;
+set local "request.jwt.claim.sub" = 'b5000000-0000-0000-0000-000000000001';
+
+update public.properties set status = 'archived' where nickname = 'B5 Property Two';
+
+select is(
+  (select property_count from public.owner_portfolio_financial_summary(
+     (select id from public.organizations where legal_name = 'B5 Portfolio Test Org'), '2026-09-01')),
+  1,
+  'property_count counts only non-archived properties, matching what the Properties list shows'
+);
+
+-- An expense on the now-ARCHIVED property must still appear in the month total: archiving a
+-- property does not un-spend money that was already spent.
+insert into public.expenses (org_id, property_id, category, category_code, amount, status, invoice_date)
+select p.org_id, p.id, 'Maintenance', 'maintenance', 1234, 'pending', '2026-09-10'
+from public.properties p where p.nickname = 'B5 Property Two';
+
+select ok(
+  (select total_expenses from public.owner_portfolio_financial_summary(
+     (select id from public.organizations where legal_name = 'B5 Portfolio Test Org'), '2026-09-01')) >= 1234::numeric,
+  'expenses on an archived property still count toward the month total -- archiving does not erase spend'
+);
+reset role;
+
 select * from finish();
 rollback;
+

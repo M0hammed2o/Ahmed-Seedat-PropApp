@@ -1,9 +1,13 @@
 // Proplyst video-demo portfolio seed (V1 owner-app completion pass, WORKLOG.md this date).
 //
 // Creates ONE local-only, clearly-synthetic demo organisation ("Proplyst Demo Portfolio") with a
-// realistic, internally-consistent 10-property / ~37-unit portfolio and ~12 months of history
+// realistic, internally-consistent 10-property / 39-unit portfolio and ~12 months of history
 // (Oct 2025 - Sep 2026), so the Android owner app and the web admin app can both be recorded
 // against real, server-authoritative data instead of mocks or an empty account.
+//
+// Property mix is deliberately varied so no UI filter or scenario resolves to an empty screen:
+// freestanding houses, apartment blocks, sectional-title (levy-bearing) schemes, a townhouse
+// complex, and one commercial business park (warehouse/office/retail units).
 //
 // SAFETY: refuses to run against anything but a local Supabase instance. Never touches production.
 // Every name, address, tenant, email and phone number below is fictional -- no real pilot customer
@@ -93,11 +97,27 @@ function fakeChecksum(seed) {
 // ---------------------------------------------------------------------------
 // 1. Demo org + owner (idempotent: reuse if they already exist)
 // ---------------------------------------------------------------------------
+/**
+ * GoTrue exposes no "get user by email", only a paginated list. A single perPage page silently
+ * stops finding an existing user once the database grows past it -- this local dev database is well
+ * past 200 users from months of test runs, which broke this script's idempotency outright: the
+ * owner lookup missed, the script tried to re-create the account, and GoTrue rejected it with
+ * email_exists. Page until found instead of assuming one page covers everything.
+ */
+async function findAuthUserByEmail(email) {
+  for (let page = 1; page <= 50; page += 1) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 200 });
+    if (error) fail('list existing auth users', error);
+    const hit = data.users.find((u) => u.email === email);
+    if (hit) return hit;
+    if (data.users.length < 200) return null; // last page reached
+  }
+  return null;
+}
+
 async function ensureDemoOrgAndOwner() {
   let userId;
-  const { data: existingUsers, error: listErr } = await supabase.auth.admin.listUsers({ perPage: 200 });
-  if (listErr) fail('list existing auth users', listErr);
-  const existingUser = existingUsers.users.find((u) => u.email === DEMO_EMAIL);
+  const existingUser = await findAuthUserByEmail(DEMO_EMAIL);
   if (existingUser) {
     userId = existingUser.id;
     console.log(`Reusing existing demo owner auth user: ${userId}`);
@@ -169,8 +189,17 @@ async function ensureDemoOrgAndOwner() {
 // ---------------------------------------------------------------------------
 // 2. Reset -- wipe everything scoped to this org (children first), keep the org+user themselves.
 // ---------------------------------------------------------------------------
-async function resetDemoData(orgId) {
+async function resetDemoData(orgId, ownerUserId) {
   console.log(`Resetting all data for demo org ${orgId} ...`);
+
+  // notifications is scoped by user_id, not org_id, so it cannot go in the org-scoped loop below.
+  // Cleared first so a --reset re-seed produces exactly one inbox rather than stacking duplicates
+  // on every run.
+  {
+    const { error } = await supabase.from('notifications').delete().eq('user_id', ownerUserId);
+    if (error) fail('reset notifications', error);
+  }
+
   const orderedTables = [
     // audit_events deliberately excluded -- rows are permanently immutable once written (a real,
     // trustworthy-audit-trail DB constraint). A --reset re-seed simply adds a few more activity
@@ -331,13 +360,25 @@ const PROPERTIES = [
       { label: 'Apt 4', rent: 11950, tenant: 'Kyle Naicker', profile: 'normal' },
     ],
   },
+  // Commercial: the portfolio was entirely residential until the V1 release-gate pass, which left
+  // the Properties list's "Commercial" filter chip resolving to an empty screen -- bad for UAT
+  // coverage and worse for demo recording. Commercial leasing differs in ways worth showing:
+  // materially higher rents, higher municipal rates, owner-paid common-area utilities, and a
+  // vacant unit being an ordinary (not alarming) state in a business park.
   {
-    key: 'pinetown', nickname: 'Pinetown Garden Cottage', propertyType: 'house',
+    key: 'pinetown', nickname: 'Pinetown Business Park', propertyType: 'commercial',
     address1: '9 Kloof Road', suburb: 'Pinetown', city: 'Pinetown', province: 'KwaZulu-Natal', postal: '3610',
-    budgetPlanned: 3000, budgetIntent: 'on_track',
-    utilities: { water: null, electricity: null },
-    recurringCosts: [{ type: 'rates_and_taxes', scope: 'property', amount: 1400 }],
-    units: [{ label: 'Main House', rent: 9500, tenant: null, profile: 'vacant' }],
+    budgetPlanned: 15000, budgetIntent: 'on_track',
+    utilities: {
+      water: { mode: 'owner_paid', scope: 'property', prepaid: false, meterNumber: 'W-PBP-MAIN', anomaly: false },
+      electricity: { mode: 'common_area_owner', scope: 'property', prepaid: false, meterNumber: 'E-PBP-COMMON', anomaly: false },
+    },
+    recurringCosts: [{ type: 'rates_and_taxes', scope: 'property', amount: 6800 }],
+    units: [
+      { label: 'Unit A -- Warehouse', rent: 32000, tenant: 'Sizwe Ntuli', profile: 'normal' },
+      { label: 'Unit B -- Office', rent: 18500, tenant: 'Deshni Pillay', profile: 'normal' },
+      { label: 'Unit C -- Retail', rent: 21000, tenant: null, profile: 'vacant' },
+    ],
   },
 ];
 
@@ -388,6 +429,27 @@ async function seedPropertiesAndUnits(orgId) {
     }
   }
   await insert('units', unitRows, 'units');
+
+  // Retire any property this script created previously that is no longer in the definition above
+  // (e.g. one that was renamed, as "Pinetown Garden Cottage" was when it became the commercial
+  // "Pinetown Business Park"). Properties are never deleted -- audit_events.property_id is a real
+  // FK and those rows are permanently immutable -- so a stale one would otherwise linger as an
+  // ACTIVE property with zero units, inflating the portfolio count and putting an empty, broken
+  // card on screen during a demo recording. Archiving is the product's own state for exactly this,
+  // and keeps active listings honest.
+  const wantedNicknames = new Set(PROPERTIES.map((p) => p.nickname));
+  const stale = (existingProperties ?? []).filter(
+    (row) => !wantedNicknames.has(row.nickname),
+  );
+  if (stale.length > 0) {
+    const { error } = await supabase
+      .from('properties')
+      .update({ status: 'archived' })
+      .in('id', stale.map((s) => s.id));
+    if (error) fail('archive stale demo properties', error);
+    console.log(`Archived ${stale.length} stale demo propert${stale.length === 1 ? 'y' : 'ies'}: ${stale.map((s) => s.nickname).join(', ')}`);
+  }
+
   console.log(`Seeded ${newPropertyRows.length} new properties (${PROPERTIES.length - newPropertyRows.length} reused), ${unitRows.length} units.`);
 }
 
@@ -773,6 +835,91 @@ async function seedActivity(orgId, ownerUserId) {
 }
 
 // ---------------------------------------------------------------------------
+// 12b. In-app notifications for the owner.
+//
+// The Android "Activity" tab and the web notifications bell read public.notifications, which is a
+// DIFFERENT table from the audit_events feed seeded above -- a distinction the V1 release-gate pass
+// surfaced when Activity rendered "No notifications yet" against an otherwise fully-populated demo
+// portfolio. That empty screen is a recording-readiness defect, so the owner gets a realistic inbox
+// here. Each notification corresponds to a real seeded condition (the same seven items that drive
+// Needs Attention), so the feed stays truthful rather than decorative: every row below is something
+// the data genuinely supports.
+// ---------------------------------------------------------------------------
+async function seedNotifications(orgId, ownerUserId) {
+  const byKey = Object.fromEntries(PROPERTIES.map((p) => [p.key, p]));
+  const overdueUnit = byKey.berea.units.find((u) => u.profile === 'current_overdue');
+  const awaitingUnit = byKey.ballito.units.find((u) => u.profile === 'current_awaiting');
+  const partialUnit = byKey.musgrave.units.find((u) => u.profile === 'current_partial');
+
+  const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString();
+
+  const rows = [
+    {
+      type: 'rent_overdue',
+      title: 'Rent overdue',
+      body: `${overdueUnit.tenant} (${byKey.berea.nickname}, ${overdueUnit.label}) has not paid R ${overdueUnit.rent.toLocaleString('en-ZA')} for September.`,
+      created_at: daysAgo(1),
+    },
+    {
+      type: 'payment_confirmation_required',
+      title: 'Payment awaiting your confirmation',
+      body: `${awaitingUnit.tenant} reported an EFT of R ${awaitingUnit.rent.toLocaleString('en-ZA')} for ${byKey.ballito.nickname}, ${awaitingUnit.label}. Confirm once the funds reflect.`,
+      created_at: daysAgo(1),
+    },
+    {
+      type: 'rent_partial',
+      title: 'Partial rent received',
+      body: `${partialUnit.tenant} paid R ${partialUnit.currentPaid.toLocaleString('en-ZA')} of R ${partialUnit.rent.toLocaleString('en-ZA')} for ${byKey.musgrave.nickname}, ${partialUnit.label}.`,
+      created_at: daysAgo(2),
+      read_at: daysAgo(1),
+    },
+    {
+      type: 'budget_exceeded',
+      title: 'Over budget',
+      body: `${byKey.musgrave.nickname} has exceeded its monthly budget of R ${byKey.musgrave.budgetPlanned.toLocaleString('en-ZA')}.`,
+      created_at: daysAgo(3),
+    },
+    {
+      type: 'budget_approaching',
+      title: 'Approaching budget',
+      body: `${byKey.berea.nickname} has used most of its R ${byKey.berea.budgetPlanned.toLocaleString('en-ZA')} monthly budget.`,
+      created_at: daysAgo(4),
+      read_at: daysAgo(3),
+    },
+    {
+      type: 'utility_unusual_usage',
+      title: 'Unusual water usage',
+      body: `Water usage at ${byKey.berea.nickname} is higher than usual this month. Consider checking for leaks or unusual consumption.`,
+      created_at: daysAgo(5),
+    },
+    {
+      type: 'maintenance_update',
+      title: 'Urgent maintenance reported',
+      body: `An electrical fault was reported at ${byKey.ballito.nickname}, Apt 4.`,
+      created_at: daysAgo(6),
+    },
+    {
+      type: 'lease_expiring',
+      title: 'Lease expiring soon',
+      body: `The lease at ${byKey.hillcrest.nickname} ends within the next 60 days.`,
+      created_at: daysAgo(7),
+      read_at: daysAgo(6),
+    },
+  ].map((n) => ({
+    id: randomUUID(),
+    user_id: ownerUserId,
+    type: n.type,
+    title: n.title,
+    body: n.body,
+    read_at: n.read_at ?? null,
+    created_at: n.created_at,
+  }));
+
+  await insert('notifications', rows, 'notifications');
+  console.log(`Seeded ${rows.length} owner notifications (${rows.filter((r) => !r.read_at).length} unread).`);
+}
+
+// ---------------------------------------------------------------------------
 // 13. Reconciliation report -- verify, don't assume.
 // ---------------------------------------------------------------------------
 async function verify(orgId) {
@@ -857,7 +1004,7 @@ async function main() {
     await verify(orgId);
     return;
   }
-  if (RESET) await resetDemoData(orgId);
+  if (RESET) await resetDemoData(orgId, userId);
 
   await seedPropertiesAndUnits(orgId);
   await seedTenanciesAndRent(orgId, userId);
@@ -868,6 +1015,7 @@ async function main() {
   await seedMaintenance(orgId, userId);
   await seedDocuments(orgId, userId);
   await seedActivity(orgId, userId);
+  await seedNotifications(orgId, userId);
 
   const ok = await verify(orgId);
 
