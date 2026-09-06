@@ -1,5 +1,8 @@
 package za.co.proplyst.app.ui.properties
 
+import za.co.proplyst.app.data.financials.FinancialSummary
+import za.co.proplyst.app.data.financials.FinancialSummaryRepository
+import za.co.proplyst.app.data.financials.FinancialSummaryResult
 import za.co.proplyst.app.data.properties.Property
 import za.co.proplyst.app.data.properties.PropertiesRepository
 import za.co.proplyst.app.data.properties.PropertiesResult
@@ -42,6 +45,16 @@ class PropertiesListViewModelTest {
         Dispatchers.resetMain()
     }
 
+    /** V1 owner-app completion pass (WORKLOG.md this date): every existing test's ViewModel now
+     *  needs a [FinancialSummaryRepository] too, since the health-card financials load alongside
+     *  the properties themselves. A pre-stubbed failure keeps every prior test's assertions about
+     *  `properties`/`cachedAt` unaffected -- only the new tests below stub real summaries. */
+    private fun noFinancials(): FinancialSummaryRepository {
+        val repo = mockk<FinancialSummaryRepository>()
+        coEvery { repo.getFinancialSummary(any(), any()) } returns FinancialSummaryResult.Error("not stubbed for this test")
+        return repo
+    }
+
     private val sampleProperty = Property(
         id = "p1",
         orgId = "org1",
@@ -60,7 +73,7 @@ class PropertiesListViewModelTest {
         val repository = mockk<PropertiesRepository>()
         coEvery { repository.getProperties() } returns PropertiesResult.Live(listOf(sampleProperty))
 
-        val viewModel = PropertiesListViewModel(repository)
+        val viewModel = PropertiesListViewModel(repository, noFinancials())
         dispatcher.scheduler.advanceUntilIdle()
 
         val state = viewModel.uiState.value
@@ -75,7 +88,7 @@ class PropertiesListViewModelTest {
         val repository = mockk<PropertiesRepository>()
         coEvery { repository.getProperties() } returns PropertiesResult.Live(emptyList())
 
-        val viewModel = PropertiesListViewModel(repository)
+        val viewModel = PropertiesListViewModel(repository, noFinancials())
         dispatcher.scheduler.advanceUntilIdle()
 
         assertTrue(viewModel.uiState.value is PropertiesListUiState.Empty)
@@ -86,7 +99,7 @@ class PropertiesListViewModelTest {
         val repository = mockk<PropertiesRepository>()
         coEvery { repository.getProperties() } returns PropertiesResult.Cached(listOf(sampleProperty), 1_700_000_000_000L)
 
-        val viewModel = PropertiesListViewModel(repository)
+        val viewModel = PropertiesListViewModel(repository, noFinancials())
         dispatcher.scheduler.advanceUntilIdle()
 
         val state = viewModel.uiState.value
@@ -99,7 +112,7 @@ class PropertiesListViewModelTest {
         val repository = mockk<PropertiesRepository>()
         coEvery { repository.getProperties() } returns PropertiesResult.Error("network error")
 
-        val viewModel = PropertiesListViewModel(repository)
+        val viewModel = PropertiesListViewModel(repository, noFinancials())
         dispatcher.scheduler.advanceUntilIdle()
 
         val state = viewModel.uiState.value
@@ -118,7 +131,7 @@ class PropertiesListViewModelTest {
         val repository = mockk<PropertiesRepository>()
         coEvery { repository.getProperties() } returns PropertiesResult.Live(listOf(houseProperty, retailProperty))
 
-        val viewModel = PropertiesListViewModel(repository)
+        val viewModel = PropertiesListViewModel(repository, noFinancials())
         dispatcher.scheduler.advanceUntilIdle()
         viewModel.onSearchQueryChange("beach")
 
@@ -132,7 +145,7 @@ class PropertiesListViewModelTest {
         val repository = mockk<PropertiesRepository>()
         coEvery { repository.getProperties() } returns PropertiesResult.Live(listOf(houseProperty, retailProperty))
 
-        val viewModel = PropertiesListViewModel(repository)
+        val viewModel = PropertiesListViewModel(repository, noFinancials())
         dispatcher.scheduler.advanceUntilIdle()
         viewModel.onCategoryFilterChange(PropertyCategoryFilter.RESIDENTIAL)
 
@@ -146,12 +159,71 @@ class PropertiesListViewModelTest {
         val repository = mockk<PropertiesRepository>()
         coEvery { repository.getProperties() } returns PropertiesResult.Live(listOf(houseProperty))
 
-        val viewModel = PropertiesListViewModel(repository)
+        val viewModel = PropertiesListViewModel(repository, noFinancials())
         dispatcher.scheduler.advanceUntilIdle()
         viewModel.onSearchQueryChange("no such property")
 
         val state = viewModel.uiState.value
         assertTrue(state is PropertiesListUiState.Empty)
         assertEquals("No properties match your search", (state as PropertiesListUiState.Empty).message)
+    }
+
+    // V1 owner-app completion pass (WORKLOG.md this date): property list health cards -- each
+    // card's rent-collected/budget-status/attention figures come from the property's own real
+    // financial summary, never a fabricated or portfolio-wide figure.
+    private fun financialSummary(
+        rentOutstanding: Double = 0.0,
+        budgetPlanned: Double? = 20000.0,
+        budgetAlertLevel: String? = null,
+        awaitingConfirmationCount: Int = 0,
+    ) = FinancialSummary(
+        month = "2026-09-01",
+        rentPlanned = 10000.0,
+        rentCollected = 9500.0,
+        rentOutstanding = rentOutstanding,
+        utilitiesExpense = 0.0,
+        ratesAndLeviesExpense = 0.0,
+        otherExpenses = 0.0,
+        totalExpenses = 8000.0,
+        budgetPlanned = budgetPlanned,
+        budgetUsedPercent = 40.0,
+        budgetRemaining = 12000.0,
+        netOperatingPosition = 1500.0,
+        awaitingConfirmationCount = awaitingConfirmationCount,
+        budgetAlertLevel = budgetAlertLevel,
+    )
+
+    @Test
+    fun `each card's financial summary is fetched by its own property id`() = runTest {
+        val repository = mockk<PropertiesRepository>()
+        coEvery { repository.getProperties() } returns PropertiesResult.Live(listOf(houseProperty, retailProperty))
+        val financialSummaryRepository = mockk<FinancialSummaryRepository>()
+        coEvery { financialSummaryRepository.getFinancialSummary("p1", any()) } returns FinancialSummaryResult.Loaded(financialSummary())
+        coEvery { financialSummaryRepository.getFinancialSummary("p2", any()) } returns FinancialSummaryResult.Error("failed")
+
+        val viewModel = PropertiesListViewModel(repository, financialSummaryRepository)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val state = viewModel.uiState.value as PropertiesListUiState.Loaded
+        assertEquals(9500.0, state.financials["p1"]?.rentCollected)
+        assertNull(state.financials["p2"])
+    }
+
+    @Test
+    fun `budgetStatusFor reflects the server's own alert level, never a client threshold`() {
+        assertEquals(PropertyBudgetStatus.NOT_CONFIGURED, budgetStatusFor(financialSummary(budgetPlanned = null)))
+        assertEquals(PropertyBudgetStatus.OVER_BUDGET, budgetStatusFor(financialSummary(budgetAlertLevel = "exceeded")))
+        assertEquals(PropertyBudgetStatus.APPROACHING, budgetStatusFor(financialSummary(budgetAlertLevel = "approaching")))
+        assertEquals(PropertyBudgetStatus.ON_TRACK, budgetStatusFor(financialSummary()))
+        assertEquals(PropertyBudgetStatus.NOT_CONFIGURED, budgetStatusFor(null))
+    }
+
+    @Test
+    fun `needsAttention is true for outstanding rent, a budget alert, or an awaiting-confirmation payment`() {
+        assertTrue(needsAttention(financialSummary(rentOutstanding = 500.0)))
+        assertTrue(needsAttention(financialSummary(budgetAlertLevel = "approaching")))
+        assertTrue(needsAttention(financialSummary(awaitingConfirmationCount = 1)))
+        assertTrue(!needsAttention(financialSummary()))
+        assertTrue(!needsAttention(null))
     }
 }
