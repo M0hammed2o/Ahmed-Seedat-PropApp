@@ -41,6 +41,50 @@ describe('resolveWhatsAppUatOverride (pure)', () => {
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('IGNORED'));
   });
 
+  // Two-key opt-in (public UAT 2026-09-07). UAT has to be runnable against the PUBLIC deployment,
+  // where NODE_ENV is legitimately 'production' -- but one stray variable must never arm it.
+  it('still ignores the override in production when WHATSAPP_UAT_MODE is absent -- one stray variable cannot arm it', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.stubEnv('WHATSAPP_UAT_OVERRIDE_NUMBER', UAT_NUMBER);
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('WHATSAPP_UAT_MODE', '');
+
+    expect(resolveWhatsAppUatOverride(TENANT_NUMBER)).toEqual({ kind: 'inactive' });
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('WHATSAPP_UAT_MODE'));
+  });
+
+  it('ignores a WHATSAPP_UAT_MODE value other than the exact opt-in string', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.stubEnv('WHATSAPP_UAT_OVERRIDE_NUMBER', UAT_NUMBER);
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('WHATSAPP_UAT_MODE', 'true');
+
+    expect(resolveWhatsAppUatOverride(TENANT_NUMBER)).toEqual({ kind: 'inactive' });
+  });
+
+  it('redirects in production ONLY when both keys are present, and says so loudly', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.stubEnv('WHATSAPP_UAT_OVERRIDE_NUMBER', UAT_NUMBER);
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('WHATSAPP_UAT_MODE', 'enabled');
+
+    expect(resolveWhatsAppUatOverride(TENANT_NUMBER)).toEqual({ kind: 'redirect', to: UAT_NUMBER });
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('PRODUCTION UAT MODE IS ACTIVE'));
+  });
+
+  it('fails closed in production UAT mode when the override number is malformed', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.stubEnv('WHATSAPP_UAT_OVERRIDE_NUMBER', '083 786 6021');
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('WHATSAPP_UAT_MODE', 'enabled');
+
+    // Never {kind:'inactive'} -- that would deliver to the real tenant.
+    expect(resolveWhatsAppUatOverride(TENANT_NUMBER)).toEqual({
+      kind: 'blocked',
+      reason: 'invalid_uat_override_number',
+    });
+  });
+
   // toE164() validates E.164 but never converts, so the local form of this very number does not
   // parse. Failing closed here is the whole point: ignoring it would deliver to the real tenant,
   // which is exactly what setting the variable was meant to prevent.

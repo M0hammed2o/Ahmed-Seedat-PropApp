@@ -161,10 +161,14 @@ const PLATFORM_WHATSAPP_NUMBER = '+27000000000'; // TO_BE_CONFIRMED
  *
  * Three deliberate safety properties:
  *
- * 1. HARD PRODUCTION BLOCK. If NODE_ENV === 'production' the override is ignored entirely and a
- *    loud error is logged. A misconfigured deploy must never silently funnel every customer's rent
- *    reminder to one person's phone -- that is a data-breach-shaped failure, not a test artifact.
- *    Mirrors lib/billing.ts's own `mock provider in production` guard convention.
+ * 1. PRODUCTION BLOCK BY DEFAULT, TWO-KEY OPT-IN. If NODE_ENV === 'production' the override is
+ *    ignored and a loud error is logged UNLESS a second, explicit `WHATSAPP_UAT_MODE=enabled` is
+ *    also present. One stray variable can therefore never arm this: a misconfigured deploy that
+ *    carries only the number still behaves exactly as before. The two-key form exists because UAT
+ *    has to be runnable against the PUBLIC deployment, where NODE_ENV is legitimately 'production'
+ *    -- see PUBLIC_UAT_REPORT.md. A misconfigured deploy must never silently funnel every
+ *    customer's rent reminder to one person's phone; that is a data-breach-shaped failure, not a
+ *    test artifact. Mirrors lib/billing.ts's own `mock provider in production` guard convention.
  * 2. TRUTHFUL AUDIT TRAIL. whatsapp_messages.to_number records where the message ACTUALLY went
  *    (the override), never the address it was meant for, so the ledger never claims a tenant was
  *    contacted when they were not. The intended recipient is preserved alongside it in the audit
@@ -189,12 +193,26 @@ export function resolveWhatsAppUatOverride(intendedNumber: string): WhatsAppUatO
   if (!override) return { kind: 'inactive' };
 
   if (process.env.NODE_ENV === 'production') {
-    console.error(
-      '[dispatchWhatsApp] WHATSAPP_UAT_OVERRIDE_NUMBER is set in a PRODUCTION build and has been IGNORED. ' +
-        'This variable is a UAT-only testing aid; leaving it set in production would redirect every ' +
-        'customer message to a single number. Unset it.',
+    // Public UAT 2026-09-07: testing WhatsApp against the PUBLIC deployment is impossible while
+    // production ignores the override outright -- a send would go to the real recipient, which is
+    // exactly what must never happen. Rather than relax the production block, activation now needs
+    // a SECOND, explicit opt-in that no ordinary deploy would ever carry. Setting the number alone
+    // still changes nothing in production, so a stray variable cannot arm this.
+    if (process.env.WHATSAPP_UAT_MODE?.trim() !== 'enabled') {
+      console.error(
+        '[dispatchWhatsApp] WHATSAPP_UAT_OVERRIDE_NUMBER is set in a PRODUCTION build but ' +
+          'WHATSAPP_UAT_MODE is not "enabled", so the override has been IGNORED. Leaving the number ' +
+          'set in production without the explicit mode flag would otherwise redirect every customer ' +
+          'message to a single number. Unset it, or set WHATSAPP_UAT_MODE=enabled deliberately for a ' +
+          'supervised UAT window and unset it immediately afterwards.',
+      );
+      return { kind: 'inactive' };
+    }
+    console.warn(
+      '[dispatchWhatsApp] PRODUCTION UAT MODE IS ACTIVE. Every outbound WhatsApp message is being ' +
+        'redirected away from its real recipient. This must only ever be on during a supervised UAT ' +
+        'window -- unset WHATSAPP_UAT_MODE as soon as it ends.',
     );
-    return { kind: 'inactive' };
   }
 
   const normalized = toE164(override);
