@@ -32,7 +32,7 @@ process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY =
 process.env.SUPABASE_SERVICE_ROLE_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU';
 
-const { GET, POST } = await import('../route');
+const { GET } = await import('../route');
 
 const SUPABASE_URL = 'http://127.0.0.1:54321';
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -78,12 +78,6 @@ function getRequest(propertyId: string, month: string | null) {
   });
 }
 
-function postRequest(propertyId: string, body: unknown) {
-  return new NextRequest(`http://localhost/api/v1/properties/${propertyId}/budget/annual`, {
-    method: 'POST',
-    body: JSON.stringify(body),
-  });
-}
 
 describeIfSupabase('GET /api/v1/properties/:id/budget (real local Supabase integration)', () => {
   const serviceClient: SupabaseClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY!, {
