@@ -817,6 +817,120 @@ customer organisation or record touched, no PayFast payment or credential entere
 no UAT organisation deleted, malware scanning not weakened. Only production change: the reviewed
 migration application, after a verified-restorable backup and a passing rehearsal.
 
+## 14. Sixth pass, 2026-09-07 — V1 finish-off, local fixes prepared
+
+Production stayed at `20260101000168` throughout; 169 was not applied and nothing was pushed or
+deployed. Six local commits were created.
+
+### 14.1 Dashboard expense contradiction — root-caused and fixed locally
+
+Not a legacy field. A **status-filter mismatch between two server-side sources**:
+
+- `computeDashboardKpis()` counted only `{recorded, reimbursed}`.
+- `owner_portfolio_financial_summary()`'s `expenses_scope` CTE applies **no status filter at all**.
+- Every expense created through the web form lands as **`pending`** — status `recorded` additionally
+  requires a `journal_entry_id` (the `expenses_check` constraint).
+
+So the card excluded every real expense (R0) while the operating position included them (R8 850).
+Fixed by aligning the definition at its root: the card now counts every **non-void** expense, which
+is exactly what the operating position already reflected. The figure stays period-flexible (YTD and
+custom ranges keep working) and nothing is recomputed client-side. Two captions that misdescribed
+their own numbers were corrected: "Recorded in …" → "Incurred in …", and (§6) "Billed in …" →
+"Expected in …", since R41 000 was *scheduled* while only R15 000 was invoiced.
+
+**Known residual, deliberately not fixed here:** the RPC counts `void` expenses too. Once a void
+expense exists in a period, the RPC and the card will disagree by exactly that amount. The fix
+belongs in the RPC and needs a migration, which is out of scope for this pass.
+
+### 14.2 Findings that turned out NOT to be defects
+
+- **Meter reading / history UI (§10) — already exists and works.** `PropertyUtilityMetersPanel.tsx`
+  (431 lines) provides create/list meters, record-a-reading and history with the anomaly flag. Meter
+  rows are *expandable*; my earlier button-text scan missed that. Expanding the water meter on the
+  live site shows `2026-09-01 395 L (+2938.5%) **Unusual usage**`, `2026-08-01 13 L (+8.3%)`,
+  `2026-07-01 12 L`, plus a Period / Reading date / Reading / **Save reading** form. No code written.
+- **Utility warning wording (§11) — already correct.** The UI says **"Unusual usage"**. It never
+  claims a leak. Verified: no "leak detected" string anywhere.
+- **Staff not listed after provisioning — my assertion was wrong.** The roster shows
+  *"Team (2) … UAT Manager — Manager · All properties · Active"* by display name, not email.
+  **Staff RBAC is 15/15.**
+
+### 14.3 Acceptance results (all against the public site)
+
+| Area | Result |
+| --- | --- |
+| Annual budget (§8) | **PASS** — R96 000 distributed → 8 000/month; manual Sept adjustment → 9 500 with Aug/Oct untouched; portfolio total moved to R74 500 = 40 000 + 9 500 + 25 000, derived from property months |
+| Budget warning states (§9) | **PASS** — Central Offices 112.5% **Over budget** (−R5 000), Hillcrest 90.5% **Approaching budget**, Seaside 35.4% **On track**, over-budget count 1. All derived from real spend, no fabricated alert rows |
+| Expense breakdown (§3) | **PASS** — 3 500 + 1 800 + 950 + 1 400 + 54 800 = **62 450 = total_expenses**; budget 74 500 − 62 450 = 12 050 remaining, 83.8% used, net −47 450 |
+| Staff RBAC (§16) | **PASS 15/15** — 8 allowed surfaces open; principal-only pages refuse with an "Access restricted" panel carrying **0 action controls**; restricted APIs 403 |
+| Cross-org (§17) | **PASS 14/14** — Org B loaded Org A's property URL directly and saw no Org A data; RPC id-substitution refused |
+| Document upload (§12) | **STILL BLOCKED BY FILE-SCANNING CONFIGURATION** — 503, unchanged. Scanning not weakened |
+| Tenant portal (§15) | **BLOCKED BY INVITATION DESTINATION** — see below |
+
+### 14.4 Tenant portal — why it stays blocked
+
+`tenant_invitations` stores **`token_hash` and `short_code_hash`, hashed at rest** (correct design).
+The plaintext token existed only in the email sent to `uat-tenant@uat-proplyst.invalid`, which
+cannot be read. Acceptance goes through `accept_tenant_invitation()` (SECURITY DEFINER, requires an
+authenticated user) and there is no administrative linking path. Completing this needs a **UAT inbox
+we control**; the alternative would be writing `tenants.user_id` directly, which is an
+authentication bypass and was not done.
+
+### 14.5 WhatsApp — exact blocker, and the prepared fix
+
+```
+META PROVIDER CONFIGURED:              UNDETERMINED (Render env not readable; 0 whatsapp_messages
+                                       rows production-wide, so nothing to infer from)
+WHATSAPP_ACCESS_TOKEN present:         UNDETERMINED   WHATSAPP_PHONE_NUMBER_ID present: UNDETERMINED
+WEBHOOK CONFIG present:                UNDETERMINED
+UAT OVERRIDE SUPPORTED BY DEPLOYED CODE: NO  <-- origin/main contains ZERO occurrences of
+                                                WHATSAPP_UAT_OVERRIDE_NUMBER
+UAT OVERRIDE ACTIVE:                   NO
+```
+
+Two independent blockers. The deployed branch has no override implementation, so setting the
+variable on Render would do nothing; and even once deployed, the override was ignored whenever
+`NODE_ENV === 'production'`, which the public site legitimately is.
+
+**Prepared (not deployed):** a two-key gate. In a production build the override arms only when
+`WHATSAPP_UAT_MODE=enabled` is present *in addition to* `WHATSAPP_UAT_OVERRIDE_NUMBER`. One stray
+variable cannot arm it; any other mode value is ignored. All prior safety properties are kept —
+fails closed on a malformed number, never mutates tenant records, records the true destination, and
+logs loudly throughout. Four new tests cover the gate. **No message was sent.**
+
+### 14.6 Tests
+
+| Suite | Result |
+| --- | --- |
+| pgTAP | **94 files, 1438 assertions, 0 failed** |
+| Vitest | **1077 passed, 3 skipped, 4 failed** of 1084 |
+| TypeScript | clean |
+| ESLint | clean |
+| Production build | succeeds |
+
+Failure classification, verified rather than assumed:
+
+- `propertyLifecycle.test.ts` and `photos/route.test.ts` — **FAIL — PRE-EXISTING/INFRA**. Both
+  **pass in isolation**; they timed out only under full-suite load while pgTAP ran concurrently
+  against the same local Supabase.
+- `daily-jobs/route.test.ts` (1–2 tests, count varies between runs) — **FAIL — PRE-EXISTING/INFRA**.
+  It reaches `whatsappDispatch` transitively via `lib/systemJobs.ts`, so causation was tested rather
+  than argued: with `whatsappDispatch.ts` reverted to its pre-change version the test **fails
+  identically**. The file was restored and `git diff` is clean.
+- **FAIL — CAUSED BY CURRENT CHANGE: none.**
+
+### 14.7 Public vs local classification (§18)
+
+| Item | PUBLIC CURRENT | LOCAL FIX | NEEDS DEPLOYMENT |
+| --- | --- | --- | --- |
+| recurring-costs, utility-settings, meters, budgets, expense create, financial summary RPCs | **PASS** (fixed by the DB repair, live now) | n/a | NO |
+| Dashboard expense card | **FAIL** (still R0) | PASS | **YES** |
+| Dashboard rent caption | FAIL ("Billed in") | PASS | **YES** |
+| Breadcrumbs | FAIL (raw UUID) | PASS | **YES** |
+| Maintenance "+ Add ticket" | FAIL (dead-end) | PASS | **YES** |
+| WhatsApp UAT override | not present | PASS | **YES** |
+| Logo / mockup domain | FAIL | PASS | **YES** |
+
 ## Appendix — reproducing
 
 ```bash
