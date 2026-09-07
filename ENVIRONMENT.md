@@ -157,6 +157,41 @@ deliberate fail-closed behaviour, **not** a bug to code around.
 **Do not** make uploads work by lowering `sensitive`, adding a bypass, or defaulting to the mock in
 production. The 503 is the system refusing to distribute unscanned files.
 
+### Exact Render setup (2026-09-08) — needs dashboard access, which this session does not have
+
+The repo already runs clamd locally (`docker-compose.yml`, `clamav/clamav:1.4` on port 3310). The
+production equivalent is the same image as a **Private Service**, reachable only inside Render's
+network:
+
+| Setting | Value |
+| --- | --- |
+| Service type | **Private Service** (never a Web Service — clamd must not be internet-reachable) |
+| Runtime | Docker |
+| Image | `clamav/clamav:1.4` (pin the same tag as `docker-compose.yml`) |
+| Port | `3310` |
+| Instance | ~2 GB RAM. clamd holds virus definitions in memory; smaller instances OOM on load |
+| Disk | Persistent disk mounted at `/var/lib/clamav`, ≥2 GB, so `freshclam` definitions survive restarts and are not re-downloaded on every deploy |
+| Region | Same region as the web service |
+
+Then, on the **web service**, set:
+
+```
+CLAMAV_HOST = <the private service's internal hostname>
+CLAMAV_PORT = 3310
+```
+
+Neither value is a secret. Nothing else changes: `getClamAVConfig()` starts returning a config, the
+real `ClamAVScanProvider` replaces the mock, and `scanUploadOrRespond()` stops short-circuiting to
+503.
+
+**First startup takes several minutes** — the official image's entrypoint runs `freshclam` before
+clamd accepts connections. Until it is ready, uploads keep failing closed, which is the correct
+behaviour, not a regression.
+
+Verify with the EICAR test string (a harmless industry-standard fixture, not malware): upload it and
+confirm it is **rejected**. A clean PDF uploading successfully proves only that scanning is
+configured; the EICAR rejection proves scanning is actually running.
+
 ## Validation
 
 Both apps validate their environment at startup through a Zod schema in `packages/config/env.ts` (parameterised per-app since mobile/admin need different variables) — a missing or malformed required variable fails fast with a clear error instead of an obscure runtime crash later.

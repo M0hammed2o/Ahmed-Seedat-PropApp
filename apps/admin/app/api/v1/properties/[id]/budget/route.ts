@@ -59,14 +59,25 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     .rpc('budget_vs_actual', { p_property_id: id, p_month: month })
     .maybeSingle();
   if (error) {
+    // budget_vs_actual() raises an authorization exception ("Caller does not have access to this
+    // organization's budget") for a property outside the caller's org -- an ordinary, expected
+    // permission denial, not a server fault. This route was the last one still mapping it to 500,
+    // which reported the wrong thing to the client and polluted the 5xx error budget with routine
+    // denials, masking genuine outages. Public UAT 2026-09-08 saw exactly that: a non-member
+    // probing this endpoint got a 500 where every sibling returned 403. Same mapping as
+    // properties/:id/budget/annual, properties/:id/financial-summary and their organization-level
+    // counterparts. RLS is untouched -- only the status code the denial is reported with.
+    const forbidden = error.message.includes('does not have access');
     return NextResponse.json(
       {
         error: {
-          code: 'budget_vs_actual_failed',
-          message: safeErrorMessage(error, 'Could not load budget vs actual.', 'budget_vs_actual'),
+          code: forbidden ? 'forbidden' : 'budget_vs_actual_failed',
+          message: forbidden
+            ? "You do not have permission to view this property's budget."
+            : safeErrorMessage(error, 'Could not load budget vs actual.', 'budget_vs_actual'),
         },
       },
-      { status: 500 },
+      { status: forbidden ? 403 : 500 },
     );
   }
 
