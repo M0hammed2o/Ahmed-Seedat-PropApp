@@ -36,7 +36,9 @@ export function ProductPreview() {
         <span className="h-2.5 w-2.5 rounded-full bg-light-statusNeedsReview/60 dark:bg-dark-statusNeedsReview/60" />
         <span className="h-2.5 w-2.5 rounded-full bg-light-statusPaid/60 dark:bg-dark-statusPaid/60" />
         <span className="ml-3 truncate text-xs text-light-textMuted dark:text-dark-textMuted">
-          app.proplyst.co.za/dashboard
+          {/* The real deployment is the apex domain -- `app.proplyst.co.za` does not resolve, so
+              showing it here invited visitors to type a dead hostname (public UAT pass, 2026-09-06). */}
+          proplyst.co.za/dashboard
         </span>
       </div>
 
