@@ -46,6 +46,14 @@ No real secret values are ever committed. Every variable below exists as a place
 See `AUTHENTICATION.md` for the full external setup walkthrough (Google Cloud OAuth consent
 screen + client, Apple Developer Services ID + key) these four variables come from.
 
+> **The "enabled = false until set" note above describes local defaults only — it is NOT true of
+> production.** Verified by browser against `https://proplyst.co.za` on 2026-09-06
+> (`PUBLIC_UAT_REPORT.md` §3.6): both providers are configured and live. "Continue with Google"
+> redirects to `accounts.google.com` with a real client ID, and "Continue with Apple" redirects via
+> the production Supabase project to `appleid.apple.com` with client_id `co.za.proplyst.web`. Both
+> handshakes are accepted. Sign-in was not completed, so the post-callback session exchange remains
+> unverified.
+
 | `NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN` | Mapbox _public_ token — drives the Owner Dashboard's real property map and server-side geocoding-on-save (`lib/providers/geocoding.ts`, 2026-08-04). Not a secret by Mapbox's own design. | No — map/geocoding degrade to an honest "not available" state when unset |
 | `PAYFAST_MERCHANT_ID` / `PAYFAST_MERCHANT_KEY` / `PAYFAST_PASSPHRASE` | Real PayFast gateway credentials (`apps/admin/lib/providers/payfast.ts`, Stage 4 commercial-launch execution plan, 2026-08-05, `TECHNICAL_DEBT_REGISTER.md` TD-36). All three required together. | No — billing falls back to `MockBillingGatewayProvider` when unset |
 | `PAYFAST_MODE` | `sandbox` (default) or `live`. | No |
@@ -106,6 +114,48 @@ Note the naming: this codebase uses `RESEND_FROM_ADDRESS`. There is no `EMAIL_FR
 
 Until then the pipelines are verified but delivery is not, and every dispatch result reports
 `deliveryConfigured: false` so the difference is never ambiguous.
+
+## Enabling WhatsApp UAT against the PUBLIC deployment (added 2026-09-07)
+
+`WHATSAPP_UAT_OVERRIDE_NUMBER` alone does nothing on the deployed site, for two separate reasons
+found during the public UAT pass:
+
+1. The deployed branch (`origin/main`) does not contain the override implementation at all — it is
+   in unpushed local commits. Setting the variable on Render today changes nothing.
+2. Even once deployed, `resolveWhatsAppUatOverride()` deliberately ignores the override whenever
+   `NODE_ENV === 'production'`, which the public deployment legitimately is.
+
+Relaxing (2) would be unsafe, so activation now needs **two keys**:
+
+| Variable | Value | Effect |
+| --- | --- | --- |
+| `WHATSAPP_UAT_OVERRIDE_NUMBER` | `+27837866021` (E.164 only) | The single destination every outbound message is redirected to |
+| `WHATSAPP_UAT_MODE` | exactly `enabled` | Required **in addition** in a production build. Any other value, or absent, and the override stays ignored |
+
+One stray variable therefore cannot arm this. Properties preserved: fails closed on a malformed
+number (suppresses the send rather than reaching the real tenant), never mutates tenant records,
+records the true destination in `whatsapp_messages.to_number`, and logs loudly on every redirect
+plus a standing warning while the mode is on. **Unset `WHATSAPP_UAT_MODE` the moment the UAT window
+ends.**
+
+## Document upload: what production still needs (audited 2026-09-07)
+
+Uploads currently return `503 upload_temporarily_unavailable` on the public site. This is correct,
+deliberate fail-closed behaviour, **not** a bug to code around.
+
+| | |
+| --- | --- |
+| **Scanner technology** | ClamAV, spoken to directly over clamd's TCP `INSTREAM` protocol (`lib/providers/malwareScan.ts`) — no vendor SDK, no per-file cost |
+| **Expected config** | `CLAMAV_HOST` + `CLAMAV_PORT` (local dev defaults to the repo's `docker-compose.yml` `clamav` service on `localhost:3310`) |
+| **Missing config** | Both, in the deployed environment — `getClamAVConfig()` returns null, so no real scanner is configured |
+| **Where it must run** | A clamd instance reachable on the private network from the Render web service. It is a long-running daemon holding virus definitions in memory, not a library call |
+| **How files flow** | upload route → MIME allowlist → `scanUploadOrRespond()` → clamd INSTREAM → Supabase Storage. Nothing reaches Storage before a clean verdict |
+| **Fail-closed behaviour** | `sensitive: true` (the default; callers must opt *out*) with no scanner → 503. A configured scanner that then throws → also 503, never a silent pass. Only explicitly non-sensitive paths (property photos, image-only allowlist) fall back to the mock |
+| **Cost / infrastructure** | One small always-on container. ClamAV is free/open-source; the cost is the instance plus ~1–2 GB RAM for definitions, and `freshclam` keeping them current |
+| **Recommended setup** | Run clamd as a private service beside the app, set `CLAMAV_HOST`/`CLAMAV_PORT` to it, and verify by uploading a harmless EICAR test file — it must be rejected, proving scanning is live rather than merely configured |
+
+**Do not** make uploads work by lowering `sensitive`, adding a bypass, or defaulting to the mock in
+production. The 503 is the system refusing to distribute unscanned files.
 
 ## Validation
 

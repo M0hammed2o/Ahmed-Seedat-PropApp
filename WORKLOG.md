@@ -1,5 +1,235 @@
 # Worklog
 
+## 2026-09-07 (production repair) — migrations 163-168 applied to production, drift closed
+
+**Controlled production database repair. Migrations 163-168 applied; 169 deliberately held out.**
+Nothing pushed, no application code deployed, no real customer data touched.
+
+**Backup first, and verified by actually restoring it** — not by looking at the file.
+`supabase db dump --linked` (schema + data + a broader `--schema public,auth,storage`), SHA-256
+recorded, then restored into an isolated scratch database where row counts came back identical to
+production (orgs 12, properties 17, units 12, tenants 13, leases 5, invoices 3). That restore is what
+makes it a real restore point.
+
+**The pre-168 gate turned out to be a non-issue, for three independent reasons**: production
+`expenses` is empty (0 rows); `expenses_category_check` enforces `char_length(category) >= 1` so a
+NULL/empty category is structurally impossible; and `infer_expense_category_code()` ends in
+`else 'other'`, making it total. Because production had no rows, a naive rehearsal would never have
+exercised the backfill at all — so the rehearsal **injected harder data than production has**: 10 rows
+including `'  WATER  '`, `'Power'`, `'management fee'`, `'Totally Unknown Label'` and `' '`. All mapped
+correctly (case/whitespace, synonym, multi-word, and honest `other` fallback rather than a guess),
+0 left NULL, NOT NULL transition succeeded, every baseline count preserved, no duplicate IDs.
+pgTAP 104/104 across all seven relevant suites.
+
+**A real trap caught at the gate**: `db push --dry-run` listed **seven** migrations — it would have
+swept in 169, which is not in `origin/main` and which the deployed app does not need. 169 was moved
+out (SHA-256 recorded), the dry run re-confirmed exactly 163-168, push ran, then 169 was restored and
+verified byte-identical. No migration history was forced or hand-marked.
+
+**Result: production head 20260101000162 → 20260101000168** in 30 seconds, no errors. All six tables,
+`expenses.category_code` + enum, both financial-summary RPCs and `infer_expense_category_code` present;
+RLS enabled on all six new tables with 13 policies. **Zero data loss** — every count identical to the
+pre-migration baseline. PostgREST picked the relations up with **no manual schema-cache reload**.
+
+**Public retest, all previously-broken workflows now work**: recurring-costs 500→200,
+utility-settings 500→200, utility-meters→200, budget→200, expense creation 500→**201 x5**.
+Budgets: 25 000 + 8 000 + 40 000 → portfolio **R73 000**, per-property rows stay separate and the
+portfolio figure is a server-side SUM, not a competing shared budget; Seaside 35.4% used, R16 150
+remaining. Utilities: conventional owner-paid water meter and prepaid tenant electricity meter render
+distinctly; readings gave consumption 12→13→**395**, and `isUnusualUsage` fired **only** on the spike —
+no confirmed-leak wording anywhere. Financial summary reconciles by hand
+(950+1400+3500+1800+1200 = 8 850; 15 000-8 850 = 6 150 net). Security regression **17/17** including
+RPC id-substitution refusal on the new finance tables.
+
+**Still open**: document upload 503 (ClamAV unconfigured — not a DB issue, and scanning was NOT
+weakened). New P2 found this pass: **the dashboard contradicts itself** — its "Expenses" card shows R0
+for September while "Operating position" on the same screen correctly uses R8 850. Also
+`/properties/{id}/budget` returns 500 rather than 403/404 to a non-member (no leak, unclean refusal),
+and there is no UI to capture meter readings even though the API works.
+
+## 2026-09-07 (public UAT, fourth pass) — PGRST205 root-caused as deploy drift; UAT finished to its reachable limit
+
+**The previous pass's "missing migrations" was an inference from PGRST205 alone. It has now been
+proven properly** via read-only `supabase db query --linked`, and every competing hypothesis
+eliminated: not a stale PostgREST cache, not schema qualification, not grants or RLS, not a rename,
+not obsolete relation names. Remote head is `20260101000162` (162 rows); the expected tables exist in
+**no** schema; `expenses.category_code`, the `expense_category_code` type, `owner_financial_summary()`,
+`owner_portfolio_financial_summary()` and the `payment_reports` allocation columns are all absent.
+Meanwhile `origin/main` (`e52d695`, the deployed branch) **contains** migrations 163–168 and the
+routes that query them. **Root cause: the app was deployed but `supabase db push` was never run.**
+PGRST205 was telling the truth.
+
+Full drift extent: 163 → rates/levies/utilities/meters; 164 → **all budgets**; 165 → payment-report
+ledger allocation; 166/167 → owner + portfolio financial summaries; 168 → **expense creation**
+(`POST /api/v1/expenses` 500s `expense_create_failed` because `category_code` is NOT NULL and absent).
+Nothing to author locally — the migrations already exist and are correct; remediation is a deployment,
+documented step-by-step in `PUBLIC_UAT_REPORT.md` §12.3. Flagged for whoever runs it: 168 does
+`alter column category_code set not null` after a backfill, so it will fail if any existing production
+expense row cannot be assigned a code — dry run and backup first.
+
+**UAT continued rather than stopping at the defect.** Built through the deployed UI with
+save→refresh→verify: 7 units, 4 tenants (three internal-only + one portal), 4 activated leases,
+8 rent schedules, one issued invoice (R15 000) and one recorded cash payment. **Duplicate payment is
+genuinely prevented** — the control is withdrawn once settled, a direct API replay is refused (403
+CSRF), and the invoice paid total stayed 15000, never 30000. **Staff RBAC now tested properly**: staff
+added as Manager (`status=active`); eight allowed surfaces open; principal-only pages render a proper
+"Access restricted" panel with zero controls and zero roster data (my first matcher missed that
+wording and produced a false escalation finding — corrected); restricted mutation APIs return 403.
+**Cross-org 14/14 bidirectional** against a second synthetic org, Proplyst UAT Isolation Portfolio.
+Dashboard reconciles: Expected R32 000, Collected R15 000, Net R15 000, Occupancy 43% (3 of 7).
+
+Blocked and deliberately not faked: budgets in full, rates/levies/utilities/meters, expense creation,
+document upload (503 `upload_temporarily_unavailable` — ClamAV unconfigured; fails honestly), and the
+tenant portal (`tenants.user_id` NULL because the invitation went to an unreadable `.invalid` address
+— not a product defect; the portal routes are `/my-lease`, `/my-payments` etc., not `/tenant/*`).
+
+**WhatsApp: still nothing sent.** Two of the six mandatory pre-flight lines cannot be proven — the
+provider is undeterminable (0 `whatsapp_messages` rows production-wide, no status endpoint) and the
+UAT override is a server-side var that cannot be set from here. `whatsappEnabled` is false for every
+category on this org anyway. **Correction to the last pass: 2 emails WERE sent** for the UAT org
+(`staff_added_existing_user`, `tenant_invitation`), both to reserved `.invalid` recipients that cannot
+reach a real person — disclosed rather than omitted, and it also demonstrates the Resend pipeline works.
+
+The blank authenticated `/` landing is **not reproducible** across repeated attempts, so no fix was
+invented for it. The raw-UUID breadcrumb is confirmed and broader than recorded — it appears on
+invoice pages too. Orgs 10 → 12; `payment_methods` and `billing_events` both 0 on each UAT org, so no
+charge occurred anywhere.
+
+## 2026-09-06 (public UAT, third pass) — UAT org provisioned, owner journey run, production found 7 migrations behind
+
+Authorised production-backed UAT executed against `https://proplyst.co.za`. Provisioned
+**Proplyst UAT Portfolio** (`6b4d43a8-2bac-4ac9-ab9e-883c0303d3a7`) plus three synthetic personas,
+then drove the real deployed UI in Chromium. Nothing pushed, nothing deployed, no migration applied.
+
+**Provisioning used the narrowest existing mechanism, no SQL bypass**: `admin.createUser` for
+identities, then `create_organization()` over RPC **as the real signed-in owner** (it is SECURITY
+DEFINER and raises without `auth.uid()`, so service-role genuinely cannot call it), then
+`activate_trial_after_payment()` via service-role — the RPC already revoked from all client roles
+and used by every pgTAP fixture for exactly this. Orgs went 10 → 11; no real org touched.
+
+**Deployed PayFast is LIVE, not sandbox.** Established charge-free by generating a real checkout and
+reading where it landed — `payment.payfast.io` with `comms.payfast.io` sockets, never
+`sandbox.payfast.co.za`; `payfast.ts:83` maps live→`www.payfast.co.za`, sandbox→`sandbox.payfast.co.za`.
+Checkout abandoned with no payment detail entered. Proof nothing was charged: `subscription_payments`
+one **pending** row, `payment_methods` 0, `billing_events` 0. Worth remembering: completing a
+checkout on this deployment would bill a real card.
+
+**HEADLINE: production code is 7 migrations ahead of its database.** `migration list --linked` shows
+remote applied through `20260101000162`; **163–169 were never applied**, yet the deployed app ships
+the routes that query their tables. Six tables are absent from the production API (PostgREST
+`PGRST205`): `recurring_property_costs`, `utility_responsibility_settings`, `utility_meters`,
+`utility_readings`, `property_budgets`, `budget_category_lines`. Live consequences: 14 × HTTP 500
+during ordinary unit creation, and deterministic 500s on `/recurring-costs` and `/utility-settings`.
+**Rates & taxes, levies, utility responsibility, meters and budgets are broken in production for
+every customer, not just UAT.** The code is correct and the database is behind, so there is nothing
+to fix locally — it needs its own reviewed, backed-up migration deployment.
+
+**What genuinely works**, all built through the deployed UI with save→refresh→re-read: 3 properties,
+7 units, 3 tenants (internal-only, no invitation email), 3 leases recorded then activated → Active 3
+/ Draft 0, occupancy correctly lease-derived (Vacant 4 / Occupied 3), and 6 rent schedules generated
+automatically. Reconciliation checks out independently: R15 000 + R8 500 + R8 500 = **R32 000/month**,
+exactly what Rent Due shows across Sept and Oct. Navigation sweep 28/29 screens clean, zero
+unexpected 4xx/5xx on page load.
+
+**Security 42/42.** Staff and tenant personas are non-members, so they are exact negative controls;
+tested by direct API id substitution rather than navigation. Every property/unit/lease/tenant/
+expense/document/member/billing probe returned 404, 403 or a scoped-empty 200 — no UAT org data
+leaked, on any endpoint or direct page URL. Honest limit: this proves cross-account isolation, not
+intra-org role restriction, because staff was never made a member.
+
+**WhatsApp deliberately not sent.** `WHATSAPP_UAT_OVERRIDE_NUMBER` is server-side on Render and
+cannot be set from here, so the required pre-flight line "UAT OVERRIDE: ACTIVE" cannot be truthfully
+asserted — without it a send would go to the recipient's own number. Provider stays undetermined
+(`whatsapp_messages` has 0 rows production-wide, so nothing to infer from, and the only way to settle
+it is the send that is barred). 0 tenants anywhere carry +27837866021. **Email: real Resend IS
+configured** (8 rows with provider ids and a `bounced` status a mock cannot produce); none sent this
+pass.
+
+Other defects: post-login lands on `/` which renders **blank** for a signed-in user (the gate chain
+only starts at `/dashboard`); `/leases/new` returns 200 + an error boundary instead of 404 (real
+paths are unit- and tenant-scoped); property breadcrumb shows the raw UUID; `/organization/billing`
+throws React #418. Harness lesson worth keeping: Playwright's `waitForURL` predicate receives a URL
+**object**, so `(u) => u !== previousString` is always true and resolves instantly — it produced a
+false "create property failed" until stringified.
+
+## 2026-09-06 (public UAT, second pass) — authorised UAT provisioning blocked by tool permission; cosmetic fixes prepared
+
+Authorisation was granted to create a real "Proplyst UAT Portfolio" organisation on production,
+with synthetic personas, real WhatsApp sends to the UAT number, and a full authenticated sweep.
+**The pass could not start.** Every remaining section needs programmatic production access, and the
+agent's own permission layer (the Claude Code auto-mode classifier) denied running any script that
+connects to production with the service-role key — via both Bash and PowerShell. That is a correct
+default guardrail, not a product defect and not a missing credential; it has to be lifted
+deliberately for this authorised pass to run. Nothing was provisioned, no payment method submitted,
+no charge incurred, no message sent.
+
+Prepared and ready for the moment access is granted: `apps/admin/scripts/uat-public-recon.mjs`,
+strictly read-only, prints no secret values. It settles the three facts the brief needs before any
+provisioning decision — which organisations exist (so no real customer org is touched), and whether
+the **deployed** WhatsApp and email providers are real, inferred from whether stored
+`provider_message_id` values are Meta `wamid.*` ids or mock UUIDs. Also recorded: the charge-free way
+to determine the deployed PayFast mode is to generate a checkout through the deployed app and read
+the form target (`sandbox.payfast.co.za` vs `www.payfast.co.za`) — `.env.local`'s `PAYFAST_MODE` is
+the local value and says nothing about Render's runtime environment.
+
+**Both cosmetic defects fixed locally, not deployed.** The brief asked to use "the existing
+transparent Proplyst logo asset if available" — **none exists**, and manufacturing one would make it
+worse: sampling the PNG shows an opaque, effectively uniform near-black ground (border ring all
+within `rgb(0,0,0)`–`rgb(1,7,22)`) behind a **white** wordmark, so keying the ground out would leave
+white lettering invisible on every light card. A real light-mode fix needs a dark-lettered variant
+from the brand owner. Applied instead: `rounded-md` on the image so the dark ground reads as a
+deliberate logo tile, sizing left caller-controlled so nothing shifts — one component change covering
+all 14 call sites. Separately, the marketing mockup's `app.proplyst.co.za/dashboard` is now
+`proplyst.co.za/dashboard`; the dead subdomain was not created. ESLint, `tsc --noEmit` and
+`npm run build` all clean; marketing suite 7/7.
+
+## 2026-09-06 (public UAT) — public perimeter passes 54/54, authenticated journey blocked
+
+First pass driving a real browser against the **public deployment** from the internet, not
+localhost. Read-only: nothing was registered, created, paid for, sent or modified.
+
+**The public URL in the brief was wrong.** `app.proplyst.co.za` does not resolve; the live app is
+`https://proplyst.co.za` (200). `www` 301s to it.
+
+**The authenticated journey — the substance of the mandate — could not run.** Four verified
+blockers, recorded in full in `PUBLIC_UAT_REPORT.md` §2: no UAT credentials exist anywhere (checked
+ten variable names across the shell and `.env.local`); `create_organization()` raises
+`owner_subscription_required`; every new org carries `commercial_setup_required = true`, which
+`create_property()` rejects until payment setup completes; and doing that setup would transact
+against production with a deployed PayFast mode not visible from here. Signing up would also write
+production Supabase rows, which every prior standing instruction forbids. Sections 4–19 and 22–24
+are therefore **not executed** — neither passes nor failures.
+
+**What did run: 54/54** via `apps/admin/scripts/uat-public-blackbox.mjs` (refuses to run against a
+local or non-HTTPS target — the inverse of the other UAT scripts here). Public pages load with zero
+console errors and zero failed requests; all 16 app routes refuse anonymous access; all 10 API
+endpoints return 401/404 with **no record data in any body** (checked by direct HTTP, not UI);
+HSTS/nosniff/frame protection present; invalid login shows "Invalid email or password." without
+disclosing whether the account exists; responsive 1440→768 with no overflow; light and dark both
+render legibly.
+
+**OAuth is genuinely configured in production** — established by clicking the buttons and following
+the redirect chain, not by reading source. Google reaches `accounts.google.com` with a real client
+id; Apple reaches `appleid.apple.com` with `client_id=co.za.proplyst.web`. Sign-in was not
+completed, so the post-callback session exchange stays unverified. This **corrects `ENVIRONMENT.md`**,
+which described both providers as disabled — true of local defaults, not of production.
+
+**Two cosmetic defects, documented not fixed** (V1 freeze; branding assets are not mine to change):
+the logo is an opaque dark-ground raster rendered onto light surfaces, so it reads as a black box on
+the landing header and the sign-in card; and the landing mockup shows `app.proplyst.co.za`, which
+does not resolve.
+
+**Three findings investigated and dismissed rather than reported** — a 520px blank band on the
+landing page (a `fullPage`-screenshot artifact; the reveal wrappers go opacity 0→1 on a real scroll,
+confirmed by in-view screenshot), dark mode appearing identical to light (emulating
+`prefers-color-scheme` against a `darkMode: 'class'` app tests the wrong mechanism), and a console
+error on failed login (the 401 is the correct response). Each was a harness fault, corrected in the
+harness.
+
+**Verdict: PUBLIC WEB UAT = FAIL (not executed); PILOT CUSTOMER WEB EXPERIENCE = NOT READY.** The
+perimeter is strong, but a PASS cannot be issued for a journey that never ran, and the preceding
+external-comms gate still stands at FAIL. What is needed to finish is listed in the report §8.
+
 ## 2026-09-06 (external comms) — WhatsApp inbound verified, preferences proven, delivery still blocked
 
 Narrow pass on the two pilot blockers the previous release gate failed on: real WhatsApp and real
