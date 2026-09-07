@@ -88,7 +88,13 @@ describe('computeDashboardKpis', () => {
       expensesInPeriod: [
         { amount: 1200, status: 'recorded' },
         { amount: 300, status: 'reimbursed' },
-        { amount: 900, status: 'pending' }, // not yet recorded -- must be excluded
+        // Public UAT 2026-09-07: `pending` is what EVERY expense created through the web form is
+        // (status `recorded` additionally requires a journal_entry_id). Excluding it made the
+        // dashboard's Expenses card read R0 while the Operating position on the same screen used
+        // the real total -- two financial truths on one page. Pending spend counts.
+        { amount: 900, status: 'pending' },
+        // `void` is the one status that must never count -- money not spent.
+        { amount: 5000, status: 'void' },
       ],
       paymentsAwaitingConfirmation: 2400,
     });
@@ -96,8 +102,8 @@ describe('computeDashboardKpis', () => {
     expect(summary.expectedRent).toBe(25500); // 12500 + 8000 + 5000
     expect(summary.rentCollected).toBe(12500);
     expect(summary.outstandingRent).toBe(16000); // 3000 + 8000 + 5000, excludes the paid row
-    expect(summary.expensesTotal).toBe(1500); // 1200 + 300, excludes the pending row
-    expect(summary.netIncome).toBe(11000); // 12500 - 1500
+    expect(summary.expensesTotal).toBe(2400); // 1200 + 300 + 900 pending, excludes only the void row
+    expect(summary.netIncome).toBe(10100); // 12500 - 2400
     expect(summary.paymentsAwaitingConfirmation).toBe(2400);
   });
 

@@ -97,7 +97,7 @@ export interface DashboardKpiSummary {
   /** invoiced/overdue/partial rows due on-or-before the period end -- a cumulative as-of figure,
    *  not "during the period" (an overdue amount from 3 months ago is still outstanding today). */
   outstandingRent: number;
-  /** recorded/reimbursed expenses within the period -- matches expenses' own "actually spent"
+  /** every non-void expense within the period -- matches expenses' own "actually spent"
    *  statuses, same set the existing revenue chart already uses. */
   expensesTotal: number;
   /** rentCollected - expensesTotal. A cash-basis figure, not an accrual net income. */
@@ -109,7 +109,29 @@ export interface DashboardKpiSummary {
 }
 
 const OUTSTANDING_RENT_STATUSES = new Set(['invoiced', 'overdue', 'partial']);
-const RECORDED_EXPENSE_STATUSES = new Set(['recorded', 'reimbursed']);
+
+/**
+ * Expense statuses that count toward the dashboard's Expenses/Net income cards.
+ *
+ * Public UAT 2026-09-07 found the dashboard contradicting itself: the Expenses card read R0 for a
+ * month in which the Operating position on the SAME screen correctly used R8 850. Root cause was
+ * not a legacy field -- it was a status-filter mismatch between two server-side sources. This set
+ * previously held only {recorded, reimbursed}, while `owner_portfolio_financial_summary()`'s
+ * `expenses_scope` CTE (migration 167/168) filters on property + invoice_date and applies NO status
+ * filter at all. Every expense created through the web form lands as `pending` (status `recorded`
+ * additionally requires a journal_entry_id -- see the `expenses_check` constraint), so the card
+ * silently excluded every real expense while the RPC-backed figures included them.
+ *
+ * `void` is the one status that must never count -- a voided expense is money not spent. Everything
+ * else (pending awaiting posting, recorded, reimbursed) is real committed spend for the period and
+ * is what the operating-position figure already reflects.
+ *
+ * KNOWN RESIDUAL (needs a migration, deliberately not made here): the RPC counts `void` expenses
+ * too, because it has no status filter. Once a `void` expense exists in a period, the RPC and this
+ * set will disagree again by exactly that amount. The fix belongs in the RPC, not here -- see
+ * PUBLIC_UAT_REPORT.md.
+ */
+const VOID_EXPENSE_STATUS = 'void';
 
 export function computeDashboardKpis(input: {
   rentSchedulesInPeriod: RentScheduleLike[];
@@ -125,7 +147,7 @@ export function computeDashboardKpis(input: {
     .filter((r) => OUTSTANDING_RENT_STATUSES.has(r.status))
     .reduce((sum, r) => sum + Number(r.amount), 0);
   const expensesTotal = input.expensesInPeriod
-    .filter((e) => RECORDED_EXPENSE_STATUSES.has(e.status))
+    .filter((e) => e.status !== VOID_EXPENSE_STATUS)
     .reduce((sum, e) => sum + Number(e.amount), 0);
 
   return {

@@ -390,7 +390,10 @@ export default async function DashboardPage({ searchParams }: SearchParams) {
       value: currency(data.monthlyBilled),
       delta: data.monthlyBilledDelta,
       icon: Banknote,
-      foot: `Billed in ${data.periodLabel}`,
+      // This is every rent schedule due in the period, whatever its status -- what was PLANNED, not
+      // what was actually invoiced. Public UAT 2026-09-07 showed R41 000 captioned "Billed in
+      // September 2026" while only R15 000 had an invoice issued. Never call planned rent billed.
+      foot: `Expected in ${data.periodLabel}`,
     },
     {
       label: 'Rent collected',
@@ -411,7 +414,10 @@ export default async function DashboardPage({ searchParams }: SearchParams) {
       value: currency(data.expensesTotal),
       delta: null,
       icon: Receipt,
-      foot: `Recorded in ${data.periodLabel}`,
+      // "Recorded in" was wrong twice over: it named one specific expense status while the figure
+      // now covers every non-void expense, and it implied a narrower set than the Operating
+      // position on this same screen uses (public UAT 2026-09-07).
+      foot: `Incurred in ${data.periodLabel}`,
     },
     {
       label: 'Net income',
