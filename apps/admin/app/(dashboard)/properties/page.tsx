@@ -66,10 +66,16 @@ const DEMO_CARDS: PropertyCardData[] = [
   },
 ];
 
-type RouteParams = { searchParams: Promise<{ status?: string }> };
+/** `for=maintenance` arrives from the Maintenance page's "+ Add ticket": tickets are created
+ *  against a property, so that button sends the user here to choose one. Public UAT 2026-09-07
+ *  found it landing on a bare property list with no explanation and no way to continue -- a dead
+ *  end. The banner below names the task and each card links straight into ticket creation. */
+type PropertyPickIntent = 'maintenance';
+type RouteParams = { searchParams: Promise<{ status?: string; for?: string }> };
 
 export default async function PropertiesPage({ searchParams }: RouteParams) {
-  const { status: statusParam } = await searchParams;
+  const { status: statusParam, for: forParam } = await searchParams;
+  const pickIntent: PropertyPickIntent | null = forParam === 'maintenance' ? 'maintenance' : null;
   const statusFilter: 'active' | 'archived' | 'all' =
     statusParam === 'archived' || statusParam === 'all' ? statusParam : 'active';
 
@@ -102,8 +108,12 @@ export default async function PropertiesPage({ searchParams }: RouteParams) {
   return (
     <>
       <PageHeader
-        title="Properties"
-        subtitle={`${properties.length} ${properties.length === 1 ? 'asset' : 'assets'} · ${totals.units} units · ${currency(totals.income)} billed monthly`}
+        title={pickIntent === 'maintenance' ? 'Choose a property' : 'Properties'}
+        subtitle={
+          pickIntent === 'maintenance'
+            ? 'Maintenance tickets are logged against a property. Pick the one this ticket is for.'
+            : `${properties.length} ${properties.length === 1 ? 'asset' : 'assets'} · ${totals.units} units · ${currency(totals.income)} billed monthly`
+        }
         actions={
           <div className="flex items-center gap-2">
             <PropertiesStatusFilterBar selected={statusFilter} />
@@ -133,7 +143,14 @@ export default async function PropertiesPage({ searchParams }: RouteParams) {
         </div>
       ) : null}
 
-      <PropertiesGridClient cards={cards} tableData={properties} emptyAction={addAction} />
+      <PropertiesGridClient
+        cards={cards}
+        tableData={properties}
+        emptyAction={addAction}
+        cardHrefOverride={
+          pickIntent === 'maintenance' ? (id) => `/properties/${id}/maintenance/new` : undefined
+        }
+      />
     </>
   );
 }

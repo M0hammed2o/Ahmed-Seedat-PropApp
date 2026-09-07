@@ -17,6 +17,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/DropdownMenu';
 import { getBrowserSupabaseClient } from '@/lib/supabase/client';
+import {
+  BreadcrumbLabelProvider,
+  isOpaqueSegment,
+  useBreadcrumbLabels,
+} from '@/components/shell/BreadcrumbLabel';
 
 // Rebuilt against reference/lovable-ui-reference's app-shell.tsx literal structure (2026-08-04
 // Lovable-adoption batch, UI_INTEGRATION_PLAN.md), replacing the previous three-breakpoint
@@ -110,7 +115,7 @@ function initialsFor(label: string): string {
   return (words[0]![0]! + words[1]![0]!).toUpperCase();
 }
 
-export function AppShell({
+function AppShellInner({
   productLabel,
   navSections,
   identityLine,
@@ -128,6 +133,7 @@ export function AppShell({
   children,
 }: AppShellProps) {
   const pathname = usePathname();
+  const breadcrumbLabels = useBreadcrumbLabels();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const unreadCount = notifications.filter((n) => !n.readAt).length;
@@ -244,16 +250,25 @@ export function AppShell({
         <Link href={homeHref} className="transition-colors hover:text-foreground">
           {homeLabel}
         </Link>
-        {parts.map((p, i) => (
-          <span key={p + i} className="flex min-w-0 items-center gap-1.5">
-            <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-50" aria-hidden="true" />
-            <span
-              className={`truncate capitalize ${i === parts.length - 1 ? 'font-medium text-foreground' : ''}`}
-            >
-              {p.replace(/-/g, ' ')}
+        {parts.map((p, i) => {
+          // An opaque id must never be title-cased into pseudo-words: public UAT 2026-09-07 saw
+          // "Properties > 792ed2e3 63f5 4e82 B1fc Efd465cf8e9a". Prefer the real name a detail page
+          // registered via SetBreadcrumbLabel; with no label, drop the segment entirely rather than
+          // show mangled hex -- the page heading underneath already names the record.
+          const opaque = isOpaqueSegment(p);
+          const label = breadcrumbLabels[p];
+          if (opaque && !label) return null;
+          return (
+            <span key={p + i} className="flex min-w-0 items-center gap-1.5">
+              <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-50" aria-hidden="true" />
+              <span
+                className={`truncate ${opaque ? '' : 'capitalize'} ${i === parts.length - 1 ? 'font-medium text-foreground' : ''}`}
+              >
+                {label ?? p.replace(/-/g, ' ')}
+              </span>
             </span>
-          </span>
-        ))}
+          );
+        })}
       </div>
     );
   }
@@ -409,5 +424,17 @@ export function AppShell({
 
       {assistant ? <div className="print:hidden">{assistant}</div> : null}
     </div>
+  );
+}
+
+/**
+ * The shell reads breadcrumb labels from a context that detail pages populate, so the provider must
+ * sit ABOVE the consumer -- hence the inner/outer split rather than a single component.
+ */
+export function AppShell(props: AppShellProps) {
+  return (
+    <BreadcrumbLabelProvider>
+      <AppShellInner {...props} />
+    </BreadcrumbLabelProvider>
   );
 }

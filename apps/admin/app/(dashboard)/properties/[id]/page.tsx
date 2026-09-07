@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { SetBreadcrumbLabel } from '@/components/shell/BreadcrumbLabel';
 import { notFound } from 'next/navigation';
 import type { Application, MaintenanceTicket, Property } from '@propvault/types';
 import { PROPERTY_TYPE_LABELS, PROPERTY_STATUS_PRESENTATION } from '@propvault/ui';
@@ -840,6 +841,10 @@ function PropertyDetailView({
       {/* Adapted from reference/lovable-ui-reference's properties/$propertyId.tsx hero band
           (2026-08-04 Lovable-adoption batch, UI_INTEGRATION_PLAN.md) -- real uploaded photo or the
           local placeholder graphic, never a hotlinked/fabricated image (same rule as the card grid). */}
+      {/* Breadcrumb showed the raw UUID before this (public UAT 2026-09-07). The name is already
+          loaded here, so no extra request is made. */}
+      <SetBreadcrumbLabel segment={property.id} label={property.nickname} />
+
       <div className="panel overflow-hidden">
         <div className="relative h-[220px]">
           <img

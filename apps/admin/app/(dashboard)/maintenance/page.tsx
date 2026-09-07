@@ -56,7 +56,10 @@ export default async function MaintenancePage() {
           // Maintenance list has no single property/unit in context to create one against
           // (real ticket creation lives at /properties/[id]/maintenance/new), so this links to
           // "go pick a property" first -- same pattern already used for Units' "+ Add unit".
-          <Link key="add-ticket" href="/properties">
+          // `?for=maintenance` makes that step self-explanatory: public UAT 2026-09-07 found this
+          // landing on a bare property list with no stated purpose and no continuation, so the
+          // list now says "Choose a property" and each card links into ticket creation.
+          <Link key="add-ticket" href="/properties?for=maintenance">
             <Button variant="primary" size="sm">
               + Add ticket
             </Button>

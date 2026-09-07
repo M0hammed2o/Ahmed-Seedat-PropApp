@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { SetBreadcrumbLabel } from '@/components/shell/BreadcrumbLabel';
 import { notFound, redirect } from 'next/navigation';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Panel } from '@/components/ui/Panel';
@@ -251,6 +252,8 @@ function InvoiceDetailView({
           {canWrite && invoice.status === 'issued' && !isVoid ? <SendInvoiceButton invoiceId={invoice.id} /> : null}
         </div>
       </div>
+
+      <SetBreadcrumbLabel segment={invoice.id} label={invoice.invoiceNumber} />
 
       <PageHeader
         title={`Invoice ${invoice.invoiceNumber}`}

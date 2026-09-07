@@ -31,14 +31,23 @@ function currency(n: number): string {
 // the property's own uploaded photo (`imagePath`) when one exists, and a self-authored, locally
 // hosted placeholder graphic (apps/admin/public/property-placeholder.svg -- no external request,
 // full rights) when it doesn't, per the explicit "never a hotlinked/fabricated photo" instruction.
-export function PropertyCard({ property }: { property: PropertyCardData }) {
+/** `hrefOverride` lets a caller point the card somewhere other than the property detail page --
+ *  used by the "choose a property" step of the Maintenance ticket flow so picking a card continues
+ *  straight into ticket creation instead of dead-ending on the detail page (public UAT 2026-09-07). */
+export function PropertyCard({
+  property,
+  hrefOverride,
+}: {
+  property: PropertyCardData;
+  hrefOverride?: (propertyId: string) => string;
+}) {
   const occupancyPct =
     property.unitsCount > 0 ? Math.round((property.occupiedCount / property.unitsCount) * 100) : 0;
   const imageSrc = property.imagePath ?? '/property-placeholder.svg';
 
   return (
     <Link
-      href={`/properties/${property.id}`}
+      href={hrefOverride ? hrefOverride(property.id) : `/properties/${property.id}`}
       className="panel group overflow-hidden transition-all hover:-translate-y-0.5 hover:shadow-lift"
     >
       <div className="relative h-[168px] overflow-hidden">
