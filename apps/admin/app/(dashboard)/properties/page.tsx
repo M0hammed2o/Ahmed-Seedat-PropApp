@@ -147,8 +147,8 @@ export default async function PropertiesPage({ searchParams }: RouteParams) {
         cards={cards}
         tableData={properties}
         emptyAction={addAction}
-        cardHrefOverride={
-          pickIntent === 'maintenance' ? (id) => `/properties/${id}/maintenance/new` : undefined
+        cardHrefTemplate={
+          pickIntent === 'maintenance' ? '/properties/:id/maintenance/new' : undefined
         }
       />
     </>

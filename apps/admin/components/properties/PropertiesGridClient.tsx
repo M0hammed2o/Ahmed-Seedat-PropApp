@@ -25,14 +25,15 @@ export function PropertiesGridClient({
   cards,
   tableData,
   emptyAction,
-  cardHrefOverride,
+  cardHrefTemplate,
 }: {
   cards: PropertyCardData[];
   tableData: Property[];
   emptyAction?: ReactNode;
   /** Set by the "choose a property" step of the Maintenance ticket flow so a picked card continues
-   *  into ticket creation rather than the property detail page (public UAT 2026-09-07). */
-  cardHrefOverride?: (propertyId: string) => string;
+   *  into ticket creation rather than the property detail page (public UAT 2026-09-07). A string
+   *  containing `:id` -- never a function, which cannot cross the Server -> Client boundary. */
+  cardHrefTemplate?: string;
 }) {
   const [query, setQuery] = useState('');
   const [view, setView] = useState<'grid' | 'list'>('grid');
@@ -108,7 +109,7 @@ export function PropertiesGridClient({
         ) : (
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             {filteredCards.map((c) => (
-              <PropertyCard key={c.id} property={c} hrefOverride={cardHrefOverride} />
+              <PropertyCard key={c.id} property={c} hrefTemplate={cardHrefTemplate} />
             ))}
           </div>
         )

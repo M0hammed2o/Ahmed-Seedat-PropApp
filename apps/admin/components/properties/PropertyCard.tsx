@@ -31,15 +31,20 @@ function currency(n: number): string {
 // the property's own uploaded photo (`imagePath`) when one exists, and a self-authored, locally
 // hosted placeholder graphic (apps/admin/public/property-placeholder.svg -- no external request,
 // full rights) when it doesn't, per the explicit "never a hotlinked/fabricated photo" instruction.
-/** `hrefOverride` lets a caller point the card somewhere other than the property detail page --
+/** `hrefTemplate` lets a caller point the card somewhere other than the property detail page --
  *  used by the "choose a property" step of the Maintenance ticket flow so picking a card continues
- *  straight into ticket creation instead of dead-ending on the detail page (public UAT 2026-09-07). */
+ *  straight into ticket creation instead of dead-ending on the detail page (public UAT 2026-09-07).
+ *
+ *  It is a STRING containing `:id`, not a function. A function prop cannot cross the Server ->
+ *  Client Component boundary: the first version of this took `(id) => string` and threw a Server
+ *  Components render error on /properties?for=maintenance in production, while the plain
+ *  /properties path (where the prop is undefined, and therefore serializable) kept working. */
 export function PropertyCard({
   property,
-  hrefOverride,
+  hrefTemplate,
 }: {
   property: PropertyCardData;
-  hrefOverride?: (propertyId: string) => string;
+  hrefTemplate?: string;
 }) {
   const occupancyPct =
     property.unitsCount > 0 ? Math.round((property.occupiedCount / property.unitsCount) * 100) : 0;
@@ -47,7 +52,7 @@ export function PropertyCard({
 
   return (
     <Link
-      href={hrefOverride ? hrefOverride(property.id) : `/properties/${property.id}`}
+      href={hrefTemplate ? hrefTemplate.replace(':id', property.id) : `/properties/${property.id}`}
       className="panel group overflow-hidden transition-all hover:-translate-y-0.5 hover:shadow-lift"
     >
       <div className="relative h-[168px] overflow-hidden">
