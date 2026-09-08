@@ -37,9 +37,11 @@ import androidx.compose.material.icons.outlined.PriceCheck
 import androidx.compose.material.icons.outlined.RequestQuote
 import androidx.compose.material.icons.outlined.WaterDrop
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -53,6 +55,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import za.co.proplyst.app.R
 import za.co.proplyst.app.data.financials.FinancialSummary
 import za.co.proplyst.app.data.insights.AttentionItem
@@ -78,6 +81,7 @@ import java.util.Locale
  * Recent Activity glyphs with relative timestamps, and the Top Properties strip. All values are
  * the same server-authoritative sources as before -- this pass changed presentation only.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
     onNotificationsClick: () -> Unit,
@@ -97,8 +101,22 @@ fun DashboardScreen(
     val topProperties by viewModel.topProperties.collectAsState()
     val recentActivity by viewModel.recentActivity.collectAsState()
     val hasUnread by viewModel.hasUnread.collectAsState()
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
 
-    Column(
+    // Home is a destination on a single flat NavHost, so it stays composed underneath Add expense,
+    // Record payment, Meter reading and the other tabs -- its ViewModel survives, and before this
+    // it loaded only once in `init`, leaving an owner staring at pre-action figures until they
+    // force-stopped the app (visual QA, 2026-09-08). Refreshing whenever this destination resumes
+    // covers every one of those return paths with one rule instead of a callback per flow. The
+    // ViewModel's own in-flight guard absorbs the duplicate call on first composition.
+    LifecycleResumeEffect(Unit) {
+        viewModel.refresh()
+        onPauseOrDispose { }
+    }
+
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = viewModel::refresh,
         modifier = Modifier
             .fillMaxSize()
             .background(ProplystTheme.colors.background),

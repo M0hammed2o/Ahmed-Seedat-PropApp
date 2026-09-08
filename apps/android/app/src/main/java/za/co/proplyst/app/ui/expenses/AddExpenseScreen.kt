@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -80,6 +81,10 @@ fun AddExpenseScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                // Before imePadding, the scroll viewport kept its full height while the keyboard
+                // covered the bottom of it, so the form ran out of scroll with "Save expense" still
+                // hidden and no way to reach it without dismissing the IME (visual QA, 2026-09-08).
+                .imePadding()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),

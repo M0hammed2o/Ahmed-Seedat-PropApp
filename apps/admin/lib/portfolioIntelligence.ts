@@ -90,6 +90,7 @@ async function evaluateRules(
     expiringLeasesResult,
     openTicketsResult,
     unpaidInvoicesResult,
+    invoicePaymentsResult,
   ] = await Promise.all([
     client
       .from('rent_schedules')
@@ -115,9 +116,19 @@ async function evaluateRules(
       .in('status', ['to_do', 'in_progress', 'pending_approval']),
     client
       .from('invoices')
-      .select('id, period, amount, status')
+      .select('id, period, amount, status, voided_at')
       .eq('org_id', orgId)
       .neq('status', 'paid'),
+    // `invoices.status` is never set to 'paid' anywhere in this codebase -- paid/balance is derived
+    // from invoice_payments, exactly as loadInvoicesWithBalances() does it. Without these rows the
+    // rule below flagged every issued invoice as past due forever, including fully settled ones
+    // (found while preparing the demo portfolio, 2026-09-08: four paid invoices were all reported
+    // "8 days past due").
+    client
+      .from('invoice_payments')
+      .select('invoice_id, amount')
+      .eq('org_id', orgId)
+      .is('reversed_at', null),
   ]);
 
   for (const result of [
@@ -126,6 +137,7 @@ async function evaluateRules(
     expiringLeasesResult,
     openTicketsResult,
     unpaidInvoicesResult,
+    invoicePaymentsResult,
   ]) {
     if (result.error)
       throw new Error(`Portfolio Intelligence rule query failed: ${result.error.message}`);
@@ -212,13 +224,24 @@ async function evaluateRules(
     });
   }
 
+  const paidByInvoiceId = new Map<string, number>();
+  for (const payment of invoicePaymentsResult.data ?? []) {
+    const invoiceId = payment.invoice_id as string;
+    paidByInvoiceId.set(invoiceId, (paidByInvoiceId.get(invoiceId) ?? 0) + Number(payment.amount));
+  }
+
   for (const row of unpaidInvoicesResult.data ?? []) {
+    // Same balance rule as loadInvoicesWithBalances(): a voided invoice owes nothing, and anything
+    // the payments already cover is settled no matter what the status column still says.
+    if (row.voided_at) continue;
+    const outstanding = Number(row.amount) - (paidByInvoiceId.get(row.id as string) ?? 0);
+    if (outstanding <= 0) continue;
     const daysPastDue = daysBetween(row.period as string, now);
     if (daysPastDue < 1) continue; // not past due yet
     insights.push({
       insightType: 'invoice_unpaid',
       key: `invoice_unpaid:${row.id}`,
-      message: `Invoice of ${row.amount} for period ${row.period} is ${daysPastDue} day${daysPastDue === 1 ? '' : 's'} past due.`,
+      message: `Invoice of ${outstanding} for period ${row.period} is ${daysPastDue} day${daysPastDue === 1 ? '' : 's'} past due.`,
       dataSource: {
         insight_type: 'invoice_unpaid',
         triggering_records: [

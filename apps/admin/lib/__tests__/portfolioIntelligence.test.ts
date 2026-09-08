@@ -407,4 +407,68 @@ describeIfSupabase('reconcilePortfolioInsights (real local Supabase integration)
     const result = await reconcilePortfolioInsights(serviceClient, orgId);
     expect(result.inserted).toBe(0);
   });
+
+  // Regression, 2026-09-08. `invoices.status` is never set to 'paid' by anything in this codebase
+  // -- paid/balance is derived from invoice_payments, the way loadInvoicesWithBalances() does it.
+  // The unpaid-invoice rule filtered on `status <> 'paid'` alone, so every issued invoice stayed
+  // "past due" forever no matter how much had been paid against it. Found on the demo portfolio,
+  // where four fully settled invoices were all reported 8 days past due.
+  it('stops reporting an invoice past due once payments cover it, and still reports a partly paid one', async () => {
+    const { data: tenant } = await serviceClient
+      .from('tenants')
+      .insert({ org_id: orgId, full_name: 'PI Vitest Tenant', status: 'active' })
+      .select('id')
+      .single();
+
+    const issue = async (invoiceNumber: string, amount: number) => {
+      const { data, error } = await serviceClient
+        .from('invoices')
+        .insert({
+          org_id: orgId,
+          lease_id: leaseId,
+          tenant_id: tenant!.id,
+          period: '2026-01-01', // safely in the past, so it is unambiguously past due
+          amount,
+          status: 'issued',
+          issued_at: new Date().toISOString(),
+          invoice_number: invoiceNumber,
+          source: 'rent_schedule',
+        })
+        .select('id')
+        .single();
+      if (error) throw error;
+      return data!.id as string;
+    };
+
+    const settledId = await issue(`PI-SETTLED-${Date.now()}`, 5000);
+    const partialId = await issue(`PI-PARTIAL-${Date.now()}`, 5000);
+
+    await serviceClient.from('invoice_payments').insert([
+      { org_id: orgId, invoice_id: settledId, tenant_id: tenant!.id, amount: 5000, paid_at: '2026-01-05', method: 'eft' },
+      { org_id: orgId, invoice_id: partialId, tenant_id: tenant!.id, amount: 2000, paid_at: '2026-01-05', method: 'eft' },
+    ]);
+
+    await reconcilePortfolioInsights(serviceClient, orgId);
+
+    const { data: insights } = await serviceClient
+      .from('portfolio_insights')
+      .select('message, data_source')
+      .eq('org_id', orgId)
+      .eq('insight_type', 'invoice_unpaid')
+      .is('dismissed_at', null);
+
+    const flaggedIds = (insights ?? []).map(
+      (row) =>
+        (row.data_source as { triggering_records?: { id: string }[] }).triggering_records?.[0]?.id,
+    );
+    expect(flaggedIds).not.toContain(settledId);
+    expect(flaggedIds).toContain(partialId);
+    // And it reports what is actually still owed, not the original invoice total.
+    const partialInsight = (insights ?? []).find(
+      (row) =>
+        (row.data_source as { triggering_records?: { id: string }[] }).triggering_records?.[0]?.id ===
+        partialId,
+    );
+    expect(partialInsight?.message).toContain('3000');
+  });
 });

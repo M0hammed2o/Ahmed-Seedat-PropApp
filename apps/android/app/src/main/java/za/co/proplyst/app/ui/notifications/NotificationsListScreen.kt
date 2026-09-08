@@ -44,7 +44,13 @@ fun NotificationsListScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Notifications") },
+                // "Activity", matching the bottom-nav tab that opens this screen and Home's own
+                // "Recent activity" section, whose "View all" lands right here on the same feed --
+                // the tab said Activity while the screen said Notifications (visual QA,
+                // 2026-09-08). This destination is the portfolio's activity history; the gear
+                // beside it still says "Notification settings", because that one genuinely
+                // configures notification delivery.
+                title = { Text("Activity") },
                 actions = {
                     IconButton(onClick = onAccountClick) {
                         Icon(Icons.Filled.AccountCircle, contentDescription = "Account")
@@ -59,7 +65,8 @@ fun NotificationsListScreen(
         when (val state = uiState) {
             is NotificationsUiState.Loading -> LoadingView(modifier = Modifier.padding(padding))
             is NotificationsUiState.Empty -> EmptyStateView(
-                title = "No notifications yet",
+                title = "No activity yet",
+                description = "Payments, expenses and maintenance updates appear here as they happen.",
                 modifier = Modifier.padding(padding),
             )
             is NotificationsUiState.Error -> ErrorStateView(

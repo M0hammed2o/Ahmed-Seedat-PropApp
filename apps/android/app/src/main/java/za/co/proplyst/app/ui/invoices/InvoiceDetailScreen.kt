@@ -177,8 +177,27 @@ private fun InvoiceDetailContent(
         if (canRecordPayment && onRecordPaymentClick != null) {
             item {
                 Spacer(Modifier.height(24.dp))
-                Button(onClick = onRecordPaymentClick, modifier = Modifier.fillMaxWidth()) {
-                    Text("Record payment")
+                // A settled invoice still ACCEPTS a payment -- corrections and genuine overpayments
+                // are real accounting events and the server remains the authority on both, so
+                // nothing about the calculation or the permission changes here. What changes is
+                // that it stops *asking* for one: on a zero balance the call to action drops to an
+                // outlined button and says what it would actually be, instead of presenting a
+                // filled "Record payment" that reads as an outstanding task (visual QA, 2026-09-08).
+                val settled = (detail.balance ?: 0.0) <= 0.0
+                if (settled) {
+                    Text(
+                        "This invoice is fully paid.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(onClick = onRecordPaymentClick, modifier = Modifier.fillMaxWidth()) {
+                        Text("Record another payment")
+                    }
+                } else {
+                    Button(onClick = onRecordPaymentClick, modifier = Modifier.fillMaxWidth()) {
+                        Text("Record payment")
+                    }
                 }
                 Spacer(Modifier.height(16.dp))
             }

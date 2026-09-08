@@ -1,5 +1,96 @@
 # Worklog
 
+## 2026-09-08 (final Android polish) — dashboard refresh, 4 UX fixes, a real insights bug, demo portfolio rebuilt
+
+Full detail in `VISUAL_QA_REPORT.md` ("Final Android polish pass"); recording plan in
+`DEMO_RECORDING_SHOTLIST.md`. Android unit suite **253 run / 0 failures**, clean `assembleDebug`,
+`tsc --noEmit` clean, insight tests **10 run / 0 failures**.
+
+**Home now refreshes.** It is a destination on a single flat `NavHost`, so it stays composed under
+Add expense, Record payment and the other tabs; its ViewModel survived and only ever loaded in
+`init`. `DashboardViewModel` gained one `refresh()` that fans out all five fetches concurrently with
+an in-flight guard, `init` calls it too (one code path, not two), and `DashboardScreen` invokes it
+from `LifecycleResumeEffect` — one rule covering every return path instead of a callback per flow.
+Sections only show a skeleton on first load, so returning never flashes. `PullToRefreshBox` reuses
+the same `refresh()`. Proved end-to-end twice without a force-stop: an expense added server-side
+while the app ran moved Total expenses R25,440 → R26,000 and net position R19,060 → R18,500 on tab
+return; deleting it and pulling down reverted every figure.
+
+**Three UX fixes, each re-verified on-device.** The property-detail hero now has an opaque navy top
+band across the status bar and back-button height, so the title is hidden behind a header rather
+than showing through a translucent circle (it still ends up adjacent to the button at max scroll —
+stated, not glossed). The invoice picker's bare amount is now labelled **Balance** — the word the
+invoice detail and the web invoice page already use, with "Outstanding" reserved for cross-invoice
+totals — settled rows muted, the overdue one bold beside a red chip. A settled invoice still accepts
+a payment (corrections and overpayments are real events, and no calculation or permission changed)
+but stops asking for one: "This invoice is fully paid." plus an outlined *Record another payment*.
+And the Activity tab's screen is now titled **Activity**, matching the tab and Home's own "Recent
+activity" whose View-all opens it; the gear stays "Notification settings" because that really is
+about notifications.
+
+**A genuine V1 bug surfaced while building the demo data.** `invoices.status` is never set to
+`'paid'` anywhere — paid/balance is derived from `invoice_payments`, as `loadInvoicesWithBalances()`
+does it — but `portfolioIntelligence.ts`'s unpaid-invoice rule filtered on `status <> 'paid'` alone,
+so **every issued invoice stayed "past due" forever no matter how much had been paid**. Four fully
+settled demo invoices were all reported 8 days past due. Fixed by subtracting non-reversed payments
+and skipping voided invoices, and by reporting what is still owed rather than the invoice total.
+New regression test covers a settled invoice (not flagged) and a partly paid one (flagged, for the
+remaining R3,000). Also fixed `PropertyCard.test.tsx`, whose fixture had gone stale against
+`PropertyCardData` and was failing `tsc --noEmit` on `main`.
+
+**Demo portfolio rebuilt** in the UAT org only, via two gated, documented scripts
+(`apps/admin/scripts/prepare-uat-demo-{portfolio,collections}.mjs`, both hard-refusing any org id
+but the demo one). Properties renamed off "UAT ..." to Lembede Place Offices / Hillcrest Family Home
+/ Marine Parade Apartments; the R45,000 outlier expense replaced with a realistic R25,440 of monthly
+opex across all five categories; September budgets set so the alert feed tells a story (one property
+approaching, one over, one comfortable); the empty office suite let to a commercial tenant; invoices
+issued and paid for four of five tenancies with one left genuinely outstanding. Alerts were then
+**derived by the real rules engine**, not hand-written — 5 active: 2 critical, 3 warnings. Home now
+reads Collected **R44,500** of R53,000 billed (84%), 71% occupancy, expenses R25,440, budget 82.6%,
+and a green **+R19,060** monthly net position.
+
+## 2026-09-08 (final visual / UAT verification) — Needs-attention proved on screen, 4 defects fixed
+
+Verification pass on the Android owner app, not a development pass. Full detail in
+`VISUAL_QA_REPORT.md`; recording plan in `DEMO_RECORDING_SHOTLIST.md`; evidence in
+`docs/qa/android-visual-2026-09-08/`.
+
+**The bounded Needs-attention preview is no longer only unit-tested.** A 16-row fixture was inserted
+into the UAT org, every row tagged `visual_qa_fixture` with its id recorded, four screenshots taken,
+then every row deleted — org back to its own 4 insights, confirmed by query and by cold start.
+Proved on screen: badge 16, exactly 4 preview rows, "View all 16", the grouped "9 overdue rent
+invoices · Rent · 9 items" row, criticals above warnings, filters, the empty-filter state, back
+navigation, and the ≤ 4 case where the "View all" link correctly disappears.
+
+**Four defects found and fixed, each re-verified on-device.**
+
+- *Properties list card text was unreadable.* Not a z-order bug as it first appeared: the card's
+  scrim thinned to 0.05 alpha at exactly the height the name and address sit at, so the no-photo
+  building glyph read straight through the words. Reshaped the gradient; Navy Deck stripes and glyph
+  unchanged, the glyph now reads as the watermark it was meant to be. A first attempt that moved the
+  glyph instead was reverted — the card has pills at the top and text at the bottom, so there is no
+  band to move a 64 dp glyph into, and the scrim was the actual defect.
+- *Save was unreachable on every form with the keyboard open.* The scroll viewport kept its full
+  height under the IME, so the form hit its scroll limit with Save still hidden. `imePadding()` was
+  applied only in `SignInScreen`; it is now on AddExpense, RecordPayment, CreateMaintenanceTicket,
+  ReportPayment and UtilityCapture too.
+- *Rent status eyebrow read "Settings"* — wrong on the Home → Quick actions path. Now "Portfolio".
+
+**Reported rather than changed,** because each is a behaviour or copy decision rather than a visual
+fix: the property-detail title slides under the fixed back button on scroll; the nav says "Activity"
+while the screen says "Notifications"; the Record-payment picker shows an unlabelled "R0" balance and
+offers a fully-paid invoice; and — the substantive one — **Home never refetches.**
+`DashboardViewModel` loads once in `init` and there is no pull-to-refresh anywhere in the app, so
+after deleting 12 insights Home still showed 16 across a tab switch and only corrected on a cold
+start. Record a payment, return to Home, and the figures are stale.
+
+**No Proplyst crashes or ANRs** across the whole walkthrough. The emulator threw many ANRs; every one
+was a Google system app (`googlequicksearchbox`, `gms`, `messaging`, `systemui`) under host load,
+confirmed via `logcat | grep "ANR in"`. They eventually wedged SystemUI badly enough to block input,
+which cost a Gradle-daemon stop, a cold boot and `pm disable-user` on the four offenders before
+verification could finish. Android unit suite: **253 run, 0 failures**. Production writes this pass:
+the 12 fixture rows, since deleted. Payments 0, no expense saved. iOS not started.
+
 ## 2026-09-08 (V1 completion) — shipped: 39 commits pushed, deployed, production at migration 170
 
 First pass in this engagement that actually shipped. `origin/main` e52d695 → 22cf58b, Render

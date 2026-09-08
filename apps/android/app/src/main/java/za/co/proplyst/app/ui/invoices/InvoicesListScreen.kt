@@ -103,8 +103,26 @@ private fun InvoiceRow(invoice: Invoice, onClick: () -> Unit) {
             }
         },
         trailingContent = {
+            // The amount here is what is still owed, not the invoice total -- unlabelled, a settled
+            // invoice read as an inexplicable "R0" (visual QA, 2026-09-08). "Balance" is the word
+            // this invoice's own detail screen and the web invoice page both already use for it;
+            // "Outstanding" is reserved for totals across invoices.
+            val settled = invoice.balance <= 0.0
             Column(horizontalAlignment = Alignment.End) {
-                Text("R${formatCurrency(invoice.balance)}", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Balance",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    "R${formatCurrency(invoice.balance)}",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = if (settled) {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
+                )
                 StatusChip(invoice.displayStatus, modifier = Modifier.padding(top = 4.dp))
             }
         },

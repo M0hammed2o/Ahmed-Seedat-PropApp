@@ -206,10 +206,16 @@ private fun PropertyCard(property: Property, financialSummary: FinancialSummary?
             modifier = Modifier
                 .fillMaxSize()
                 .background(
+                    // The name and address sit about 40% down this 230 dp card, and the scrim used
+                    // to thin to 0.05 alpha at exactly that height -- enough for the no-photo
+                    // building glyph (and any busy photo) to read straight through the words. The
+                    // ramp now reaches a real scrim before the text starts and holds it to the
+                    // bottom, which is what keeps the white type legible (visual QA, 2026-09-08).
                     Brush.verticalGradient(
-                        0f to Color.Black.copy(alpha = 0.15f),
-                        0.35f to Color.Black.copy(alpha = 0.05f),
-                        1f to ProplystTheme.colors.navy.copy(alpha = 0.92f),
+                        0f to Color.Black.copy(alpha = 0.20f),
+                        0.28f to ProplystTheme.colors.navy.copy(alpha = 0.30f),
+                        0.50f to ProplystTheme.colors.navy.copy(alpha = 0.78f),
+                        1f to ProplystTheme.colors.navy.copy(alpha = 0.95f),
                     ),
                 ),
         )

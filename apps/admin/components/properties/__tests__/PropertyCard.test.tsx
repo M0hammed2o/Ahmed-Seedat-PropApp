@@ -9,11 +9,16 @@ vi.mock('next/link', () => ({
   ),
 }));
 
+// PropertyCardData gained fullAddress/propertyType after this fixture was written, and the
+// `as PropertyCardData` cast stopped being enough to satisfy the compiler once the shapes no
+// longer overlapped -- a real `pnpm typecheck` failure, unrelated to what this test asserts.
 const card: PropertyCardData = {
   id: '792ed2e3-63f5-4e82-b1fc-efd465cf8e9a',
-  nickname: 'UAT Seaside Apartments',
+  nickname: 'Marine Parade Apartments',
   addressLine1: '14 Marine Parade',
+  fullAddress: '14 Marine Parade, North Beach, Durban, KwaZulu-Natal, 4001',
   city: 'Durban',
+  propertyType: 'apartment_building',
   unitsCount: 4,
   occupiedCount: 3,
   monthlyIncome: 26000,

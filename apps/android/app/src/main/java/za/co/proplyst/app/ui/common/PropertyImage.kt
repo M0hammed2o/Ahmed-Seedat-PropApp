@@ -31,6 +31,10 @@ import coil.request.ImageRequest
  * renders a blank grey rectangle. `imageUrl` is treated uniformly whether it's a real signed
  * Supabase Storage URL or a mock `android.resource://` URI (see [za.co.proplyst.app.data
  * .properties.MockPropertiesRepository]) -- Coil resolves both the same way.
+ *
+ * Callers that overlay text on top of this frame own the scrim that keeps that text legible; see
+ * the Properties list card, whose gradient had thinned to 0.05 alpha at exactly the height its
+ * title sits at, letting the glyph read through the words (visual QA, 2026-09-08).
  */
 @Composable
 fun PropertyPhoto(

@@ -109,6 +109,25 @@ fun PropertyDetailScreen(
                 item { Spacer(modifier = Modifier.height(24.dp)) }
             }
         }
+        // Top protection band. The back button is pinned while the hero scrolls underneath it, so
+        // the property title used to slide straight into the circle and read as a collision
+        // (visual QA, 2026-09-08). The band is fully opaque for the status bar plus the button's
+        // own height, so scrolling content is hidden rather than half-visible behind the circle,
+        // then fades out below that. Matching the navy header every other screen in this app
+        // already has, so it reads as a header bar rather than a patch. Drawn above the scrolling
+        // content and below the button, and non-interactive so it never eats a tap.
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(132.dp)
+                .background(
+                    Brush.verticalGradient(
+                        0f to ProplystTheme.colors.navy,
+                        0.64f to ProplystTheme.colors.navy,
+                        1f to Color.Transparent,
+                    ),
+                ),
+        )
         Surface(
             shape = CircleShape,
             color = Color.Black.copy(alpha = 0.28f),

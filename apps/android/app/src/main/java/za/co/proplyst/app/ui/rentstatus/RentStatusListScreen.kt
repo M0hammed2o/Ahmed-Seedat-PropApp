@@ -75,7 +75,10 @@ fun RentStatusListScreen(
                     Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back", tint = Color.White)
                 }
                 Column {
-                    Text("Settings", style = type.meta, color = colors.navySecondaryOn)
+                    // "Portfolio", matching the More screen's own section heading -- this screen is
+                    // reached from Home's Quick actions as often as from More, and the eyebrow used
+                    // to read "Settings" on both paths (visual QA, 2026-09-08).
+                    Text("Portfolio", style = type.meta, color = colors.navySecondaryOn)
                     Text("Rent status", style = type.settingsTitle, color = Color.White)
                 }
             }

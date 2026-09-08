@@ -3,6 +3,7 @@ package za.co.proplyst.app.ui.maintenance
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
@@ -53,6 +54,7 @@ fun CreateMaintenanceTicketScreen(
             modifier = Modifier
                 .padding(padding)
                 .padding(16.dp)
+                .imePadding()
                 .verticalScroll(rememberScrollState()),
         ) {
             val errorMessage = formState.error

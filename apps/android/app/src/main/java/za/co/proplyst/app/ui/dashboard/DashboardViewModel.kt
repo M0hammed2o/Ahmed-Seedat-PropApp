@@ -3,6 +3,8 @@ package za.co.proplyst.app.ui.dashboard
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -94,12 +96,50 @@ class DashboardViewModel @Inject constructor(
     private val _hasUnread = MutableStateFlow(false)
     val hasUnread: StateFlow<Boolean> = _hasUnread.asStateFlow()
 
+    /**
+     * True while [refresh] has fetches in flight. Drives Home's pull-to-refresh spinner only --
+     * the sections keep rendering their previous values throughout, so a refresh never blanks the
+     * screen back to skeletons.
+     */
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
+    private var refreshJob: Job? = null
+
     init {
-        loadInsights()
-        loadSummary()
-        loadFinancialSummary()
-        loadTopProperties()
-        loadRecentActivity()
+        refresh()
+    }
+
+    /**
+     * Re-reads every section from the server.
+     *
+     * Home used to load exactly once, in `init`, and nothing ever called it again -- so an owner
+     * who recorded a payment, added an expense or captured a meter reading came back to a dashboard
+     * still showing the figures from before the action, and only a force-stop fixed it (visual QA,
+     * 2026-09-08). DashboardScreen now calls this whenever Home resumes, which covers returning
+     * from any of those flows and from the other bottom-nav tabs alike, and pull-to-refresh calls
+     * it on demand.
+     *
+     * The in-flight guard is what keeps that from becoming chatty: the resume effect fires on first
+     * composition too, immediately after `init`'s own call, and rapid tab-flipping would otherwise
+     * stack overlapping fetches. One refresh at a time, one per return to Home.
+     */
+    fun refresh() {
+        if (refreshJob?.isActive == true) return
+        refreshJob = viewModelScope.launch {
+            _isRefreshing.value = true
+            try {
+                coroutineScope {
+                    launch { fetchInsights() }
+                    launch { fetchSummary() }
+                    launch { fetchFinancialSummary() }
+                    launch { fetchTopProperties() }
+                    launch { fetchRecentActivity() }
+                }
+            } finally {
+                _isRefreshing.value = false
+            }
+        }
     }
 
     private fun currentOrgId(): String? =
@@ -110,82 +150,80 @@ class DashboardViewModel @Inject constructor(
         return java.time.LocalDate.of(now.year, now.month, 1).toString()
     }
 
-    fun loadFinancialSummary() {
-        viewModelScope.launch {
+    private suspend fun fetchFinancialSummary() {
+        // Only fall back to a skeleton on the very first load. On a refresh the previous figures
+        // stay on screen until the new ones arrive, so returning to Home doesn't flash.
+        if (_financialSummaryUiState.value !is FinancialSummaryUiState.Loaded) {
             _financialSummaryUiState.value = FinancialSummaryUiState.Loading
-            val orgId = currentOrgId()
-            if (orgId == null) {
-                _financialSummaryUiState.value = FinancialSummaryUiState.Empty
-                return@launch
-            }
-            _financialSummaryUiState.value = when (
-                val result = financialSummaryRepository.getPortfolioFinancialSummary(orgId, currentMonthIso())
-            ) {
-                is FinancialSummaryResult.Loaded -> FinancialSummaryUiState.Loaded(result.summary)
-                is FinancialSummaryResult.Error -> FinancialSummaryUiState.Error(result.message)
-            }
+        }
+        val orgId = currentOrgId()
+        if (orgId == null) {
+            _financialSummaryUiState.value = FinancialSummaryUiState.Empty
+            return
+        }
+        _financialSummaryUiState.value = when (
+            val result = financialSummaryRepository.getPortfolioFinancialSummary(orgId, currentMonthIso())
+        ) {
+            is FinancialSummaryResult.Loaded -> FinancialSummaryUiState.Loaded(result.summary)
+            is FinancialSummaryResult.Error -> FinancialSummaryUiState.Error(result.message)
         }
     }
 
-    fun loadInsights() {
-        viewModelScope.launch {
+    private suspend fun fetchInsights() {
+        if (_insightsUiState.value !is InsightsUiState.Loaded) {
             _insightsUiState.value = InsightsUiState.Loading
-            // A synchronous StateFlow.value read, not a suspending wait for a future
-            // Authenticated emission -- DashboardScreen only ever renders once auth has already
-            // resolved (behind OwnerRootScreen's own gate), so the current value is always
-            // already correct by construction; awaiting a future emission that may never arrive
-            // (e.g. an unauthenticated/loading state that never transitions) would otherwise leave
-            // this coroutine suspended forever.
-            val orgId = currentOrgId()
-            if (orgId == null) {
-                _insightsUiState.value = InsightsUiState.Empty
-                return@launch
-            }
-            _insightsUiState.value = when (val result = insightsRepository.getPortfolioInsights(orgId)) {
-                is PortfolioInsightsResult.Loaded ->
-                    if (result.insights.isEmpty()) InsightsUiState.Empty
-                    else InsightsUiState.Loaded(result.insights)
-                is PortfolioInsightsResult.Error -> InsightsUiState.Error(result.message)
-            }
+        }
+        // A synchronous StateFlow.value read, not a suspending wait for a future
+        // Authenticated emission -- DashboardScreen only ever renders once auth has already
+        // resolved (behind OwnerRootScreen's own gate), so the current value is always
+        // already correct by construction; awaiting a future emission that may never arrive
+        // (e.g. an unauthenticated/loading state that never transitions) would otherwise leave
+        // this coroutine suspended forever.
+        val orgId = currentOrgId()
+        if (orgId == null) {
+            _insightsUiState.value = InsightsUiState.Empty
+            return
+        }
+        _insightsUiState.value = when (val result = insightsRepository.getPortfolioInsights(orgId)) {
+            is PortfolioInsightsResult.Loaded ->
+                if (result.insights.isEmpty()) InsightsUiState.Empty
+                else InsightsUiState.Loaded(result.insights)
+            is PortfolioInsightsResult.Error -> InsightsUiState.Error(result.message)
         }
     }
 
-    fun loadSummary() {
-        viewModelScope.launch {
+    private suspend fun fetchSummary() {
+        if (_summaryUiState.value !is OwnerSummaryUiState.Loaded) {
             _summaryUiState.value = OwnerSummaryUiState.Loading
-            _summaryUiState.value = when (val result = ownerSummaryRepository.getMySummaries()) {
-                is OwnerSummaryResult.Loaded -> {
-                    // "the" current summary is whichever period ends latest -- the server already
-                    // returns these ordered, but this is defensive rather than assuming order.
-                    val latest = result.summaries.maxByOrNull { it.periodEnd }
-                    if (latest == null) OwnerSummaryUiState.Empty else OwnerSummaryUiState.Loaded(latest)
-                }
-                is OwnerSummaryResult.Error -> OwnerSummaryUiState.Error(result.message)
+        }
+        _summaryUiState.value = when (val result = ownerSummaryRepository.getMySummaries()) {
+            is OwnerSummaryResult.Loaded -> {
+                // "the" current summary is whichever period ends latest -- the server already
+                // returns these ordered, but this is defensive rather than assuming order.
+                val latest = result.summaries.maxByOrNull { it.periodEnd }
+                if (latest == null) OwnerSummaryUiState.Empty else OwnerSummaryUiState.Loaded(latest)
             }
+            is OwnerSummaryResult.Error -> OwnerSummaryUiState.Error(result.message)
         }
     }
 
-    private fun loadTopProperties() {
-        viewModelScope.launch {
-            _topProperties.value = when (val result = propertiesRepository.getProperties()) {
-                is PropertiesResult.Live -> result.properties
-                is PropertiesResult.Cached -> result.properties
-                is PropertiesResult.Error -> emptyList()
-            }.take(6)
-        }
+    private suspend fun fetchTopProperties() {
+        _topProperties.value = when (val result = propertiesRepository.getProperties()) {
+            is PropertiesResult.Live -> result.properties
+            is PropertiesResult.Cached -> result.properties
+            is PropertiesResult.Error -> emptyList()
+        }.take(6)
     }
 
-    private fun loadRecentActivity() {
-        viewModelScope.launch {
-            when (val result = notificationsRepository.getMyNotifications()) {
-                is NotificationsResult.Loaded -> {
-                    _hasUnread.value = result.notifications.any { it.readAt == null }
-                    _recentActivity.value = result.notifications.take(5)
-                }
-                is NotificationsResult.Error -> {
-                    _hasUnread.value = false
-                    _recentActivity.value = emptyList()
-                }
+    private suspend fun fetchRecentActivity() {
+        when (val result = notificationsRepository.getMyNotifications()) {
+            is NotificationsResult.Loaded -> {
+                _hasUnread.value = result.notifications.any { it.readAt == null }
+                _recentActivity.value = result.notifications.take(5)
+            }
+            is NotificationsResult.Error -> {
+                _hasUnread.value = false
+                _recentActivity.value = emptyList()
             }
         }
     }
