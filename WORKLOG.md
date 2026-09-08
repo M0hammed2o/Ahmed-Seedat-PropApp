@@ -1,5 +1,55 @@
 # Worklog
 
+## 2026-09-08 (V1 completion) — shipped: 39 commits pushed, deployed, production at migration 170
+
+First pass in this engagement that actually shipped. `origin/main` e52d695 → 22cf58b, Render
+auto-deployed in ~3 minutes, production migration head 168 → **170**. PayFast untouched throughout
+(previously user-verified, explicitly out of scope).
+
+**Migration 170 closes the VOID-expense inconsistency.** `owner_financial_summary`,
+`owner_portfolio_financial_summary` and `budget_vs_actual` applied no expense-status filter, so a
+voided expense counted as money spent — diverging from the corrected dashboard by exactly the voided
+amount. Now: pending counts, recorded counts, reimbursed counts, void does not. Verified live —
+all three report `excludes_void=true` and `has_guard=true`.
+
+**A near-miss worth remembering.** The first draft of 170 rebuilt `budget_vs_actual` from migration
+164 instead of 166, silently reverting the authorization guard 166 added: a cross-org caller went
+from 403 to **200**. The annual-budget route's own integration test caught it immediately. Lesson:
+when reproducing a function in a new migration, extract it from the LATEST migration that defines
+it, not the one that created it. New pgTAP asserts each figure as a difference (add a R50 000 void,
+nothing may move) rather than as a total, and pins the guard.
+
+**A defect I shipped and then caught in production.** `/properties?for=maintenance` threw a Server
+Components render error: `cardHrefOverride` was a function passed from a Server into a Client
+Component, which cannot be serialized. It passed every local gate because the prop is `undefined`
+when the param is absent, so plain `/properties` worked and `next build` never executes that
+query-string path. Only the deployed site exercised it. Fixed with a serializable `hrefTemplate`
+string plus PropertyCard tests. **Worth internalising: `next build` passing does not mean every
+route variant renders.**
+
+Also fixed: `/api/v1/properties/{id}/budget` returned 500 rather than 403 to a non-member (last
+route still doing this; it had no test file at all, which is why it survived — one now exists).
+
+**Public verification after deploy**: dashboard Expenses R62 450 with "Incurred in", rent caption
+"Expected in", operating position −R47 450 (15 000 − 62 450 ✓), breadcrumbs showing real names,
+maintenance flow reaching a real ticket form, 29-screen sweep with **0 unexpected 4xx/5xx**, staff
+RBAC 15/15, cross-org 14/14 including the new finance tables.
+
+**Tests**: pgTAP 95 files / 1446 assertions / 0 failed. Vitest 1084 passed, 1 failed
+(`daily-jobs`, already proven PRE-EXISTING/INFRA — running sequentially instead of alongside pgTAP
+took failures 4 → 1, confirming the rest was contention). Android 238 unit tests, 0 failures, APK
+builds. No backend contract changed: Android's `FinancialSummary` reads all 17 fields the RPC still
+returns, checked field by field rather than assumed.
+
+**Recording readiness**: `UAT Temp Probe` permanently deleted, diagnostic expense removed, all
+test-shaped references relabelled to realistic invoice numbers (0 remain).
+
+**Blocked only by access this session does not have**: ClamAV private service + `CLAMAV_HOST`/
+`CLAMAV_PORT`, and `WHATSAPP_UAT_MODE`/`WHATSAPP_UAT_OVERRIDE_NUMBER` — all need the Render
+dashboard. There is no Render API key, token, CLI or deploy hook anywhere in this environment.
+Exact ClamAV service specification is documented in ENVIRONMENT.md so the step needs no
+investigation.
+
 ## 2026-09-07 (production repair) — migrations 163-168 applied to production, drift closed
 
 **Controlled production database repair. Migrations 163-168 applied; 169 deliberately held out.**

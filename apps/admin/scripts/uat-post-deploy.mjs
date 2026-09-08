@@ -59,10 +59,13 @@ console.log('\n--- BREADCRUMBS ---');
 await page.goto(`${BASE}/properties/${SEASIDE}`, { waitUntil: 'networkidle', timeout: 60000 });
 await dismiss(page);
 await page.waitForTimeout(2000);
+// The breadcrumb lives in the header, and the sidebar also contains the word "Portfolio" --
+// an earlier selector grabbed the sidebar nav and produced a false failure. Scope to <header>.
 const crumbText = await page.evaluate(() => {
-  const bar = Array.from(document.querySelectorAll('div')).find(
-    (d) => /Portfolio/.test(d.textContent || '') && d.querySelectorAll('a').length > 0 && (d.textContent || '').length < 200);
-  return bar ? (bar.textContent || '').replace(/\s+/g, ' ').trim() : '';
+  const bars = Array.from(document.querySelectorAll('header div'))
+    .map((d) => (d.textContent || '').replace(/\s+/g, ' ').trim())
+    .filter((t) => t.startsWith('Portfolio') && t.length < 160);
+  return bars.sort((a, b) => a.length - b.length)[0] ?? '';
 });
 const rawUuid = /[0-9a-f]{8}[- ][0-9a-f]{4}/i.test(crumbText);
 record('Breadcrumbs', 'property breadcrumb shows the name, not a raw UUID',

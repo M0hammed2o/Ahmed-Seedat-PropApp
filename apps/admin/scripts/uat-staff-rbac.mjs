@@ -50,10 +50,16 @@ if (already) {
 
 await owner.page.goto(`${BASE}/organization/staff`, { waitUntil: 'networkidle', timeout: 60000 });
 await owner.page.reload({ waitUntil: 'networkidle', timeout: 60000 });
+// The roster hydrates after the reload; a short wait produced a false "NOT listed".
+await owner.page.waitForTimeout(6000);
 const staffList = await bodyText(owner.page);
+// The roster lists people by DISPLAY NAME, not email -- an earlier assertion searched for the
+// address and reported a false failure while the member was plainly listed as
+// "UAT Manager — Manager · All properties · Active".
+const listed = /UAT (Property )?Manager/.test(staffList) && /Team \(\d+\)/.test(staffList);
 record('Staff provisioning', 'staff member appears in the org staff list after refresh',
-  'the UAT staff email is listed', staffList.includes(creds.staff.email) ? 'listed' : 'NOT listed',
-  staffList.includes(creds.staff.email));
+  'the provisioned manager is listed by display name',
+  listed ? `listed (${(staffList.match(/Team \(\d+\)/) ?? ['?'])[0]})` : 'NOT listed', listed);
 await shot(owner.page, 'owner-staff-list');
 await owner.ctx.close();
 

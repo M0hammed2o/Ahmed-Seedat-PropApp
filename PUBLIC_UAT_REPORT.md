@@ -931,6 +931,109 @@ Failure classification, verified rather than assumed:
 | WhatsApp UAT override | not present | PASS | **YES** |
 | Logo / mockup domain | FAIL | PASS | **YES** |
 
+## 15. Seventh pass, 2026-09-08 — V1 completion: pushed, deployed, migrated, retested
+
+First pass in this engagement to actually ship. 39 commits pushed, deployed, production migrated to
+`20260101000170`, and the whole thing retested against the live site.
+
+### 15.1 Shipped
+
+| | |
+| --- | --- |
+| Push | `e52d695` → `22cf58b` (39 commits), no force, no divergence |
+| Deploy | Render auto-deploy, live in ~3 minutes, verified by an unauthenticated marker |
+| Production migration head | `20260101000168` → **`20260101000170`** |
+| Migrations applied | 169 (archived-property count), 170 (void-expense exclusion) |
+| PayFast | **UNCHANGED — previously user-verified, out of scope for this pass.** Not opened, not configured, not transacted |
+
+Data intact through both migrations: 12 orgs, 16 properties, 12 units, 13 tenants, 5 leases,
+3 invoices, 7 expenses, 28 auth users. Backup taken and **verified by restoring it** before applying.
+
+### 15.2 The VOID-expense inconsistency, closed properly (migration 170)
+
+`owner_financial_summary`, `owner_portfolio_financial_summary` and `budget_vs_actual` applied no
+expense-status filter, so a voided expense counted as money spent — diverging from the corrected
+dashboard by exactly the voided amount. All three now exclude `void` and nothing else:
+pending counts, recorded counts, reimbursed counts, void does not. Verified live on production:
+all three functions report `excludes_void=true` **and** `has_guard=true`.
+
+**A near-miss worth recording.** The first draft of 170 rebuilt `budget_vs_actual` from migration
+164 rather than 166, silently reverting the authorization guard 166 added — a cross-org caller went
+from 403 to **200**. The annual-budget route's own integration test caught it within minutes. New
+pgTAP asserts each figure as a *difference* (add a R50 000 void, nothing may move) and pins the
+guard.
+
+Note: `void` is not reachable through the product in V1 — no route or UI sets it. Migration 170 is
+therefore forward-looking consistency, proven by pgTAP inserting void rows directly, not something a
+user can exercise yet.
+
+### 15.3 A defect I shipped, caught in production, and fixed
+
+`/properties?for=maintenance` threw a **Server Components render error** after the first deploy:
+`cardHrefOverride` was typed as a function and passed from a Server Component into a Client
+Component, which cannot be serialized. It escaped every local gate because the prop is `undefined`
+when the intent param is absent — so plain `/properties` worked and `next build`, which never
+executes that query-string path, passed clean. **Only the deployed public site exercised it.**
+
+Replaced with a serializable `hrefTemplate` string; PropertyCard tests now cover the default href,
+the `:id` substitution, and that the prop is a string rather than a function. Redeployed and
+verified live.
+
+### 15.4 Public verification after deployment
+
+| Check | Result |
+| --- | --- |
+| Dashboard Expenses card | **R62 450** (was R0), caption "Incurred in" |
+| Dashboard rent caption | "Expected in" (no longer mislabels planned rent as billed) |
+| Operating position | **−R47 450** = 15 000 collected − 62 450 expenses ✓ |
+| Breadcrumbs | `Portfolio › properties › UAT Seaside Apartments` — no raw UUID |
+| Maintenance flow | "+ Add ticket" → "Choose a property" → card → ticket form (Summary, Description, Where, Priority) |
+| Owner navigation sweep | 29 screens, **0 unexpected 4xx, 0 unexpected 5xx** |
+| Staff RBAC | **15/15** — allowed surfaces open, principal-only pages refuse with 0 action controls, restricted APIs 403 |
+| Cross-org isolation | **14/14** bidirectional, including the new finance tables and RPCs |
+| Budget states | Over budget 112.5%, Approaching 90.5%, On track 35.4%; portfolio total = sum of property budgets |
+| Non-member budget endpoint | **403** (was 500), body does not echo the Postgres exception |
+
+### 15.5 Test results
+
+| Suite | Result |
+| --- | --- |
+| pgTAP | **95 files, 1446 assertions, 0 failed** |
+| Vitest | **1084 passed, 3 skipped, 1 failed** of 1088 |
+| Android unit tests | **238 tests, 0 failures** (48 suites) |
+| Android debug APK | builds (24.2 MB) |
+| TypeScript / ESLint / web build | clean |
+
+The single vitest failure is `daily-jobs` — **PRE-EXISTING/INFRA**, previously proven to fail
+identically with the pre-change `whatsappDispatch.ts`. Running the suite sequentially rather than
+alongside pgTAP took failures from 4 to 1, confirming the other three were resource contention.
+
+### 15.6 Android
+
+No backend contract changed: migration 170 altered function *bodies* only — identical signatures and
+identical return columns. Verified concretely rather than assumed: Android's `FinancialSummary`
+reads all 17 fields the RPC returns (`rentPlanned`, `totalExpenses`, `budgetPlanned`,
+`netOperatingPosition`, `propertyCount`, …), every one still present. 238 unit tests pass and the
+APK builds. Per the pass's own guidance, no emulator session was run — and none is claimed.
+
+### 15.7 Recording readiness
+
+`UAT Temp Probe` permanently deleted. The diagnostic `UAT-VOID-TEST` expense removed. Test-shaped
+references relabelled to realistic invoice numbers (`ETH-RATES-2026-09`, `ESK-ELEC-2026-09`,
+`INV-4821`…); **0 test-shaped references remain**. The UAT portfolio now reads as a plausible
+small portfolio: 3 properties, 7 units, 4 tenants, 4 active leases, R62 450 of categorised expenses
+across five categories, three distinct budget states, two meter types with reading history.
+
+### 15.8 Known open items
+
+| Sev | Item |
+| --- | --- |
+| HIGH | Document upload 503 — needs a ClamAV private service and `CLAMAV_HOST`/`CLAMAV_PORT`. **Requires Render dashboard access this session does not have.** Exact service spec documented in ENVIRONMENT.md |
+| HIGH | WhatsApp real delivery — the two-key gate is now deployed, but `WHATSAPP_UAT_MODE` and `WHATSAPP_UAT_OVERRIDE_NUMBER` must be set in the production environment, which needs the same dashboard access. Meta provider presence remains undetermined |
+| MEDIUM | Tenant portal — blocked only by the invitation destination; the token is hashed at rest by design, so a controllable UAT inbox is required |
+| LOW | React #418 hydration warning, intermittent across Tenants / Expenses / Org Billing. Console-only, no 4xx/5xx, no user-visible effect |
+| LOW | Logo remains the rounded dark tile — no light-background or SVG variant exists anywhere in the repo |
+
 ## Appendix — reproducing
 
 ```bash
