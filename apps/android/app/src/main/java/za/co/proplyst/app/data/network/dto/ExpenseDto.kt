@@ -11,6 +11,9 @@ data class ExpenseCreateRequest(
     val unitId: String? = null,
     val vendorId: String? = null,
     val category: String,
+    /** Required by expenseCreateSchema since migration 20260101000168 -- see
+     *  expenseCategoryCodeFor(). Omitting it fails validation server-side. */
+    val categoryCode: String,
     val amount: Double,
     val documentId: String? = null,
     val referenceNumber: String? = null,

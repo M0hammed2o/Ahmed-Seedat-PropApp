@@ -21,6 +21,10 @@ object Destinations {
     // deep-link contract in AppLinkParser.kt and its tests stay correct).
     const val DASHBOARD = "dashboard"
     const val OWNER_ACTIVITY = "owner_activity"
+    // Full Needs-attention list behind Owner Home's bounded preview (Android UX pass 2026-09-08).
+    // Same PortfolioInsightsRepository feed as the dashboard -- a full view of the existing alert
+    // system, not a competing one.
+    const val NEEDS_ATTENTION = "needs_attention"
     const val OWNER_MORE = "owner_more"
     const val APPEARANCE_SETTINGS = "appearance"
 

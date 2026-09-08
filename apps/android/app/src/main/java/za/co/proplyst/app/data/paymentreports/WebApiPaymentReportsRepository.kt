@@ -6,6 +6,8 @@ import za.co.proplyst.app.data.network.WebApi
 import za.co.proplyst.app.data.network.dto.PaymentReportDto
 import za.co.proplyst.app.data.network.dto.RejectPaymentReportRequest
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.decodeFromString
 import za.co.proplyst.app.data.network.dto.WebApiErrorBody
@@ -63,7 +65,17 @@ class WebApiPaymentReportsRepository @Inject constructor(
      * MIME-type constraints POST /api/v1/tenant-portal/payment-reports itself enforces
      * server-side (25MB, image/jpeg|png|application/pdf); this is a client-side UX nicety, not
      * the real boundary, which stays server-side (scanUploadOrRespond()). */
-    private fun uriToMultipart(uri: Uri): MultipartBody.Part {
+    /**
+     * Copies a content:// Uri into a cache file so OkHttp can upload it.
+     *
+     * Runs on Dispatchers.IO. This is deliberate and load-bearing: the whole body is blocking file
+     * I/O (createTempFile + openInputStream + copyTo), it is reached from a suspend function that
+     * the ViewModel launches on viewModelScope -- i.e. Dispatchers.Main -- and Retrofit's own
+     * suspend support only moves the NETWORK call off the main thread, never work the caller does
+     * first. Copying a multi-megabyte photo inline therefore froze the UI and produced a
+     * "Proplyst isn't responding" ANR on Add Expense (Android UX pass, 2026-09-08).
+     */
+    private suspend fun uriToMultipart(uri: Uri): MultipartBody.Part = withContext(Dispatchers.IO) {
         val resolver = context.contentResolver
         val mimeType = resolver.getType(uri) ?: "application/octet-stream"
         val extension = when (mimeType) {
@@ -76,7 +88,7 @@ class WebApiPaymentReportsRepository @Inject constructor(
             tempFile.outputStream().use { output -> input.copyTo(output) }
         }
         val requestBody = tempFile.asRequestBody(mimeType.toMediaTypeOrNull())
-        return MultipartBody.Part.createFormData("file", tempFile.name, requestBody)
+        MultipartBody.Part.createFormData("file", tempFile.name, requestBody)
     }
 
     override suspend fun confirmPaymentReport(id: String): PaymentReviewResult {

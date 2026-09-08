@@ -22,6 +22,7 @@ import androidx.navigation.compose.rememberNavController
 import za.co.proplyst.app.ui.account.AccountScreen
 import za.co.proplyst.app.ui.common.FloatingBottomNav
 import za.co.proplyst.app.ui.common.FloatingNavItem
+import za.co.proplyst.app.ui.attention.NeedsAttentionScreen
 import za.co.proplyst.app.ui.dashboard.DashboardScreen
 import za.co.proplyst.app.ui.invoices.InvoiceDetailScreen
 import za.co.proplyst.app.ui.invoices.InvoicesListScreen
@@ -97,7 +98,11 @@ fun OwnerRootScreen(pendingRoute: String? = null) {
                     onRecordMeterReading = { navController.navigate(Destinations.UTILITY_CAPTURE) },
                     onReviewRentStatus = { navController.navigate(Destinations.RENT_STATUS_LIST) },
                     onManageBudget = { navController.navigate(Destinations.BUDGET_VIEW) },
+                    onViewAllAttention = { navController.navigate(Destinations.NEEDS_ATTENTION) },
                 )
+            }
+            composable(Destinations.NEEDS_ATTENTION) {
+                NeedsAttentionScreen(onBack = { navController.popBackStack() })
             }
             composable(Destinations.PROPERTIES_LIST) {
                 PropertiesListScreen(

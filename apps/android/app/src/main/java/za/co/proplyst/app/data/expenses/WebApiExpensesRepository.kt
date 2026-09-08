@@ -3,6 +3,8 @@ package za.co.proplyst.app.data.expenses
 import android.content.Context
 import android.net.Uri
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.decodeFromString
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -59,6 +61,7 @@ class WebApiExpensesRepository @Inject constructor(
                     unitId = input.unitId,
                     vendorId = null,
                     category = input.category,
+                    categoryCode = expenseCategoryCodeFor(input.category),
                     amount = input.amount,
                     documentId = documentId,
                     referenceNumber = input.referenceNumber,
@@ -78,7 +81,17 @@ class WebApiExpensesRepository @Inject constructor(
 
     /** Mirrors WebApiPaymentReportsRepository's own uriToMultipart exactly -- content:// Uris
      * aren't directly readable as a File by OkHttp, so this reads into a temp cache file first. */
-    private fun uriToMultipart(uri: Uri): MultipartBody.Part {
+    /**
+     * Copies a content:// Uri into a cache file so OkHttp can upload it.
+     *
+     * Runs on Dispatchers.IO. This is deliberate and load-bearing: the whole body is blocking file
+     * I/O (createTempFile + openInputStream + copyTo), it is reached from a suspend function that
+     * the ViewModel launches on viewModelScope -- i.e. Dispatchers.Main -- and Retrofit's own
+     * suspend support only moves the NETWORK call off the main thread, never work the caller does
+     * first. Copying a multi-megabyte photo inline therefore froze the UI and produced a
+     * "Proplyst isn't responding" ANR on Add Expense (Android UX pass, 2026-09-08).
+     */
+    private suspend fun uriToMultipart(uri: Uri): MultipartBody.Part = withContext(Dispatchers.IO) {
         val resolver = context.contentResolver
         val mimeType = resolver.getType(uri) ?: "application/octet-stream"
         val extension = when (mimeType) {
@@ -91,7 +104,7 @@ class WebApiExpensesRepository @Inject constructor(
             tempFile.outputStream().use { output -> input.copyTo(output) }
         }
         val requestBody = tempFile.asRequestBody(mimeType.toMediaTypeOrNull())
-        return MultipartBody.Part.createFormData("file", tempFile.name, requestBody)
+        MultipartBody.Part.createFormData("file", tempFile.name, requestBody)
     }
 
     private fun errorMessage(response: Response<*>): String? {

@@ -15,6 +15,8 @@ import za.co.proplyst.app.data.network.dto.MaintenanceTicketDto
 import za.co.proplyst.app.data.network.dto.WebApiErrorBody
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.serialization.decodeFromString
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
@@ -143,7 +145,17 @@ class PostgrestMaintenanceRepository @Inject constructor(
     /** Reads the picked file into a temporary cache file (content:// Uris aren't directly
      * readable as a File by OkHttp) -- same conversion WebApiPaymentReportsRepository's own
      * proof-of-payment upload uses. */
-    private fun uriToMultipart(uri: Uri): MultipartBody.Part {
+    /**
+     * Copies a content:// Uri into a cache file so OkHttp can upload it.
+     *
+     * Runs on Dispatchers.IO. This is deliberate and load-bearing: the whole body is blocking file
+     * I/O (createTempFile + openInputStream + copyTo), it is reached from a suspend function that
+     * the ViewModel launches on viewModelScope -- i.e. Dispatchers.Main -- and Retrofit's own
+     * suspend support only moves the NETWORK call off the main thread, never work the caller does
+     * first. Copying a multi-megabyte photo inline therefore froze the UI and produced a
+     * "Proplyst isn't responding" ANR on Add Expense (Android UX pass, 2026-09-08).
+     */
+    private suspend fun uriToMultipart(uri: Uri): MultipartBody.Part = withContext(Dispatchers.IO) {
         val resolver = context.contentResolver
         val mimeType = resolver.getType(uri) ?: "application/octet-stream"
         val extension = when (mimeType) {
@@ -157,7 +169,7 @@ class PostgrestMaintenanceRepository @Inject constructor(
             tempFile.outputStream().use { output -> input.copyTo(output) }
         }
         val requestBody = tempFile.asRequestBody(mimeType.toMediaTypeOrNull())
-        return MultipartBody.Part.createFormData("file", tempFile.name, requestBody)
+        MultipartBody.Part.createFormData("file", tempFile.name, requestBody)
     }
 
     private suspend fun fallbackToCache(errorMessage: String): MaintenanceResult {

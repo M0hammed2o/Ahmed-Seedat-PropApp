@@ -55,7 +55,11 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import za.co.proplyst.app.R
 import za.co.proplyst.app.data.financials.FinancialSummary
+import za.co.proplyst.app.data.insights.AttentionItem
+import za.co.proplyst.app.data.insights.AttentionSeverity
 import za.co.proplyst.app.data.insights.PortfolioInsight
+import za.co.proplyst.app.data.insights.buildAttentionPreview
+import za.co.proplyst.app.data.insights.totalAttentionCount
 import za.co.proplyst.app.data.notifications.AppNotification
 import za.co.proplyst.app.data.properties.Property
 import za.co.proplyst.app.ui.common.PropertyPhoto
@@ -84,6 +88,7 @@ fun DashboardScreen(
     onRecordMeterReading: () -> Unit,
     onReviewRentStatus: () -> Unit,
     onManageBudget: () -> Unit,
+    onViewAllAttention: () -> Unit,
     viewModel: DashboardViewModel = hiltViewModel(),
 ) {
     val insightsState by viewModel.insightsUiState.collectAsState()
@@ -122,7 +127,7 @@ fun DashboardScreen(
             item { Spacer(modifier = Modifier.height(24.dp)) }
             item { OperatingPositionSection(financialSummaryState = financialSummaryState) }
             item { Spacer(modifier = Modifier.height(24.dp)) }
-            item { NeedsAttentionSection(insightsState = insightsState, financialSummaryState = financialSummaryState) }
+            item { NeedsAttentionSection(insightsState = insightsState, financialSummaryState = financialSummaryState, onViewAll = onViewAllAttention) }
             item { Spacer(modifier = Modifier.height(24.dp)) }
             item {
                 QuickActionsSection(
@@ -134,7 +139,7 @@ fun DashboardScreen(
                 )
             }
             item { Spacer(modifier = Modifier.height(24.dp)) }
-            item { RecentActivitySection(activity = recentActivity) }
+            item { RecentActivitySection(activity = recentActivity, onViewAll = onNotificationsClick) }
             item { Spacer(modifier = Modifier.height(24.dp)) }
             item { TopPropertiesSection(properties = topProperties, onPropertyClick = onPropertyClick) }
             item { Spacer(modifier = Modifier.height(110.dp)) }
@@ -619,12 +624,24 @@ private fun OperatingPositionSection(financialSummaryState: FinancialSummaryUiSt
 }
 
 @Composable
-private fun NeedsAttentionSection(insightsState: InsightsUiState, financialSummaryState: FinancialSummaryUiState) {
+private fun NeedsAttentionSection(
+    insightsState: InsightsUiState,
+    financialSummaryState: FinancialSummaryUiState,
+    onViewAll: () -> Unit,
+) {
     val colors = ProplystTheme.colors
     val type = ProplystTheme.type
     val insights = (insightsState as? InsightsUiState.Loaded)?.insights.orEmpty()
     val awaitingConfirmation = (financialSummaryState as? FinancialSummaryUiState.Loaded)?.summary?.awaitingConfirmationCount ?: 0
-    val totalCount = insights.size + (if (awaitingConfirmation > 0) 1 else 0)
+
+    // The badge counts every underlying condition; the list below is a bounded, prioritised,
+    // grouped preview. Before this, `insights.forEach { InsightRow(it) }` rendered the lot -- a
+    // real portfolio produced a 417-card wall that pushed the rest of the dashboard hundreds of
+    // screens down (Android UX pass 2026-09-08). Ordering and grouping live in
+    // data/insights/AttentionPresentation.kt so they are unit-tested without Compose.
+    val totalCount = totalAttentionCount(insights, awaitingConfirmation)
+    val preview = buildAttentionPreview(insights, awaitingConfirmation)
+
     if (insightsState is InsightsUiState.Empty && awaitingConfirmation == 0) return
     Column(modifier = Modifier.padding(horizontal = 20.dp)) {
         Row(
@@ -632,16 +649,27 @@ private fun NeedsAttentionSection(insightsState: InsightsUiState, financialSumma
             horizontalArrangement = Arrangement.SpaceBetween,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text("Needs attention", style = type.sectionHeading, color = colors.textPrimary)
-            if (totalCount > 0) {
-                Surface(color = colors.navy, shape = RoundedCornerShape(50)) {
-                    Text(
-                        "$totalCount",
-                        style = type.meta.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
-                        color = Color.White,
-                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp),
-                    )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Needs attention", style = type.sectionHeading, color = colors.textPrimary)
+                if (totalCount > 0) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Surface(color = colors.navy, shape = RoundedCornerShape(50)) {
+                        Text(
+                            "$totalCount",
+                            style = type.meta.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
+                            color = Color.White,
+                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp),
+                        )
+                    }
                 }
+            }
+            if (totalCount > preview.size) {
+                Text(
+                    "View all $totalCount",
+                    style = type.statusLabel,
+                    color = colors.primary,
+                    modifier = Modifier.clickable(onClick = onViewAll),
+                )
             }
         }
         Spacer(modifier = Modifier.height(12.dp))
@@ -649,15 +677,55 @@ private fun NeedsAttentionSection(insightsState: InsightsUiState, financialSumma
             is InsightsUiState.Loading -> CircularProgressIndicator(modifier = Modifier.size(24.dp))
             is InsightsUiState.Error -> Text(insightsState.message, style = type.caption, color = colors.critical)
             else -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                // Payment-awaiting-confirmation is a LIVE count from the same financial-summary
-                // call (never a stale daily-job insight -- a tenant's just-reported payment should
-                // show up immediately, not tomorrow), rendered first since it is directly
-                // actionable from this screen's own Payment Review entry point.
-                if (awaitingConfirmation > 0) {
-                    AwaitingConfirmationRow(count = awaitingConfirmation)
-                }
-                insights.forEach { InsightRow(it) }
+                preview.forEach { AttentionRow(item = it, onClick = onViewAll) }
             }
+        }
+    }
+}
+
+/**
+ * One preview row. A collapsed group states the real count ("1007 overdue rent invoices") and
+ * invites the owner into the full screen; a lone item keeps its own specific message.
+ */
+@Composable
+private fun AttentionRow(item: AttentionItem, onClick: () -> Unit) {
+    val colors = ProplystTheme.colors
+    val type = ProplystTheme.type
+    val accent = when (item.severity) {
+        AttentionSeverity.CRITICAL -> colors.critical
+        AttentionSeverity.WARNING -> colors.warning
+        AttentionSeverity.INFO -> colors.primary
+    }
+    Surface(
+        color = colors.surface,
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(1.dp, RoundedCornerShape(16.dp), ambientColor = colors.navy.copy(alpha = 0.10f), spotColor = colors.navy.copy(alpha = 0.10f))
+            .clickable(onClick = onClick),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp, horizontal = 16.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(width = 4.dp, height = 36.dp)
+                    .background(accent, RoundedCornerShape(2.dp)),
+            )
+            Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
+                Text(
+                    item.title,
+                    style = type.cardTitle,
+                    color = colors.textPrimary,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (item.subtitle != null) {
+                    Text(item.subtitle, style = type.meta, color = colors.textSecondary, maxLines = 1)
+                }
+            }
+            Text(item.actionLabel, style = type.statusLabel, color = accent, modifier = Modifier.padding(start = 10.dp))
         }
     }
 }
@@ -738,13 +806,33 @@ private fun InsightRow(insight: PortfolioInsight) {
     }
 }
 
+/** Home shows a short preview of activity; the Activity tab owns the full history. */
+private const val MAX_HOME_ACTIVITY_ITEMS = 5
+
 @Composable
-private fun RecentActivitySection(activity: List<AppNotification>) {
+private fun RecentActivitySection(activity: List<AppNotification>, onViewAll: () -> Unit) {
     val colors = ProplystTheme.colors
     val type = ProplystTheme.type
     if (activity.isEmpty()) return
+    // Home shows a preview, never the whole history (Android UX pass 2026-09-08) -- the full list
+    // already has its own screen behind the Activity tab.
+    val shown = activity.take(MAX_HOME_ACTIVITY_ITEMS)
     Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-        Text("Recent activity", style = type.sectionHeading, color = colors.textPrimary)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Recent activity", style = type.sectionHeading, color = colors.textPrimary)
+            if (activity.size > shown.size) {
+                Text(
+                    "View all",
+                    style = type.statusLabel,
+                    color = colors.primary,
+                    modifier = Modifier.clickable(onClick = onViewAll),
+                )
+            }
+        }
         Spacer(modifier = Modifier.height(12.dp))
         Surface(
             color = colors.surface,
@@ -754,9 +842,9 @@ private fun RecentActivitySection(activity: List<AppNotification>) {
                 .shadow(1.dp, RoundedCornerShape(16.dp), ambientColor = colors.navy.copy(alpha = 0.10f), spotColor = colors.navy.copy(alpha = 0.10f)),
         ) {
             Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                activity.forEachIndexed { index, notification ->
+                shown.forEachIndexed { index, notification ->
                     ActivityRow(notification)
-                    if (index != activity.lastIndex) {
+                    if (index != shown.lastIndex) {
                         Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(1.dp).background(colors.divider))
                     }
                 }
