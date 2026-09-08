@@ -58,3 +58,7 @@ apps/mobile/android/app/build/
 
 # Local agent tooling state (not project source)
 .claude/
+
+# Local dev config backups (never commit -- they mirror the gitignored local.properties)
+local.properties.bak
+*.local.properties.bak
