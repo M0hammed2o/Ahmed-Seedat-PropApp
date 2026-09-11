@@ -1,5 +1,44 @@
 # Worklog
 
+## 2026-09-11 (later) — real privacy policy published, real support address wired
+
+`origin/main` c7dd4ab -> (this commit). Two of the three Play blockers from the earlier entry are
+closed; only Play Console itself and the feature graphic remain.
+
+**Support address.** `branding.supportEmail` was `support@proplyst.example`, a documented
+placeholder that three separate renderers deliberately suppressed rather than show a bouncing
+address. It is now `notifications@genbridge.co.za` (Mohammed confirmed it, flagged as temporary --
+a genbridge.co.za domain, not proplyst.co.za). Because nothing hard-codes an address, changing the
+one constant lifted all three suppressions: `/delete-account` now offers the "I can't sign in"
+email route, `/access-restricted` regained its Contact support button (its own comment said to
+re-add it once a real mailbox existed), and the privacy policy names it. `lib/billing.ts` keeps its
+own synthetic `billing+<org>@proplyst.example` -- that is a PayFast customer-record field, not a
+support contact, and PayFast was explicitly out of scope.
+
+**Privacy policy published.** `/privacy` was placeholder text that said outright it "is not binding
+legal content" -- an automatic Play rejection. Replaced with real content derived from the code:
+collected categories match what is actually stored, "no advertising, analytics, attribution or
+crash-reporting software" was verified against the dependency list, the retention rule matches what
+`account/delete/route.ts` really does, and the processor list matches the services this deployment
+uses. The operating legal entity and registered address are still omitted rather than invented --
+`platformBillingEntity` is null by design and that file's rule is to omit, never substitute.
+
+**PRIVACY_VERSION bumped to `v1.0-2026-09-11`**, deliberately: `lib/legalConsent.ts` gates on the
+current version, so every existing web user is re-prompted for consent on next sign-in, which is
+correct for a material change from placeholder to binding text. Checked the blast radius before
+doing it -- neither the Android client nor any API enforces that gate, it is purely web routing --
+and then confirmed empirically on-device: the release build restored its session and loaded the
+full production portfolio with no consent screen, no 401 and no crash. Reviewers will see the
+consent page once on the web, which is now documented in `release/google-play/APP_ACCESS.md`.
+TERMS_VERSION untouched; `/terms` is still placeholder and binding terms are a lawyer-led job.
+
+**Full Android re-verification after the change**: clean build, 256 unit tests / 0 failures,
+lintRelease 0 errors / 43 warnings, and the rebuilt AAB is **byte-identical** to the earlier one
+(SHA-256 `7fd957c9...`), which is the proof that the web-side changes did not touch the artefact.
+Live URLs confirmed unauthenticated: `/privacy` and `/delete-account` both HTTP 200 with no
+redirect, policy version `v1.0-2026-09-11` rendering, and zero occurrences of the old placeholder.
+
+
 ## 2026-09-11 (Google Play release preparation) — signed AAB built, commits pushed
 
 `origin/main` 446524b -> ac57987. Full package in `release/google-play/`.

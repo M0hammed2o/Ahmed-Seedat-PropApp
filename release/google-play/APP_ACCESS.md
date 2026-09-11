@@ -31,6 +31,10 @@ Proplyst is property-management software for landlords. All functionality requir
 Sign in with the credentials above on the sign-in screen. No email confirmation, one-time code or
 second factor is required for this account.
 
+On the web only, the first sign-in may show a one-page "Accept the Privacy Policy" screen, because
+the policy was updated on 11 September 2026. Tick the box and tap "Agree and continue". The Android
+app does not show this screen.
+
 The account opens a fully populated demonstration portfolio (11 properties, 39 units, 36 tenants)
 so every screen has real data:
 
