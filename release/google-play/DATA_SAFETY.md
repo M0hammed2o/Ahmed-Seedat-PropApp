@@ -66,11 +66,37 @@ Retrofit/OkHttp and `androidx.security.crypto`.
 ### Location, Health, Messages, Contacts, Calendar, Audio, Web browsing
 **Not collected.** No corresponding permission is declared and no API is called.
 
+### Government ID — **Not collected by the Android app**
+
+This one needs stating carefully, because the *backend* does hold it. `tenants.id_number_ref`
+(`supabase/migrations/20260101000028_tenants.sql`) stores a South African ID number as a reference
+into `encrypted_secrets`, and the applicant flow accepts an `id_document` ("Copy of ID or
+passport").
+
+The Android app never touches either. `data/tenants/Tenant.kt` mirrors the shared Tenant type
+**minus `idNumberRef`**, and says so in its own header comment; `data/leases/Lease.kt` repeats the
+reasoning. Grepping the whole Android source for `idNumber`, `id_document` or `passport` returns
+only those two comments. So **Government ID: No** is the correct Play answer — the declaration
+covers the app, and the app does not collect it.
+
+Re-check this if a future release adds ID capture to Android. The answer flips the moment
+`idNumberRef` enters the Android Tenant model.
+
 ## Sharing
 
 **No data is shared with third parties** in Google's sense. Supabase (database and auth) and Render
 (application hosting) are infrastructure processors acting on Proplyst's instructions, which
 Google's own guidance excludes from "sharing".
+
+The same reasoning covers document OCR. `lib/providers/documentIntelligence.ts` can route an
+uploaded document to AWS Textract or Google Document AI for text extraction, depending on which
+credentials are present in the server environment; with neither, it falls back to a mock that sends
+nothing anywhere. Whichever is active is a processor acting on Proplyst's instructions, so **Shared
+stays No** for Play's purposes.
+
+That is a Play answer, not a POPIA answer. POPIA expects the operator to be *named* to the data
+subject, and the Privacy Policy's processor list does not name one yet — see the audit report. The
+Data Safety form is unaffected either way.
 
 ## Data handling practices
 
