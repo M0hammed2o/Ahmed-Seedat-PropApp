@@ -10,6 +10,7 @@ import kotlinx.coroutines.launch
 import za.co.proplyst.app.data.auth.AuthRepository
 import za.co.proplyst.app.data.auth.AuthState
 import za.co.proplyst.app.data.auth.SessionManager
+import za.co.proplyst.app.data.network.WebApi
 import za.co.proplyst.app.data.biometric.BiometricLockPreferences
 import za.co.proplyst.app.data.biometric.LockRequestBus
 import javax.inject.Inject
@@ -29,9 +30,14 @@ class AccountViewModel @Inject constructor(
     private val biometricLockPreferences: BiometricLockPreferences,
     private val lockRequestBus: LockRequestBus,
     private val sessionManager: SessionManager,
+    private val webApi: WebApi,
 ) : ViewModel() {
     private val _signingOut = MutableStateFlow(false)
     val signingOut: StateFlow<Boolean> = _signingOut.asStateFlow()
+
+    /** Account deletion (Google Play "App account deletion" policy). Null until the user acts. */
+    private val _deleteState = MutableStateFlow<DeleteAccountState>(DeleteAccountState.Idle)
+    val deleteState: StateFlow<DeleteAccountState> = _deleteState.asStateFlow()
 
     /** Display identity for the Security screen's account card (fidelity audit §6) -- a stored
      * display email plus the caller's portal role. Presentation only. */
@@ -60,6 +66,35 @@ class AccountViewModel @Inject constructor(
         biometricLockPreferences.setEnabled(enabled)
     }
 
+    /**
+     * Deletes this account, then signs out. Required in-app by Google Play policy; the server does
+     * the real work (POST /api/v1/account/delete acts only on the caller's own identity), so this
+     * cannot be pointed at anyone else. On success the auth state flips to Unauthenticated and
+     * RootNavGraph navigates away, exactly as it does for an ordinary sign-out.
+     */
+    fun deleteAccount() {
+        if (_deleteState.value == DeleteAccountState.Deleting) return // ignore a double-tap
+        _deleteState.value = DeleteAccountState.Deleting
+        viewModelScope.launch {
+            val result = runCatching { webApi.deleteMyAccount() }
+            val response = result.getOrNull()
+            if (result.isSuccess && response != null && response.isSuccessful) {
+                authRepository.signOut()
+                _deleteState.value = DeleteAccountState.Deleted
+            } else {
+                // Fail loudly rather than silently signing the user out: an account they believe
+                // is gone but is not would be worse than an error they can retry.
+                _deleteState.value = DeleteAccountState.Error(
+                    "We couldn't delete your account just now. Check your connection and try again.",
+                )
+            }
+        }
+    }
+
+    fun dismissDeleteError() {
+        if (_deleteState.value is DeleteAccountState.Error) _deleteState.value = DeleteAccountState.Idle
+    }
+
     fun signOut() {
         if (_signingOut.value) return // Already in flight -- ignore a double-tap.
         _signingOut.value = true
@@ -71,4 +106,12 @@ class AccountViewModel @Inject constructor(
             // never actually returns a failure) case of this ViewModel surviving that navigation.
         }
     }
+}
+
+/** UI state for the delete-account flow. */
+sealed interface DeleteAccountState {
+    data object Idle : DeleteAccountState
+    data object Deleting : DeleteAccountState
+    data object Deleted : DeleteAccountState
+    data class Error(val message: String) : DeleteAccountState
 }

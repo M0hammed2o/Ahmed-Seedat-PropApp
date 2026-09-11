@@ -4,6 +4,8 @@ import za.co.proplyst.app.data.auth.AuthRepository
 import za.co.proplyst.app.data.auth.SessionManager
 import za.co.proplyst.app.data.biometric.BiometricLockPreferences
 import za.co.proplyst.app.data.biometric.LockRequestBus
+import za.co.proplyst.app.data.network.WebApi
+import retrofit2.Response
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -54,7 +56,7 @@ class AccountViewModelTest {
     fun `signOut calls through to the repository`() = runTest {
         val authRepository = mockk<AuthRepository>()
         coEvery { authRepository.signOut() } returns Unit
-        val viewModel = AccountViewModel(authRepository, mockBiometricPreferences(), LockRequestBus(), mockk<SessionManager>(relaxed = true))
+        val viewModel = AccountViewModel(authRepository, mockBiometricPreferences(), LockRequestBus(), mockk<SessionManager>(relaxed = true), mockk<WebApi>(relaxed = true))
 
         viewModel.signOut()
         dispatcher.scheduler.advanceUntilIdle()
@@ -67,7 +69,7 @@ class AccountViewModelTest {
         val authRepository = mockk<AuthRepository>()
         val gate = CompletableDeferred<Unit>()
         coEvery { authRepository.signOut() } coAnswers { gate.await() }
-        val viewModel = AccountViewModel(authRepository, mockBiometricPreferences(), LockRequestBus(), mockk<SessionManager>(relaxed = true))
+        val viewModel = AccountViewModel(authRepository, mockBiometricPreferences(), LockRequestBus(), mockk<SessionManager>(relaxed = true), mockk<WebApi>(relaxed = true))
 
         assertEquals(false, viewModel.signingOut.value)
         viewModel.signOut()
@@ -90,7 +92,7 @@ class AccountViewModelTest {
         val authRepository = mockk<AuthRepository>()
         val gate = CompletableDeferred<Unit>()
         coEvery { authRepository.signOut() } coAnswers { gate.await() }
-        val viewModel = AccountViewModel(authRepository, mockBiometricPreferences(), LockRequestBus(), mockk<SessionManager>(relaxed = true))
+        val viewModel = AccountViewModel(authRepository, mockBiometricPreferences(), LockRequestBus(), mockk<SessionManager>(relaxed = true), mockk<WebApi>(relaxed = true))
 
         viewModel.signOut()
         dispatcher.scheduler.advanceUntilIdle()
@@ -107,12 +109,72 @@ class AccountViewModelTest {
     fun `biometricLockEnabled reflects the preferences object, and toggling delegates to it`() {
         val authRepository = mockk<AuthRepository>(relaxed = true)
         val preferences = mockBiometricPreferences(initialEnabled = true)
-        val viewModel = AccountViewModel(authRepository, preferences, LockRequestBus(), mockk<SessionManager>(relaxed = true))
+        val viewModel = AccountViewModel(authRepository, preferences, LockRequestBus(), mockk<SessionManager>(relaxed = true), mockk<WebApi>(relaxed = true))
 
         assertEquals(true, viewModel.biometricLockEnabled.value)
 
         viewModel.setBiometricLockEnabled(false)
 
         io.mockk.verify { preferences.setEnabled(false) }
+    }
+
+    // Google Play's account-deletion policy requires an in-app path. These pin the two things that
+    // actually matter: a success signs the user out, and a failure does NOT -- an account the user
+    // believes is deleted but is not would be worse than an error they can retry.
+
+    @Test
+    fun `deleteAccount signs the user out when the server accepts`() = runTest {
+        val authRepository = mockk<AuthRepository>()
+        coEvery { authRepository.signOut() } returns Unit
+        val webApi = mockk<WebApi>()
+        coEvery { webApi.deleteMyAccount() } returns Response.success(Unit)
+        val viewModel = AccountViewModel(
+            authRepository, mockBiometricPreferences(), LockRequestBus(),
+            mockk<SessionManager>(relaxed = true), webApi,
+        )
+
+        viewModel.deleteAccount()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        coVerify(exactly = 1) { webApi.deleteMyAccount() }
+        coVerify(exactly = 1) { authRepository.signOut() }
+        assertEquals(DeleteAccountState.Deleted, viewModel.deleteState.value)
+    }
+
+    @Test
+    fun `deleteAccount does not sign the user out when the server refuses`() = runTest {
+        val authRepository = mockk<AuthRepository>(relaxed = true)
+        val webApi = mockk<WebApi>()
+        coEvery { webApi.deleteMyAccount() } returns
+            Response.error(500, okhttp3.ResponseBody.create(null, ""))
+        val viewModel = AccountViewModel(
+            authRepository, mockBiometricPreferences(), LockRequestBus(),
+            mockk<SessionManager>(relaxed = true), webApi,
+        )
+
+        viewModel.deleteAccount()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        coVerify(exactly = 0) { authRepository.signOut() }
+        assertTrue(viewModel.deleteState.value is DeleteAccountState.Error)
+    }
+
+    @Test
+    fun `a second tap while a deletion is in flight does not send a second request`() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        val webApi = mockk<WebApi>()
+        coEvery { webApi.deleteMyAccount() } coAnswers { gate.await(); Response.success(Unit) }
+        val viewModel = AccountViewModel(
+            mockk(relaxed = true), mockBiometricPreferences(), LockRequestBus(),
+            mockk<SessionManager>(relaxed = true), webApi,
+        )
+
+        viewModel.deleteAccount()
+        dispatcher.scheduler.advanceUntilIdle()
+        viewModel.deleteAccount()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        coVerify(exactly = 1) { webApi.deleteMyAccount() }
+        gate.complete(Unit)
     }
 }

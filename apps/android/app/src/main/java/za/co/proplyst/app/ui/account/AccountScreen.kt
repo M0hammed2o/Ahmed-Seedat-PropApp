@@ -35,6 +35,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.outlined.DeleteForever
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -82,6 +83,8 @@ fun AccountScreen(
     val context = LocalContext.current
     var availability by remember { mutableStateOf(checkBiometricAvailability(context)) }
     var showSignOutSheet by remember { mutableStateOf(false) }
+    var showDeleteSheet by remember { mutableStateOf(false) }
+    val deleteState by viewModel.deleteState.collectAsState()
     var showEnabledToast by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
@@ -169,6 +172,35 @@ fun AccountScreen(
                             onClick = { showSignOutSheet = true },
                         )
                     }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // ---- Delete account (Google Play "App account deletion" policy requires an
+                //      in-app path, alongside the public /delete-account page on the web) ----
+                SettingsCard {
+                    if (deleteState is DeleteAccountState.Deleting) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth().padding(14.dp)) {
+                            CircularProgressIndicator(modifier = Modifier.size(22.dp))
+                        }
+                    } else {
+                        SettingsRow(
+                            icon = { Icon(Icons.Outlined.DeleteForever, contentDescription = null, tint = colors.criticalDeep, modifier = Modifier.size(20.dp)) },
+                            iconTint = colors.criticalBgAlt,
+                            title = "Delete account",
+                            titleColor = colors.criticalDeep,
+                            onClick = { showDeleteSheet = true },
+                        )
+                    }
+                }
+
+                (deleteState as? DeleteAccountState.Error)?.let { err ->
+                    Text(
+                        err.message,
+                        style = type.caption,
+                        color = colors.critical,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -273,6 +305,50 @@ fun AccountScreen(
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
                     Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = colors.primaryLightOnNavy, modifier = Modifier.size(16.dp))
                     Text("Fingerprint unlock is on", style = type.captionEmphasis, color = Color.White, modifier = Modifier.padding(start = 8.dp))
+                }
+            }
+        }
+    }
+
+    if (showDeleteSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showDeleteSheet = false },
+            containerColor = colors.surface,
+        ) {
+            Column(modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 32.dp)) {
+                Text(
+                    "Delete your account?",
+                    style = type.settingsTitle.copy(fontSize = 20.sp, lineHeight = 24.sp),
+                    color = colors.textPrimary,
+                )
+                Text(
+                    "This removes your name, email address and phone number, and you will no longer " +
+                        "be able to sign in. It cannot be undone. Accounting records are kept for " +
+                        "the period the law requires and no longer identify you. Property and tenant " +
+                        "records belong to the organisation and are not deleted.",
+                    style = type.body,
+                    color = colors.textSecondary,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+                Spacer(modifier = Modifier.height(20.dp))
+                Button(
+                    onClick = {
+                        showDeleteSheet = false
+                        viewModel.deleteAccount()
+                    },
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = colors.critical, contentColor = Color.White),
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                ) {
+                    Text("Delete my account", style = type.button)
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+                OutlinedButton(
+                    onClick = { showDeleteSheet = false },
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                ) {
+                    Text("Cancel", style = type.buttonSecondary)
                 }
             }
         }

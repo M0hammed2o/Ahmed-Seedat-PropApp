@@ -56,6 +56,11 @@ interface WebApi {
     /** The caller's own payment reports -- RLS (`payment_reports_select_tenant_self`) is the
      * real scope; this endpoint is shared with the staff/owner review UI but returns only what
      * the caller's own session is allowed to see either way. */
+    /** Google Play's account-deletion policy requires an in-app path. Acts only on the caller's
+     *  own identity -- the endpoint takes no user id, so it cannot be aimed at anyone else. */
+    @POST("api/v1/account/delete")
+    suspend fun deleteMyAccount(): Response<Unit>
+
     @GET("api/v1/payment-reports")
     suspend fun getMyPaymentReports(): Response<PaymentReportListResponse>
 
