@@ -1,5 +1,47 @@
 # Worklog
 
+## 2026-09-11 (Google Play release preparation) — signed AAB built, commits pushed
+
+`origin/main` 446524b -> ac57987. Full package in `release/google-play/`.
+
+**The app could not have been uploaded.** Google Play requires new apps to target Android 16
+(API 36) from 2026-08-31; Proplyst targeted 34. The release build was also unsigned, unshrunk, and
+would have shipped with EMPTY backend URLs -- `RELEASE_SUPABASE_URL`/`RELEASE_API_BASE_URL` were
+never set, so every network call in a release build would have failed. All fixed.
+
+**R8 took three real fixes**, each a distinct root cause rather than one retry: Tink (behind
+`androidx.security.crypto`) references compile-time-only Error Prone annotations, so R8 failed
+outright; a blanket `-keep class com.google.crypto.tink.**` then forced R8 to retain
+`KeysDownloader`, dragging in google-api-client and Joda Time that are not dependencies -- the fix
+was to narrow, not widen; and R8 then exhausted the 2 GB Gradle heap and killed the daemon.
+
+**Two unused permissions removed.** `POST_NOTIFICATIONS` was declared with no notification code
+anywhere. `androidx.work` was a dependency nothing used, silently contributing WAKE_LOCK,
+RECEIVE_BOOT_COMPLETED, FOREGROUND_SERVICE and ACCESS_NETWORK_STATE to the merged manifest. The
+shipped artefact now requests INTERNET and biometric only -- eight permissions down to four.
+
+**Account deletion built**, because Play requires both an in-app path and a public web page and
+Proplyst had neither. `POST /api/v1/account/delete` acts only on the caller's own identity;
+`/delete-account` is public and live. It anonymises rather than dropping the row: `audit_events`
+has an immutability trigger and a real FK on the acting user, and invoices carry five-year
+statutory retention, so a hard delete is refused by the database for any identity that has ever
+acted. Verified on-device that the row and confirmation sheet render, then cancelled -- the demo
+account is intact.
+
+**Signed AAB**: 7,490,900 bytes, SHA-256 `7fd957c9...`, `jar verified`, targetSdk 36, versionCode 1,
+versionName 1.0.0. Upload keystore created OUTSIDE the repo under the user profile's
+`.proplyst-release` directory -- nothing about it is committed. Verified with aapt2/apksigner/
+jarsigner on the artefact itself, not inferred from a green build. 256 unit tests pass, lintRelease
+reports zero errors, and the R8-minified release build signed in against production on an emulator
+with no crash and no serialization failure -- the real minification risk, now retired.
+
+**Blocked on Mohammed** and nothing else: Play Console itself (account, identity verification,
+content rating, final submit), the `/privacy` page which is still an explicit placeholder saying it
+"is not binding legal content" (accurate draft in `release/google-play/PRIVACY_POLICY_DRAFT.md`),
+a real support email (`branding.supportEmail` is still the documented `support@proplyst.example`),
+and the 1024x500 feature graphic.
+
+
 ## 2026-09-08 (final Android polish) — dashboard refresh, 4 UX fixes, a real insights bug, demo portfolio rebuilt
 
 Full detail in `VISUAL_QA_REPORT.md` ("Final Android polish pass"); recording plan in
