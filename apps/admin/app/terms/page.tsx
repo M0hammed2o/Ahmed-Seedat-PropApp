@@ -60,7 +60,8 @@ export default function TermsPage() {
 
       <Section title="1. Accepting these terms">
         <p>
-          By creating a {product} account, or by using {product} in any way, you agree to these
+          By creating a {product} account, or by using {product}{' '}
+          in any way, you agree to these
           terms. If you are agreeing on behalf of a company, a close corporation, a trust or another
           organisation, you confirm that you are authorised to bind it, and &ldquo;you&rdquo; means
           that organisation.
@@ -156,7 +157,8 @@ export default function TermsPage() {
 
       <Section title="8. Notifications">
         <p>
-          {product} can send messages by email and, where you have configured it, by WhatsApp — rent
+          {product}{' '}
+          can send messages by email and, where you have configured it, by WhatsApp — rent
           reminders, payment confirmations, maintenance updates and similar. Delivery depends on
           third-party networks and on the recipient&apos;s own settings, so we cannot promise that
           any particular message arrives, arrives on time, or is read. Do not rely on a {product}{' '}
@@ -275,11 +277,45 @@ export default function TermsPage() {
           .
         </p>
         <p>
-          Deleting your account removes your name, email address and phone number and permanently
-          disables sign-in. Accounting records are kept for five years because South African tax law
-          requires financial records to be retained, and they no longer identify you. Property,
-          tenant and lease records belong to the organisation rather than to your personal account,
-          so they are not deleted with it. This is explained in full on the deletion page and in our{' '}
+          Deleting your account erases the personal information attached to it — your name, email
+          address and phone number — and permanently closes it so that it can never be signed into
+          again. We keep an anonymised sign-in record containing no personal information, because
+          the accounting and audit entries below reference the account that created them.
+        </p>
+        <p>
+          Accounting records — invoices, payments, expenses and the audit trail — are kept for five
+          years because South African tax law requires financial records to be retained. Once your
+          account is deleted they no longer identify you.
+        </p>
+        <p>
+          <strong>Deleting your account does not delete your organisation.</strong> Property, tenant,
+          lease and financial records belong to the organisation, not to you personally, and other
+          people may still depend on them. If you are an invited user, you simply lose access and
+          the organisation carries on.
+        </p>
+        <p>
+          <strong>If you are the only owner of an organisation,</strong> deleting your account leaves
+          it with nobody who can reach it. Transfer ownership to someone else first, or ask us to
+          delete the organisation and everything in it by emailing{' '}
+          <a
+            href={`mailto:${support}?subject=Organisation%20deletion%20request`}
+            className="text-light-accent hover:underline dark:text-dark-accent"
+          >
+            {support}
+          </a>{' '}
+          from the address on the account. There is no self-service way to delete a whole
+          organisation — we do it for you and confirm when it is done, subject to the five-year
+          retention above.
+        </p>
+        <p>
+          This is explained in full on the{' '}
+          <Link
+            href="/delete-account"
+            className="text-light-accent hover:underline dark:text-dark-accent"
+          >
+            deletion page
+          </Link>{' '}
+          and in our{' '}
           <Link href="/privacy" className="text-light-accent hover:underline dark:text-dark-accent">
             Privacy Policy
           </Link>
@@ -289,7 +325,8 @@ export default function TermsPage() {
 
       <Section title="17. Disclaimers">
         <p>
-          Except where the law says otherwise, {product} is provided &ldquo;as is&rdquo;. We do not
+          Except where the law says otherwise, {product}{' '}
+          is provided &ldquo;as is&rdquo;. We do not
           warrant that it will meet your particular requirements, that it will be available without
           interruption, or that the calculations and alerts it produces are free of error.
         </p>

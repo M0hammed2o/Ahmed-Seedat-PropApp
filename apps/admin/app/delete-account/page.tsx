@@ -80,10 +80,17 @@ export default function DeleteAccountPage() {
 
       <h2 className="mt-10 font-display text-lg font-semibold">What is deleted</h2>
       <ul className="mt-3 list-disc space-y-1 pl-5 text-light-textSecondary dark:text-dark-textSecondary">
-        <li>Your name, email address and phone number.</li>
-        <li>Your ability to sign in. The account is permanently disabled.</li>
-        <li>Your access to every organisation you belonged to.</li>
+        <li>Your name, email address and phone number are erased.</li>
+        <li>
+          The account is permanently closed and can never be signed into again. An anonymised
+          sign-in record remains, holding no personal information, because the accounting and audit
+          entries below reference the account that created them.
+        </li>
+        <li>Your access to every organisation you belonged to is removed.</li>
       </ul>
+      <p className="mt-3 text-light-textSecondary dark:text-dark-textSecondary">
+        It takes effect immediately and cannot be undone.
+      </p>
 
       <h2 className="mt-10 font-display text-lg font-semibold">What is kept, and why</h2>
       <p className="mt-3 text-light-textSecondary dark:text-dark-textSecondary">
@@ -94,9 +101,30 @@ export default function DeleteAccountPage() {
       </p>
       <p className="mt-3 text-light-textSecondary dark:text-dark-textSecondary">
         Property, tenant and lease records belong to the organisation, not to your personal account,
-        so deleting your account does not delete them. If you are the owner of an organisation and
-        want the organisation and its data removed as well, say so in your email and we will handle
-        it separately.
+        so deleting your account does not delete them. If you are an invited user, you simply lose
+        access and the organisation carries on without you.
+      </p>
+
+      <h2 className="mt-10 font-display text-lg font-semibold">
+        If you are the only owner of an organisation
+      </h2>
+      <p className="mt-3 text-light-textSecondary dark:text-dark-textSecondary">
+        Deleting your account leaves that organisation with nobody who can reach it. Before you
+        delete, either transfer ownership to someone else, or ask us to delete the whole
+        organisation.
+      </p>
+      <p className="mt-3 text-light-textSecondary dark:text-dark-textSecondary">
+        To have an organisation and everything in it deleted, email{' '}
+        <a
+          href={`mailto:${branding.supportEmail}?subject=Organisation%20deletion%20request`}
+          className="text-light-accent hover:underline dark:text-dark-accent"
+        >
+          {branding.supportEmail}
+        </a>{' '}
+        from the address on the account, with the subject{' '}
+        <strong>Organisation deletion request</strong>. There is no self-service way to do this — we
+        verify the request, delete the organisation and confirm when it is done, keeping only the
+        accounting records the law requires us to keep.
       </p>
 
       <p className="mt-10 text-xs text-light-textMuted dark:text-dark-textMuted">

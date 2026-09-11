@@ -144,7 +144,11 @@ export default function PrivacyPage() {
       <Section title="How long we keep it">
         <p>
           We keep your records for as long as your account is active. When you delete your account
-          we remove your name, email address and phone number, and permanently disable sign-in.
+          we erase the personal information attached to it — your name, email address and phone
+          number — and permanently close it so that it can never be signed into again. We keep an
+          anonymised sign-in record with no personal information in it, because the financial and
+          audit entries described below reference the account that made them and would otherwise
+          become untraceable.
         </p>
         <p>
           We retain accounting records — invoices, payments, expenses and the audit trail — for five
@@ -165,6 +169,24 @@ export default function PrivacyPage() {
             proplyst.co.za/delete-account
           </Link>
           , which also explains what to do if you can no longer sign in.
+        </p>
+        <p>
+          Deleting your account removes <em>you</em>. It does not delete the organisation you
+          belonged to, because the property, tenant, lease and financial records in it belong to
+          that organisation rather than to you personally, and other people may still rely on them.
+        </p>
+        <p>
+          <strong>If you are the only owner of an organisation,</strong> deleting your account
+          leaves that organisation with nobody who can reach it. Transfer ownership to someone else
+          first, or ask us to delete the organisation and its data — email{' '}
+          <a
+            href={`mailto:${support}?subject=Organisation%20deletion%20request`}
+            className="text-light-accent hover:underline dark:text-dark-accent"
+          >
+            {support}
+          </a>{' '}
+          from the address on the account. There is no self-service way to delete a whole
+          organisation; we do it for you, and we will confirm when it is done.
         </p>
       </Section>
 
