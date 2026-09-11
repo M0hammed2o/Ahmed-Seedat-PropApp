@@ -104,14 +104,12 @@ fun OwnerRootScreen(pendingRoute: String? = null) {
                     onOpenRoute = { navController.navigateToAlertDestination(it) },
                 )
             }
-            composable(Destinations.NEEDS_ATTENTION) {
-                NeedsAttentionScreen(
-                    onBack = { navController.popBackStack() },
-                    onOpenRoute = { navController.navigateToAlertDestination(it) },
-                )
-            }
-            // Same screen, entered already filtered -- Home's grouped preview rows land here when
-            // the group has no dedicated list screen of its own.
+            // ONE destination, with an optional `category` query argument -- deliberately not two.
+            // Registering "needs_attention" and "needs_attention?category={category}" separately
+            // gives the matcher two candidates for the same path, and the unfiltered "View all"
+            // route is then ambiguous. An optional argument already matches both spellings: plain
+            // "needs_attention" lands here with category = null, and
+            // "needs_attention?category=LEASE" lands here with it set.
             composable(
                 Destinations.NEEDS_ATTENTION_FILTERED,
                 arguments = listOf(

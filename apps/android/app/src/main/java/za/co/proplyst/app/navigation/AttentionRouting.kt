@@ -158,8 +158,69 @@ fun destinationForDashboardItem(item: AttentionItem): AttentionDestination =
  * Returning [AttentionDestination.None] is a normal outcome, not a failure: the row is still
  * tapped, still marked read, and simply does not navigate.
  */
-fun destinationForNotification(notification: AppNotification): AttentionDestination =
-    destinationForEntity(notification.relatedEntityType, notification.relatedEntityId)
+fun destinationForNotification(notification: AppNotification): AttentionDestination {
+    val byEntity = destinationForEntity(notification.relatedEntityType, notification.relatedEntityId)
+    if (byEntity != AttentionDestination.None) return byEntity
+    return destinationForNotificationType(notification.type)
+}
+
+/**
+ * Fallback destination derived from `notifications.type` alone.
+ *
+ * This is not belt-and-braces, it is the path most live rows actually take. Probing the production
+ * feed for the demo organisation found **eight of nine notifications with
+ * `related_entity_type` NULL** -- rent_overdue, rent_partial, payment_confirmation_required,
+ * budget_exceeded, budget_approaching, utility_unusual_usage, maintenance_update and
+ * lease_expiring all arrive with no entity columns at all. Only `notifyPropertyStaff` fills those
+ * in, and it is responsible for a minority of what is in the table.
+ *
+ * Routing on entity id alone therefore left almost every real Activity row inert, which is exactly
+ * what showed up in manual testing and what unit tests built from the notify.ts call sites could
+ * never have caught -- they asserted the shape the code *writes*, not the shape the table *holds*.
+ *
+ * A type has no record id in it, so these all resolve to the list or workflow for that kind of
+ * problem. That is the honest ceiling: without an id there is no individual record to open, and
+ * guessing one would be worse than landing on the right screen.
+ *
+ * Matching is on prefix rather than exact equality so the two naming conventions in use
+ * (`maintenance_update`, `maintenance_ticket_created`) both land. Order matters where a type
+ * mentions two domains -- payment confirmation is checked before rent so
+ * `rent_payment_reminder` does not get mistaken for a confirmation queue.
+ */
+fun destinationForNotificationType(type: String?): AttentionDestination {
+    val t = type?.lowercase()?.trim().orEmpty()
+    return when {
+        t.isEmpty() -> AttentionDestination.None
+
+        // Payments awaiting the owner's confirm/reject decision.
+        t.startsWith("payment_confirmation_required") ||
+            t.startsWith("payment_awaiting") ||
+            t.startsWith("payment_report") ->
+            AttentionDestination.Route(Destinations.PAYMENT_REVIEW_LIST)
+
+        // Rent: overdue, partial, due soon, reminders.
+        t.startsWith("rent_") -> AttentionDestination.Route(Destinations.RENT_STATUS_LIST)
+
+        t.startsWith("invoice") -> AttentionDestination.Route(Destinations.INVOICES_LIST)
+
+        t.startsWith("budget") -> AttentionDestination.Route(Destinations.BUDGET_VIEW)
+
+        t.startsWith("utility") -> AttentionDestination.Route(Destinations.UTILITY_OVERVIEW)
+
+        t.startsWith("maintenance") -> AttentionDestination.Route(Destinations.MAINTENANCE_LIST)
+
+        // No org-wide lease list exists, so send these to Needs-attention filtered to LEASE, where
+        // the expiring leases are listed and each one opens.
+        t.startsWith("lease") ->
+            AttentionDestination.Route(Destinations.needsAttention(AttentionCategory.LEASE.name))
+
+        // A payment that has already been confirmed or rejected is history, not a queue item; the
+        // ledger is the right place for it.
+        t.startsWith("payment") -> AttentionDestination.Route(Destinations.INVOICES_LIST)
+
+        else -> AttentionDestination.None
+    }
+}
 
 /**
  * Navigates, tolerating a route this NavHost does not know.

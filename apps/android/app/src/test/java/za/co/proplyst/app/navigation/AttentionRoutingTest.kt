@@ -267,4 +267,70 @@ class AttentionRoutingTest {
         val foreign = destinationForEntity("invoices", "an-invoice-in-another-org")
         assertEquals("invoices/an-invoice-in-another-org", routeOf(foreign))
     }
+
+    // ---------- the types the LIVE feed actually holds ----------
+    //
+    // Probing the production demo organisation found eight of nine notifications with
+    // related_entity_type NULL. The four types the notify.ts call sites write are a minority of
+    // what is in the table, so routing on entity id alone left almost every real Activity row
+    // inert. These are the exact `type` values read back from production on 11 September 2026.
+    // Every one of them must resolve, or the Activity screen is decorative again.
+
+    @Test
+    fun `every notification type in the live feed resolves to a destination`() {
+        val live = mapOf(
+            "rent_overdue" to Destinations.RENT_STATUS_LIST,
+            "rent_partial" to Destinations.RENT_STATUS_LIST,
+            "payment_confirmation_required" to Destinations.PAYMENT_REVIEW_LIST,
+            "budget_exceeded" to Destinations.BUDGET_VIEW,
+            "budget_approaching" to Destinations.BUDGET_VIEW,
+            "utility_unusual_usage" to Destinations.UTILITY_OVERVIEW,
+            "maintenance_update" to Destinations.MAINTENANCE_LIST,
+            "lease_expiring" to "needs_attention?category=LEASE",
+        )
+        for ((type, expected) in live) {
+            val d = destinationForNotification(notification(type, null, null))
+            assertEquals("live type '$type' must route", expected, routeOf(d))
+        }
+    }
+
+    @Test
+    fun `the notify_ts types still resolve without entity columns`() {
+        assertEquals(
+            Destinations.MAINTENANCE_LIST,
+            routeOf(destinationForNotification(notification("maintenance_ticket_created", null, null))),
+        )
+        assertEquals(
+            Destinations.PAYMENT_REVIEW_LIST,
+            routeOf(destinationForNotification(notification("payment_awaiting_confirmation", null, null))),
+        )
+    }
+
+    @Test
+    fun `an entity id still wins over the type fallback`() {
+        // When notifyPropertyStaff does fill the columns in, the specific record must beat the
+        // generic list -- the fallback is a floor, not a replacement.
+        val n = notification("maintenance_update", "maintenance_ticket", "t-55")
+        assertEquals("maintenance/t-55", routeOf(destinationForNotification(n)))
+    }
+
+    @Test
+    fun `payment confirmation is not mistaken for a rent reminder`() {
+        // 'rent_payment_reminder' mentions both domains; order of matching decides it.
+        assertEquals(
+            Destinations.RENT_STATUS_LIST,
+            routeOf(destinationForNotificationType("rent_payment_reminder")),
+        )
+        assertEquals(
+            Destinations.PAYMENT_REVIEW_LIST,
+            routeOf(destinationForNotificationType("payment_confirmation_required")),
+        )
+    }
+
+    @Test
+    fun `an unrecognised type with no entity is inert rather than wrong`() {
+        assertEquals(AttentionDestination.None, destinationForNotificationType("account_security_event"))
+        assertEquals(AttentionDestination.None, destinationForNotificationType(null))
+        assertEquals(AttentionDestination.None, destinationForNotificationType("  "))
+    }
 }

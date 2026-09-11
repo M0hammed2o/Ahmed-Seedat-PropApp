@@ -2,6 +2,7 @@ package za.co.proplyst.app.ui.notifications
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -92,7 +93,16 @@ fun NotificationsListScreen(
                 onRetry = viewModel::load,
                 modifier = Modifier.padding(padding),
             )
-            is NotificationsUiState.Loaded -> LazyColumn(modifier = Modifier.padding(padding)) {
+            // FloatingBottomNav is drawn by OwnerRootScreen/TenantRootScreen as an overlay in a Box
+            // ON TOP of this NavHost, so the Scaffold's own insets know nothing about it and every
+            // scrollable tab destination has to reserve the space itself -- Home already does, with
+            // `.padding(bottom = 64.dp)`. Without this the final activity was pinned under the bar,
+            // squeezed to an 11 dp-wide sliver, and simply could not be tapped: the lease-expiry row
+            // was unreachable on the emulator no matter how far the list was scrolled.
+            is NotificationsUiState.Loaded -> LazyColumn(
+                modifier = Modifier.padding(padding),
+                contentPadding = PaddingValues(bottom = 96.dp),
+            ) {
                 items(state.notifications, key = { it.id }) { notification ->
                     val destination = destinationForNotification(notification)
                     NotificationRow(
