@@ -55,6 +55,24 @@ val releaseSupabaseUrl: String = localProperties.getProperty("RELEASE_SUPABASE_U
 val releaseSupabaseAnonKey: String = localProperties.getProperty("RELEASE_SUPABASE_ANON_KEY", "")
 val releaseApiBaseUrl: String = localProperties.getProperty("RELEASE_API_BASE_URL", "")
 
+// Google Play upload signing. The keystore and its passwords live OUTSIDE this repository
+// (default C:/Users/junsm/.proplyst-release/), referenced by an absolute path so no secret and no
+// binary key material can ever be committed. Override the location with KEYSTORE_PROPERTIES in
+// local.properties. When the file is absent -- a clean checkout, or CI without the key -- the
+// release build stays unsigned rather than failing, so `assembleRelease` still verifies that the
+// code compiles; only the signed artefact requires the key. See RELEASE.md.
+val keystorePropertiesFile = file(
+    localProperties.getProperty(
+        "KEYSTORE_PROPERTIES",
+        "C:/Users/junsm/.proplyst-release/keystore.properties",
+    ),
+)
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.exists()) load(FileInputStream(keystorePropertiesFile))
+}
+val hasUploadKey = keystoreProperties.getProperty("storeFile") != null &&
+    file(keystoreProperties.getProperty("storeFile")).exists()
+
 android {
     // Android V1 final gap-closure pass (WORKLOG.md this date), Phase 1: renamed from
     // com.propertyvault.app -- the product is Proplyst, and this had never been published to
@@ -63,21 +81,43 @@ android {
     // reverse-domain convention for a South African product (za.co.<company>.<app>), matching
     // proplyst.co.za's own real domain.
     namespace = "za.co.proplyst.app"
-    compileSdk = 34
+    // Google Play requires new apps and updates to target Android 16 (API 36) from
+    // 2026-08-31 (developer.android.com/google/play/requirements/target-sdk). API 34 would be
+    // rejected at upload.
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "za.co.proplyst.app"
         minSdk = 26
-        targetSdk = 34
+        targetSdk = 36
+        // First Google Play release. Nothing has ever been uploaded under this applicationId
+        // (it was renamed from com.propertyvault.app precisely because it had no Play history),
+        // so versionCode starts at 1. Bump before any re-upload -- Play permanently reserves a
+        // versionCode once accepted.
         versionCode = 1
-        versionName = "0.1.0"
+        versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        if (hasUploadKey) {
+            create("release") {
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = false
+            if (hasUploadKey) signingConfig = signingConfigs.getByName("release")
+            // R8 on for the Play artefact: smaller download, and it strips unused code paths.
+            // Kept with resource shrinking so the AAB Play serves is as small as it honestly can be.
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
 
             buildConfigField("String", "SUPABASE_URL", "\"$releaseSupabaseUrl\"")
@@ -160,7 +200,10 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
 
-    implementation(libs.androidx.work.runtime.ktx)
+    // androidx.work removed for the Play release: nothing in this app schedules work, and the
+    // dependency silently contributed WAKE_LOCK, RECEIVE_BOOT_COMPLETED, FOREGROUND_SERVICE and
+    // ACCESS_NETWORK_STATE to the merged manifest -- four permissions the app does not need and
+    // would have had to justify on the store listing. Re-add it the day real background work exists.
 
     implementation(libs.androidx.biometric)
     implementation(libs.androidx.fragment.ktx)
