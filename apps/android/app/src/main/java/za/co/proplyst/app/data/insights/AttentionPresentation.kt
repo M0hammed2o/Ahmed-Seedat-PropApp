@@ -33,7 +33,19 @@ enum class AttentionCategory(val label: String) {
 enum class AttentionSeverity { CRITICAL, WARNING, INFO }
 
 /**
- * One row as the UI shows it. [count] > 1 means this is a collapsed group; [insightIds] always
+ * One underlying record inside a row. Keeping the whole list -- not just the ids -- is what lets a
+ * collapsed group be expanded into individually openable rows on the Needs-attention screen, and
+ * what lets a single-record row know which screen to open.
+ */
+data class AttentionMember(
+    val insightId: String,
+    val message: String,
+    val entityTable: String?,
+    val entityId: String?,
+)
+
+/**
+ * One row as the UI shows it. [count] > 1 means this is a collapsed group; [members] always
  * carries every underlying record so nothing is lost.
  */
 data class AttentionItem(
@@ -42,9 +54,17 @@ data class AttentionItem(
     val category: AttentionCategory,
     val severity: AttentionSeverity,
     val count: Int,
-    val insightIds: List<String>,
+    val members: List<AttentionMember>,
     val actionLabel: String,
-)
+) {
+    /** Every underlying insight id. Derived rather than stored so it can never drift from
+     * [members]. */
+    val insightIds: List<String> get() = members.map { it.insightId }
+
+    /** The single record this row stands for, or null when the row is a group. Callers use this to
+     * decide between "open the record" and "open the list of records". */
+    val singleMember: AttentionMember? get() = members.singleOrNull()
+}
 
 fun severityOf(raw: String): AttentionSeverity = when (raw.lowercase()) {
     "urgent", "critical" -> AttentionSeverity.CRITICAL
@@ -144,7 +164,14 @@ fun groupInsights(
                 category = category,
                 severity = severity,
                 count = rows.size,
-                insightIds = rows.map { it.id },
+                members = rows.map {
+                    AttentionMember(
+                        insightId = it.id,
+                        message = it.message,
+                        entityTable = it.entityTable,
+                        entityId = it.entityId,
+                    )
+                },
                 actionLabel = actionFor(category, severity),
             )
         }
@@ -157,8 +184,10 @@ fun groupInsights(
                 category = AttentionCategory.PAYMENTS,
                 severity = AttentionSeverity.CRITICAL,
                 count = awaitingConfirmationCount,
-                // Live figure from the financial summary, not a stored insight row -- no ids to carry.
-                insightIds = emptyList(),
+                // Live figure from the financial summary, not a stored insight row -- there are no
+                // insight ids to carry. Routing keys off the PAYMENTS category rather than a
+                // member, so an empty list here is correct and not a missing case.
+                members = emptyList(),
                 actionLabel = "REVIEW",
             ),
         )

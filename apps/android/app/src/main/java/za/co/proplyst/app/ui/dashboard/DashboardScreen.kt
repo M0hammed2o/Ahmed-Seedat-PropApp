@@ -58,6 +58,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import za.co.proplyst.app.R
 import za.co.proplyst.app.data.financials.FinancialSummary
+import za.co.proplyst.app.navigation.AttentionDestination
+import za.co.proplyst.app.navigation.destinationForDashboardItem
+import za.co.proplyst.app.navigation.destinationForNotification
 import za.co.proplyst.app.data.insights.AttentionItem
 import za.co.proplyst.app.data.insights.AttentionSeverity
 import za.co.proplyst.app.data.insights.PortfolioInsight
@@ -93,6 +96,8 @@ fun DashboardScreen(
     onReviewRentStatus: () -> Unit,
     onManageBudget: () -> Unit,
     onViewAllAttention: () -> Unit,
+    /** Opens the record behind an alert or an activity row. */
+    onOpenRoute: (String) -> Unit = {},
     viewModel: DashboardViewModel = hiltViewModel(),
 ) {
     val insightsState by viewModel.insightsUiState.collectAsState()
@@ -145,7 +150,14 @@ fun DashboardScreen(
             item { Spacer(modifier = Modifier.height(24.dp)) }
             item { OperatingPositionSection(financialSummaryState = financialSummaryState) }
             item { Spacer(modifier = Modifier.height(24.dp)) }
-            item { NeedsAttentionSection(insightsState = insightsState, financialSummaryState = financialSummaryState, onViewAll = onViewAllAttention) }
+            item {
+                NeedsAttentionSection(
+                    insightsState = insightsState,
+                    financialSummaryState = financialSummaryState,
+                    onViewAll = onViewAllAttention,
+                    onOpenRoute = onOpenRoute,
+                )
+            }
             item { Spacer(modifier = Modifier.height(24.dp)) }
             item {
                 QuickActionsSection(
@@ -157,7 +169,14 @@ fun DashboardScreen(
                 )
             }
             item { Spacer(modifier = Modifier.height(24.dp)) }
-            item { RecentActivitySection(activity = recentActivity, onViewAll = onNotificationsClick) }
+            item {
+                RecentActivitySection(
+                    activity = recentActivity,
+                    onViewAll = onNotificationsClick,
+                    onOpenRoute = onOpenRoute,
+                    onMarkRead = viewModel::markActivityRead,
+                )
+            }
             item { Spacer(modifier = Modifier.height(24.dp)) }
             item { TopPropertiesSection(properties = topProperties, onPropertyClick = onPropertyClick) }
             item { Spacer(modifier = Modifier.height(110.dp)) }
@@ -646,6 +665,7 @@ private fun NeedsAttentionSection(
     insightsState: InsightsUiState,
     financialSummaryState: FinancialSummaryUiState,
     onViewAll: () -> Unit,
+    onOpenRoute: (String) -> Unit,
 ) {
     val colors = ProplystTheme.colors
     val type = ProplystTheme.type
@@ -695,7 +715,23 @@ private fun NeedsAttentionSection(
             is InsightsUiState.Loading -> CircularProgressIndicator(modifier = Modifier.size(24.dp))
             is InsightsUiState.Error -> Text(insightsState.message, style = type.caption, color = colors.critical)
             else -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                preview.forEach { AttentionRow(item = it, onClick = onViewAll) }
+                preview.forEach { item ->
+                    // Home has no room to expand a group, so destinationForDashboardItem sends a
+                    // group with no list screen of its own into the full Needs-attention screen
+                    // already filtered to that category -- where it can be expanded -- rather than
+                    // picking one of its members arbitrarily.
+                    val destination = destinationForDashboardItem(item)
+                    AttentionRow(
+                        item = item,
+                        onClick = {
+                            when (destination) {
+                                is AttentionDestination.Route -> onOpenRoute(destination.route)
+                                // Falls back to the unfiltered list rather than doing nothing.
+                                else -> onViewAll()
+                            }
+                        },
+                    )
+                }
             }
         }
     }
@@ -828,7 +864,12 @@ private fun InsightRow(insight: PortfolioInsight) {
 private const val MAX_HOME_ACTIVITY_ITEMS = 5
 
 @Composable
-private fun RecentActivitySection(activity: List<AppNotification>, onViewAll: () -> Unit) {
+private fun RecentActivitySection(
+    activity: List<AppNotification>,
+    onViewAll: () -> Unit,
+    onOpenRoute: (String) -> Unit,
+    onMarkRead: (String) -> Unit,
+) {
     val colors = ProplystTheme.colors
     val type = ProplystTheme.type
     if (activity.isEmpty()) return
@@ -861,7 +902,17 @@ private fun RecentActivitySection(activity: List<AppNotification>, onViewAll: ()
         ) {
             Column(modifier = Modifier.padding(vertical = 4.dp)) {
                 shown.forEachIndexed { index, notification ->
-                    ActivityRow(notification)
+                    val destination = destinationForNotification(notification)
+                    ActivityRow(
+                        notification = notification,
+                        hasDestination = destination is AttentionDestination.Route,
+                        onClick = {
+                            // Opening marks read on Home too, so the same activity is not still
+                            // bold when the owner reaches the Activity tab a moment later.
+                            onMarkRead(notification.id)
+                            (destination as? AttentionDestination.Route)?.let { onOpenRoute(it.route) }
+                        },
+                    )
                     if (index != shown.lastIndex) {
                         Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(1.dp).background(colors.divider))
                     }
@@ -884,13 +935,22 @@ private fun activityGlyph(type: String): ActivityGlyph = when {
 }
 
 @Composable
-private fun ActivityRow(notification: AppNotification) {
+private fun ActivityRow(
+    notification: AppNotification,
+    hasDestination: Boolean,
+    onClick: () -> Unit,
+) {
     val colors = ProplystTheme.colors
     val type = ProplystTheme.type
     val glyph = activityGlyph(notification.type)
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp, horizontal = 16.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            // Clickable before padding, so the whole row -- not just the text block -- is the
+            // target and the ripple covers the full card width.
+            .clickable(enabled = hasDestination, onClick = onClick)
+            .padding(vertical = 12.dp, horizontal = 16.dp),
     ) {
         Box(
             contentAlignment = Alignment.Center,

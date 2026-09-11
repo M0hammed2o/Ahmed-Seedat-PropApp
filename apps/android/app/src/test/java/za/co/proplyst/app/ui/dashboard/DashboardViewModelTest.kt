@@ -23,6 +23,13 @@ import za.co.proplyst.app.data.auth.SessionManager
 import za.co.proplyst.app.data.auth.TenancyMembership
 import za.co.proplyst.app.data.financials.FinancialSummaryRepository
 import za.co.proplyst.app.data.financials.FinancialSummaryResult
+import za.co.proplyst.app.data.insights.MAX_DASHBOARD_ATTENTION_ITEMS
+import za.co.proplyst.app.data.insights.buildAttentionPreview
+import za.co.proplyst.app.data.insights.totalAttentionCount
+import za.co.proplyst.app.data.notifications.AppNotification
+import za.co.proplyst.app.data.notifications.MarkReadResult
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import za.co.proplyst.app.data.insights.PortfolioInsight
 import za.co.proplyst.app.data.insights.PortfolioInsightsRepository
 import za.co.proplyst.app.data.insights.PortfolioInsightsResult
@@ -383,5 +390,120 @@ class DashboardViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(FinancialSummaryUiState.Empty, vm.financialSummaryUiState.value)
+    }
+
+    // ================= Actionable-alerts pass: Home synchronisation =================
+    //
+    // The dashboard badge must be a function of the live feed, never a counter Home keeps for
+    // itself. These tests pin that down, because a locally-decremented count is exactly how the
+    // three surfaces would silently drift apart.
+
+    private fun authed() = mockk<AuthRepository>().also {
+        every { it.authState } returns MutableStateFlow(
+            AuthState.Authenticated(
+                userId = "user-1",
+                organizations = listOf(OrgMembership(orgId = "org-1", role = "principal", status = "active")),
+            ),
+        )
+    }
+
+    private fun alert(id: String, type: String = "invoice_unpaid", table: String? = "invoices") =
+        PortfolioInsight(
+            id = id,
+            insightType = type,
+            message = "Invoice is overdue",
+            severity = "urgent",
+            generatedAt = "2026-09-11T08:00:00Z",
+            entityTable = table,
+            entityId = "inv-$id",
+        )
+
+    private fun activity(id: String, readAt: String? = null) = AppNotification(
+        id = id,
+        type = "maintenance_ticket_created",
+        title = "New maintenance request",
+        body = null,
+        relatedEntityType = "maintenance_ticket",
+        relatedEntityId = "t-$id",
+        readAt = readAt,
+        createdAt = "2026-09-11T08:00:00Z",
+    )
+
+    @Test
+    fun `resolving the underlying condition drops the alert and the count on the next refresh`() = runTest {
+        val insights = mockk<PortfolioInsightsRepository>()
+        coEvery { insights.getPortfolioInsights(any()) } returns
+            PortfolioInsightsResult.Loaded(listOf(alert("a"), alert("b")))
+
+        val vm = viewModel(authed(), insightsRepository = insights)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(
+            2,
+            totalAttentionCount((vm.insightsUiState.value as InsightsUiState.Loaded).insights),
+        )
+
+        // The owner records the payment; the rules engine stops emitting one of the two.
+        coEvery { insights.getPortfolioInsights(any()) } returns
+            PortfolioInsightsResult.Loaded(listOf(alert("b")))
+        vm.refresh()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            1,
+            totalAttentionCount((vm.insightsUiState.value as InsightsUiState.Loaded).insights),
+        )
+    }
+
+    @Test
+    fun `the attention count includes payments awaiting confirmation, from the live summary`() = runTest {
+        val insights = mockk<PortfolioInsightsRepository>()
+        coEvery { insights.getPortfolioInsights(any()) } returns
+            PortfolioInsightsResult.Loaded(listOf(alert("a")))
+
+        val vm = viewModel(authed(), insightsRepository = insights)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val feed = (vm.insightsUiState.value as InsightsUiState.Loaded).insights
+        // One stored insight plus three awaiting confirmation is four things needing attention.
+        assertEquals(4, totalAttentionCount(feed, awaitingConfirmationCount = 3))
+        // And the preview stays bounded no matter how large the feed is.
+        assertTrue(buildAttentionPreview(feed, 3).size <= MAX_DASHBOARD_ATTENTION_ITEMS)
+    }
+
+    @Test
+    fun `opening a Home activity marks it read and clears the unread dot`() = runTest {
+        val notifications = mockk<NotificationsRepository>()
+        coEvery { notifications.getMyNotifications() } returns
+            NotificationsResult.Loaded(listOf(activity("n1")))
+        coEvery { notifications.markRead("n1") } returns MarkReadResult.Success
+
+        val vm = viewModel(authed(), notificationsRepository = notifications)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertTrue("an unread activity must light the dot", vm.hasUnread.value)
+
+        vm.markActivityRead("n1")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(false, vm.hasUnread.value)
+        // READ, not RESOLVED: the row is still in the feed.
+        assertEquals(1, vm.recentActivity.value.size)
+        assertNotNull(vm.recentActivity.value.single().readAt)
+    }
+
+    @Test
+    fun `a failed mark-read restores the unread dot rather than lying about it`() = runTest {
+        val notifications = mockk<NotificationsRepository>()
+        coEvery { notifications.getMyNotifications() } returns
+            NotificationsResult.Loaded(listOf(activity("n1")))
+        coEvery { notifications.markRead("n1") } returns MarkReadResult.Error("offline")
+
+        val vm = viewModel(authed(), notificationsRepository = notifications)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        vm.markActivityRead("n1")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(vm.hasUnread.value)
+        assertNull(vm.recentActivity.value.single().readAt)
     }
 }

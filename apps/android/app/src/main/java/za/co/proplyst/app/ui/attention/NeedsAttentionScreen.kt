@@ -32,6 +32,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,6 +41,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.KeyboardArrowUp
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import za.co.proplyst.app.data.insights.AttentionMember
+import za.co.proplyst.app.navigation.AttentionDestination
+import za.co.proplyst.app.navigation.destinationForAttentionItem
+import za.co.proplyst.app.navigation.destinationForMember
 import za.co.proplyst.app.data.insights.AttentionCategory
 import za.co.proplyst.app.data.insights.AttentionItem
 import za.co.proplyst.app.data.insights.AttentionSeverity
@@ -75,6 +84,10 @@ private enum class AttentionFilter(val label: String, val category: AttentionCat
 @Composable
 fun NeedsAttentionScreen(
     onBack: () -> Unit,
+    /** Opens the record behind an alert. */
+    onOpenRoute: (String) -> Unit = {},
+    /** Category name to pre-select, supplied by Home when a grouped preview row is tapped. */
+    initialCategory: String? = null,
     viewModel: DashboardViewModel = hiltViewModel(),
 ) {
     val insightsState by viewModel.insightsUiState.collectAsState()
@@ -82,7 +95,30 @@ fun NeedsAttentionScreen(
     val colors = ProplystTheme.colors
     val type = ProplystTheme.type
 
-    var filter by remember { mutableStateOf(AttentionFilter.ALL) }
+    // An alert is resolved by fixing the thing it complains about, never by being looked at. So
+    // returning here -- from a confirmed payment, a closed ticket, a recorded payment -- must
+    // re-ask the server rather than trusting whatever this screen last rendered. This is also what
+    // keeps the header badge honest: it is recomputed from the refreshed feed, never decremented
+    // locally.
+    LifecycleResumeEffect(Unit) {
+        viewModel.refresh()
+        onPauseOrDispose { }
+    }
+
+    // Both of these survive process recreation, which is the whole reason they are held as a String
+    // and a List<String> rather than as an enum and a Set: rememberSaveable can only put
+    // Bundle-storable values away, and an owner who gets a call mid-review should come back to the
+    // filter and the expanded group they left, not to a reset screen.
+    var filterName by rememberSaveable {
+        mutableStateOf(
+            (AttentionFilter.entries.firstOrNull { it.category?.name == initialCategory }
+                ?: AttentionFilter.ALL).name,
+        )
+    }
+    val filter = AttentionFilter.entries.firstOrNull { it.name == filterName } ?: AttentionFilter.ALL
+
+    // Which grouped rows the user has opened, keyed by the same identity the LazyColumn uses.
+    var expandedKeys by rememberSaveable { mutableStateOf(emptyList<String>()) }
 
     val insights = (insightsState as? InsightsUiState.Loaded)?.insights.orEmpty()
     val awaiting = (financialSummaryState as? FinancialSummaryUiState.Loaded)?.summary?.awaitingConfirmationCount ?: 0
@@ -125,7 +161,7 @@ fun NeedsAttentionScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 AttentionFilter.entries.forEach { f ->
-                    FilterChip(label = f.label, selected = f == filter) { filter = f }
+                    FilterChip(label = f.label, selected = f == filter) { filterName = f.name }
                 }
                 Spacer(modifier = Modifier.width(12.dp))
             }
@@ -155,7 +191,40 @@ fun NeedsAttentionScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(shown, key = { it.category.name + it.severity.name }) { item ->
-                    AttentionDetailRow(item)
+                    val rowKey = item.category.name + item.severity.name
+                    val isExpanded = rowKey in expandedKeys
+                    val destination = destinationForAttentionItem(item)
+                    AttentionDetailRow(
+                        item = item,
+                        expanded = isExpanded,
+                        // A group with no list screen of its own expands here; everything else
+                        // leads somewhere, and only a genuinely unresolvable row stays inert.
+                        expandable = destination is AttentionDestination.Expand,
+                        hasDestination = destination is AttentionDestination.Route,
+                        onClick = {
+                            when (destination) {
+                                is AttentionDestination.Route -> onOpenRoute(destination.route)
+                                is AttentionDestination.Expand ->
+                                    expandedKeys =
+                                        if (isExpanded) expandedKeys - rowKey else expandedKeys + rowKey
+
+                                is AttentionDestination.None -> Unit
+                            }
+                        },
+                    )
+                    if (isExpanded) {
+                        item.members.forEach { member ->
+                            val memberDestination = destinationForMember(member)
+                            AttentionMemberRow(
+                                member = member,
+                                hasDestination = memberDestination is AttentionDestination.Route,
+                                onClick = {
+                                    (memberDestination as? AttentionDestination.Route)
+                                        ?.let { onOpenRoute(it.route) }
+                                },
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -179,8 +248,18 @@ private fun FilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
     }
 }
 
+/**
+ * One alert row. The WHOLE card is the target -- the CRITICAL/WARNING/REVIEW label on the right is
+ * a severity indicator, not a button, and was never the thing to aim at.
+ */
 @Composable
-private fun AttentionDetailRow(item: AttentionItem) {
+private fun AttentionDetailRow(
+    item: AttentionItem,
+    expanded: Boolean,
+    expandable: Boolean,
+    hasDestination: Boolean,
+    onClick: () -> Unit,
+) {
     val colors = ProplystTheme.colors
     val type = ProplystTheme.type
     val accent = when (item.severity) {
@@ -188,7 +267,13 @@ private fun AttentionDetailRow(item: AttentionItem) {
         AttentionSeverity.WARNING -> colors.warning
         AttentionSeverity.INFO -> colors.primary
     }
-    Surface(color = colors.surface, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+    Surface(
+        color = colors.surface,
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = expandable || hasDestination, onClick = onClick),
+    ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp, horizontal = 16.dp),
@@ -216,6 +301,65 @@ private fun AttentionDetailRow(item: AttentionItem) {
                 )
             }
             Text(item.actionLabel, style = type.statusLabel, color = accent, modifier = Modifier.padding(start = 10.dp))
+            if (expandable) {
+                Icon(
+                    if (expanded) Icons.Outlined.KeyboardArrowUp else Icons.Outlined.KeyboardArrowDown,
+                    contentDescription = if (expanded) "Collapse" else "Show the individual records",
+                    tint = colors.textSecondary,
+                    modifier = Modifier.padding(start = 6.dp),
+                )
+            } else if (hasDestination) {
+                Icon(
+                    Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = colors.textSecondary,
+                    modifier = Modifier.padding(start = 6.dp),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * One underlying record inside an expanded group.
+ *
+ * Its message is shown in full -- no maxLines -- because this is exactly where a truncated card
+ * title is supposed to become readable. Indented so it reads as belonging to the row above it.
+ */
+@Composable
+private fun AttentionMemberRow(
+    member: AttentionMember,
+    hasDestination: Boolean,
+    onClick: () -> Unit,
+) {
+    val colors = ProplystTheme.colors
+    val type = ProplystTheme.type
+    Surface(
+        color = colors.background,
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 16.dp, top = 6.dp)
+            .clickable(enabled = hasDestination, onClick = onClick),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp, horizontal = 14.dp),
+        ) {
+            Text(
+                member.message,
+                style = type.meta,
+                color = colors.textPrimary,
+                modifier = Modifier.weight(1f),
+            )
+            if (hasDestination) {
+                Icon(
+                    Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = colors.textSecondary,
+                    modifier = Modifier.padding(start = 8.dp),
+                )
+            }
         }
     }
 }

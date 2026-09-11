@@ -25,6 +25,15 @@ object Destinations {
     // Same PortfolioInsightsRepository feed as the dashboard -- a full view of the existing alert
     // system, not a competing one.
     const val NEEDS_ATTENTION = "needs_attention"
+
+    // Actionable-alerts pass: Home's preview rows open the full list already scoped to the row the
+    // owner tapped, instead of dumping them at an unfiltered list they then have to re-filter by
+    // hand. Optional arg -- plain NEEDS_ATTENTION still means "everything", so the existing
+    // "View all" entry point and its back-stack behaviour are unchanged.
+    const val NEEDS_ATTENTION_FILTERED = "needs_attention?category={category}"
+
+    fun needsAttention(category: String? = null) =
+        if (category == null) NEEDS_ATTENTION else "needs_attention?category=$category"
     const val OWNER_MORE = "owner_more"
     const val APPEARANCE_SETTINGS = "appearance"
 
@@ -49,6 +58,14 @@ object Destinations {
     const val MAINTENANCE_DETAIL = "maintenance/{ticketId}"
 
     fun maintenanceDetail(ticketId: String) = "maintenance/$ticketId"
+
+    // Same LeaseDetailScreen as LEASE_DETAIL, reached by lease id alone. An alert knows the lease
+    // that is expiring but not the property/unit path above it, and LeaseDetailViewModel only ever
+    // read `leaseId` from the SavedStateHandle -- the property/unit segments were never used. So
+    // this is a second path to one screen, not a second screen.
+    const val LEASE_DETAIL_BY_ID = "leases/{leaseId}"
+
+    fun leaseDetailById(leaseId: String) = "leases/$leaseId"
 
     // Tenant ticket submission (Android V1 final gap-closure pass, WORKLOG.md this date, Phase 4).
     // MAINTENANCE_LIST/MAINTENANCE_DETAIL above are reused as-is for the tenant portal's own

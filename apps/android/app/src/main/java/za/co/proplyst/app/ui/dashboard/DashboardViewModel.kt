@@ -22,6 +22,7 @@ import za.co.proplyst.app.data.insights.PortfolioInsight
 import za.co.proplyst.app.data.insights.PortfolioInsightsRepository
 import za.co.proplyst.app.data.insights.PortfolioInsightsResult
 import za.co.proplyst.app.data.notifications.AppNotification
+import za.co.proplyst.app.data.notifications.MarkReadResult
 import za.co.proplyst.app.data.notifications.NotificationsRepository
 import za.co.proplyst.app.data.notifications.NotificationsResult
 import za.co.proplyst.app.data.ownersummary.OwnerSummary
@@ -30,6 +31,7 @@ import za.co.proplyst.app.data.ownersummary.OwnerSummaryResult
 import za.co.proplyst.app.data.properties.Property
 import za.co.proplyst.app.data.properties.PropertiesRepository
 import za.co.proplyst.app.data.properties.PropertiesResult
+import java.time.Instant
 import javax.inject.Inject
 
 /**
@@ -213,6 +215,36 @@ class DashboardViewModel @Inject constructor(
             is PropertiesResult.Cached -> result.properties
             is PropertiesResult.Error -> emptyList()
         }.take(6)
+    }
+
+    /**
+     * Marks a Home activity row read when the owner opens it.
+     *
+     * READ, not RESOLVED: the row keeps its place in the feed and the underlying condition is
+     * untouched. The unread dot on the Activity tab is recomputed from the rows themselves rather
+     * than decremented, so it cannot drift out of step with the list beneath it.
+     *
+     * Optimistic, and reverted if the write fails -- the same contract NotificationsViewModel
+     * uses, so the two surfaces cannot disagree about what has been read.
+     */
+    fun markActivityRead(id: String) {
+        val target = _recentActivity.value.firstOrNull { it.id == id } ?: return
+        if (target.readAt != null) return
+
+        val optimisticAt = Instant.now().toString()
+        fun apply(readAt: String?) {
+            _recentActivity.value = _recentActivity.value.map {
+                if (it.id == id) it.copy(readAt = readAt) else it
+            }
+            _hasUnread.value = _recentActivity.value.any { it.readAt == null }
+        }
+        apply(optimisticAt)
+
+        viewModelScope.launch {
+            if (notificationsRepository.markRead(id) is MarkReadResult.Error) {
+                if (_recentActivity.value.firstOrNull { it.id == id }?.readAt == optimisticAt) apply(null)
+            }
+        }
     }
 
     private suspend fun fetchRecentActivity() {

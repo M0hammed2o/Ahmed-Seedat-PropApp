@@ -24,6 +24,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.foundation.layout.Row
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import za.co.proplyst.app.navigation.AttentionDestination
+import za.co.proplyst.app.navigation.destinationForNotification
 import za.co.proplyst.app.data.notifications.AppNotification
 import za.co.proplyst.app.ui.common.EmptyStateView
 import za.co.proplyst.app.ui.common.ErrorStateView
@@ -37,9 +44,20 @@ import za.co.proplyst.app.ui.common.LoadingView
 fun NotificationsListScreen(
     onSettingsClick: () -> Unit,
     onAccountClick: () -> Unit,
+    /** Opens the record an activity refers to. Default is a no-op so the Tenant portal, whose
+     * activities are informational, can keep mounting this screen unchanged. */
+    onOpenRoute: (String) -> Unit = {},
     viewModel: NotificationsViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
+
+    // Returning from a destination that may have changed things -- a closed ticket, a confirmed
+    // payment -- must not leave stale history on screen. Refresh keeps the current list visible
+    // while it reloads, unlike the initial load.
+    LifecycleResumeEffect(Unit) {
+        viewModel.refresh()
+        onPauseOrDispose { }
+    }
 
     Scaffold(
         topBar = {
@@ -76,7 +94,17 @@ fun NotificationsListScreen(
             )
             is NotificationsUiState.Loaded -> LazyColumn(modifier = Modifier.padding(padding)) {
                 items(state.notifications, key = { it.id }) { notification ->
-                    NotificationRow(notification, onClick = { viewModel.markRead(notification.id) })
+                    val destination = destinationForNotification(notification)
+                    NotificationRow(
+                        notification = notification,
+                        // An activity with no resolvable record is still openable -- opening is
+                        // what marks it read -- it just has nowhere to go afterwards.
+                        hasDestination = destination is AttentionDestination.Route,
+                        onClick = {
+                            viewModel.markRead(notification.id)
+                            (destination as? AttentionDestination.Route)?.let { onOpenRoute(it.route) }
+                        },
+                    )
                     HorizontalDivider()
                 }
             }
@@ -84,18 +112,43 @@ fun NotificationsListScreen(
     }
 }
 
+/**
+ * One activity row.
+ *
+ * The whole row is the target. It used to be `clickable(enabled = unread)`, so the moment an
+ * activity was read it went inert -- an owner could open "Payment awaiting confirmation" once,
+ * glance at it, and then find the row permanently untappable with the payment still unconfirmed.
+ * Read state is a styling concern, never a reason to withhold the destination.
+ */
 @Composable
-private fun NotificationRow(notification: AppNotification, onClick: () -> Unit) {
+private fun NotificationRow(
+    notification: AppNotification,
+    hasDestination: Boolean,
+    onClick: () -> Unit,
+) {
     val unread = notification.readAt == null
     ListItem(
         headlineContent = {
             Text(notification.title, fontWeight = if (unread) FontWeight.Bold else FontWeight.Normal)
         },
         supportingContent = notification.body?.let { { Text(it) } },
-        trailingContent = { Text(notification.createdAt.take(10), style = MaterialTheme.typography.bodySmall) },
+        trailingContent = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(notification.createdAt.take(10), style = MaterialTheme.typography.bodySmall)
+                // The one affordance added here: a chevron, only on rows that actually lead
+                // somewhere, so "tappable" is visible without decorating every row in the feed.
+                if (hasDestination) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        modifier = Modifier.padding(start = 4.dp),
+                    )
+                }
+            }
+        },
         modifier = Modifier
             .fillMaxWidth()
             .background(if (unread) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface)
-            .clickable(enabled = unread, onClick = onClick),
+            .clickable(onClick = onClick),
     )
 }

@@ -132,6 +132,7 @@ fun TenantRootScreen(pendingRoute: String? = null) {
                 NotificationsListScreen(
                     onSettingsClick = { navController.navigate(Destinations.NOTIFICATION_SETTINGS) },
                     onAccountClick = { navController.navigate(Destinations.ACCOUNT) },
+                    onOpenRoute = { navController.navigateToAlertDestination(it) },
                 )
             }
             composable(Destinations.NOTIFICATION_SETTINGS) {

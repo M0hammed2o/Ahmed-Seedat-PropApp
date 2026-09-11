@@ -40,11 +40,20 @@ class WebApiPortfolioInsightsRepository @Inject constructor(
         }
     }
 
-    private fun InsightDto.toDomain() = PortfolioInsight(
-        id = id,
-        insightType = insightType,
-        message = message,
-        severity = severity,
-        generatedAt = generatedAt,
-    )
+    private fun InsightDto.toDomain(): PortfolioInsight {
+        // The rules engine can list several triggering records; the first is the primary one its
+        // own reconciliation key is built from (`${insightType}:${primaryRecordId}` in
+        // portfolioIntelligence.ts), so it is the right one to open. Blank strings are treated as
+        // absent -- a whitespace id would otherwise build a route that 404s on arrival.
+        val primary = dataSource?.triggeringRecords?.firstOrNull()
+        return PortfolioInsight(
+            id = id,
+            insightType = insightType,
+            message = message,
+            severity = severity,
+            generatedAt = generatedAt,
+            entityTable = primary?.table?.takeIf { it.isNotBlank() },
+            entityId = primary?.id?.takeIf { it.isNotBlank() },
+        )
+    }
 }

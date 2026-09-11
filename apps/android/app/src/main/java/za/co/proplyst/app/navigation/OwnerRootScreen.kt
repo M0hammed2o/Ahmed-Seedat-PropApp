@@ -22,6 +22,8 @@ import androidx.navigation.compose.rememberNavController
 import za.co.proplyst.app.ui.account.AccountScreen
 import za.co.proplyst.app.ui.common.FloatingBottomNav
 import za.co.proplyst.app.ui.common.FloatingNavItem
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
 import za.co.proplyst.app.ui.attention.NeedsAttentionScreen
 import za.co.proplyst.app.ui.dashboard.DashboardScreen
 import za.co.proplyst.app.ui.invoices.InvoiceDetailScreen
@@ -99,10 +101,33 @@ fun OwnerRootScreen(pendingRoute: String? = null) {
                     onReviewRentStatus = { navController.navigate(Destinations.RENT_STATUS_LIST) },
                     onManageBudget = { navController.navigate(Destinations.BUDGET_VIEW) },
                     onViewAllAttention = { navController.navigate(Destinations.NEEDS_ATTENTION) },
+                    onOpenRoute = { navController.navigateToAlertDestination(it) },
                 )
             }
             composable(Destinations.NEEDS_ATTENTION) {
-                NeedsAttentionScreen(onBack = { navController.popBackStack() })
+                NeedsAttentionScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenRoute = { navController.navigateToAlertDestination(it) },
+                )
+            }
+            // Same screen, entered already filtered -- Home's grouped preview rows land here when
+            // the group has no dedicated list screen of its own.
+            composable(
+                Destinations.NEEDS_ATTENTION_FILTERED,
+                arguments = listOf(
+                    navArgument("category") { nullable = true; defaultValue = null; type = NavType.StringType },
+                ),
+            ) { backStackEntry ->
+                NeedsAttentionScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenRoute = { navController.navigateToAlertDestination(it) },
+                    initialCategory = backStackEntry.arguments?.getString("category"),
+                )
+            }
+            // Lease reached by id alone, from a lease-expiry alert or activity. LeaseDetailViewModel
+            // only ever needed `leaseId`; the property/unit segments in LEASE_DETAIL were decoration.
+            composable(Destinations.LEASE_DETAIL_BY_ID) {
+                LeaseDetailScreen(onBack = { navController.popBackStack() })
             }
             composable(Destinations.PROPERTIES_LIST) {
                 PropertiesListScreen(
@@ -227,6 +252,7 @@ fun OwnerRootScreen(pendingRoute: String? = null) {
                 NotificationsListScreen(
                     onSettingsClick = { navController.navigate(Destinations.NOTIFICATION_SETTINGS) },
                     onAccountClick = { navController.navigate(Destinations.ACCOUNT) },
+                    onOpenRoute = { navController.navigateToAlertDestination(it) },
                 )
             }
             composable(Destinations.NOTIFICATION_SETTINGS) {

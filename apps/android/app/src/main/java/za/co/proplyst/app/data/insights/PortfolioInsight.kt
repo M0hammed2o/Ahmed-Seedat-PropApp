@@ -9,6 +9,19 @@ data class PortfolioInsight(
     val message: String,
     val severity: String,
     val generatedAt: String,
+    /**
+     * The record that triggered this insight, lifted from `data_source.triggering_records[0]`
+     * (see apps/admin/lib/portfolioIntelligence.ts, which has written both fields since the rules
+     * engine was built). Android used to drop the whole `data_source` object on the floor in
+     * WebApiPortfolioInsightsRepository, which is the only reason Needs-attention rows could not
+     * open the thing they were complaining about.
+     *
+     * [entityTable] is the Postgres table name -- 'invoices', 'leases', 'maintenance_tickets',
+     * 'rent_schedules', 'property_budgets', 'utility_readings'. Nullable because an insight type
+     * added later might not carry one, and a null simply means "no destination", never a crash.
+     */
+    val entityTable: String? = null,
+    val entityId: String? = null,
 )
 
 sealed interface PortfolioInsightsResult {
