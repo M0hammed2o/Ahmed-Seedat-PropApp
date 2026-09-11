@@ -21,15 +21,16 @@ export const branding = {
   // apps/mobile/app.config.ts does NOT read this constant (it has its own separate, unrelated,
   // pre-existing local branding object; apps/mobile is a distinct, out-of-scope Expo app).
   androidPackageName: 'za.co.proplyst.app',
-  // V1 communications productionisation (WORKLOG.md this date): supportEmail is still a
-  // TO_BE_CONFIRMED placeholder -- no real support mailbox exists anywhere in this codebase
-  // (confirmed by grep before this pass), so it is deliberately never rendered in a customer-
-  // facing email (lib/email/layout.ts's footer omits a support line entirely rather than
-  // display a non-functional address) until Mohammed provides a real one. websiteUrl WAS also a
-  // placeholder pointing at a domain that was never registered/deployed -- corrected to the real,
-  // live production domain (not invented: the same https://proplyst.co.za this whole project has
-  // been deploying to since Release A).
-  supportEmail: 'support@proplyst.example', // TO_BE_CONFIRMED -- do not render in customer-facing copy
+  // Real, monitored mailbox, confirmed by Mohammed for the Google Play v1.0 release
+  // (2026-09-11). This replaced a long-standing `support@proplyst.example` placeholder that every
+  // renderer deliberately suppressed rather than display a bouncing address. Now that it is real,
+  // those suppressions are lifted: /delete-account renders the "I can't sign in" email route, the
+  // privacy policy names it, and /access-restricted offers Contact support again.
+  //
+  // Marked temporary by Mohammed: it is a genbridge.co.za address, not a proplyst.co.za one. When
+  // a permanent support@proplyst.co.za mailbox exists, changing this one constant updates every
+  // surface -- no renderer hard-codes an address.
+  supportEmail: 'notifications@genbridge.co.za',
   websiteUrl: 'https://proplyst.co.za',
 } as const;
 
@@ -40,8 +41,9 @@ export type Branding = typeof branding;
  * Distinct from `organizations.vat_no`/`cipc_reg_no`/etc. (packages/config has no equivalent for
  * that table on purpose) -- THOSE are a CUSTOMER org's own legal details for THEIR landlord/tenant
  * accounting; this is Proplyst's own details as the entity ISSUING a subscription invoice to that
- * customer. All null until Mohammed confirms real values -- never fabricated, matching the same
- * "TO_BE_CONFIRMED, never invented" rule `supportEmail` above already establishes. Every renderer
+ * customer. All null until Mohammed confirms real values -- never fabricated -- the same
+ * "TO_BE_CONFIRMED, never invented" rule `supportEmail` followed until a real mailbox was
+ * confirmed for it on 2026-09-11. Every renderer
  * (PDF, billing UI) must treat a null field here as "omit this line," never substitute a
  * placeholder string -- see lib/subscriptionInvoicePdf.ts's own header comment for the VAT-specific
  * consequence (never label a document "Tax Invoice" unless vatNumber is actually set).

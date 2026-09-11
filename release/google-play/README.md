@@ -28,11 +28,12 @@ Prepared 2026-09-10 for the first production release of the Proplyst Android app
 
 These need Mohammed personally and cannot be done from the repository:
 
-1. **Privacy policy.** The live page at `https://proplyst.co.za/privacy` is an explicit
-   placeholder that says it "is not binding legal content". Google will reject that. An accurate
-   draft is in `PRIVACY_POLICY_DRAFT.md` — review, adjust, and publish it.
-2. **Support email.** `packages/config/src/branding.ts` still carries the documented
-   `support@proplyst.example` placeholder. A real mailbox is needed for the store listing and for
-   the "I can't sign in" path on `/delete-account`.
-3. **Play Console itself** — account, identity verification, content rating questionnaire, and the
+1. **Play Console itself** — account, identity verification, content rating questionnaire, and the
    final release confirmation are all account-owner actions.
+2. **Feature graphic** (1024×500). See `ASSETS.md`.
+3. **Registered legal entity name and address** — optional but good practice in the privacy policy.
+   `platformBillingEntity` in `packages/config/src/branding.ts` is still null by design and was not
+   invented. Supply the details and they can be added in one edit.
+
+**Resolved 2026-09-11:** the privacy policy is now real and published (`v1.0-2026-09-11`), and the
+support address is `notifications@genbridge.co.za` throughout.

@@ -1,6 +1,11 @@
-# Privacy policy — DRAFT for Mohammed's approval
+# Privacy policy — SUPERSEDED, kept for reference
 
-**This is a draft, not published content.** Every factual statement was derived from the code, but
+**PUBLISHED 2026-09-11.** This draft has been approved and is now live at
+`https://proplyst.co.za/privacy` as version `v1.0-2026-09-11`; the authoritative text is
+`apps/admin/app/privacy/page.tsx`. Edit that, not this file. Retained only to show what was
+reviewed.
+
+**Original note:** Every factual statement was derived from the code, but
 a privacy policy is a binding legal document. Read it, correct anything that does not match how you
 actually run the business, add your legal entity details, then publish it in place of the current
 placeholder at `apps/admin/app/privacy/page.tsx`.

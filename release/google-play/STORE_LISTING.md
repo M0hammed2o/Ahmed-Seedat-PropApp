@@ -69,10 +69,10 @@ A Proplyst account is required.
 - **Category:** Business
 - **Tags:** Finance, Productivity
 
-## Contact details — MOHAMMED TO CONFIRM
+## Contact details
 | Field | Value |
 |---|---|
-| Email | **Required by Google.** Not set in the repo — `branding.supportEmail` is still the documented `support@proplyst.example` placeholder. Provide a real monitored mailbox. |
+| Email | `notifications@genbridge.co.za` — confirmed 2026-09-11. Temporary: a genbridge.co.za address standing in until a permanent `@proplyst.co.za` mailbox exists. |
 | Website | `https://proplyst.co.za` (live, verified) |
 | Phone | Optional. Leave blank unless you want it public. |
 
@@ -80,8 +80,9 @@ A Proplyst account is required.
 ```
 https://proplyst.co.za/privacy
 ```
-Live and returns HTTP 200 — **but the page is currently placeholder text.** See
-`PRIVACY_POLICY_DRAFT.md`; this must be replaced before submission.
+Live, returns HTTP 200, and is now the **real, binding policy** (published 2026-09-11,
+version `v1.0-2026-09-11`). It names the contact address, states the retention rule, and matches
+the Data safety answers in `DATA_SAFETY.md`.
 
 ## Account deletion URL
 ```

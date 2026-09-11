@@ -57,11 +57,14 @@ export default async function AccessRestrictedPage() {
               Manage billing
             </Button>
           </Link>
-          {/* V1 communications productionisation (WORKLOG.md this date): a real support mailbox
-              does not exist yet -- branding.supportEmail is still a documented placeholder --
-              so a "Contact support" mailto link here would silently bounce for a real customer.
-              Removed rather than shipped broken; re-add once Mohammed provides a real address
-              (see the final report's MANUAL ACTION REQUIRED list). */}
+          {/* Re-added 2026-09-11: branding.supportEmail is now a real, monitored mailbox, so this
+              link no longer bounces. It was deliberately absent while the address was a
+              placeholder. */}
+          <a href={`mailto:${branding.supportEmail}`} className="w-full">
+            <Button variant="secondary" className="w-full">
+              Contact support
+            </Button>
+          </a>
         </div>
       </div>
     </main>
