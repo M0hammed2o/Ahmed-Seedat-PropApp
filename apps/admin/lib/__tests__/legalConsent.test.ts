@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { TERMS_VERSION, PRIVACY_VERSION } from '@propvault/config';
 import {
   getLegalConsentStatus,
   hasAcceptedCurrentLegalTerms,
@@ -58,15 +59,15 @@ describe('getLegalConsentStatus / hasAcceptedCurrentLegalTerms', () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: 'u1' } } });
     // Only terms accepted -- still incomplete.
     mockSelect.mockResolvedValueOnce({
-      data: [{ document_type: 'terms_of_service', version: 'v1-placeholder-2026-08-03' }],
+      data: [{ document_type: 'terms_of_service', version: TERMS_VERSION }],
     });
     expect(await hasAcceptedCurrentLegalTerms()).toBe(false);
 
     // Both accepted at the current version -- complete.
     mockSelect.mockResolvedValueOnce({
       data: [
-        { document_type: 'terms_of_service', version: 'v1-placeholder-2026-08-03' },
-        { document_type: 'privacy_policy', version: 'v1-placeholder-2026-08-03' },
+        { document_type: 'terms_of_service', version: TERMS_VERSION },
+        { document_type: 'privacy_policy', version: PRIVACY_VERSION },
       ],
     });
     expect(await hasAcceptedCurrentLegalTerms()).toBe(true);
@@ -80,8 +81,8 @@ describe('recordLegalConsent', () => {
 
     expect(mockUpsert).toHaveBeenCalledWith(
       [
-        { user_id: 'u1', document_type: 'terms_of_service', version: 'v1-placeholder-2026-08-03' },
-        { user_id: 'u1', document_type: 'privacy_policy', version: 'v1-placeholder-2026-08-03' },
+        { user_id: 'u1', document_type: 'terms_of_service', version: TERMS_VERSION },
+        { user_id: 'u1', document_type: 'privacy_policy', version: PRIVACY_VERSION },
       ],
       { onConflict: 'user_id,document_type,version', ignoreDuplicates: true },
     );

@@ -5,7 +5,11 @@
 // (apps/admin/lib/whatsappDispatch.ts). Bump these strings (and the pages at /terms and
 // /privacy) whenever the real text changes -- the version string itself, not the page content,
 // is what gets stored per-user as their consent record.
-export const TERMS_VERSION = 'v1-placeholder-2026-08-03'; // TO_BE_CONFIRMED -- real legal text pending
+// Real, binding Terms of Service published 2026-09-11 for the Google Play v1.0 release (see
+// apps/admin/app/terms/page.tsx). Like PRIVACY_VERSION below, bumping this re-prompts every
+// existing user for consent on next sign-in via lib/legalConsent.ts -- correct for a material
+// change from placeholder text to a binding agreement.
+export const TERMS_VERSION = 'v1.0-2026-09-11';
 // Real, binding Privacy Policy published 2026-09-11 for the Google Play v1.0 release (see
 // apps/admin/app/privacy/page.tsx). Bumping this deliberately re-prompts every existing user
 // for consent on their next sign-in via lib/legalConsent.ts -- the correct outcome for a
