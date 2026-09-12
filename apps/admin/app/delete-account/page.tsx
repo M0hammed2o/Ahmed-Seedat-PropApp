@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { branding } from '@propvault/config';
+import { branding, platformBillingEntity } from '@propvault/config';
 
 // Public, unauthenticated page required by Google Play's "App account deletion" policy
 // (support.google.com/googleplay/android-developer/answer/13327111): a person who has uninstalled
@@ -25,7 +25,8 @@ export default function DeleteAccountPage() {
         Delete your {branding.productName} account
       </h1>
       <p className="mt-3 text-light-textSecondary dark:text-dark-textSecondary">
-        {branding.productName} is property-management software published by {branding.productName}.
+        {branding.productName} is property-management software published by{' '}
+        {platformBillingEntity.legalEntityName ?? branding.productName}.
         This page explains how to delete your account and exactly what happens to your information.
       </p>
 

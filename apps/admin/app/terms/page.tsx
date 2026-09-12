@@ -49,12 +49,14 @@ export default function TermsPage() {
     <main className="mx-auto max-w-2xl px-6 py-16 text-sm text-light-textPrimary dark:text-dark-textPrimary">
       <h1 className="font-display text-2xl font-bold">Terms of Service</h1>
       <p className="mt-2 text-xs text-light-textMuted dark:text-dark-textMuted">
-        Version {TERMS_VERSION} · Effective 11 September 2026
+        Version {TERMS_VERSION} · Effective 12 September 2026
       </p>
 
       <p className="mt-6 text-light-textSecondary dark:text-dark-textSecondary">
         These terms are the agreement between you and {product} for the use of our property
-        management software at proplyst.co.za and in the {product} Android app. We have tried to
+        management software at proplyst.co.za and in the {product} Android app. {product} is a
+        product of {platformBillingEntity.legalEntityName ?? 'the company operating it'}, and
+        &ldquo;we&rdquo; in these terms means that company. We have tried to
         write them in plain language. Please read them.
       </p>
 
@@ -150,6 +152,12 @@ export default function TermsPage() {
           process it only so that we can provide the service to you.
         </p>
         <p>
+          That processing includes automatically reading the text out of a document you upload — a
+          municipal bill, a lease, a bank statement — so that its figures can be filled in for you
+          instead of typed by hand. Google Cloud does that reading on our instructions. It is
+          described in full in our Privacy Policy.
+        </p>
+        <p>
           Do not upload anything you do not have the right to upload, anything unlawful, or anything
           containing malicious code. We may remove content that breaches these terms.
         </p>
@@ -175,7 +183,10 @@ export default function TermsPage() {
         </p>
         <p>
           Subscription payments are processed by PayFast. We do not receive or store your card
-          details. A subscription renews automatically for the same period until you cancel.
+          details. Subscriptions are taken out and managed on the {product} website only — the
+          Android app sells nothing, contains no purchase or upgrade flow, and is not a way to buy
+          or change a plan. If your organisation already has an active subscription, signing into
+          the Android app simply gives you what that plan allows. A subscription renews automatically for the same period until you cancel.
         </p>
         <p>
           You can cancel at any time from your billing settings. Cancelling stops future billing;
@@ -191,9 +202,11 @@ export default function TermsPage() {
 
       <Section title="10. Services we rely on">
         <p>
-          {product} runs on third-party infrastructure and services, including Supabase, Render,
-          PayFast, Meta Platforms for WhatsApp delivery, and Resend for email. They are listed, with
-          what each one does, in our{' '}
+          {product} runs on third-party infrastructure and services: Supabase, Render, PayFast,
+          Meta Platforms for WhatsApp delivery, Resend for email, and Google Cloud for reading text
+          out of documents you upload. Google and Apple also act as sign-in providers if you choose
+          to sign in with them on the website. They are listed, with what each one does and what
+          each one receives, in our{' '}
           <Link href="/privacy" className="text-light-accent hover:underline dark:text-dark-accent">
             Privacy Policy
           </Link>

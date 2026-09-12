@@ -49,7 +49,12 @@ export type Branding = typeof branding;
  * consequence (never label a document "Tax Invoice" unless vatNumber is actually set).
  */
 export const platformBillingEntity = {
-  legalEntityName: null as string | null,
+  // Confirmed by Mohammed on 2026-09-12. Proplyst is the product/trading name; GENBRIDGE Pty Ltd
+  // is the company that operates it and contracts with customers.
+  legalEntityName: 'GENBRIDGE Pty Ltd' as string | null,
+  // Still null, still deliberately: the omit-never-substitute rule above applies unchanged. A
+  // document must not be labelled "Tax Invoice" until vatNumber is a real, confirmed value, and
+  // neither the registration number nor the registered address may be guessed from the name.
   vatNumber: null as string | null,
   companyRegistrationNumber: null as string | null,
   registeredAddress: null as string | null,

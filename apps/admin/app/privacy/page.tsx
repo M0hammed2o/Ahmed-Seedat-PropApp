@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { PRIVACY_VERSION, branding } from '@propvault/config';
+import { PRIVACY_VERSION, branding, platformBillingEntity } from '@propvault/config';
 
 /**
  * The real, binding Privacy Policy, published 2026-09-11 for the Google Play v1.0 release. It
@@ -43,14 +43,17 @@ export default function PrivacyPage() {
     <main className="mx-auto max-w-2xl px-6 py-16 text-sm text-light-textPrimary dark:text-dark-textPrimary">
       <h1 className="font-display text-2xl font-bold">Privacy Policy</h1>
       <p className="mt-2 text-xs text-light-textMuted dark:text-dark-textMuted">
-        Version {PRIVACY_VERSION} · Last updated 11 September 2026
+        Version {PRIVACY_VERSION} · Last updated 12 September 2026
       </p>
 
       <p className="mt-6 text-light-textSecondary dark:text-dark-textSecondary">
         {branding.productName} is property-management software for landlords and property owners.
-        This policy explains what we collect, why we collect it, and what you can do about it. It
-        covers the {branding.productName} website at proplyst.co.za and the {branding.productName}{' '}
-        Android application.
+        It is a product of{' '}
+        {platformBillingEntity.legalEntityName ?? 'the company operating it'}, which is the
+        responsible party for the personal information described here. This policy explains what we
+        collect, why we collect it, and what you can do about it. It covers the{' '}
+        {branding.productName} website at proplyst.co.za and the {branding.productName} Android
+        application.
       </p>
 
       <Section title="What we collect">
@@ -73,9 +76,37 @@ export default function PrivacyPage() {
           instructions.
         </p>
         <p>
+          <strong>Identity and financial documents, where you choose to use those features.</strong>{' '}
+          On the website you can record a tenant&apos;s identity number, and you or a prospective
+          tenant can upload an identity document, proof of address, payslip or bank statement as
+          part of a rental application. You can also store an owner&apos;s or the
+          organisation&apos;s banking details. Identity numbers, bank account numbers and banking
+          details are encrypted in our database rather than stored as ordinary text. The Android app
+          does not collect any of these — it has no field for an identity number and no rental
+          application flow.
+        </p>
+        <p>
           <strong>Technical information.</strong> Ordinary server logs generated when your device
           contacts our servers, including IP address and timestamps, kept for security and
           troubleshooting.
+        </p>
+      </Section>
+
+      <Section title="How you sign in">
+        <p>
+          On the website you can sign in with an email address and password, or with Google or
+          Apple. If you choose Google or Apple, that provider tells us your email address and
+          confirms who you are; we never see your password for that account, and we do not post
+          anything or read anything else from it.
+        </p>
+        <p>
+          The Android app uses an email address and password only. It offers no Google or Apple
+          sign-in, so using the app involves no account with either company.
+        </p>
+        <p>
+          If you switch on fingerprint unlock in the Android app, the check happens on your device
+          through Android&apos;s own biometric system. Your fingerprint never leaves the device and
+          is never sent to us — Android only tells the app whether the check passed.
         </p>
       </Section>
 
@@ -87,10 +118,11 @@ export default function PrivacyPage() {
           history.
         </p>
         <p>
-          The Android app requests no camera or storage permission. Photographs are attached through
-          your device&apos;s own camera app and file picker, so {branding.productName} never has
-          open access to your gallery. The only permissions it requests are internet access and, if
-          you switch it on, fingerprint unlock.
+          The Android app requests no camera, photo or storage permission. When you attach a
+          photograph or a file, Android&apos;s own camera app, photo picker and document picker hand
+          us the single item you chose and nothing else, so {branding.productName} never has open
+          access to your gallery or your files. The only permissions the app declares are internet
+          access and fingerprint unlock.
         </p>
       </Section>
 
@@ -122,8 +154,20 @@ export default function PrivacyPage() {
             <strong>Resend</strong> — delivery of email.
           </li>
           <li>
+            <strong>Google Cloud (Document AI)</strong> — reading the text out of a document you
+            upload, so its figures can be filled in for you instead of typed. A document is sent to
+            Google only when this runs, Google processes it and returns the text, and Google does
+            not keep the file or use it to train anything. We store what came back alongside the
+            document.
+          </li>
+          <li>
+            <strong>Google and Apple</strong> — only if you choose to sign in with them on the
+            website, and only to confirm who you are.
+          </li>
+          <li>
             <strong>PayFast</strong> — subscription payments for {branding.productName} itself. Card
-            details are handled by PayFast and never reach us.
+            details are handled by PayFast and never reach us. Subscriptions are bought and managed
+            on the website; the Android app contains no payment or purchase flow at all.
           </li>
         </ul>
         <p>

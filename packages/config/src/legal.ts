@@ -9,10 +9,18 @@
 // apps/admin/app/terms/page.tsx). Like PRIVACY_VERSION below, bumping this re-prompts every
 // existing user for consent on next sign-in via lib/legalConsent.ts -- correct for a material
 // change from placeholder text to a binding agreement.
-export const TERMS_VERSION = 'v1.0-2026-09-11';
+// v1.1 (2026-09-12): names GENBRIDGE Pty Ltd as the operating company, discloses Google
+// Cloud Document AI and the Google/Apple sign-in providers, and states that the Android app
+// contains no purchase flow. A new processor and a new stated purpose are material changes,
+// so the version moves and every user re-consents -- that re-prompt IS the notification the
+// policy promises for significant changes.
+export const TERMS_VERSION = 'v1.1-2026-09-12';
 // Real, binding Privacy Policy published 2026-09-11 for the Google Play v1.0 release (see
 // apps/admin/app/privacy/page.tsx). Bumping this deliberately re-prompts every existing user
 // for consent on their next sign-in via lib/legalConsent.ts -- the correct outcome for a
 // material change from placeholder text to a binding policy. TERMS_VERSION is untouched:
 // /terms is still placeholder text, and authoring binding terms is a separate, lawyer-led job.
-export const PRIVACY_VERSION = 'v1.0-2026-09-11';
+// v1.1 (2026-09-12): adds identity numbers, application documents and banking details to
+// what we collect, adds Google Cloud (Document AI) and the Google/Apple sign-in providers to
+// the processor list, and names the responsible party. Same reasoning as TERMS_VERSION above.
+export const PRIVACY_VERSION = 'v1.1-2026-09-12';
