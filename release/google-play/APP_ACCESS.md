@@ -32,15 +32,15 @@ C:\Users\junsm\Downloads\PropValt (Property App)\.env.demo-credentials.local
 Paste it straight into Play Console. Do not commit it, do not paste it into chat, and do not put it
 in the store listing.
 
-### "Any other information required to access your app" — 483 of 500 characters
+### "Any other information required to access your app" — 477 of 500 characters
 
 ```
-Sign in with the email and password above on the first screen. No OTP, no two-factor, no email
-confirmation and no Google account are needed - the "Continue with Google" button is inactive in
-this build, so ignore it. Fingerprint unlock is offered but optional; skip it.
+Sign in with the email and password above on the first screen. No OTP, no two-factor and no email
+confirmation are needed, and there is no Google sign-in option to worry about. Fingerprint unlock
+is offered after sign-in but is optional; skip it.
 
 The account opens a populated demonstration portfolio, so every screen has data. Nothing is
-paywalled and no purchase is required. It holds no real customer data.
+paywalled, and the app contains no purchase flow at all. It holds no real customer data.
 
 The same login works at https://proplyst.co.za.
 ```
@@ -73,14 +73,15 @@ the reviewer cannot complete anyway.
 Nothing about authentication was weakened anywhere to make this work. Every "no" in the table above
 was already true for ordinary users before the review.
 
-## One thing the reviewer will see that needs a decision
+## Two things that used to need explaining, and no longer do
 
-The sign-in screen renders an enabled **"Continue with Google"** button with a caption underneath
-reading *"Google Sign-In requires configuration by Proplyst before it's available."* The button is
-inert because `GOOGLE_WEB_CLIENT_ID` is unset in the release build.
+**The dead Google button is gone.** The sign-in screen used to render an enabled "Continue with
+Google" button with a caption admitting it did not work, because `GOOGLE_WEB_CLIENT_ID` is unset in
+the release build. The button, the Google badge and the "or continue with" divider are now rendered
+only when Google sign-in is actually available, so the reviewer sees a plain email-and-password
+screen with nothing inert on it. This is a visibility gate, not a removal: configuring
+`GOOGLE_WEB_CLIENT_ID` brings the existing UI back with no further code change.
 
-The instruction block above tells the reviewer to ignore it, which is honest. But a visibly
-non-functional control on the very first screen is the kind of thing a reviewer flags. See the audit
-report for the recommended fix (hide the button and its divider when
-`googleSignInAvailable` is false) — it is a few lines, but it means rebuilding and re-signing the
-AAB, so it is the release owner's call, not an automatic one.
+**There is no subscription purchase link.** The "Manage subscription" row was removed from More for
+this release — see BILLING_COMPLIANCE.md. A reviewer will find no purchase, upgrade or external
+payment flow anywhere in the app, which is the intended v1.0 behaviour rather than an omission.

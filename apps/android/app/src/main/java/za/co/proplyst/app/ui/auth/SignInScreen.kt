@@ -254,33 +254,36 @@ private fun SignInContent(
                     }
                     Text(if (uiState.isSubmitting) "Signing in…" else "Sign in", style = type.button)
                 }
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 2.dp)) {
-                    HairlineDivider(Modifier.weight(1f))
-                    Text("or continue with", style = type.meta, color = colors.textTertiary, modifier = Modifier.padding(horizontal = 10.dp))
-                    HairlineDivider(Modifier.weight(1f))
-                }
-                OutlinedButton(
-                    onClick = onGoogleClick,
-                    shape = RoundedCornerShape(14.dp),
-                    border = BorderStroke(1.dp, colors.border),
-                    modifier = Modifier.fillMaxWidth().height(50.dp),
-                ) {
-                    Surface(shape = CircleShape, color = Color.White, border = BorderStroke(1.dp, colors.border), modifier = Modifier.size(20.dp)) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text("G", style = type.meta.copy(fontWeight = FontWeight.ExtraBold), color = colors.primary)
-                        }
+                // Google Sign-In is shown only when it can actually be used.
+                //
+                // GOOGLE_WEB_CLIENT_ID is unset in the release build, so this whole block used to
+                // render an enabled "Continue with Google" button with a caption underneath
+                // admitting it did not work -- a dead control, and the very first thing a Play
+                // reviewer sees. The divider went with it: email and password are the only other
+                // method, so "or continue with" introduced nothing.
+                //
+                // This is a visibility gate, not a removal. Configure GOOGLE_WEB_CLIENT_ID and the
+                // button, divider and existing onGoogleClick wiring come back exactly as they were.
+                if (googleSignInAvailable) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 2.dp)) {
+                        HairlineDivider(Modifier.weight(1f))
+                        Text("or continue with", style = type.meta, color = colors.textTertiary, modifier = Modifier.padding(horizontal = 10.dp))
+                        HairlineDivider(Modifier.weight(1f))
                     }
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text("Continue with Google", style = type.buttonSecondary, color = colors.textPrimary)
-                }
-                if (!googleSignInAvailable) {
-                    Text(
-                        "Google Sign-In requires configuration by Proplyst before it's available.",
-                        style = type.meta,
-                        color = colors.textTertiary,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
+                    OutlinedButton(
+                        onClick = onGoogleClick,
+                        shape = RoundedCornerShape(14.dp),
+                        border = BorderStroke(1.dp, colors.border),
+                        modifier = Modifier.fillMaxWidth().height(50.dp),
+                    ) {
+                        Surface(shape = CircleShape, color = Color.White, border = BorderStroke(1.dp, colors.border), modifier = Modifier.size(20.dp)) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text("G", style = type.meta.copy(fontWeight = FontWeight.ExtraBold), color = colors.primary)
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text("Continue with Google", style = type.buttonSecondary, color = colors.textPrimary)
+                    }
                 }
                 if (returningUser) {
                     ReturningUserRow(email = storedEmail, onUnlocked = onReturningUnlocked)

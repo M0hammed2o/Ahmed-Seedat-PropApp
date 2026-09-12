@@ -43,8 +43,10 @@ import za.co.proplyst.app.data.properties.PropertiesResult
 
 /**
  * V1 billing invoice pass (WORKLOG.md this date), Phase 12/14: DashboardViewModel.isPrincipal
- * gates the "Manage subscription" entry point -- only an org principal should ever see it. These
- * assert the exact role/status combinations that must and must not grant it.
+ * asserts the exact role/status combinations that do and do not make a member a principal. It used
+ * to gate the "Manage subscription" row; that row was removed for the Play v1.0 release, so the
+ * flag has no UI consumer at present. These stay because the role derivation itself is still
+ * right and still worth pinning for whatever principal-only feature comes next.
  *
  * Final pre-UAT engineering pass (WORKLOG.md this date), Part 5: also covers
  * DashboardViewModel.insightsUiState (the Portfolio Intelligence feed).

@@ -25,7 +25,6 @@ import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
 import androidx.compose.material.icons.automirrored.outlined.ShowChart
 import androidx.compose.material.icons.outlined.Build
-import androidx.compose.material.icons.outlined.CreditCard
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.People
@@ -40,7 +39,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,7 +53,7 @@ import za.co.proplyst.app.ui.common.navyHeaderGlow
 import za.co.proplyst.app.ui.dashboard.DashboardViewModel
 import za.co.proplyst.app.ui.theme.ProplystTheme
 
-private const val WEB_BILLING_URL = "https://proplyst.co.za/organization/billing"
+private const val SUPPORT_EMAIL = "notifications@genbridge.co.za"
 
 /**
  * Owner "More" (fidelity audit §4 -- no dedicated mock; follows the Navy Deck list pattern with
@@ -83,7 +81,6 @@ fun OwnerMoreScreen(
 ) {
     val colors = ProplystTheme.colors
     val type = ProplystTheme.type
-    val isPrincipal by viewModel.isPrincipal.collectAsState()
     val context = LocalContext.current
 
     Column(modifier = Modifier.fillMaxSize().background(colors.background).verticalScroll(rememberScrollState())) {
@@ -167,20 +164,31 @@ fun OwnerMoreScreen(
             Spacer(modifier = Modifier.height(16.dp))
             SectionLabel("Account")
             GroupCard {
-                if (isPrincipal) {
-                    MoreRow(
-                        "Manage subscription",
-                        "Billing and plan (opens in browser)",
-                        Icons.Outlined.CreditCard,
-                        onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(WEB_BILLING_URL))) },
-                    )
-                    RowDivider()
-                }
+                // The "Manage subscription" row was removed for the Play v1.0 release. It opened
+                // proplyst.co.za/organization/billing in the system browser, where PayFast took the
+                // payment -- an in-app link leading to an alternative payment method, which Play's
+                // Payments policy prohibits outright (§4 anti-steering), on top of §3 requiring
+                // Play billing for subscription cloud software in the first place. Android ships
+                // with no purchase surface at all: an organisation subscribes on the web, and
+                // anyone already entitled simply signs in here and uses what their plan allows.
+                // Nothing about web billing, PayFast or existing entitlements changed.
                 MoreRow("Account & security", "Fingerprint unlock, session", Icons.Outlined.Security, onAccountClick)
                 RowDivider()
                 MoreRow("Appearance", "Light, dark, or system", Icons.Outlined.Palette, onAppearanceClick)
                 RowDivider()
-                MoreRow("Help", "Contact Proplyst support", Icons.AutoMirrored.Outlined.HelpOutline, onAccountClick)
+                // Release hygiene: this row promised "Contact Proplyst support" and then opened
+                // the Account screen, which carries no support content of any kind -- a row that
+                // did nothing it said it would. It now actually opens an email to support.
+                MoreRow(
+                    "Help",
+                    "Email Proplyst support",
+                    Icons.AutoMirrored.Outlined.HelpOutline,
+                    onClick = {
+                        val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:$SUPPORT_EMAIL"))
+                        // No email client on a bare emulator image is normal, not an error.
+                        runCatching { context.startActivity(intent) }
+                    },
+                )
                 RowDivider()
                 MoreRow(
                     "Sign out",

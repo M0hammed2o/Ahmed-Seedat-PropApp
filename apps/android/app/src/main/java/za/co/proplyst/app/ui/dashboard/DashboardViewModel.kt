@@ -48,8 +48,12 @@ import javax.inject.Inject
  * existing in-app notification feed, [NotificationsRepository], reused rather than duplicated), and
  * "Top properties" ([PropertiesRepository]).
  *
- * `isPrincipal` predates this pass (V1 billing invoice pass) and still gates the "Manage
- * subscription" entry point, now surfaced from OwnerMoreScreen instead of a Dashboard toolbar icon.
+ * `isPrincipal` predates this pass (V1 billing invoice pass). It used to gate the "Manage
+ * subscription" row on OwnerMoreScreen; that row was removed for the Play v1.0 release, because an
+ * in-app link to external subscription purchasing is exactly what Play's Payments policy forbids
+ * (see release/google-play/BILLING_COMPLIANCE.md). The derivation is kept, and kept tested,
+ * because it is the correct owner/principal check for any principal-only feature that follows --
+ * a Play Billing entry point among them. It currently has no UI consumer.
  */
 @HiltViewModel
 class DashboardViewModel @Inject constructor(

@@ -1,7 +1,43 @@
-# Google Play billing compliance — finding and remediation options
+# Google Play billing compliance — finding, decision and current state
 
-**Status: unresolved policy violation. Do not submit without a decision on this.**
-Audited 11 September 2026. No code was changed; this is a report.
+**Status: RESOLVED for Android v1.0 by removing the purchase surface entirely (option A).**
+Audited 11 September 2026; remediated 12 September 2026.
+
+## What Android v1.0 actually ships
+
+- **No external PayFast or subscription purchase entry point.** The "Manage subscription" /
+  "Billing and plan (opens in browser)" row is gone from `ui/more/OwnerMoreScreen.kt`, along with
+  the `WEB_BILLING_URL` constant it used.
+- **No external-payment steering of any kind.** No button, link, or copy anywhere in the Android
+  source directs a user to PayFast, to `proplyst.co.za/organization/billing`, or to any other
+  checkout. The four remaining `ACTION_VIEW` call sites are documents, invoice PDFs, maintenance
+  attachments and proof-of-payment files — content the user already owns, never payment.
+- **Play Billing is deliberately NOT implemented yet.** Android sells nothing, so §3 has no
+  transaction to attach to and §4 has no steering to prohibit.
+- **Entitlement comes from signing in.** An organisation subscribes on the web; anyone already
+  entitled signs into Android and uses whatever their plan allows. There is no upgrade prompt, no
+  paywall and no purchase flow on the device.
+- **Web billing and PayFast are unchanged.** Nothing outside the Android module was touched, and no
+  existing subscription entitlement was altered.
+
+This is enforced by `app/src/test/java/za/co/proplyst/app/release/ReleaseHygieneTest.kt`, which
+scans the whole Kotlin source (comments stripped) and fails if a billing URL, a subscription entry
+point, or external purchase copy reappears anywhere — including in a screen the test has never
+heard of.
+
+### The residual risk, stated honestly
+
+`Likely:` this passes review. Enforcement in practice keys on in-app purchase and steering
+surfaces, and Android now has neither. But §3 describes "cloud software and services (… financial
+management)" as requiring Play billing, and Proplyst is that; a reviewer could still take the view
+that §3 applies to an app that *unlocks* paid cloud software regardless of where the money changed
+hands. Option B below remains the unambiguous end state if that happens.
+
+---
+
+## The original finding, kept for the record
+
+Audited 11 September 2026 against the live policy text.
 
 ## How subscription purchasing actually works today
 
@@ -80,11 +116,13 @@ Play's 15%/30% fee on Android-originated subscriptions. This is an architectural
 B, plus an alternative billing system alongside it, for a 4% fee reduction. Strictly more work than
 B. Only worth it once B exists and the Android subscription volume justifies it.
 
-## Recommendation
+## Decision taken
 
-**A now, B later if Android becomes a real acquisition channel.** A is proportionate to a v1.0
-whose subscribers all arrive through the web, and it converts a certain §4 violation into a
-defensible position. B is the correct end state but should not be rushed into a first release.
+**Option A, on 12 September 2026, approved by Mohammed.** A is proportionate to a v1.0 whose
+subscribers all arrive through the web, and it converts a certain §4 violation into a defensible
+position. B remains the correct end state if Android ever becomes a real acquisition channel, and
+option C only after B exists.
 
-**This needs your decision before submission.** Option A is a deliberate product change — removing
-a feature owners can currently reach — so it was not applied automatically.
+What owners lose: a shortcut from the app to the billing page. They manage their subscription at
+`proplyst.co.za/organization/billing` in a browser as before — Android simply no longer links
+there.
