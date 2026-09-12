@@ -47,16 +47,16 @@ PDF/JPEG/PNG/HEIC) is rejected with a clear error, not a silent failure.
 
 ## 3. Google Document AI production check (Part 2) — do this FIRST, before any OCR testing
 
-1. In the deployed environment's variable configuration, confirm **only** `GOOGLE_CLOUD_PROJECT_ID` /
-   `GOOGLE_CLOUD_LOCATION` / `GOOGLE_DOCUMENT_AI_PROCESSOR_ID` / `GOOGLE_DOCUMENT_AI_CREDENTIALS_JSON`
-   are set — and that none of `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_TEXTRACT_REGION` /
-   `AWS_REGION` are present, even as stale leftovers. **AWS Textract silently takes precedence over
-   Google Document AI whenever both are configured** (an existing, deliberately-unchanged
-   precedence order, documented in `DOCUMENT_INTELLIGENCE.md`) — if any AWS var is present, Google
-   will never actually run despite looking configured.
+1. In the deployed environment's variable configuration, confirm all four of
+   `GOOGLE_CLOUD_PROJECT_ID` / `GOOGLE_CLOUD_LOCATION` / `GOOGLE_DOCUMENT_AI_PROCESSOR_ID` /
+   `GOOGLE_DOCUMENT_AI_CREDENTIALS_JSON` are set (plus the optional
+   `GOOGLE_DOCUMENT_AI_INVOICE_PROCESSOR_ID`). Missing any one of them means real OCR does not run
+   at all. AWS variables no longer need checking: the Textract provider was removed on
+   12 September 2026 and nothing reads them.
 2. Sign in as `super_admin`, go to **System** (`/platform-admin/system`) → "Document intelligence
-   provider" — it now shows the real provider identity (`google-document-ai`), not a hardcoded
-   value (fixed this pass). Confirm it says `google-document-ai`, not `aws-textract` or `mock`.
+   provider" and confirm it says `google-document-ai`. If it says `mock`, the Google configuration
+   is incomplete and **no extraction output may be trusted or accepted** — the mock returns
+   plausible-looking placeholder values.
 3. Upload one real bill and check `provider_name` was recorded correctly (visible on the
    `/platform-admin/processing` page) — this was a real gap for lease uploads specifically
    (fixed this pass to match the other two extraction routes).

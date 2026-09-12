@@ -1,11 +1,4 @@
 import 'server-only';
-import {
-  TextractClient,
-  AnalyzeExpenseCommand,
-  AnalyzeDocumentCommand,
-  DetectDocumentTextCommand,
-} from '@aws-sdk/client-textract';
-import type { Block } from '@aws-sdk/client-textract';
 import type {
   ClassificationResult,
   DocumentIntelligenceProvider,
@@ -127,25 +120,12 @@ export class MockDocumentIntelligenceProvider implements DocumentIntelligencePro
   }
 }
 
-export interface TextractConfig {
-  region: string;
-  accessKeyId: string;
-  secretAccessKey: string;
-}
-
-export function getTextractConfig(): TextractConfig | null {
-  const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
-  const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
-  const region = process.env.AWS_TEXTRACT_REGION ?? process.env.AWS_REGION;
-  if (!accessKeyId || !secretAccessKey || !region) return null;
-  return { region, accessKeyId, secretAccessKey };
-}
-
-// Amazon Textract's synchronous APIs (used throughout this class) accept inline document bytes up
-// to this size -- documented AWS limit for Bytes-based (non-S3) synchronous calls. A document over
-// this size needs the async, S3-based StartDocumentAnalysis/GetDocumentAnalysis flow instead, not
-// implemented here (TECHNICAL_DEBT_REGISTER.md TD-39) -- most single-page bills/statements are
-// well under this, multi-page leases are the more likely case to hit it.
+// Largest document we will send for synchronous extraction. Google Document AI's own :process
+// limit is higher than this, so 5 MB is Proplyst's deliberately conservative ceiling rather than a
+// vendor one: base64 inflates the payload by a third, and a document bigger than this wants the
+// batch/async flow, which is not implemented here (TECHNICAL_DEBT_REGISTER.md TD-39). Most
+// single-page bills and statements are well under it; a long multi-page lease is the likely case
+// to hit it. Raising it toward Google's real limit is a separate, deliberate change.
 const MAX_SYNC_BYTES = 5 * 1024 * 1024;
 
 async function fetchDocumentBytes(
@@ -170,7 +150,7 @@ async function fetchDocumentBytes(
   const bytes = new Uint8Array(await response.arrayBuffer());
   if (bytes.byteLength > MAX_SYNC_BYTES) {
     throw new ProviderError(
-      `Document is ${bytes.byteLength} bytes, over Textract's ${MAX_SYNC_BYTES}-byte synchronous-API limit -- the async S3-based flow this provider doesn't yet implement is required for documents this large`,
+      `Document is ${bytes.byteLength} bytes, over the ${MAX_SYNC_BYTES}-byte limit for synchronous extraction -- a document this large needs the batch flow, which is not implemented yet`,
       'non_retryable',
       providerName,
     );
@@ -178,18 +158,9 @@ async function fetchDocumentBytes(
   return bytes;
 }
 
-function blocksToRawText(blocks: Block[] | undefined): { rawText: string; confidence: number } {
-  const lines = (blocks ?? []).filter((b) => b.BlockType === 'LINE');
-  const rawText = lines.map((b) => b.Text ?? '').join('\n');
-  const confidences = lines.map((b) => (b.Confidence ?? 0) / 100).filter((c) => c > 0);
-  const confidence =
-    confidences.length > 0 ? confidences.reduce((a, b) => a + b, 0) / confidences.length : 0;
-  return { rawText, confidence };
-}
-
-// Very small, disclosed-as-a-heuristic classifier -- Textract itself has no "what kind of document
-// is this" feature (that's AWS Comprehend or a custom-trained classifier, neither wired here).
-// Keyword matching on the raw OCR'd text, lower confidence than field extraction by design; a
+// Very small, disclosed-as-a-heuristic classifier. Document AI's processors extract fields; they
+// do not answer "what kind of document is this" for an arbitrary upload, so this is keyword
+// matching on the raw extracted text, at deliberately lower confidence than field extraction. A
 // document with no matching keywords falls back to 'other' rather than a guessed specific type.
 function classifyFromText(rawText: string): { documentType: DocumentType; confidence: number } {
   const text = rawText.toLowerCase();
@@ -219,256 +190,15 @@ function toExtractedField<T>(
 }
 
 // Field aliases whose FieldExtractionResult type is ExtractedField<number> (currency amounts) --
-// extractByQueries() below needs to know which query answers to run parseCurrencyToNumber() on,
-// since Textract QUERIES always returns plain text regardless of the semantic field type.
+// Which extracted answers need parseCurrencyToNumber() run on them: an extractor returns plain
+// text regardless of the semantic field type, so money fields are named explicitly.
 const NUMERIC_FIELD_ALIASES = new Set(['rentAmount', 'depositAmount', 'grossIncome', 'netIncome']);
 
-const LEASE_QUERIES: { alias: keyof FieldExtractionResult; text: string }[] = [
-  { alias: 'tenantName', text: 'Who is the tenant?' },
-  { alias: 'rentAmount', text: 'What is the monthly rent amount?' },
-  { alias: 'depositAmount', text: 'What is the deposit amount?' },
-  { alias: 'leaseStartDate', text: 'What is the lease start date?' },
-  { alias: 'leaseEndDate', text: 'What is the lease end date?' },
-  { alias: 'propertyAddress', text: 'What is the address of the rental property?' },
-];
-
-// Applicant document query sets (WORKLOG.md 2026-08-25, first-tenant-workflow predeploy pass) --
-// same Textract QUERIES approach as LEASE_QUERIES, which works against any document with no
-// per-vendor training (unlike Google's Custom Extractor path below, which needs one).
-const ID_DOCUMENT_QUERIES: { alias: keyof FieldExtractionResult; text: string }[] = [
-  { alias: 'fullName', text: 'What is the full name on this document?' },
-  { alias: 'idNumber', text: 'What is the ID number or passport number?' },
-  { alias: 'dateOfBirth', text: 'What is the date of birth?' },
-  { alias: 'nationality', text: 'What is the nationality?' },
-  { alias: 'documentExpiryDate', text: 'What is the expiry date?' },
-];
-const PROOF_OF_ADDRESS_QUERIES: { alias: keyof FieldExtractionResult; text: string }[] = [
-  { alias: 'personName', text: 'What is the name on this document?' },
-  { alias: 'residentialAddress', text: 'What is the residential address?' },
-  { alias: 'documentDate', text: 'What is the date of this document?' },
-];
-const PAYSLIP_QUERIES: { alias: keyof FieldExtractionResult; text: string }[] = [
-  { alias: 'employeeName', text: 'What is the employee name?' },
-  { alias: 'employerName', text: 'What is the employer name?' },
-  { alias: 'grossIncome', text: 'What is the gross income or gross pay?' },
-  { alias: 'netIncome', text: 'What is the net income or net pay?' },
-  { alias: 'payPeriod', text: 'What is the pay period or pay date?' },
-];
-const BANK_STATEMENT_QUERIES: { alias: keyof FieldExtractionResult; text: string }[] = [
-  { alias: 'accountHolderName', text: 'What is the account holder name?' },
-  { alias: 'statementPeriod', text: 'What is the statement period?' },
-  { alias: 'residentialAddress', text: 'What is the address on this statement?' },
-];
-
-function extractQueryAnswers(
-  blocks: Block[] | undefined,
-): Map<string, { text: string; confidence: number }> {
-  const blockById = new Map((blocks ?? []).map((b) => [b.Id, b]));
-  const results = new Map<string, { text: string; confidence: number }>();
-  for (const block of blocks ?? []) {
-    if (block.BlockType !== 'QUERY' || !block.Query?.Alias) continue;
-    const answerRelation = block.Relationships?.find((r) => r.Type === 'ANSWER');
-    const answerBlock = answerRelation?.Ids?.[0] ? blockById.get(answerRelation.Ids[0]) : undefined;
-    if (answerBlock?.Text) {
-      results.set(block.Query.Alias, {
-        text: answerBlock.Text,
-        confidence: (answerBlock.Confidence ?? 0) / 100,
-      });
-    }
-  }
-  return results;
-}
-
-// Real AWS Textract integration (Stage 5, commercial-launch execution plan, WORKLOG.md this
-// date), per Mohammed's vendor decision this date. No real AWS account/IAM credentials exist in
-// this environment (external-service blocker, same class of gap as PayFast/Resend/Meta --
-// TECHNICAL_DEBT_REGISTER.md TD-36/37/38/39) -- never run against live Textract this session.
-//
-// Two different Textract features for the two document types this codebase extracts fields for,
-// not one generic call reused for both:
-//   - 'bill': AnalyzeExpenseCommand -- a purpose-built Textract feature for invoices/receipts/
-//     utility bills, returning normalized SummaryFields (VENDOR_NAME, ACCOUNT_NUMBER, DUE_DATE,
-//     ...). The exact set of normalized Type.Text values was reconstructed from AWS's published
-//     documentation/training-data knowledge, not verified against a live response -- multiple
-//     candidate aliases are checked per field (e.g. AMOUNT_DUE falling back to TOTAL) specifically
-//     because of that uncertainty, so a real response is more likely to match on at least one.
-//   - 'lease': no purpose-built AWS feature exists for lease agreements, so this uses
-//     AnalyzeDocumentCommand's QUERIES feature -- natural-language questions Textract answers
-//     directly against the document, aliased to this codebase's own field names so the response
-//     can be mapped back without positional guessing.
-// classify()/extractText() apply to either document type and use DetectDocumentTextCommand (raw
-// OCR) -- classify() is a disclosed keyword heuristic on top of that text, not a real ML
-// classifier (Textract itself doesn't do document-type classification).
-export class AWSTextractDocumentIntelligenceProvider implements DocumentIntelligenceProvider {
-  private readonly client: TextractClient;
-  readonly providerName = 'aws-textract';
-
-  constructor(config: TextractConfig) {
-    this.client = new TextractClient({
-      region: config.region,
-      credentials: { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey },
-    });
-  }
-
-  async classify(input: ProcessingInput): Promise<ClassificationResult> {
-    const start = Date.now();
-    const { rawText } = await this.detectText(input);
-    const { documentType, confidence } = classifyFromText(rawText);
-    return { documentType, confidence, metadata: this.metadata(Date.now() - start) };
-  }
-
-  async extractText(input: ProcessingInput): Promise<OcrResult> {
-    const start = Date.now();
-    const { rawText, confidence } = await this.detectText(input);
-    return { rawText, confidence, metadata: this.metadata(Date.now() - start) };
-  }
-
-  async extractFields(
-    input: ProcessingInput,
-    documentType: DocumentType,
-  ): Promise<FieldExtractionResult> {
-    const start = Date.now();
-    switch (documentType) {
-      case 'lease':
-        return this.extractByQueries(input, LEASE_QUERIES, start);
-      case 'id_document':
-        return this.extractByQueries(input, ID_DOCUMENT_QUERIES, start);
-      case 'proof_of_address':
-        return this.extractByQueries(input, PROOF_OF_ADDRESS_QUERIES, start);
-      case 'payslip':
-        return this.extractByQueries(input, PAYSLIP_QUERIES, start);
-      case 'bank_statement':
-        return this.extractByQueries(input, BANK_STATEMENT_QUERIES, start);
-      default:
-        return this.extractBillFields(input, start);
-    }
-  }
-
-  private async detectText(
-    input: ProcessingInput,
-  ): Promise<{ rawText: string; confidence: number }> {
-    const bytes = await fetchDocumentBytes(input, this.providerName);
-    const response = await this.client.send(
-      new DetectDocumentTextCommand({ Document: { Bytes: bytes } }),
-    );
-    return blocksToRawText(response.Blocks);
-  }
-
-  private async extractBillFields(
-    input: ProcessingInput,
-    start: number,
-  ): Promise<FieldExtractionResult> {
-    const bytes = await fetchDocumentBytes(input, this.providerName);
-    const response = await this.client.send(
-      new AnalyzeExpenseCommand({ Document: { Bytes: bytes } }),
-    );
-    const summaryFields = response.ExpenseDocuments?.[0]?.SummaryFields ?? [];
-
-    const byType = new Map<string, { text: string; confidence: number }>();
-    for (const field of summaryFields) {
-      const type = field.Type?.Text;
-      const text = field.ValueDetection?.Text;
-      if (type && text) {
-        byType.set(type, { text, confidence: (field.ValueDetection?.Confidence ?? 0) / 100 });
-      }
-    }
-    const find = (...types: string[]) =>
-      types.map((t) => byType.get(t)).find((v) => v !== undefined);
-
-    const supplierName = find('VENDOR_NAME');
-    const accountNumber = find('ACCOUNT_NUMBER');
-    const amountDue = find('AMOUNT_DUE', 'TOTAL', 'BALANCE_DUE');
-    const dueDate = find('DUE_DATE');
-    const statementDate = find('INVOICE_RECEIPT_DATE', 'STATEMENT_DATE');
-    const invoiceNumber = find('INVOICE_RECEIPT_ID');
-
-    const confidences = [
-      supplierName,
-      accountNumber,
-      amountDue,
-      dueDate,
-      statementDate,
-      invoiceNumber,
-    ]
-      .filter((v): v is { text: string; confidence: number } => v !== undefined)
-      .map((v) => v.confidence);
-    const overallConfidence =
-      confidences.length > 0 ? confidences.reduce((a, b) => a + b, 0) / confidences.length : 0;
-
-    return {
-      supplierName: toExtractedField(supplierName?.text, supplierName?.confidence ?? 0),
-      accountNumber: toExtractedField(accountNumber?.text, accountNumber?.confidence ?? 0),
-      amountDue: toExtractedField(
-        parseCurrencyToNumber(amountDue?.text),
-        amountDue?.confidence ?? 0,
-      ),
-      dueDate: toExtractedField(dueDate?.text, dueDate?.confidence ?? 0),
-      statementDate: toExtractedField(statementDate?.text, statementDate?.confidence ?? 0),
-      invoiceNumber: toExtractedField(invoiceNumber?.text, invoiceNumber?.confidence ?? 0),
-      overallConfidence,
-      metadata: this.metadata(Date.now() - start),
-    };
-  }
-
-  // Generic Textract-QUERIES extractor shared by every query-based document type (lease, and the
-  // 4 applicant document types added WORKLOG.md 2026-08-25) -- pulled out of what used to be a
-  // lease-only extractLeaseFields() once a second, third, fourth, and fifth caller needed the
-  // identical AnalyzeDocumentCommand/QueriesConfig/extractQueryAnswers boilerplate.
-  private async extractByQueries(
-    input: ProcessingInput,
-    queries: { alias: keyof FieldExtractionResult; text: string }[],
-    start: number,
-  ): Promise<FieldExtractionResult> {
-    const bytes = await fetchDocumentBytes(input, this.providerName);
-    const response = await this.client.send(
-      new AnalyzeDocumentCommand({
-        Document: { Bytes: bytes },
-        FeatureTypes: ['QUERIES'],
-        QueriesConfig: { Queries: queries.map((q) => ({ Text: q.text, Alias: q.alias })) },
-      }),
-    );
-    const answers = extractQueryAnswers(response.Blocks);
-    const confidences = [...answers.values()].map((v) => v.confidence);
-    const overallConfidence =
-      confidences.length > 0 ? confidences.reduce((a, b) => a + b, 0) / confidences.length : 0;
-
-    const result: FieldExtractionResult = {
-      overallConfidence,
-      metadata: this.metadata(Date.now() - start),
-    };
-    for (const { alias } of queries) {
-      const answer = answers.get(alias);
-      const field = NUMERIC_FIELD_ALIASES.has(alias)
-        ? toExtractedField(parseCurrencyToNumber(answer?.text), answer?.confidence ?? 0)
-        : toExtractedField(answer?.text, answer?.confidence ?? 0);
-      if (field !== undefined) {
-        (result as unknown as Record<string, unknown>)[alias] = field;
-      }
-    }
-    return result;
-  }
-
-  private metadata(processingDurationMs: number): ProviderMetadata {
-    // Textract pricing is per-page/per-API-call, not a flat per-document cost -- estimatedCostUsd
-    // left null (DocumentIntelligenceProvider's own type treats null as "unknown," not zero)
-    // rather than guessing a number that would misrepresent real spend on any usage/cost dashboard
-    // reading this field.
-    return {
-      providerName: this.providerName,
-      providerVersion: null,
-      processingDurationMs,
-      estimatedCostUsd: null,
-    };
-  }
-}
-
-// Google Document AI integration (overnight platform pass, WORKLOG.md this date, Phase 8-11) --
-// a second real DocumentIntelligenceProvider alongside AWS Textract, not a replacement.
-// getDocumentIntelligenceProvider() below still checks Textract FIRST specifically to preserve
-// existing behaviour for any environment that already has AWS credentials configured (CORE
-// OPERATING RULES: "Preserve all existing working... behaviour" -- silently swapping the default
-// vendor for an already-working integration is exactly the kind of shortcut that rule forbids).
-// Google is only selected when Textract is not configured.
+// Google Document AI integration (overnight platform pass, WORKLOG.md this date, Phase 8-11).
+// Since 12 September 2026 this is the ONLY real DocumentIntelligenceProvider: the AWS Textract
+// implementation that used to sit alongside it -- and take precedence over it -- was removed
+// outright on Mohammed's confirmed architecture decision that Proplyst uses Google Cloud Document
+// AI only.
 //
 // No @google-cloud/documentai SDK dependency was added -- this implements the OAuth2 service-
 // account JWT-bearer flow directly with Node's built-in `node:crypto` and calls the Document AI
@@ -477,7 +207,7 @@ export class AWSTextractDocumentIntelligenceProvider implements DocumentIntellig
 // not be verified against a reachable registry this session.
 //
 // No real Google Cloud project/service account exists in this environment (same class of
-// external-service blocker as AWS/Meta/Resend/PayFast) -- never fabricate a successful call
+// external-service blocker as Meta/Resend/PayFast) -- never fabricate a successful call
 // against it; getGoogleDocumentAIConfig() returns null (falling through to Mock) whenever any
 // required env var is absent or the credentials JSON fails to parse.
 import { createSign } from 'node:crypto';
@@ -489,7 +219,7 @@ export interface GoogleDocumentAIConfig {
    * the fallback for extractFields() -- e.g. a "Document OCR" or "Custom Extractor" processor. */
   processorId: string;
   /** Optional dedicated "Invoice Parser"/"Expense Parser" processor for 'bill'-type documents --
-   * Google has no single processor that handles both bills and leases well, unlike Textract's
+   * Google has no single processor that handles both bills and leases equally well, so a
    * AnalyzeExpense/AnalyzeDocument split, so this is a second, independently-configured processor
    * ID rather than a mode flag on one processor. Falls back to `processorId` if unset. */
   invoiceProcessorId: string | null;
@@ -557,7 +287,7 @@ interface GoogleDocumentAIResponse {
   };
 }
 
-// Entity alias lists for extractByEntities() -- same alias names as the Textract QUERIES constants
+// Entity alias lists for extractByEntities() -- the alias names this codebase uses throughout
 // above, reused (not duplicated with different names) so both providers report the exact same
 // FieldExtractionResult keys regardless of which vendor actually served a given extraction.
 const LEASE_ENTITY_ALIASES: (keyof FieldExtractionResult)[] = [
@@ -642,10 +372,10 @@ export class GoogleDocumentAIProvider implements DocumentIntelligenceProvider {
 
   // Invoice/Expense-parser entity type names as published in Google's Document AI schema
   // reference -- reconstructed from documentation, not verified against a live response (same
-  // disclosed uncertainty as Textract's AnalyzeExpense field aliases above; multiple candidate
+  // disclosed uncertainty: multiple candidate
   // names are checked per field for the same reason). There is no standard "account_number"
   // entity on Google's stock Invoice/Expense parsers -- left unmapped (undefined) rather than
-  // guessing a field name that likely doesn't exist, unlike Textract where ACCOUNT_NUMBER is a
+  // guessing a field name that likely doesn't exist, since Document AI's invoice processor has no
   // real, documented SummaryField type.
   private async extractBillFields(
     input: ProcessingInput,
@@ -683,7 +413,7 @@ export class GoogleDocumentAIProvider implements DocumentIntelligenceProvider {
     };
   }
 
-  // Google has no purpose-built lease-agreement processor (unlike Textract's QUERIES feature,
+  // Google has no purpose-built lease-agreement processor (there is no natural-language query
   // which works against any document with no per-vendor training). The only viable path is a
   // Document AI "Custom Extractor" processor Mohammed trains himself in Cloud Console -- this
   // implementation only works correctly once he labels its training entities with these EXACT
@@ -837,7 +567,7 @@ export class GoogleDocumentAIProvider implements DocumentIntelligenceProvider {
 
   private metadata(processingDurationMs: number): ProviderMetadata {
     // Document AI pricing is per-page and varies by processor type -- left null (unknown), same
-    // convention as AWSTextractDocumentIntelligenceProvider.metadata() above, rather than guessing
+    // convention the mock provider uses above, rather than guessing
     // a number that would misrepresent real spend on any usage/cost dashboard reading this field.
     return {
       providerName: this.providerName,
@@ -848,39 +578,20 @@ export class GoogleDocumentAIProvider implements DocumentIntelligenceProvider {
   }
 }
 
-// PRECEDENCE (explicit, not incidental -- infrastructure hardening pass, WORKLOG.md this date):
-// AWS Textract wins whenever BOTH AWS and Google credentials are configured; Google Document AI
-// is only used when Textract's own required env vars are absent. This order predates Google's
-// integration (Textract was the original/only provider; Google was added later as a second
-// option, per WORKLOG.md's own "second extraction provider" framing) and has never been
-// deliberately revisited as a product decision -- it is simply "whichever was checked first" in
-// the original implementation. A live production test (WORKLOG.md this date) proved a REAL
-// (non-Mock) provider is active and correctly extracting text, but could not determine from the
-// app's own data alone whether that was Textract or Google specifically, precisely because this
-// precedence was implicit. extraction_jobs.provider_name / extraction_results.provider_name (now
-// actually populated, see the two extract routes) closes that observability gap going forward --
-// this function's OWN precedence is deliberately left unchanged here, since silently reordering
-// it without evidence of which vendor Mohammed actually intends as primary would be a real
-// behavior change, not an infrastructure/observability fix. Flagged as an open product question
-// in this pass's own completion report, not decided unilaterally.
+/**
+ * The one place a provider is chosen.
+ *
+ * Google Cloud Document AI is the only real OCR provider Proplyst supports (architecture decision
+ * confirmed by Mohammed, 12 September 2026). An AWS Textract implementation used to live in this
+ * file and, worse, took precedence over Google whenever AWS credentials happened to be present --
+ * so a stale AWS_REGION left over from something unrelated could silently route customer documents
+ * to a vendor the Privacy Policy does not name. It has been removed outright rather than
+ * de-prioritised, so that failure mode cannot come back by configuration.
+ *
+ * There is no second real provider and no precedence to reason about: either Document AI is fully
+ * configured, or nothing real runs.
+ */
 export function getDocumentIntelligenceProvider(): DocumentIntelligenceProvider {
-  const textractConfig = getTextractConfig();
-  if (textractConfig) {
-    // Final pre-UAT engineering pass (WORKLOG.md this date): Google Document AI is the intended
-    // production provider (SUBSCRIPTIONS.md-adjacent decision, confirmed by Mohammed). If AWS
-    // Textract env vars are ALSO present -- even stale leftovers from an earlier setup attempt --
-    // this branch silently wins per the precedence comment above, which would mean Google looks
-    // configured but never actually runs. No credential VALUES are logged here, only the fact that
-    // both are present, so Mohammed can catch this from server logs rather than discovering it only
-    // via extraction_results.provider_name after documents have already been processed by the
-    // wrong vendor.
-    if (getGoogleDocumentAIConfig() !== null) {
-      console.warn(
-        '[documentIntelligence] Both AWS Textract and Google Document AI credentials are configured -- AWS Textract is taking precedence (see the PRECEDENCE comment above getDocumentIntelligenceProvider()). If Google Document AI is intended as the active provider, remove the AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY/AWS_TEXTRACT_REGION/AWS_REGION environment variables.',
-      );
-    }
-    return new AWSTextractDocumentIntelligenceProvider(textractConfig);
-  }
   const googleConfig = getGoogleDocumentAIConfig();
   if (googleConfig) {
     return new GoogleDocumentAIProvider(googleConfig);
@@ -888,6 +599,13 @@ export function getDocumentIntelligenceProvider(): DocumentIntelligenceProvider 
   return new MockDocumentIntelligenceProvider();
 }
 
+/**
+ * Whether a REAL provider is configured, as opposed to the mock standing in for one.
+ *
+ * Callers must use this before presenting extraction output as though a document had actually been
+ * read -- the mock returns plausible-looking values, and passing those off as real OCR would be a
+ * lie to the user. See the platform-admin pages, which surface it.
+ */
 export function isRealDocumentIntelligenceProviderConfigured(): boolean {
-  return getTextractConfig() !== null || getGoogleDocumentAIConfig() !== null;
+  return getGoogleDocumentAIConfig() !== null;
 }

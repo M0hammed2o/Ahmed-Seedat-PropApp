@@ -9,7 +9,7 @@ export interface ProcessingInput {
    * access of its own (matches the "no DB access from a provider class" boundary every other
    * provider in this codebase follows, e.g. payfast.ts/email.ts). Optional because
    * MockDocumentIntelligenceProvider never reads it -- only a provider that genuinely needs the
-   * file's bytes (AWSTextractDocumentIntelligenceProvider) does. */
+   * file's bytes (GoogleDocumentAIProvider) does. */
   signedUrl?: string;
 }
 
@@ -102,7 +102,7 @@ export interface FieldExtractionResult {
  * only from server-side/Edge Function implementations of this interface. See DOCUMENT_INTELLIGENCE.md.
  */
 export interface DocumentIntelligenceProvider {
-  /** Stable provider identity (e.g. 'aws-textract' / 'google-document-ai' / 'mock') -- already
+  /** Stable provider identity ('google-document-ai' or 'mock') -- already
    * echoed on every result's own metadata.providerName; declared here too (infrastructure
    * hardening pass, WORKLOG.md this date) so a caller holding only the interface type, not a
    * concrete class, can read it BEFORE calling any method (needed to record which provider was in
@@ -140,7 +140,7 @@ export interface ExtractionResult {
   rawProviderOutput: FieldExtractionResult;
   overallConfidence: number | null;
   /** Which concrete DocumentIntelligenceProvider actually served this extraction (its own
-   * `providerName`, e.g. 'aws-textract'/'google-document-ai'/'mock') -- previously only ever
+   * `providerName`, 'google-document-ai' or 'mock') -- previously only ever
    * returned in-memory as part of the result's own metadata.providerName and never persisted, so
    * there was no way to audit which vendor handled a given extraction after the fact. Mirrors
    * ExtractionJob.providerName below, which already existed as a column but was likewise never

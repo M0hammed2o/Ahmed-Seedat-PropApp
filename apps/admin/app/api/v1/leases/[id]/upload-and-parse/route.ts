@@ -199,7 +199,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
 
   const provider = getDocumentIntelligenceProvider();
-  // Signed URL, not a raw storage path -- so a real provider (AWSTextractDocumentIntelligenceProvider)
+  // Signed URL, not a raw storage path -- so a real provider (GoogleDocumentAIProvider)
   // can fetch the file's bytes itself without this route handing it a Supabase client of its own
   // (see ProcessingInput's own comment). Short TTL matches every other signed-URL issuance in this
   // codebase; the provider call below happens well within it.

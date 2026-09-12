@@ -1,9 +1,9 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { TextractClient } from '@aws-sdk/client-textract';
+import { afterEach, describe, expect, it } from 'vitest';
 import {
   MockDocumentIntelligenceProvider,
-  AWSTextractDocumentIntelligenceProvider,
-  type TextractConfig,
+  GoogleDocumentAIProvider,
+  getDocumentIntelligenceProvider,
+  isRealDocumentIntelligenceProviderConfigured,
 } from '../documentIntelligence';
 
 describe('MockDocumentIntelligenceProvider', () => {
@@ -37,194 +37,114 @@ describe('MockDocumentIntelligenceProvider', () => {
     expect(result.supplierName).toBeDefined();
     expect(result.tenantName).toBeUndefined();
   });
-});
 
-const CONFIG: TextractConfig = {
-  region: 'af-south-1',
-  accessKeyId: 'test-key',
-  secretAccessKey: 'test-secret',
-};
-
-// Mocks TextractClient.prototype.send rather than the whole module -- so the provider's own
-// Command-construction (AnalyzeExpenseCommand/AnalyzeDocumentCommand/DetectDocumentTextCommand)
-// is exercised for real; only the actual network call is stubbed.
-function mockTextractSend(responses: unknown[]) {
-  const sendSpy = vi.fn();
-  for (const response of responses) sendSpy.mockResolvedValueOnce(response);
-  vi.spyOn(TextractClient.prototype, 'send').mockImplementation(sendSpy as never);
-  return sendSpy;
-}
-
-describe('AWSTextractDocumentIntelligenceProvider', () => {
-  const originalFetch = global.fetch;
-  afterEach(() => {
-    global.fetch = originalFetch;
-    vi.restoreAllMocks();
-  });
-
-  function mockDocumentFetch() {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      arrayBuffer: async () => new ArrayBuffer(10),
-    }) as unknown as typeof fetch;
-  }
-
-  it('throws a non_retryable ProviderError when no signedUrl is provided', async () => {
-    const provider = new AWSTextractDocumentIntelligenceProvider(CONFIG);
-    await expect(
-      provider.extractText({ documentId: 'd-1', storagePath: 'x', mimeType: 'application/pdf' }),
-    ).rejects.toThrow(/signedUrl/);
-  });
-
-  it('exposes providerName "aws-textract", distinct from "google-document-ai" and "mock"', () => {
-    const provider = new AWSTextractDocumentIntelligenceProvider(CONFIG);
-    expect(provider.providerName).toBe('aws-textract');
-    expect(provider.providerName).not.toBe('google-document-ai');
-    expect(provider.providerName).not.toBe('mock');
-  });
-
-  it('extractText concatenates LINE blocks and averages their confidence', async () => {
-    mockDocumentFetch();
-    mockTextractSend([
-      {
-        Blocks: [
-          { BlockType: 'LINE', Text: 'CITY OF CAPE TOWN', Confidence: 99 },
-          { BlockType: 'LINE', Text: 'Account: 12345', Confidence: 95 },
-          { BlockType: 'WORD', Text: 'ignored', Confidence: 10 },
-        ],
-      },
-    ]);
-    const provider = new AWSTextractDocumentIntelligenceProvider(CONFIG);
-    const result = await provider.extractText({
+  it('labels its extracted text as mock, so it can never read as a real OCR result', async () => {
+    const result = await new MockDocumentIntelligenceProvider().extractText({
       documentId: 'd-1',
       storagePath: 'x',
       mimeType: 'application/pdf',
-      signedUrl: 'https://example.test/x',
     });
-    expect(result.rawText).toBe('CITY OF CAPE TOWN\nAccount: 12345');
-    expect(result.confidence).toBeCloseTo(0.97, 2);
+    expect(result.rawText).toContain('MOCK');
   });
+});
 
-  it('extractFields("bill") maps AnalyzeExpense SummaryFields onto the bill-shaped result', async () => {
-    mockDocumentFetch();
-    mockTextractSend([
-      {
-        ExpenseDocuments: [
-          {
-            SummaryFields: [
-              {
-                Type: { Text: 'VENDOR_NAME' },
-                ValueDetection: { Text: 'City of Cape Town', Confidence: 98 },
-              },
-              {
-                Type: { Text: 'ACCOUNT_NUMBER' },
-                ValueDetection: { Text: '000111222', Confidence: 96 },
-              },
-              {
-                Type: { Text: 'AMOUNT_DUE' },
-                ValueDetection: { Text: 'R 1,234.56', Confidence: 92 },
-              },
-              {
-                Type: { Text: 'DUE_DATE' },
-                ValueDetection: { Text: '2026-09-01', Confidence: 90 },
-              },
-            ],
-          },
-        ],
-      },
-    ]);
-    const provider = new AWSTextractDocumentIntelligenceProvider(CONFIG);
-    const result = await provider.extractFields(
-      {
-        documentId: 'd-1',
-        storagePath: 'x',
-        mimeType: 'application/pdf',
-        signedUrl: 'https://example.test/x',
-      },
-      'bill',
+/**
+ * Provider selection after the AWS Textract removal (12 September 2026).
+ *
+ * Proplyst supports exactly one real OCR provider: Google Cloud Document AI. Textract used to live
+ * in the same module and, worse, was checked FIRST — so a stale `AWS_REGION` inherited from
+ * anything else in the environment would silently route customer documents to a vendor the Privacy
+ * Policy does not name. These tests pin the replacement contract: Google when configured, the mock
+ * otherwise, and nothing else ever.
+ */
+describe('getDocumentIntelligenceProvider', () => {
+  const GOOGLE_VARS = [
+    'GOOGLE_CLOUD_PROJECT_ID',
+    'GOOGLE_CLOUD_LOCATION',
+    'GOOGLE_DOCUMENT_AI_PROCESSOR_ID',
+    'GOOGLE_DOCUMENT_AI_CREDENTIALS_JSON',
+  ] as const;
+  const AWS_VARS = [
+    'AWS_ACCESS_KEY_ID',
+    'AWS_SECRET_ACCESS_KEY',
+    'AWS_TEXTRACT_REGION',
+    'AWS_REGION',
+  ] as const;
+
+  const saved = new Map<string, string | undefined>();
+  function setEnv(key: string, value: string | undefined) {
+    if (!saved.has(key)) saved.set(key, process.env[key]);
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+
+  function configureGoogle() {
+    setEnv('GOOGLE_CLOUD_PROJECT_ID', 'proj');
+    setEnv('GOOGLE_CLOUD_LOCATION', 'eu');
+    setEnv('GOOGLE_DOCUMENT_AI_PROCESSOR_ID', 'proc');
+    setEnv(
+      'GOOGLE_DOCUMENT_AI_CREDENTIALS_JSON',
+      JSON.stringify({ client_email: 'svc@example.iam.gserviceaccount.com', private_key: 'k' }),
     );
-    expect(result.supplierName).toEqual({ value: 'City of Cape Town', confidence: 0.98 });
-    expect(result.accountNumber?.value).toBe('000111222');
-    expect(result.amountDue?.value).toBeCloseTo(1234.56, 2);
-    expect(result.dueDate?.value).toBe('2026-09-01');
+  }
+
+  afterEach(() => {
+    for (const [k, v] of saved) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+    saved.clear();
   });
 
-  it('extractFields("bill") falls back from AMOUNT_DUE to TOTAL when AMOUNT_DUE is absent', async () => {
-    mockDocumentFetch();
-    mockTextractSend([
-      {
-        ExpenseDocuments: [
-          {
-            SummaryFields: [
-              { Type: { Text: 'TOTAL' }, ValueDetection: { Text: '499.00', Confidence: 91 } },
-            ],
-          },
-        ],
-      },
-    ]);
-    const provider = new AWSTextractDocumentIntelligenceProvider(CONFIG);
-    const result = await provider.extractFields(
-      {
-        documentId: 'd-1',
-        storagePath: 'x',
-        mimeType: 'application/pdf',
-        signedUrl: 'https://example.test/x',
-      },
-      'bill',
-    );
-    expect(result.amountDue?.value).toBeCloseTo(499, 2);
+  it('returns the Google provider when Document AI is fully configured', () => {
+    configureGoogle();
+    const provider = getDocumentIntelligenceProvider();
+    expect(provider).toBeInstanceOf(GoogleDocumentAIProvider);
+    expect(provider.providerName).toBe('google-document-ai');
+    expect(isRealDocumentIntelligenceProviderConfigured()).toBe(true);
   });
 
-  it('extractFields("lease") maps QUERY/QUERY_RESULT answer blocks by alias', async () => {
-    mockDocumentFetch();
-    mockTextractSend([
-      {
-        Blocks: [
-          {
-            BlockType: 'QUERY',
-            Id: 'q1',
-            Query: { Alias: 'tenantName' },
-            Relationships: [{ Type: 'ANSWER', Ids: ['a1'] }],
-          },
-          { BlockType: 'QUERY_RESULT', Id: 'a1', Text: 'Jane Doe', Confidence: 88 },
-          {
-            BlockType: 'QUERY',
-            Id: 'q2',
-            Query: { Alias: 'rentAmount' },
-            Relationships: [{ Type: 'ANSWER', Ids: ['a2'] }],
-          },
-          { BlockType: 'QUERY_RESULT', Id: 'a2', Text: 'R 8,500.00', Confidence: 80 },
-        ],
-      },
-    ]);
-    const provider = new AWSTextractDocumentIntelligenceProvider(CONFIG);
-    const result = await provider.extractFields(
-      {
-        documentId: 'd-1',
-        storagePath: 'x',
-        mimeType: 'application/pdf',
-        signedUrl: 'https://example.test/x',
-      },
-      'lease',
-    );
-    expect(result.tenantName?.value).toBe('Jane Doe');
-    expect(result.rentAmount?.value).toBeCloseTo(8500, 2);
-    expect(result.leaseStartDate).toBeUndefined();
+  it('falls back to the mock when Document AI is not configured', () => {
+    for (const v of GOOGLE_VARS) setEnv(v, undefined);
+    const provider = getDocumentIntelligenceProvider();
+    expect(provider).toBeInstanceOf(MockDocumentIntelligenceProvider);
+    expect(provider.providerName).toBe('mock');
+    expect(isRealDocumentIntelligenceProviderConfigured()).toBe(false);
   });
 
-  it('rejects a document over the synchronous-API size limit rather than sending a truncated payload', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      arrayBuffer: async () => new ArrayBuffer(6 * 1024 * 1024),
-    }) as unknown as typeof fetch;
-    const provider = new AWSTextractDocumentIntelligenceProvider(CONFIG);
-    await expect(
-      provider.extractText({
-        documentId: 'd-1',
-        storagePath: 'x',
-        mimeType: 'application/pdf',
-        signedUrl: 'https://example.test/x',
-      }),
-    ).rejects.toThrow(/synchronous-API limit/);
+  it('falls back to the mock when Document AI is only PARTIALLY configured', () => {
+    configureGoogle();
+    setEnv('GOOGLE_DOCUMENT_AI_PROCESSOR_ID', undefined);
+    // Incomplete credentials must fail safe, never half-run against Google.
+    expect(getDocumentIntelligenceProvider()).toBeInstanceOf(MockDocumentIntelligenceProvider);
+    expect(isRealDocumentIntelligenceProviderConfigured()).toBe(false);
+  });
+
+  it('AWS credentials in the environment have no effect whatsoever', () => {
+    // The regression this whole removal exists to prevent. Before it, these four variables — even
+    // a stray AWS_REGION set for an unrelated reason — selected Textract over Google.
+    configureGoogle();
+    for (const v of AWS_VARS) setEnv(v, 'should-be-ignored');
+    const provider = getDocumentIntelligenceProvider();
+    expect(provider).toBeInstanceOf(GoogleDocumentAIProvider);
+    expect(provider.providerName).toBe('google-document-ai');
+  });
+
+  it('AWS credentials alone do not make a real provider available', () => {
+    for (const v of GOOGLE_VARS) setEnv(v, undefined);
+    for (const v of AWS_VARS) setEnv(v, 'should-be-ignored');
+    expect(getDocumentIntelligenceProvider()).toBeInstanceOf(MockDocumentIntelligenceProvider);
+    expect(isRealDocumentIntelligenceProviderConfigured()).toBe(false);
+  });
+
+  it('exposes no Textract export any more', async () => {
+    const mod = (await import('../documentIntelligence')) as Record<string, unknown>;
+    for (const name of [
+      'AWSTextractDocumentIntelligenceProvider',
+      'getTextractConfig',
+      'TextractConfig',
+    ]) {
+      expect(mod[name], `${name} must no longer be exported`).toBeUndefined();
+    }
   });
 });

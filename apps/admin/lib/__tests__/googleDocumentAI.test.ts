@@ -111,10 +111,9 @@ describe('GoogleDocumentAIProvider (mocked fetch, no real Google call)', () => {
     vi.unstubAllGlobals();
   });
 
-  it('exposes providerName "google-document-ai", distinct from "aws-textract" and "mock"', () => {
+  it('exposes providerName "google-document-ai", distinct from "mock"', () => {
     const provider = new GoogleDocumentAIProvider(config);
     expect(provider.providerName).toBe('google-document-ai');
-    expect(provider.providerName).not.toBe('aws-textract');
     expect(provider.providerName).not.toBe('mock');
   });
 

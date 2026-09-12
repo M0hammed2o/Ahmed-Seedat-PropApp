@@ -16,13 +16,16 @@ interface DocumentIntelligenceProvider {
 
 `MockDocumentIntelligenceProvider` (Phase 1, implemented) returns deterministic fake structured data with plausible confidence scores after a simulated delay, so the full extraction-confirmation UI can be built and tested before any real provider account exists.
 
-Two real providers are implemented in `apps/admin/lib/providers/documentIntelligence.ts`
-(overnight platform pass, WORKLOG.md this date, adding the second):
+**Google Cloud Document AI is the only real provider.** This was made explicit on
+12 September 2026: an `AWSTextractDocumentIntelligenceProvider` previously lived in the same module
+and — worse — was checked FIRST, so any `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/
+`AWS_TEXTRACT_REGION`/`AWS_REGION` value present in the environment, including a stale leftover set
+for something unrelated, silently won and Google never ran. That implementation, its config getter,
+its tests and the `@aws-sdk/client-textract` dependency have all been removed, so the failure mode
+cannot return through configuration. AWS is not a supported OCR vendor for Proplyst.
 
-- **`AWSTextractDocumentIntelligenceProvider`** (Mohammed's original vendor decision) — bills use
-  `AnalyzeExpenseCommand`, leases use `AnalyzeDocumentCommand`'s QUERIES feature. Configured via
-  `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_TEXTRACT_REGION` (falls back to
-  `AWS_REGION`).
+One real provider is implemented in `apps/admin/lib/providers/documentIntelligence.ts`:
+
 - **`GoogleDocumentAIProvider`** — a second, independently-configured option, added alongside
   Textract rather than replacing it. Implements the OAuth2 service-account JWT-bearer flow with
   `node:crypto` (no `@google-cloud/documentai` SDK dependency) and calls the Document AI REST
@@ -38,30 +41,20 @@ Two real providers are implemented in `apps/admin/lib/providers/documentIntellig
     if unset)
   - `GOOGLE_DOCUMENT_AI_CREDENTIALS_JSON` (the full service-account key JSON, as one env var)
 
-`getDocumentIntelligenceProvider()` checks Textract first (preserving existing behaviour for any
-environment that already has AWS credentials configured), then Google, then falls back to Mock.
-No real AWS or Google account exists in this development environment — never fabricate a
-successful extraction result when neither is configured; the Mock provider's output is always
-clearly labelled as such.
+`getDocumentIntelligenceProvider()` returns `GoogleDocumentAIProvider` when all four required
+`GOOGLE_*` variables are present and the credentials JSON parses, and `MockDocumentIntelligence
+Provider` otherwise. There is no second real provider and no precedence to reason about. Never
+fabricate a successful extraction result when Google is not configured — the Mock provider's raw
+text is explicitly labelled as mock.
 
-**Final pre-UAT engineering pass (WORKLOG.md this date) — Google Document AI is Proplyst's actual
-intended production provider, confirmed by Mohammed.** The precedence order above (AWS first) was
-NOT changed in this pass — it predates Google's integration ("whichever was checked first" in the
-original implementation, never a deliberate product decision) and reordering it without more
-explicit direction would be a real behaviour change, not an infrastructure fix. **This means: if
-any `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/`AWS_TEXTRACT_REGION`/`AWS_REGION` value is present
-in the production environment — even a stale leftover from an earlier setup attempt — AWS Textract
-silently wins and Google Document AI never runs, despite looking fully configured.** Before any
-OCR UAT: confirm none of those AWS vars are set. Two new safety nets, this pass:
+**Resolved 12 September 2026.** The precedence hazard described in the previous revision of this
+document — AWS Textract silently winning over Google whenever any AWS variable was present — no
+longer exists, because the AWS provider no longer exists. The `console.warn` that used to flag the
+misconfiguration went with it; there is nothing left to warn about.
 
-- A non-secret warning (`console.warn`, no credential values) is now logged whenever
-  `getDocumentIntelligenceProvider()` resolves to AWS Textract while Google credentials are ALSO
-  present, so this misconfiguration is visible in server logs rather than only discoverable after
-  the fact via `extraction_results.provider_name`.
-- The platform-admin **System** page (`/platform-admin/system`) now shows the REAL active
-  provider identity (`google-document-ai` / `aws-textract` / not connected) next to "Document
-  intelligence provider" — previously hardcoded to `not_connected` regardless of actual
-  configuration. No credentials are ever shown, only the provider's own non-secret `providerName`.
+The platform-admin **System** page (`/platform-admin/system`) shows the REAL active provider
+identity (`google-document-ai`, or not connected) next to "Document intelligence provider". No
+credentials are ever shown, only the provider's own non-secret `providerName`.
 
 Also fixed this pass: `provider_name` is now recorded on `extraction_jobs`/`extraction_results`
 for the lease `upload-and-parse` route too (the other two extraction routes — documents, levy

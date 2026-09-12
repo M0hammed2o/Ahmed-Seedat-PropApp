@@ -2,7 +2,7 @@ import 'server-only';
 
 // Levy/body-corporate statement line-item heuristic parser (PHASE 10/11, WORKLOG.md this date).
 //
-// Deliberately disclosed as a heuristic, NOT a Textract/Google Document AI native feature -- no
+// Deliberately disclosed as a heuristic, NOT a Google Document AI native feature -- no
 // real vendor account exists in this environment (same external-service blocker as every other
 // provider in this codebase), and neither DocumentIntelligenceProvider implementation has a
 // structured multi-line-item extraction shape at all: extractFields() returns a fixed set of
