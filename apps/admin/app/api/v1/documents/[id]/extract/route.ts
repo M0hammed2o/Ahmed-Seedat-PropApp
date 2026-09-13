@@ -5,6 +5,7 @@ import { requireOrgRole, requirePropertyAccess } from '@/lib/portfolio';
 import { canUseOcr } from '@/lib/subscriptionEntitlements';
 import { resolveDocumentIntelligence } from '@/lib/providers/documentIntelligence';
 import { documentExtractionUnavailableResponse } from '@/lib/documentExtractionResponses';
+import { requireCleanScanBeforeProcessing } from '@/lib/protectedStorage';
 import { mapExtractionResultRow } from '@/lib/documents';
 import { writeAuditEvent } from '@/lib/audit';
 import { safeErrorMessage } from '@/lib/safeError';
@@ -143,6 +144,16 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
   if (ocr.status === 'unavailable') {
     return documentExtractionUnavailableResponse(`documents/${id}/extract`);
   }
+
+  // NO VERIFIED CLEAN SCAN -> NO OCR. Being in Storage doesn't prove a file was scanned, and this
+  // row's storage_path is client-writable -- so the exact object, inside this organisation's folder,
+  // must have a clean verdict on record or pass a scan now. Checked before the job insert below, so
+  // a refusal writes nothing.
+  const clearance = await requireCleanScanBeforeProcessing({
+    orgId: document.org_id,
+    storagePath: document.storage_path,
+  });
+  if (!clearance.ok) return clearance.response;
 
   const serviceRole = getServiceRoleClient();
 

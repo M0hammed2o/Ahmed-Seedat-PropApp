@@ -4,7 +4,8 @@ import { LEASE_TEMPLATE_MIME_TYPES } from '@propvault/types';
 import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { requireOrgRole } from '@/lib/portfolio';
 import { mapLeaseTemplateRow } from '@/lib/leaseTemplates';
-import { scanUploadOrRespond } from '@/lib/uploadScan';
+import { scanUpload } from '@/lib/uploadScan';
+import { removeProtectedObjects, storeScannedUpload } from '@/lib/protectedStorage';
 import { validateDocxContent } from '@/lib/leaseTemplateValidation';
 import { writeAuditEvent } from '@/lib/audit';
 
@@ -166,8 +167,8 @@ export async function POST(request: NextRequest) {
   const buffer = Buffer.from(await file.arrayBuffer());
 
   // R-03/TECHNICAL_DEBT_REGISTER.md TD-43: same real content scan as POST /api/v1/documents.
-  const scanRejection = await scanUploadOrRespond(buffer);
-  if (scanRejection) return scanRejection;
+  const scan = await scanUpload(buffer);
+  if (!scan.clean) return scan.response;
 
   // Real content verification, not just the client-reported MIME type -- a renamed DOCM or an
   // unrelated zip could otherwise claim to be DOCX. Never applies to PDF (not a zip container).
@@ -184,12 +185,17 @@ export async function POST(request: NextRequest) {
   const extension = file.name.includes('.') ? file.name.slice(file.name.lastIndexOf('.')) : '';
   const storagePath = `${parsed.data.orgId}/lease-templates/${crypto.randomUUID()}${extension}`;
 
-  const { error: uploadError } = await supabase.storage
-    .from('documents')
-    .upload(storagePath, buffer, { contentType: file.type, upsert: false });
-  if (uploadError) {
+  // Written by the server after the manager+ check above: clients have no Storage write policy
+  // (migration 20260101000171).
+  const stored = await storeScannedUpload({
+    verdict: scan.verdict,
+    orgId: parsed.data.orgId,
+    path: storagePath,
+    contentType: file.type,
+  });
+  if (!stored.ok) {
     return NextResponse.json(
-      { error: { code: 'storage_upload_failed', message: uploadError.message } },
+      { error: { code: 'storage_upload_failed', message: stored.error.message } },
       { status: 500 },
     );
   }
@@ -223,7 +229,7 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (error) {
-    await supabase.storage.from('documents').remove([storagePath]);
+    await removeProtectedObjects([storagePath]);
     return NextResponse.json(
       { error: { code: 'lease_template_create_failed', message: error.message } },
       { status: 500 },

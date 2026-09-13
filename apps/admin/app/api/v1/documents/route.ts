@@ -6,7 +6,8 @@ import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { requireOrgRole, requirePropertyAccess } from '@/lib/portfolio';
 import { mapDocumentRow } from '@/lib/documents';
 import { parseListQuery, encodeCursor, beforeCursorFilter } from '@/lib/cursorPagination';
-import { scanUploadOrRespond } from '@/lib/uploadScan';
+import { scanUpload } from '@/lib/uploadScan';
+import { removeProtectedObjects, storeScannedUpload } from '@/lib/protectedStorage';
 import { safeErrorMessage } from '@/lib/safeError';
 
 const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024; // 25MB, matches the storage bucket's own file_size_limit
@@ -232,8 +233,8 @@ export async function POST(request: NextRequest) {
   // R-03/TECHNICAL_DEBT_REGISTER.md TD-43: real content scanning, not just the MIME-allowlist
   // check above -- after authorization (no reason to scan a file from a caller who couldn't
   // upload it anyway) and before this file's bytes ever reach Storage.
-  const scanRejection = await scanUploadOrRespond(buffer);
-  if (scanRejection) return scanRejection;
+  const scan = await scanUpload(buffer);
+  if (!scan.clean) return scan.response;
 
   const checksum = createHash('sha256').update(buffer).digest('hex');
   const extension = file.name.includes('.') ? file.name.slice(file.name.lastIndexOf('.')) : '';
@@ -242,16 +243,21 @@ export async function POST(request: NextRequest) {
   // alongside this route in migration 20260101000048); everything after it is organisational.
   const storagePath = `${parsed.data.orgId}/${parsed.data.propertyId}/${crypto.randomUUID()}${extension}`;
 
-  const { error: uploadError } = await supabase.storage
-    .from('documents')
-    .upload(storagePath, buffer, { contentType: file.type, upsert: false });
-  if (uploadError) {
+  // Written by the server, not the caller's session: clients have no Storage write policy
+  // (migration 20260101000171). Every authorization check above has already passed.
+  const stored = await storeScannedUpload({
+    verdict: scan.verdict,
+    orgId: parsed.data.orgId,
+    path: storagePath,
+    contentType: file.type,
+  });
+  if (!stored.ok) {
     return NextResponse.json(
       {
         error: {
           code: 'storage_upload_failed',
           message: safeErrorMessage(
-            uploadError,
+            stored.error,
             'Could not upload this document. Please try again, or contact support if this continues.',
             `documents.storageUpload(${storagePath})`,
           ),
@@ -287,7 +293,7 @@ export async function POST(request: NextRequest) {
     // Row insert failed after a successful storage upload -- clean up the now-orphaned object
     // rather than leaving it unreferenced (best-effort; the object is harmless-but-wasted if this
     // also fails, never a security issue since it's still org-scoped by path).
-    await supabase.storage.from('documents').remove([storagePath]);
+    await removeProtectedObjects([storagePath]);
     return NextResponse.json(
       {
         error: {

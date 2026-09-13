@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 
@@ -137,6 +138,17 @@ describeIfSupabase(
           'Content-Type': 'application/pdf',
         },
         body: new Blob([new Uint8Array([0x25, 0x50, 0x44, 0x46])]),
+      });
+      // This fixture places the object directly, standing in for a real upload -- so it also records
+      // the clean malware-scan verdict that upload would have written (lib/protectedStorage.ts).
+      // Without it the route correctly refuses to OCR the object.
+      await adminFetch('/rest/v1/upload_malware_scans', {
+        bucket_id: 'documents',
+        object_path: storagePath,
+        org_id: orgId,
+        sha256: createHash('sha256').update(new Uint8Array([0x25, 0x50, 0x44, 0x46])).digest('hex'),
+        scanner: 'test-fixture',
+        source: 'upload',
       });
 
       const [statement] = await adminFetch('/rest/v1/levy_statements', {

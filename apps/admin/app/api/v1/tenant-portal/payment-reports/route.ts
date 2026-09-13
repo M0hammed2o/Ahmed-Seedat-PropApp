@@ -3,7 +3,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { ALLOWED_MIME_TYPES } from '@propvault/types';
 import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { resolveTenantSession } from '@/lib/tenantSession';
-import { scanUploadOrRespond } from '@/lib/uploadScan';
+import { scanUpload } from '@/lib/uploadScan';
+import { removeProtectedObjects, storeScannedUpload } from '@/lib/protectedStorage';
 import { writeAuditEvent } from '@/lib/audit';
 import { notifyOwnersOfPaymentReport, mapPaymentReportRow } from '@/lib/paymentReports';
 import { notifyPropertyStaff } from '@/lib/notify';
@@ -19,14 +20,13 @@ const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024; // matches /api/v1/documents' own 
  * own header comment); the row starts and stays `status = 'reported'` until an accountant+
  * reviews it via /api/v1/payment-reports/:id/{confirm,reject} (Phase B).
  *
- * Multipart, same shape as /api/v1/documents' own upload route -- but the `documents` storage
- * bucket's RLS INSERT policy requires agent+ org role (20260101000086), which a tenant
- * structurally can never hold. Rather than invent a second, parallel storage-scoping concept, this
- * route uploads via the SERVICE-ROLE client (bypassing that RLS check) while resolveTenantSession()
- * + the payment_reports table's own tenant-self RLS INSERT policy are the real authorization --
- * the same two-layer split every other tenant-portal write in this codebase already uses. Reuses
- * the exact same file-validation pipeline (MIME allowlist, size limit, scanUploadOrRespond() real
- * malware scan, SHA-256 checksum) as the staff-facing upload route, not a second one.
+ * Multipart, same shape as /api/v1/documents' own upload route. Like every upload route, the file
+ * is written by the server (lib/protectedStorage.ts storeScannedUpload(), service role) only after
+ * a clean malware scan -- no client has a Storage write policy (migration 20260101000171) -- while
+ * resolveTenantSession() + the payment_reports table's own tenant-self RLS INSERT policy are the
+ * real authorization, the same two-layer split every other tenant-portal write in this codebase
+ * already uses. Reuses the exact same file-validation pipeline (MIME allowlist, size limit,
+ * scanUpload() real malware scan, SHA-256 checksum) as the staff-facing upload route.
  */
 export async function POST(request: NextRequest) {
   const supabase = await getServerSupabaseClient();
@@ -129,22 +129,25 @@ export async function POST(request: NextRequest) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const scanRejection = await scanUploadOrRespond(buffer);
-    if (scanRejection) return scanRejection;
+    const scan = await scanUpload(buffer);
+    if (!scan.clean) return scan.response;
 
     const checksum = createHash('sha256').update(buffer).digest('hex');
     const extension = file.name.includes('.') ? file.name.slice(file.name.lastIndexOf('.')) : '';
     const storagePath = `${session.orgId}/${session.propertyId}/${randomUUID()}${extension}`;
 
-    const { error: uploadError } = await serviceClient.storage
-      .from('documents')
-      .upload(storagePath, buffer, { contentType: file.type, upsert: false });
-    if (uploadError) {
+    const stored = await storeScannedUpload({
+      verdict: scan.verdict,
+      orgId: session.orgId,
+      path: storagePath,
+      contentType: file.type,
+    });
+    if (!stored.ok) {
       return NextResponse.json(
         {
           error: {
             code: 'storage_upload_failed',
-            message: safeErrorMessage(uploadError, 'Could not upload your proof of payment.', 'tenantPortal.paymentReports.upload'),
+            message: safeErrorMessage(stored.error, 'Could not upload your proof of payment.', 'tenantPortal.paymentReports.upload'),
           },
         },
         { status: 500 },
@@ -178,7 +181,7 @@ export async function POST(request: NextRequest) {
       .select('id')
       .single();
     if (docError || !doc) {
-      await serviceClient.storage.from('documents').remove([storagePath]);
+      await removeProtectedObjects([storagePath]);
       return NextResponse.json(
         {
           error: {

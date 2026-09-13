@@ -31,9 +31,17 @@ vi.mock('next/headers', () => ({
 // logic, not the malware GATE'S OWN logic (dedicated coverage in lib/__tests__/uploadScan.test.ts)
 // -- mocked clean here so a real local environment with no ClamAV configured (matching today's
 // actual production state) doesn't block every assertion below with a 503.
-vi.mock('@/lib/uploadScan', () => ({
-  scanUploadOrRespond: async () => null,
-}));
+// The clean result is a real CleanUploadVerdict shape (exact bytes + SHA-256), so the route's
+// server-side write through lib/protectedStorage.ts runs for real against local Supabase.
+vi.mock('@/lib/uploadScan', async () => {
+  const { createHash } = await import('node:crypto');
+  return {
+    scanUpload: async (bytes: Uint8Array) => ({
+      clean: true,
+      verdict: { bytes, sha256: createHash('sha256').update(bytes).digest('hex'), scanner: 'test-clean' },
+    }),
+  };
+});
 
 process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://127.0.0.1:54321';
 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY =

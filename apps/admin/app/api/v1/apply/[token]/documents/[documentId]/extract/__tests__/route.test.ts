@@ -57,6 +57,22 @@ describeIfSupabase('POST /api/v1/apply/:token/documents/:documentId/extract (rea
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
+  // These fixtures place objects in Storage directly, standing in for a real applicant upload -- so
+  // they also record the clean malware-scan verdict that upload would have written
+  // (lib/protectedStorage.ts). Without it the route correctly refuses to OCR the object;
+  // lib/__tests__/protectedStorage.integration.test.ts covers that refusal.
+  async function recordCleanScan(path: string, bytes: Buffer) {
+    const { error } = await serviceClient.from('upload_malware_scans').insert({
+      bucket_id: 'documents',
+      object_path: path,
+      org_id: path.split('/')[0],
+      sha256: (await import('node:crypto')).createHash('sha256').update(bytes).digest('hex'),
+      scanner: 'test-fixture',
+      source: 'upload',
+    });
+    if (error) throw new Error(`test fixture scan record failed: ${error.message}`);
+  }
+
   let orgId: string;
   let propertyId: string;
   let unitId: string;
@@ -143,12 +159,14 @@ describeIfSupabase('POST /api/v1/apply/:token/documents/:documentId/extract (rea
     // Storage 404s ("Object not found") on a signed-URL request for a path with no actual object,
     // so the metadata row alone (as every other route-level fixture in this codebase inserts)
     // isn't enough here; a real (tiny, synthetic) object must exist at storage_path too.
+    const fixtureBytes = Buffer.from('%PDF-1.4\n%synthetic ocr test id document\n%%EOF');
     const { error: uploadError } = await serviceClient.storage
       .from('documents')
-      .upload(storagePath, Buffer.from('%PDF-1.4\n%synthetic ocr test id document\n%%EOF'), {
+      .upload(storagePath, fixtureBytes, {
         contentType: 'application/pdf',
       });
     if (uploadError) throw new Error(`test fixture upload failed: ${uploadError.message}`);
+    await recordCleanScan(storagePath, fixtureBytes);
     const { data: document } = await serviceClient
       .from('documents')
       .insert({
@@ -262,9 +280,11 @@ describeIfSupabase('POST /api/v1/apply/:token/documents/:documentId/extract (rea
   async function uploadAndExtract(documentType: 'proof_of_address' | 'payslip' | 'bank_statement') {
     const { data: category } = await serviceClient.from('document_categories').select('id').eq('slug', 'tenant_documents').single();
     const path = `${orgId}/${propertyId}/ocr-value-test-${documentType}-${Date.now()}.pdf`;
+    const fixtureBytes = Buffer.from(`%PDF-1.4\n%synthetic ${documentType}\n%%EOF`);
     await serviceClient.storage
       .from('documents')
-      .upload(path, Buffer.from(`%PDF-1.4\n%synthetic ${documentType}\n%%EOF`), { contentType: 'application/pdf' });
+      .upload(path, fixtureBytes, { contentType: 'application/pdf' });
+    await recordCleanScan(path, fixtureBytes);
     const { data: document } = await serviceClient
       .from('documents')
       .insert({

@@ -35,11 +35,28 @@ vi.mock('next/headers', () => ({
 // production state) doesn't block every "happy path" assertion below with a 503. One test further
 // down overrides this mock to prove the route itself correctly propagates a scan rejection, i.e.
 // that the wiring (not just the gate function in isolation) actually fails closed.
-const mockScanUploadOrRespond = vi.hoisted(() =>
-  vi.fn(async (): Promise<InstanceType<typeof NextResponse> | null> => null),
+// Stands in for a clean scan: a real CleanUploadVerdict shape (the exact bytes plus their SHA-256),
+// so the route's server-side write through lib/protectedStorage.ts runs for real against local
+// Supabase, including the upload_malware_scans record.
+const mockScanUpload = vi.hoisted(() =>
+  vi.fn(
+    async (
+      bytes: Uint8Array,
+    ): Promise<
+      | { clean: true; verdict: { bytes: Uint8Array; sha256: string; scanner: string } }
+      | { clean: false; response: InstanceType<typeof NextResponse> }
+    > => ({
+      clean: true,
+      verdict: {
+        bytes,
+        sha256: (await import('node:crypto')).createHash('sha256').update(bytes).digest('hex'),
+        scanner: 'test-clean',
+      },
+    }),
+  ),
 );
 vi.mock('@/lib/uploadScan', () => ({
-  scanUploadOrRespond: mockScanUploadOrRespond,
+  scanUpload: mockScanUpload,
 }));
 
 process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://127.0.0.1:54321';
@@ -316,8 +333,9 @@ describeIfSupabase(
     });
 
     it('propagates a fail-closed malware-scan rejection instead of completing the upload', async () => {
-      mockScanUploadOrRespond.mockResolvedValueOnce(
-        NextResponse.json(
+      mockScanUpload.mockResolvedValueOnce({
+        clean: false,
+        response: NextResponse.json(
           {
             error: {
               code: 'upload_temporarily_unavailable',
@@ -327,7 +345,7 @@ describeIfSupabase(
           },
           { status: 503 },
         ),
-      );
+      });
       const file = new File([new Uint8Array([1, 2, 3, 4])], 'photo.png', { type: 'image/png' });
       const response = await POST(uploadRequest(ticketAId, file), {
         params: Promise.resolve({ id: ticketAId }),
@@ -335,7 +353,7 @@ describeIfSupabase(
       expect(response.status).toBe(503);
       const body = await response.json();
       expect(body.error.code).toBe('upload_temporarily_unavailable');
-      mockScanUploadOrRespond.mockClear();
+      mockScanUpload.mockClear();
     });
   },
 );

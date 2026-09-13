@@ -5,6 +5,7 @@ import { requireOrgRole } from '@/lib/portfolio';
 import { canUseOcr } from '@/lib/subscriptionEntitlements';
 import { resolveDocumentIntelligence } from '@/lib/providers/documentIntelligence';
 import { documentExtractionUnavailableResponse } from '@/lib/documentExtractionResponses';
+import { requireCleanScanBeforeProcessing } from '@/lib/protectedStorage';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -184,6 +185,15 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       { status: 400 },
     );
   }
+
+  // NO VERIFIED CLEAN SCAN -> NO OCR (lib/protectedStorage.ts). The documents/lease_documents row
+  // is client-writable, so the exact object it names -- inside the lease's organisation folder --
+  // needs a clean verdict on record or a clean scan now, before the job insert below.
+  const clearance = await requireCleanScanBeforeProcessing({
+    orgId: lease.org_id,
+    storagePath: document.storage_path,
+  });
+  if (!clearance.ok) return clearance.response;
 
   // extraction_jobs/extraction_results have no client INSERT/UPDATE policy at all, by original
   // design (supabase/migrations/20260101000011: "jobs are created and progressed only by the

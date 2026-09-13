@@ -3,7 +3,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { ALLOWED_MIME_TYPES } from '@propvault/types';
 import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { resolveTenantSession } from '@/lib/tenantSession';
-import { scanUploadOrRespond } from '@/lib/uploadScan';
+import { scanUpload } from '@/lib/uploadScan';
+import { removeProtectedObjects, storeScannedUpload } from '@/lib/protectedStorage';
 import { writeAuditEvent } from '@/lib/audit';
 import { mapDocumentRow } from '@/lib/documents';
 
@@ -18,11 +19,11 @@ type RouteParams = { params: Promise<{ id: string }> };
  * maintenance_ticket_id`, added 20260101000085) rather than adding binary columns to
  * `maintenance_tickets`.
  *
- * Same two-layer pattern as /api/v1/tenant-portal/payment-reports' own file upload: neither
- * `documents` nor `storage.objects` (bucket 'documents') has any tenant-self INSERT policy
- * (both are staff-only, 20260101000067/20260101000086) -- rather than add a new, narrow,
- * one-off RLS policy for this single flow, this uploads via the SERVICE-ROLE client (bypassing
- * that RLS) with this route's own server-side validation as the real authorization: the ticket
+ * Same two-layer pattern as /api/v1/tenant-portal/payment-reports' own file upload: `documents`
+ * has no tenant-self INSERT policy and `storage.objects` has no client write policy at all
+ * (migration 20260101000171) -- so this writes via the SERVICE-ROLE client (lib/protectedStorage.ts
+ * storeScannedUpload(), only after a clean malware scan) with this route's own server-side
+ * validation as the real authorization: the ticket
  * ownership check below (querying maintenance_tickets through the caller's OWN session-bound
  * client, so `maintenance_tickets_select_tenant_self` RLS is what actually proves the ticket is
  * this tenant's) is what a client can never fake, not the service-role write that follows it.
@@ -115,20 +116,23 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
-  const scanRejection = await scanUploadOrRespond(buffer);
-  if (scanRejection) return scanRejection;
+  const scan = await scanUpload(buffer);
+  if (!scan.clean) return scan.response;
 
   const checksum = createHash('sha256').update(buffer).digest('hex');
   const extension = file.name.includes('.') ? file.name.slice(file.name.lastIndexOf('.')) : '';
   const storagePath = `${ticket.org_id}/${ticket.property_id}/${randomUUID()}${extension}`;
 
   const serviceClient = getServiceRoleClient();
-  const { error: uploadError } = await serviceClient.storage
-    .from('documents')
-    .upload(storagePath, buffer, { contentType: file.type, upsert: false });
-  if (uploadError) {
+  const stored = await storeScannedUpload({
+    verdict: scan.verdict,
+    orgId: ticket.org_id,
+    path: storagePath,
+    contentType: file.type,
+  });
+  if (!stored.ok) {
     return NextResponse.json(
-      { error: { code: 'storage_upload_failed', message: uploadError.message } },
+      { error: { code: 'storage_upload_failed', message: stored.error.message } },
       { status: 500 },
     );
   }
@@ -160,7 +164,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     .select('*')
     .single();
   if (docError || !doc) {
-    await serviceClient.storage.from('documents').remove([storagePath]);
+    await removeProtectedObjects([storagePath]);
     return NextResponse.json(
       { error: { code: 'document_create_failed', message: docError?.message ?? 'Upload failed.' } },
       { status: 500 },

@@ -4,6 +4,7 @@ import { requireOrgRole } from '@/lib/portfolio';
 import { canUseOcr } from '@/lib/subscriptionEntitlements';
 import { resolveDocumentIntelligence } from '@/lib/providers/documentIntelligence';
 import { documentExtractionUnavailableResponse } from '@/lib/documentExtractionResponses';
+import { requireCleanScanBeforeProcessing } from '@/lib/protectedStorage';
 import { parseLevyStatementLineItems } from '@/lib/levyStatementParsing';
 import { writeAuditEvent } from '@/lib/audit';
 import { safeErrorMessage } from '@/lib/safeError';
@@ -101,6 +102,14 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       { status: 404 },
     );
   }
+
+  // NO VERIFIED CLEAN SCAN -> NO OCR (lib/protectedStorage.ts). Checked before the job insert and
+  // the statement's status change below, so a refusal leaves the statement exactly as it was.
+  const clearance = await requireCleanScanBeforeProcessing({
+    orgId: statement.org_id,
+    storagePath: document.storage_path,
+  });
+  if (!clearance.ok) return clearance.response;
 
   const { data: job, error: jobError } = await serviceRole
     .from('extraction_jobs')

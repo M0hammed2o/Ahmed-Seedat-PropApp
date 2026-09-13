@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
-import { scanUploadOrRespond } from '@/lib/uploadScan';
+import { requireOrgRole, requirePropertyAccess } from '@/lib/portfolio';
+import { scanUpload } from '@/lib/uploadScan';
+import { removeProtectedObjects, storeScannedUpload } from '@/lib/protectedStorage';
 import { validateDocxContent } from '@/lib/leaseTemplateValidation';
 import { createLeaseDocumentVersion } from '@/lib/leaseDocuments';
 import { mapLeaseDocumentRow } from '@/lib/leasing';
@@ -76,6 +78,28 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: { code: 'not_found', message: 'Lease not found.' } }, { status: 404 });
   }
 
+  // The file is written by the server (clients have no Storage write policy, migration
+  // 20260101000171), so the permission the storage.objects INSERT policy used to enforce is checked
+  // here, before anything is scanned or stored: agent+ with manager/owner access to the property --
+  // the same bar lease_documents_insert_staff already sets for the version row.
+  const propertyId = (lease as unknown as { units: { property_id: string } | null }).units?.property_id;
+  const canWrite =
+    Boolean(propertyId) &&
+    (await requireOrgRole(supabase, lease.org_id, 'agent')) &&
+    ((await requirePropertyAccess(supabase, propertyId!, 'property_manager')) ||
+      (await requirePropertyAccess(supabase, propertyId!, 'owner')));
+  if (!canWrite) {
+    return NextResponse.json(
+      {
+        error: {
+          code: 'forbidden',
+          message: 'You do not have permission to upload documents for this lease.',
+        },
+      },
+      { status: 403 },
+    );
+  }
+
   let form: FormData;
   try {
     form = await request.formData();
@@ -108,8 +132,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
   const buffer = Buffer.from(await file.arrayBuffer());
 
-  const scanRejection = await scanUploadOrRespond(buffer);
-  if (scanRejection) return scanRejection;
+  const scan = await scanUpload(buffer);
+  if (!scan.clean) return scan.response;
 
   if (file.type === DOCX_MIME) {
     const docxCheck = validateDocxContent(buffer);
@@ -121,16 +145,18 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
   }
 
-  const propertyId = (lease as unknown as { units: { property_id: string } | null }).units?.property_id;
   const extension = file.name.includes('.') ? file.name.slice(file.name.lastIndexOf('.')) : '';
   const storagePath = `${lease.org_id}/${propertyId}/${crypto.randomUUID()}${extension}`;
 
-  const { error: uploadError } = await supabase.storage
-    .from('documents')
-    .upload(storagePath, buffer, { contentType: file.type, upsert: false });
-  if (uploadError) {
+  const stored = await storeScannedUpload({
+    verdict: scan.verdict,
+    orgId: lease.org_id,
+    path: storagePath,
+    contentType: file.type,
+  });
+  if (!stored.ok) {
     return NextResponse.json(
-      { error: { code: 'storage_upload_failed', message: uploadError.message } },
+      { error: { code: 'storage_upload_failed', message: stored.error.message } },
       { status: 500 },
     );
   }
@@ -146,7 +172,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     generatedBy: user.id,
   });
   if (versionError) {
-    await supabase.storage.from('documents').remove([storagePath]);
+    await removeProtectedObjects([storagePath]);
     return NextResponse.json(
       { error: { code: 'lease_document_create_failed', message: versionError.message } },
       { status: 500 },

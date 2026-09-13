@@ -5,6 +5,7 @@ import { canUseOcr } from '@/lib/subscriptionEntitlements';
 import { resolveDocumentIntelligence } from '@/lib/providers/documentIntelligence';
 import { isTrustedExtractionResult } from '@/lib/documentIntelligencePolicy';
 import { documentExtractionUnavailableResponse } from '@/lib/documentExtractionResponses';
+import { requireCleanScanBeforeProcessing } from '@/lib/protectedStorage';
 import { mapExtractionResultRow } from '@/lib/documents';
 import { writeAuditEvent } from '@/lib/audit';
 
@@ -123,6 +124,15 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       { status: 409 },
     );
   }
+
+  // NO VERIFIED CLEAN SCAN -> NO OCR (lib/protectedStorage.ts). The reuse path above hands back an
+  // earlier result without processing anything; every new OCR run needs a verified clean scan of the
+  // exact stored object, checked before the job insert so a refusal writes nothing.
+  const clearance = await requireCleanScanBeforeProcessing({
+    orgId: document.org_id,
+    storagePath: document.storage_path,
+  });
+  if (!clearance.ok) return clearance.response;
 
   const { data: job, error: jobError } = await serviceRole
     .from('extraction_jobs')

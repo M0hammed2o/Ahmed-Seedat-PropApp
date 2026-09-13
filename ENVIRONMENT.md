@@ -150,7 +150,9 @@ The rule in `lib/uploadScan.ts`: **an upload proceeds only on an explicit clean 
 | --- | --- |
 | **Scanner** | `POST https://api.cloudmersive.com/virus/scan/file`, `Apikey` header, multipart `inputFile`; verdict from `CleanResult` / `FoundViruses` (`lib/providers/malwareScan.ts`) |
 | **Config** | `CLOUDMERSIVE_API_KEY` on the Render web service (secret). Optional `CLOUDMERSIVE_MAX_FILE_BYTES` |
-| **How files flow** | upload route → auth → size + MIME checks → `scanUploadOrRespond()` → Cloudmersive → Supabase Storage → (later) extraction routes → Google Document AI |
+| **How files flow** | upload route → auth → size + MIME checks → `scanUpload()` → Cloudmersive → `storeScannedUpload()` (server-side write + clean-scan record) → Supabase Storage → (later) extraction routes → `requireCleanScanBeforeProcessing()` → Google Document AI |
+| **Client Storage writes** | None. Migration `20260101000171` removed every client INSERT/UPDATE policy on `storage.objects`; only the server writes objects, through `lib/protectedStorage.ts` |
+| **Before OCR / processing** | The exact stored object must have a clean verdict in `upload_malware_scans` (server-only table) or pass a scan right then; otherwise the route refuses (403/413/422/503) before any job is created |
 | **Key missing in production** | Every upload → `503 upload_temporarily_unavailable`. ClamAV and the mock are never used in production |
 | **Threat found** | `422 malware_detected` |
 | **Scan fails** (timeout after 30 s, network error, 401/403, 429, 5xx, any other status, malformed body) | `503 scan_unavailable`, for sensitive and non-sensitive uploads alike |

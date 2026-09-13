@@ -169,6 +169,9 @@ describe('POST /api/v1/documents/:id/extract', () => {
         mime_type: 'application/pdf',
       },
     };
+    // A clean malware-scan record for that object, so the route clears
+    // requireCleanScanBeforeProcessing() and reaches the part this suite is about.
+    h.state.service.upload_malware_scans = { maybeSingle: { org_id: 'org-1', scanner: 'cloudmersive' } };
     h.state.service.extraction_jobs = { error: { message: 'insert blocked in test' } };
   }
 
@@ -217,6 +220,7 @@ describe('POST /api/v1/leases/:id/upload-and-parse', () => {
         mime_type: 'application/pdf',
       },
     };
+    h.state.service.upload_malware_scans = { maybeSingle: { org_id: 'org-1', scanner: 'cloudmersive' } };
     h.state.service.extraction_jobs = { error: { message: 'insert blocked in test' } };
   }
   const BODY = { documentId: '11111111-1111-4111-8111-111111111111' };
@@ -252,7 +256,10 @@ describe('POST /api/v1/levy-statements/:id/extract', () => {
     h.state.session.levy_statements = {
       maybeSingle: { id: 'levy-1', org_id: 'org-1', document_id: 'doc-1' },
     };
-    h.state.service.documents = { maybeSingle: { id: 'doc-1', storage_path: 'x', mime_type: 'application/pdf' } };
+    h.state.service.documents = {
+      maybeSingle: { id: 'doc-1', storage_path: 'org-1/prop-1/levy.pdf', mime_type: 'application/pdf' },
+    };
+    h.state.service.upload_malware_scans = { maybeSingle: { org_id: 'org-1', scanner: 'cloudmersive' } };
     h.state.service.extraction_jobs = { error: { message: 'insert blocked in test' } };
   }
 

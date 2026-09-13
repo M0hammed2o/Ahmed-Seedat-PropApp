@@ -1,8 +1,9 @@
 import { createHash } from 'crypto';
 import { NextResponse, type NextRequest } from 'next/server';
 import { ALLOWED_MIME_TYPES } from '@propvault/types';
-import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
-import { scanUploadOrRespond } from '@/lib/uploadScan';
+import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { scanUpload } from '@/lib/uploadScan';
+import { removeProtectedObjects, storeScannedUpload } from '@/lib/protectedStorage';
 
 type RouteParams = { params: Promise<{ token: string }> };
 
@@ -11,9 +12,9 @@ const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024; // 25MB, matches every other uploa
 /**
  * POST /api/v1/apply/:token/documents (Phase 6-7, migration 20260101000132). Public, token-scoped.
  *
- * The applicant has no org membership, so they cannot satisfy storage.objects' own property-scoped
- * INSERT policy the way a real staff upload does -- this route therefore uploads the bytes with the
- * SERVICE ROLE client (getServiceRoleClient(), never exposed to the browser) instead, but ONLY
+ * No client can write to storage.objects (migration 20260101000171), so -- like every upload
+ * route -- this writes the bytes with the SERVICE ROLE client (lib/protectedStorage.ts
+ * storeScannedUpload(), never exposed to the browser, only after a clean malware scan), and ONLY
  * after get_application_by_token() has already confirmed the token is valid and resolved exactly
  * which org/property this upload is allowed to belong to. The server -- not the caller -- builds
  * the storage path from that resolved org/property id, so a caller can never direct the write
@@ -92,20 +93,22 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
   const buffer = Buffer.from(await file.arrayBuffer());
 
-  const scanRejection = await scanUploadOrRespond(buffer);
-  if (scanRejection) return scanRejection;
+  const scan = await scanUpload(buffer);
+  if (!scan.clean) return scan.response;
 
   const checksum = createHash('sha256').update(buffer).digest('hex');
   const extension = file.name.includes('.') ? file.name.slice(file.name.lastIndexOf('.')) : '';
   const storagePath = `${app.org_id}/${app.property_id}/${crypto.randomUUID()}${extension}`;
 
-  const serviceRole = getServiceRoleClient();
-  const { error: uploadError } = await serviceRole.storage
-    .from('documents')
-    .upload(storagePath, buffer, { contentType: file.type, upsert: false });
-  if (uploadError) {
+  const stored = await storeScannedUpload({
+    verdict: scan.verdict,
+    orgId: app.org_id,
+    path: storagePath,
+    contentType: file.type,
+  });
+  if (!stored.ok) {
     return NextResponse.json(
-      { error: { code: 'storage_upload_failed', message: uploadError.message } },
+      { error: { code: 'storage_upload_failed', message: stored.error.message } },
       { status: 500 },
     );
   }
@@ -123,7 +126,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     .single();
 
   if (error) {
-    await serviceRole.storage.from('documents').remove([storagePath]);
+    await removeProtectedObjects([storagePath]);
     return NextResponse.json(
       { error: { code: 'document_record_failed', message: error.message } },
       { status: 500 },
@@ -132,7 +135,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
   const row = data as { success: boolean; error_code: string | null; document_id: string | null };
   if (!row.success) {
-    await serviceRole.storage.from('documents').remove([storagePath]);
+    await removeProtectedObjects([storagePath]);
     return NextResponse.json(
       { error: { code: row.error_code ?? 'document_record_failed', message: 'Could not record this upload.' } },
       { status: 400 },
