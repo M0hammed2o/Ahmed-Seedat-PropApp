@@ -9,6 +9,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { Panel } from '@/components/ui/Panel';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 import { canUseOcr } from '@/lib/subscriptionEntitlements';
+import { isTrustedExtractionResult } from '@/lib/documentIntelligencePolicy';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -82,7 +83,12 @@ export default async function DocumentDetailPage({ params }: RouteParams) {
       .select('*')
       .eq('extraction_job_id', jobRow.id)
       .maybeSingle();
-    if (resultRow) extractionResult = mapExtractionResultRow(resultRow);
+    // An untrusted result -- written by the mock, or too old to prove it came from a real read -- is
+    // shown as no extraction at all, never displayed as fields a user might accept. The panel then
+    // offers a fresh scan, which only a real provider can serve (lib/documentIntelligencePolicy.ts).
+    if (resultRow && isTrustedExtractionResult(resultRow.provider_name)) {
+      extractionResult = mapExtractionResultRow(resultRow);
+    }
   }
 
   const session = await resolvePortalSession();

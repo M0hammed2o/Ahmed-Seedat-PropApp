@@ -2,7 +2,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { requireOrgRole } from '@/lib/portfolio';
 import { canUseOcr } from '@/lib/subscriptionEntitlements';
-import { getDocumentIntelligenceProvider } from '@/lib/providers/documentIntelligence';
+import { resolveDocumentIntelligence } from '@/lib/providers/documentIntelligence';
+import { documentExtractionUnavailableResponse } from '@/lib/documentExtractionResponses';
 import { parseLevyStatementLineItems } from '@/lib/levyStatementParsing';
 import { writeAuditEvent } from '@/lib/audit';
 import { safeErrorMessage } from '@/lib/safeError';
@@ -72,6 +73,16 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     );
   }
 
+  // Production never runs the mock provider (lib/documentIntelligencePolicy.ts). This route is the
+  // one where that matters most for record integrity: past this point it writes an extraction job,
+  // flips the real levy_statements row to 'extracting', inserts parsed line items into financial
+  // records and marks the statement 'extracted'. Checking any later would strand a statement
+  // mid-flight; running on mock text would mark a real statement 'extracted' on junk.
+  const ocr = resolveDocumentIntelligence();
+  if (ocr.status === 'unavailable') {
+    return documentExtractionUnavailableResponse(`levy-statements/${id}/extract`);
+  }
+
   const serviceRole = getServiceRoleClient();
 
   const { data: document } = await serviceRole
@@ -139,7 +150,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
   // Resolved before the try block (a pure, non-throwing call) so both the success AND failure
   // paths below can record which provider was in use -- infrastructure hardening pass (WORKLOG.md
   // this date): extraction_jobs.provider_name already existed as a column but was never written.
-  const provider = getDocumentIntelligenceProvider();
+  const provider = ocr.provider;
 
   try {
     const ocrResult = await provider.extractText({

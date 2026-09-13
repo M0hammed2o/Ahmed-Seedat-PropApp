@@ -216,5 +216,57 @@ describeIfSupabase(
       );
       expect(job.provider_name).toBe('mock'); // unaffected by the forged body field
     });
+
+    // ===============================================================================================
+    // PRODUCTION NEVER USES THE MOCK PROVIDER (13 September 2026)
+    //
+    // This route matters most for record integrity. Past the availability check it writes a job,
+    // flips the REAL levy_statements row to 'extracting', inserts parsed line items into financial
+    // records and marks the statement 'extracted'. Run on mock text, a real statement would be
+    // marked 'extracted' on junk; refused too late, it would be stranded in 'extracting'.
+    // ===============================================================================================
+    describe('as production without Google Document AI', () => {
+      beforeEach(() => {
+        vi.stubEnv('NODE_ENV', 'production');
+        for (const v of [
+          'GOOGLE_CLOUD_PROJECT_ID',
+          'GOOGLE_CLOUD_LOCATION',
+          'GOOGLE_DOCUMENT_AI_PROCESSOR_ID',
+          'GOOGLE_DOCUMENT_AI_CREDENTIALS_JSON',
+        ]) {
+          vi.stubEnv(v, '');
+        }
+      });
+      afterEach(() => {
+        vi.unstubAllEnvs();
+      });
+
+      it('answers with a controlled 503 instead of running the mock', async () => {
+        const response = await POST(postRequest(), { params: Promise.resolve({ id: statementId }) });
+        expect(response.status).toBe(503);
+        const body = await response.json();
+        expect(body.error.code).toBe('document_extraction_unavailable');
+        expect(JSON.stringify(body)).not.toContain('MOCK EXTRACTED');
+      });
+
+      it('leaves the real levy statement exactly as it was -- not extracting, not extracted', async () => {
+        await POST(postRequest(), { params: Promise.resolve({ id: statementId }) });
+        const [statement] = await adminGet(
+          `/rest/v1/levy_statements?id=eq.${statementId}&select=status,extraction_job_id`,
+        );
+        expect(statement.status).toBe('uploaded');
+        expect(statement.extraction_job_id).toBeNull();
+      });
+
+      it('writes no extraction job and no line items into the financial records', async () => {
+        await POST(postRequest(), { params: Promise.resolve({ id: statementId }) });
+        const jobs = await adminGet(`/rest/v1/extraction_jobs?org_id=eq.${orgId}&select=id`);
+        const lineItems = await adminGet(
+          `/rest/v1/levy_statement_line_items?org_id=eq.${orgId}&select=id`,
+        );
+        expect(jobs).toEqual([]);
+        expect(lineItems).toEqual([]);
+      });
+    });
   },
 );

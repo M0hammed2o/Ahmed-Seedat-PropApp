@@ -2,8 +2,11 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   MockDocumentIntelligenceProvider,
   GoogleDocumentAIProvider,
+  DocumentIntelligenceUnavailableError,
+  describeDocumentIntelligenceStatus,
   getDocumentIntelligenceProvider,
   isRealDocumentIntelligenceProviderConfigured,
+  resolveDocumentIntelligence,
 } from '../documentIntelligence';
 
 describe('MockDocumentIntelligenceProvider', () => {
@@ -146,5 +149,153 @@ describe('getDocumentIntelligenceProvider', () => {
     ]) {
       expect(mod[name], `${name} must no longer be exported`).toBeUndefined();
     }
+  });
+});
+
+/**
+ * Production must never execute the mock provider (13 September 2026).
+ *
+ * resolveDocumentIntelligence() takes the environment as an argument, so these cases describe
+ * production, development and demo runtimes precisely without mutating process.env.
+ */
+describe('resolveDocumentIntelligence', () => {
+  const GOOGLE_COMPLETE = {
+    GOOGLE_CLOUD_PROJECT_ID: 'proj',
+    GOOGLE_CLOUD_LOCATION: 'eu',
+    GOOGLE_DOCUMENT_AI_PROCESSOR_ID: 'proc',
+    GOOGLE_DOCUMENT_AI_CREDENTIALS_JSON: JSON.stringify({
+      client_email: 'svc@example.iam.gserviceaccount.com',
+      private_key: 'k',
+    }),
+  };
+  const PROD = { NODE_ENV: 'production' };
+
+  it('production + complete Google config -> real Google Document AI', () => {
+    const r = resolveDocumentIntelligence({ ...PROD, ...GOOGLE_COMPLETE });
+    expect(r.status).toBe('real');
+    if (r.status === 'unavailable') throw new Error('unreachable');
+    expect(r.provider).toBeInstanceOf(GoogleDocumentAIProvider);
+    expect(r.provider.providerName).toBe('google-document-ai');
+  });
+
+  it('production + NO Google config -> unavailable, never the mock', () => {
+    const r = resolveDocumentIntelligence(PROD);
+    expect(r.status).toBe('unavailable');
+    expect(r).not.toHaveProperty('provider');
+  });
+
+  it.each([
+    'GOOGLE_CLOUD_PROJECT_ID',
+    'GOOGLE_CLOUD_LOCATION',
+    'GOOGLE_DOCUMENT_AI_PROCESSOR_ID',
+    'GOOGLE_DOCUMENT_AI_CREDENTIALS_JSON',
+  ])('production + PARTIAL Google config (missing %s) -> unavailable, never the mock', (missing) => {
+    const env: Record<string, string | undefined> = { ...PROD, ...GOOGLE_COMPLETE };
+    delete env[missing];
+    expect(resolveDocumentIntelligence(env).status).toBe('unavailable');
+  });
+
+  it('production + malformed credentials JSON -> unavailable, never the mock', () => {
+    const env = { ...PROD, ...GOOGLE_COMPLETE, GOOGLE_DOCUMENT_AI_CREDENTIALS_JSON: '{not json' };
+    expect(resolveDocumentIntelligence(env).status).toBe('unavailable');
+  });
+
+  it('a Render deploy with NODE_ENV unset is still production -> unavailable', () => {
+    expect(resolveDocumentIntelligence({ RENDER: 'true' }).status).toBe('unavailable');
+  });
+
+  it('production + demo-mode flags still cannot produce the mock', () => {
+    const env = { ...PROD, NEXT_PUBLIC_DEMO_MODE: 'true', ALLOW_DEMO_MODE: 'true' };
+    expect(resolveDocumentIntelligence(env).status).toBe('unavailable');
+  });
+
+  it('development + no Google config -> mock, so local work needs no credentials', () => {
+    const r = resolveDocumentIntelligence({ NODE_ENV: 'development' });
+    expect(r.status).toBe('mock');
+    if (r.status === 'unavailable') throw new Error('unreachable');
+    expect(r.provider).toBeInstanceOf(MockDocumentIntelligenceProvider);
+  });
+
+  it('test + no Google config -> mock, so automated tests need no credentials', () => {
+    expect(resolveDocumentIntelligence({ NODE_ENV: 'test' }).status).toBe('mock');
+  });
+
+  it('an explicit demo environment (both demo flags, non-production) -> mock', () => {
+    const env = { NEXT_PUBLIC_DEMO_MODE: 'true', ALLOW_DEMO_MODE: 'true' };
+    expect(resolveDocumentIntelligence(env).status).toBe('mock');
+  });
+
+  it('an unknown runtime with no explicit permission -> unavailable', () => {
+    expect(resolveDocumentIntelligence({}).status).toBe('unavailable');
+  });
+
+  it('Google wins over the mock wherever it is configured', () => {
+    for (const base of [{ NODE_ENV: 'development' }, { NODE_ENV: 'test' }, PROD]) {
+      expect(resolveDocumentIntelligence({ ...base, ...GOOGLE_COMPLETE }).status).toBe('real');
+    }
+  });
+});
+
+describe('getDocumentIntelligenceProvider fails closed', () => {
+  const saved = new Map<string, string | undefined>();
+  function setEnv(key: string, value: string | undefined) {
+    if (!saved.has(key)) saved.set(key, process.env[key]);
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+  afterEach(() => {
+    for (const [k, v] of saved) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+    saved.clear();
+  });
+
+  it('throws in production without Google, instead of handing back the mock', () => {
+    setEnv('NODE_ENV', 'production');
+    for (const v of [
+      'GOOGLE_CLOUD_PROJECT_ID',
+      'GOOGLE_CLOUD_LOCATION',
+      'GOOGLE_DOCUMENT_AI_PROCESSOR_ID',
+      'GOOGLE_DOCUMENT_AI_CREDENTIALS_JSON',
+    ]) {
+      setEnv(v, undefined);
+    }
+    // A future caller that forgets the availability check gets an error, never fabricated fields.
+    expect(() => getDocumentIntelligenceProvider()).toThrow(DocumentIntelligenceUnavailableError);
+  });
+});
+
+describe('describeDocumentIntelligenceStatus', () => {
+  const GOOGLE_COMPLETE = {
+    GOOGLE_CLOUD_PROJECT_ID: 'proj',
+    GOOGLE_CLOUD_LOCATION: 'eu',
+    GOOGLE_DOCUMENT_AI_PROCESSOR_ID: 'proc',
+    GOOGLE_DOCUMENT_AI_CREDENTIALS_JSON: JSON.stringify({ client_email: 'a@b.c', private_key: 'k' }),
+  };
+
+  it('reports Google as connected when it is configured', () => {
+    const s = describeDocumentIntelligenceStatus({ NODE_ENV: 'production', ...GOOGLE_COMPLETE });
+    expect(s).toEqual({ connected: true, detail: 'google-document-ai' });
+  });
+
+  it('in production without Google, says extraction is refused -- not merely "not connected"', () => {
+    const s = describeDocumentIntelligenceStatus({ NODE_ENV: 'production' });
+    expect(s.connected).toBe(false);
+    expect(s.detail).toMatch(/unavailable/i);
+    expect(s.detail).toMatch(/refused/i);
+    expect(s.detail).not.toMatch(/^mock/i);
+  });
+
+  it('never reports the mock as a connected provider', () => {
+    const s = describeDocumentIntelligenceStatus({ NODE_ENV: 'development' });
+    expect(s.connected).toBe(false);
+    expect(s.detail).toMatch(/never used in production/i);
+  });
+
+  it('never includes a credential value', () => {
+    const s = describeDocumentIntelligenceStatus({ NODE_ENV: 'production', ...GOOGLE_COMPLETE });
+    expect(JSON.stringify(s)).not.toContain('a@b.c');
+    expect(JSON.stringify(s)).not.toContain('proj');
   });
 });

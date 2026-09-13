@@ -5,6 +5,8 @@ import { requireOrgRole, requirePropertyAccess } from '@/lib/portfolio';
 import { mapExtractionResultRow } from '@/lib/documents';
 import { writeAuditEvent } from '@/lib/audit';
 import { safeErrorMessage } from '@/lib/safeError';
+import { isTrustedExtractionResult } from '@/lib/documentIntelligencePolicy';
+import { extractionResultNotTrustedResponse } from '@/lib/documentExtractionResponses';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -133,6 +135,18 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       },
       { status: 400 },
     );
+  }
+
+  // Confirming a result records that a human checked it and found it accurate. That must never be
+  // recorded against output the mock provider fabricated, so an untrusted result is refused before
+  // the update below rather than marked reviewed (lib/documentIntelligencePolicy.ts).
+  const { data: resultProvenance } = await serviceRole
+    .from('extraction_results')
+    .select('provider_name')
+    .eq('extraction_job_id', latestJob.id)
+    .maybeSingle();
+  if (resultProvenance && !isTrustedExtractionResult(resultProvenance.provider_name)) {
+    return extractionResultNotTrustedResponse(`documents/${id}/review`);
   }
 
   const { data, error } = await serviceRole

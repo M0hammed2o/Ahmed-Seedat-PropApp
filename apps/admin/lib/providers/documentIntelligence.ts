@@ -10,6 +10,7 @@ import type {
   ProviderMetadata,
 } from '@propvault/types';
 import { ProviderError } from '@propvault/types';
+import { isMockDocumentIntelligencePermitted } from '../documentIntelligencePolicy';
 
 // Server-side DocumentIntelligenceProvider (DOCUMENT_INTELLIGENCE.md: "All provider calls...
 // happen server-side only"). apps/mobile already has its own MockDocumentIntelligenceProvider for
@@ -233,11 +234,15 @@ export interface GoogleDocumentAIConfig {
  * account key JSON downloaded from Cloud Console, as one env var -- matches how most PaaS hosts
  * including Render store multi-line secrets; never a file path, since a mounted-file convention
  * doesn't reliably survive Render deploys). GOOGLE_DOCUMENT_AI_INVOICE_PROCESSOR_ID is optional. */
-export function getGoogleDocumentAIConfig(): GoogleDocumentAIConfig | null {
-  const projectId = process.env.GOOGLE_CLOUD_PROJECT_ID;
-  const location = process.env.GOOGLE_CLOUD_LOCATION;
-  const processorId = process.env.GOOGLE_DOCUMENT_AI_PROCESSOR_ID;
-  const credentialsJson = process.env.GOOGLE_DOCUMENT_AI_CREDENTIALS_JSON;
+export function getGoogleDocumentAIConfig(
+  // Injectable so the production-safety policy can be tested without mutating process.env. Every
+  // existing caller passes nothing and keeps reading the real environment exactly as before.
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): GoogleDocumentAIConfig | null {
+  const projectId = env.GOOGLE_CLOUD_PROJECT_ID;
+  const location = env.GOOGLE_CLOUD_LOCATION;
+  const processorId = env.GOOGLE_DOCUMENT_AI_PROCESSOR_ID;
+  const credentialsJson = env.GOOGLE_DOCUMENT_AI_CREDENTIALS_JSON;
   if (!projectId || !location || !processorId || !credentialsJson) return null;
 
   let parsed: { client_email?: string; private_key?: string };
@@ -252,7 +257,7 @@ export function getGoogleDocumentAIConfig(): GoogleDocumentAIConfig | null {
     projectId,
     location,
     processorId,
-    invoiceProcessorId: process.env.GOOGLE_DOCUMENT_AI_INVOICE_PROCESSOR_ID ?? null,
+    invoiceProcessorId: env.GOOGLE_DOCUMENT_AI_INVOICE_PROCESSOR_ID ?? null,
     clientEmail: parsed.client_email,
     // Service-account JSON keys always contain literal "\n" sequences in the PEM -- env vars
     // collapse real newlines, so this is the standard round-trip fix every Google server-side
@@ -579,6 +584,20 @@ export class GoogleDocumentAIProvider implements DocumentIntelligenceProvider {
 }
 
 /**
+ * The outcome of asking "what can read this document here?".
+ *
+ *  - `real`        Google Cloud Document AI is fully configured.
+ *  - `mock`        Google is not configured, and this runtime is allowed to stand the mock in for
+ *                  it -- local development, automated tests, or an explicit opt-in. NEVER returned
+ *                  in production.
+ *  - `unavailable` Google is not configured and the mock is not allowed. Extraction must not run.
+ */
+export type DocumentIntelligenceResolution =
+  | { status: 'real'; provider: DocumentIntelligenceProvider }
+  | { status: 'mock'; provider: DocumentIntelligenceProvider }
+  | { status: 'unavailable' };
+
+/**
  * The one place a provider is chosen.
  *
  * Google Cloud Document AI is the only real OCR provider Proplyst supports (architecture decision
@@ -588,24 +607,96 @@ export class GoogleDocumentAIProvider implements DocumentIntelligenceProvider {
  * to a vendor the Privacy Policy does not name. It has been removed outright rather than
  * de-prioritised, so that failure mode cannot come back by configuration.
  *
- * There is no second real provider and no precedence to reason about: either Document AI is fully
- * configured, or nothing real runs.
+ * The mock is no longer an unconditional fallback. Until 13 September 2026 an incomplete Google
+ * configuration silently produced MockDocumentIntelligenceProvider in every environment, production
+ * included, so a landlord could be shown a fabricated ID number or income as though a document had
+ * been read. Whether the mock may stand in is now decided by lib/documentIntelligencePolicy.ts, and
+ * in production the answer is always no.
+ *
+ * Every extraction route calls this BEFORE writing any extraction_jobs row, so an `unavailable`
+ * answer never leaves a job or a levy statement stranded mid-flight.
  */
-export function getDocumentIntelligenceProvider(): DocumentIntelligenceProvider {
-  const googleConfig = getGoogleDocumentAIConfig();
+export function resolveDocumentIntelligence(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): DocumentIntelligenceResolution {
+  const googleConfig = getGoogleDocumentAIConfig(env);
   if (googleConfig) {
-    return new GoogleDocumentAIProvider(googleConfig);
+    return { status: 'real', provider: new GoogleDocumentAIProvider(googleConfig) };
   }
-  return new MockDocumentIntelligenceProvider();
+  if (isMockDocumentIntelligencePermitted(env)) {
+    return { status: 'mock', provider: new MockDocumentIntelligenceProvider() };
+  }
+  return { status: 'unavailable' };
+}
+
+/** Thrown by getDocumentIntelligenceProvider() when no provider may run in this runtime. */
+export class DocumentIntelligenceUnavailableError extends Error {
+  constructor() {
+    super(
+      'document_intelligence_unavailable: Google Cloud Document AI is not fully configured, and the mock provider is not permitted in this runtime.',
+    );
+    this.name = 'DocumentIntelligenceUnavailableError';
+  }
 }
 
 /**
- * Whether a REAL provider is configured, as opposed to the mock standing in for one.
+ * A provider, or an exception -- never a silent mock in production.
  *
- * Callers must use this before presenting extraction output as though a document had actually been
- * read -- the mock returns plausible-looking values, and passing those off as real OCR would be a
- * lie to the user. See the platform-admin pages, which surface it.
+ * Kept for callers that only need a provider and have already established one is available (the
+ * platform-admin pages guard with isRealDocumentIntelligenceProviderConfigured() first). Extraction
+ * routes should use resolveDocumentIntelligence() instead, so they can answer with a controlled 503
+ * rather than an exception. This function fails CLOSED on purpose: any future caller that forgets
+ * the check gets an error, not fabricated fields.
  */
-export function isRealDocumentIntelligenceProviderConfigured(): boolean {
-  return getGoogleDocumentAIConfig() !== null;
+export function getDocumentIntelligenceProvider(): DocumentIntelligenceProvider {
+  const resolution = resolveDocumentIntelligence();
+  if (resolution.status === 'unavailable') throw new DocumentIntelligenceUnavailableError();
+  return resolution.provider;
+}
+
+/**
+ * Whether a REAL provider is configured, as opposed to the mock standing in for one (or nothing).
+ *
+ * The platform-admin pages surface this, so an operator can see at a glance that real document
+ * intelligence is unavailable rather than mistaking the mock for an acceptable production provider.
+ */
+export function isRealDocumentIntelligenceProviderConfigured(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): boolean {
+  return getGoogleDocumentAIConfig(env) !== null;
+}
+
+export interface DocumentIntelligenceStatus {
+  /** True only when a REAL provider is configured. The mock is never reported as connected. */
+  connected: boolean;
+  /** Non-secret, operator-facing explanation. Never a credential value. */
+  detail: string;
+}
+
+/**
+ * What the platform-admin Overview and System pages show for "Document intelligence provider".
+ *
+ * One function for both, because the two pages once answered this same question differently. It
+ * never reports the mock as a connected provider: outside production it says plainly that the mock
+ * is standing in for development only, and in production -- where the mock is never used -- it says
+ * extraction is refused, so an operator cannot mistake a missing configuration for a working one.
+ * Shown only behind the super-admin AAL2 gate, which is why it may name the vendor.
+ */
+export function describeDocumentIntelligenceStatus(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): DocumentIntelligenceStatus {
+  const resolution = resolveDocumentIntelligence(env);
+  if (resolution.status === 'real') {
+    return { connected: true, detail: resolution.provider.providerName };
+  }
+  if (resolution.status === 'mock') {
+    return {
+      connected: false,
+      detail: 'mock — development and test only, never used in production',
+    };
+  }
+  return {
+    connected: false,
+    detail: 'unavailable — extraction is refused until Google Cloud Document AI is configured',
+  };
 }

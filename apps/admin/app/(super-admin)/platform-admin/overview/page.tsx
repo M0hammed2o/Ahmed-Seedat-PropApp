@@ -6,10 +6,7 @@ import { MiniBarChart } from '@/components/ui/MiniBarChart';
 import { getServiceRoleClient } from '@/lib/supabase/server';
 import { computePlatformMetrics } from '@/lib/superAdmin';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
-import {
-  getDocumentIntelligenceProvider,
-  isRealDocumentIntelligenceProviderConfigured,
-} from '@/lib/providers/documentIntelligence';
+import { describeDocumentIntelligenceStatus } from '@/lib/providers/documentIntelligence';
 // Authorization: enforced by the (super-admin) layout's own gate, not re-checked here -- see that
 // layout's comment and lib/auth.ts's resolveAdminGate() comment for the real, live-caught bug a
 // page-level requireRole() throw used to cause (raced the layout's redirect, since both are
@@ -169,10 +166,9 @@ export default async function OverviewPage() {
   // Same real check the System page uses (Platform Admin honesty pass, WORKLOG.md this date) --
   // this panel previously hardcoded 'not_connected' regardless of actual configuration, silently
   // disagreeing with the System page's own (correct) answer to the exact same question.
-  const ocrProviderConfigured = isRealDocumentIntelligenceProviderConfigured();
-  const ocrProviderName = ocrProviderConfigured
-    ? getDocumentIntelligenceProvider().providerName
-    : undefined;
+  // Same shared answer the System page uses -- never reports the mock as connected, and in
+  // production says extraction is refused when Google is missing.
+  const ocrStatus = describeDocumentIntelligenceStatus();
 
   return (
     <div>
@@ -237,8 +233,8 @@ export default async function OverviewPage() {
           <HealthStatusIndicator label="RevenueCat webhook" status="not_connected" />
           <HealthStatusIndicator
             label="Document intelligence provider"
-            status={ocrProviderConfigured ? 'connected' : 'not_connected'}
-            detail={ocrProviderName}
+            status={ocrStatus.connected ? 'connected' : 'not_connected'}
+            detail={ocrStatus.detail}
           />
           <HealthStatusIndicator label="Push notification delivery" status="not_connected" />
         </div>

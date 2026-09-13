@@ -3,7 +3,8 @@ import type { DocumentType } from '@propvault/types';
 import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { requireOrgRole, requirePropertyAccess } from '@/lib/portfolio';
 import { canUseOcr } from '@/lib/subscriptionEntitlements';
-import { getDocumentIntelligenceProvider } from '@/lib/providers/documentIntelligence';
+import { resolveDocumentIntelligence } from '@/lib/providers/documentIntelligence';
+import { documentExtractionUnavailableResponse } from '@/lib/documentExtractionResponses';
 import { mapExtractionResultRow } from '@/lib/documents';
 import { writeAuditEvent } from '@/lib/audit';
 import { safeErrorMessage } from '@/lib/safeError';
@@ -135,6 +136,14 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     );
   }
 
+  // Production never runs the mock provider (lib/documentIntelligencePolicy.ts). Resolved here,
+  // after every auth/permission/plan check so nobody unauthorised learns infrastructure state, and
+  // BEFORE the extraction_jobs insert below so a refusal never leaves a job stuck in 'processing'.
+  const ocr = resolveDocumentIntelligence();
+  if (ocr.status === 'unavailable') {
+    return documentExtractionUnavailableResponse(`documents/${id}/extract`);
+  }
+
   const serviceRole = getServiceRoleClient();
 
   const { data: job, error: jobError } = await serviceRole
@@ -179,7 +188,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     );
   }
 
-  const provider = getDocumentIntelligenceProvider();
+  const provider = ocr.provider;
   const processingInput = {
     documentId: document.id,
     storagePath: document.storage_path,

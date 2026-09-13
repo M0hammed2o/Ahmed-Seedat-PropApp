@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { DOCUMENT_EXTRACTION_UNAVAILABLE_MESSAGE } from '@/lib/documentIntelligencePolicy';
 
 // First-tenant-workflow predeploy pass (WORKLOG.md 2026-08-25): real integration test against
 // local Supabase for the token-scoped applicant OCR extract route -- proves idempotency (Phase 5:
@@ -356,5 +357,174 @@ describeIfSupabase('POST /api/v1/apply/:token/documents/:documentId/extract (rea
     expect(response.status).toBe(403);
     const body = await response.json();
     expect(body.error.code).toBe('feature_not_available');
+  });
+
+  // =================================================================================================
+  // PRODUCTION NEVER USES THE MOCK PROVIDER (13 September 2026)
+  //
+  // Everything above runs under vitest's NODE_ENV=test, where the mock is legitimately permitted --
+  // which is exactly why those tests can assert 'Mock Applicant'. The block below runs the SAME real
+  // route against the SAME real local Supabase, but as production. This is the public applicant
+  // route, the one that reads identity documents and payslips, so it is where fabricated values
+  // would do the most harm.
+  // =================================================================================================
+  describe('as production', () => {
+    const GOOGLE_VARS = [
+      'GOOGLE_CLOUD_PROJECT_ID',
+      'GOOGLE_CLOUD_LOCATION',
+      'GOOGLE_DOCUMENT_AI_PROCESSOR_ID',
+      'GOOGLE_DOCUMENT_AI_CREDENTIALS_JSON',
+    ] as const;
+
+    // Every value the mock would fabricate for an applicant's documents. None may ever appear in a
+    // production response.
+    const MOCK_SENTINELS = [
+      'Mock Applicant',
+      '9001015800086',
+      'Mock Employer',
+      '25000',
+      '19500',
+      '1 Mock Street',
+      'MOCK EXTRACTED',
+    ];
+
+    function asProduction({ googleConfigured }: { googleConfigured: boolean }) {
+      vi.stubEnv('NODE_ENV', 'production');
+      if (googleConfigured) {
+        // Syntactically complete but deliberately fake, so resolution reaches a REAL provider
+        // without any credential that could reach Google.
+        vi.stubEnv('GOOGLE_CLOUD_PROJECT_ID', 'fake-project');
+        vi.stubEnv('GOOGLE_CLOUD_LOCATION', 'eu');
+        vi.stubEnv('GOOGLE_DOCUMENT_AI_PROCESSOR_ID', 'fake-processor');
+        vi.stubEnv(
+          'GOOGLE_DOCUMENT_AI_CREDENTIALS_JSON',
+          JSON.stringify({ client_email: 'fake@example.iam.gserviceaccount.com', private_key: 'not-a-key' }),
+        );
+      } else {
+        for (const v of GOOGLE_VARS) vi.stubEnv(v, '');
+      }
+    }
+
+    async function jobCount(docId: string) {
+      const { count } = await serviceClient
+        .from('extraction_jobs')
+        .select('id', { count: 'exact', head: true })
+        .eq('document_id', docId);
+      return count;
+    }
+
+    function expectNoMockValues(body: unknown) {
+      const serialised = JSON.stringify(body);
+      for (const sentinel of MOCK_SENTINELS) {
+        expect(serialised, `production response leaked mock value "${sentinel}"`).not.toContain(sentinel);
+      }
+    }
+
+    afterEach(() => {
+      vi.unstubAllEnvs();
+      vi.restoreAllMocks();
+    });
+
+    it('production + missing Google config: an ID document gets a controlled 503, never mock fields', async () => {
+      asProduction({ googleConfigured: false });
+
+      const response = await POST(extractRequest(), { params: Promise.resolve({ token, documentId }) });
+
+      expect(response.status).toBe(503);
+      const body = await response.json();
+      expect(body.error.code).toBe('document_extraction_unavailable');
+      expect(body.error.message).toBe(DOCUMENT_EXTRACTION_UNAVAILABLE_MESSAGE);
+      expect(body).not.toHaveProperty('extractionResult');
+      expectNoMockValues(body);
+    });
+
+    it('production + missing Google config: refuses BEFORE writing any extraction_jobs row', async () => {
+      asProduction({ googleConfigured: false });
+      await POST(extractRequest(), { params: Promise.resolve({ token, documentId }) });
+      // Nothing stranded in 'processing' -- the refusal happens before the first write.
+      expect(await jobCount(documentId)).toBe(0);
+    });
+
+    it('production + PARTIAL Google config: still a controlled 503, never mock fields', async () => {
+      asProduction({ googleConfigured: true });
+      vi.stubEnv('GOOGLE_DOCUMENT_AI_PROCESSOR_ID', ''); // one required variable missing
+
+      const response = await POST(extractRequest(), { params: Promise.resolve({ token, documentId }) });
+
+      expect(response.status).toBe(503);
+      expectNoMockValues(await response.json());
+      expect(await jobCount(documentId)).toBe(0);
+    });
+
+    it('production: a payslip can never return the mock gross or net income', async () => {
+      asProduction({ googleConfigured: false });
+
+      const { response, body, path } = await uploadAndExtract('payslip');
+
+      expect(response.status).toBe(503);
+      expect(body.error.code).toBe('document_extraction_unavailable');
+      expectNoMockValues(body);
+      await serviceClient.storage.from('documents').remove([path]);
+    });
+
+    it('production: a bank statement can never return mock account-holder data', async () => {
+      asProduction({ googleConfigured: false });
+
+      const { response, body, path } = await uploadAndExtract('bank_statement');
+
+      expect(response.status).toBe(503);
+      expectNoMockValues(body);
+      await serviceClient.storage.from('documents').remove([path]);
+    });
+
+    it('production never re-serves a STORED mock result, even though that path calls no provider', async () => {
+      // The bypass this guards against: the idempotent path hands back an already-succeeded result
+      // without calling any provider, so refusing to RUN the mock was not enough on its own.
+      //
+      // 1. Create a genuine stored mock result, exactly as production could have before this fix.
+      const seeded = await POST(extractRequest(), { params: Promise.resolve({ token, documentId }) });
+      expect(seeded.status).toBe(200);
+      const { data: storedResult } = await serviceClient
+        .from('extraction_results')
+        .select('provider_name')
+        .eq('extraction_job_id', (await seeded.json()).extractionJobId)
+        .single();
+      expect(storedResult!.provider_name).toBe('mock');
+
+      // 2. Now run as production WITH Google "configured", so the route gets past the availability
+      //    check and reaches the reuse path that would previously have served the stored mock.
+      asProduction({ googleConfigured: true });
+      const googleCalls: string[] = [];
+      const realFetch = globalThis.fetch;
+      vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+        const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+        if (url.includes('googleapis.com')) {
+          // Never let a test reach Google, whatever order the provider does its work in.
+          googleCalls.push(url);
+          return new Response('{"error":"blocked in test"}', { status: 401 });
+        }
+        return realFetch(input, init);
+      });
+
+      const response = await POST(extractRequest(), { params: Promise.resolve({ token, documentId }) });
+      const body = await response.json();
+
+      // The stored mock result must NOT come back.
+      expect(body.reused).not.toBe(true);
+      expect(body).not.toHaveProperty('extractionResult');
+      expectNoMockValues(body);
+      // It fell through to a real extraction attempt, which fails here on the fake credentials --
+      // a provider failure (502), not fabricated success.
+      expect(response.status).toBe(502);
+      expect(body.error.code).toBe('extraction_failed');
+    });
+
+    it('outside production the same stored result IS still reused (mock kept for dev/test)', async () => {
+      // Control for the test above: the trust check only bites in production.
+      const first = await POST(extractRequest(), { params: Promise.resolve({ token, documentId }) });
+      const second = await POST(extractRequest(), { params: Promise.resolve({ token, documentId }) });
+      expect((await first.json()).extractionResult).toBeDefined();
+      expect((await second.json()).reused).toBe(true);
+    });
   });
 });

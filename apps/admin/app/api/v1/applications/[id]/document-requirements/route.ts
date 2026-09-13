@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { isTrustedExtractionResult } from '@/lib/documentIntelligencePolicy';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -67,10 +68,13 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
         if (job) {
           const { data: result } = await supabase
             .from('extraction_results')
-            .select('raw_provider_output, overall_confidence, reviewed_at')
+            .select('raw_provider_output, overall_confidence, reviewed_at, provider_name')
             .eq('extraction_job_id', job.id)
             .maybeSingle();
-          if (result) {
+          // Staff decide on an application partly from this summary. "90% confidence, 4 fields" on a
+          // result the mock fabricated would imply a real read of an applicant's identity document,
+          // so an untrusted result is shown as no OCR result at all (lib/documentIntelligencePolicy.ts).
+          if (result && isTrustedExtractionResult(result.provider_name)) {
             const fields = result.raw_provider_output as Record<string, unknown>;
             const fieldCount = Object.entries(fields ?? {}).filter(
               ([key, val]) =>

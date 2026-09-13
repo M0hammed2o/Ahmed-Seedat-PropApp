@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { writeAuditEvent } from '@/lib/audit';
+import { isTrustedExtractionResult } from '@/lib/documentIntelligencePolicy';
+import { extractionResultNotTrustedResponse } from '@/lib/documentExtractionResponses';
 
 type RouteParams = { params: Promise<{ token: string; documentId: string }> };
 
@@ -77,6 +79,18 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       { error: { code: 'not_found', message: 'No completed OCR extraction exists for this document yet.' } },
       { status: 404 },
     );
+  }
+
+  // Corrections are layered over the stored result and mark it reviewed. Over mock output, every
+  // field the applicant did NOT retype would remain a fabricated value now carrying a "reviewed"
+  // stamp -- so an untrusted result is refused rather than corrected (lib/documentIntelligencePolicy.ts).
+  const { data: resultProvenance } = await serviceRole
+    .from('extraction_results')
+    .select('provider_name')
+    .eq('extraction_job_id', job.id)
+    .maybeSingle();
+  if (resultProvenance && !isTrustedExtractionResult(resultProvenance.provider_name)) {
+    return extractionResultNotTrustedResponse(`apply/documents/${documentId}/corrections`);
   }
 
   const { data: result, error: updateError } = await serviceRole

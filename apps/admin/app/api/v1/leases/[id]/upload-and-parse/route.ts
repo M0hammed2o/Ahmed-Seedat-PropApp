@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { requireOrgRole } from '@/lib/portfolio';
 import { canUseOcr } from '@/lib/subscriptionEntitlements';
-import { getDocumentIntelligenceProvider } from '@/lib/providers/documentIntelligence';
+import { resolveDocumentIntelligence } from '@/lib/providers/documentIntelligence';
+import { documentExtractionUnavailableResponse } from '@/lib/documentExtractionResponses';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -96,6 +97,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       },
       { status: 403 },
     );
+  }
+
+  // Production never runs the mock provider (lib/documentIntelligencePolicy.ts) -- which would
+  // otherwise hand back a fabricated monthly rent and deposit for a real lease. Checked after the
+  // plan gate and before the extraction_jobs insert below, so a refusal writes nothing.
+  const ocr = resolveDocumentIntelligence();
+  if (ocr.status === 'unavailable') {
+    return documentExtractionUnavailableResponse(`leases/${id}/upload-and-parse`);
   }
 
   let body: unknown;
@@ -198,7 +207,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     );
   }
 
-  const provider = getDocumentIntelligenceProvider();
+  const provider = ocr.provider;
   // Signed URL, not a raw storage path -- so a real provider (GoogleDocumentAIProvider)
   // can fetch the file's bytes itself without this route handing it a Supabase client of its own
   // (see ProcessingInput's own comment). Short TTL matches every other signed-URL issuance in this

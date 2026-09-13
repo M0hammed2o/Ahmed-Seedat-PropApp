@@ -4,10 +4,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { getAdminSessionWithoutMfaCheck } from '@/lib/auth';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 import { DEMO_FEATURE_FLAGS, DEMO_SYSTEM_HEALTH } from '@/lib/demo/adminMockData';
-import {
-  getDocumentIntelligenceProvider,
-  isRealDocumentIntelligenceProviderConfigured,
-} from '@/lib/providers/documentIntelligence';
+import { describeDocumentIntelligenceStatus } from '@/lib/providers/documentIntelligence';
 import { getPayFastConfig } from '@/lib/providers/payfast';
 
 export default async function SystemPage() {
@@ -24,10 +21,10 @@ export default async function SystemPage() {
   // confirm "DOCUMENT OCR PROVIDER: google-document-ai" is actually active in production without
   // seeing credentials or reading server logs. `providerName` is non-secret identity metadata every
   // DocumentIntelligenceProvider implementation exposes; never a credential value.
-  const ocrProviderConfigured = isRealDocumentIntelligenceProviderConfigured();
-  const ocrProviderName = ocrProviderConfigured
-    ? getDocumentIntelligenceProvider().providerName
-    : undefined;
+  // Never reports the mock as a connected provider, and in production says outright that
+  // extraction is refused when Google is missing (describeDocumentIntelligenceStatus()). Shared with
+  // the Overview page so the two cannot disagree again.
+  const ocrStatus = describeDocumentIntelligenceStatus();
 
   // PayFast production-connection pass (WORKLOG.md this date): presence-only, matching the OCR
   // row above -- getPayFastConfig() returns null unless all three real credentials are set, never
@@ -64,11 +61,11 @@ export default async function SystemPage() {
             status={
               ADMIN_DEMO_MODE
                 ? DEMO_SYSTEM_HEALTH.ocrProvider
-                : ocrProviderConfigured
+                : ocrStatus.connected
                   ? 'connected'
                   : 'not_connected'
             }
-            detail={ADMIN_DEMO_MODE ? undefined : ocrProviderName}
+            detail={ADMIN_DEMO_MODE ? undefined : ocrStatus.detail}
           />
           <HealthStatusIndicator
             label="PayFast"

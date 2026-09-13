@@ -2,7 +2,9 @@ import { NextResponse, type NextRequest } from 'next/server';
 import type { DocumentType } from '@propvault/types';
 import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { canUseOcr } from '@/lib/subscriptionEntitlements';
-import { getDocumentIntelligenceProvider } from '@/lib/providers/documentIntelligence';
+import { resolveDocumentIntelligence } from '@/lib/providers/documentIntelligence';
+import { isTrustedExtractionResult } from '@/lib/documentIntelligencePolicy';
+import { documentExtractionUnavailableResponse } from '@/lib/documentExtractionResponses';
 import { mapExtractionResultRow } from '@/lib/documents';
 import { writeAuditEvent } from '@/lib/audit';
 
@@ -79,7 +81,20 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     );
   }
 
-  // Idempotency: an already-succeeded extraction for this document is returned unchanged.
+  // Production never runs the mock provider (lib/documentIntelligencePolicy.ts). This is the
+  // public, token-scoped applicant route -- the one that reads identity documents, payslips and bank
+  // statements -- so it is checked BEFORE the idempotent reuse path below as well as before any
+  // extraction_jobs write.
+  const ocr = resolveDocumentIntelligence();
+  if (ocr.status === 'unavailable') {
+    return documentExtractionUnavailableResponse(`apply/documents/${documentId}/extract`);
+  }
+
+  // Idempotency: an already-succeeded extraction for this document is returned unchanged -- but only
+  // if it can be trusted. This path hands back a STORED result without calling any provider, so
+  // refusing to run the mock is not enough on its own: a mock result written before production
+  // stopped using the mock would otherwise be served straight to an applicant. An untrusted result
+  // is simply not reused, and a real extraction runs instead.
   const { data: existingJobs } = await serviceRole
     .from('extraction_jobs')
     .select('id, status, attempt')
@@ -92,7 +107,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       .select('*')
       .eq('extraction_job_id', succeededJob.id)
       .maybeSingle();
-    if (existingResult) {
+    if (existingResult && isTrustedExtractionResult(existingResult.provider_name)) {
       return NextResponse.json({
         extractionResult: mapExtractionResultRow(existingResult),
         extractionJobId: succeededJob.id,
@@ -131,7 +146,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     );
   }
 
-  const provider = getDocumentIntelligenceProvider();
+  const provider = ocr.provider;
   const processingInput = {
     documentId: document.id,
     storagePath: document.storage_path,
