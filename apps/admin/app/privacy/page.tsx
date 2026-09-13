@@ -43,7 +43,7 @@ export default function PrivacyPage() {
     <main className="mx-auto max-w-2xl px-6 py-16 text-sm text-light-textPrimary dark:text-dark-textPrimary">
       <h1 className="font-display text-2xl font-bold">Privacy Policy</h1>
       <p className="mt-2 text-xs text-light-textMuted dark:text-dark-textMuted">
-        Version {PRIVACY_VERSION} · Last updated 12 September 2026
+        Version {PRIVACY_VERSION} · Last updated 13 September 2026
       </p>
 
       <p className="mt-6 text-light-textSecondary dark:text-dark-textSecondary">
@@ -159,6 +159,11 @@ export default function PrivacyPage() {
             Google only when this runs, Google processes it and returns the text, and Google does
             not keep the file or use it to train anything. We store what came back alongside the
             document.
+          </li>
+          <li>
+            <strong>Cloudmersive</strong> — checking every file you upload for viruses and other
+            malware before we store it. The file is sent to Cloudmersive only for that check, and
+            Cloudmersive states that it does not keep the file once the check is complete.
           </li>
           <li>
             <strong>Google and Apple</strong> — only if you choose to sign in with them on the

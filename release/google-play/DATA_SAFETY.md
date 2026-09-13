@@ -162,6 +162,7 @@ instructions. Every third party Proplyst uses is exactly that:
 | **Supabase** | Everything — it is the database, auth and file storage | Yes, infrastructure processor |
 | **Render** | Request traffic, server logs, IP addresses | Yes, hosting processor |
 | **Google Cloud (Document AI)** | An uploaded document's bytes, when text extraction runs | Yes, processes and returns; does not retain or train |
+| **Cloudmersive** | Every uploaded file's bytes (never its file name), to scan it for malware before it is stored | Yes, returns a verdict; states it does not retain the file — **server-side only** |
 | **Meta Platforms** | A recipient phone number and message content, where WhatsApp is enabled | Yes, delivery processor — **server-side only** |
 | **Resend** | A recipient email address and message content | Yes, delivery processor — **server-side only** |
 | **PayFast** | Card and billing details, **entered on the website, never in the app** | Not reached by the app at all |
@@ -206,8 +207,8 @@ The distinction that matters for this form:
 - **Direct runtime permission:** none beyond the biometric prompt.
 - **System picker / external intent:** photos, files and camera captures all arrive this way. The
   user picks one item in Android's own UI and only that item is handed to the app.
-- **Server-side processing:** OCR, WhatsApp and email all happen on the server. The app never
-  contacts Google Cloud, Meta or Resend directly.
+- **Server-side processing:** OCR, malware scanning, WhatsApp and email all happen on the server.
+  The app never contacts Google Cloud, Cloudmersive, Meta or Resend directly.
 
 Because there is no `POST_NOTIFICATIONS` permission, the app shows **no system notifications** —
 "Activity" is an in-app feed only.

@@ -23,4 +23,6 @@ export const TERMS_VERSION = 'v1.1-2026-09-12';
 // v1.1 (2026-09-12): adds identity numbers, application documents and banking details to
 // what we collect, adds Google Cloud (Document AI) and the Google/Apple sign-in providers to
 // the processor list, and names the responsible party. Same reasoning as TERMS_VERSION above.
-export const PRIVACY_VERSION = 'v1.1-2026-09-12';
+// v1.2 (2026-09-13): adds Cloudmersive, which now receives every uploaded file to scan it for
+// malware before it is stored. A new processor is a material change, so every user re-consents.
+export const PRIVACY_VERSION = 'v1.2-2026-09-13';

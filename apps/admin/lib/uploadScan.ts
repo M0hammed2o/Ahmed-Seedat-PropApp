@@ -1,42 +1,43 @@
 import 'server-only';
 import { NextResponse } from 'next/server';
-import { getMalwareScanProvider, getClamAVConfig } from './providers/malwareScan';
+import type { ScanResult } from '@propvault/types';
+import { resolveMalwareScanner } from './providers/malwareScan';
 
 /**
  * Real content-scanning for uploaded files (Stage 7, commercial-launch execution plan,
- * TECHNICAL_DEBT_REGISTER.md TD-43, R-03) -- called by every upload route (documents,
- * lease-templates) after MIME-allowlist validation, before the file reaches Storage. Returns a
- * NextResponse to send back immediately if the upload must be refused, or null if it's clean and
- * the route should proceed.
+ * TECHNICAL_DEBT_REGISTER.md TD-43, R-03) -- called by every upload route after authorization and
+ * MIME-allowlist validation, before the file reaches Storage. Storage is the only way a file reaches
+ * Google Document AI: the extraction routes read files back out of Storage and never accept an
+ * upload themselves. Returns a NextResponse to send back immediately if the upload must be refused,
+ * or null if the route may proceed.
  *
- * Three deliberately different failure modes, not two (autonomous overnight completion pass,
- * WORKLOG.md this date -- TD-43's disclosed gap was real and this closes it for the highest-risk
- * upload paths without standing up new infrastructure):
- * - `sensitive: true` (the default -- a caller must opt OUT, never silently opt in) AND no real
- *   scanner configured: fails CLOSED with a professional, detail-free 503 message. Sensitive
- *   document/proof-of-payment/applicant-document uploads must never go through completely
- *   unscanned in production -- MIME-allowlisting alone (PDFs can carry embedded exploits) is not
- *   an acceptable substitute for the malware-scanning guarantee this codebase's own security
- *   posture implies. Existing documents remain fully readable -- this only blocks new uploads.
- * - `sensitive: false` (an explicit, audited per-call-site opt-out -- currently only property
- *   photos, whose MIME allowlist is image-only, a narrower attack surface, and whose loss would
- *   block an unrelated, lower-risk product feature) AND no real scanner configured: unchanged
- *   behaviour -- falls back to MockMalwareScanProvider (clean, logs loudly), same disclosed gap
- *   as before this pass.
- * - A real scanner IS configured but the scan call itself throws (connection refused, timeout,
- *   protocol error): fails CLOSED regardless of `sensitive` -- the upload is refused with a 503,
- *   never silently allowed through. An operator who configured real scanning gets the guarantee
- *   that implies; a scanner outage must not quietly become "uploads go through unscanned."
+ * THE RULE: an upload proceeds only when a scanner has explicitly reported the file clean. Every
+ * other outcome refuses it:
+ * - No scanner in this runtime (lib/providers/malwareScan.ts resolveMalwareScanner(): in deployed
+ *   production that means CLOUDMERSIVE_API_KEY is missing): 503 `upload_temporarily_unavailable`,
+ *   for every upload.
+ * - File larger than the scanner can accept (Cloudmersive's plan cap -- 3.5 MB on the free tier,
+ *   below Proplyst's own 25 MB limit): 413 `file_too_large_to_scan`. Never passed through unscanned.
+ * - Threat found: 422 `malware_detected`.
+ * - The scan itself fails (timeout, network error, rejected API key, rate limit, provider error,
+ *   malformed response): 503 `scan_unavailable`, whether or not the upload is sensitive.
+ *
+ * `sensitive: false` (an explicit, audited per-call-site opt-out -- currently only property photos,
+ * whose MIME allowlist is image-only) now matters in exactly one place: local development and tests
+ * with no scanner configured, where the always-clean MockMalwareScanProvider may stand in for it.
+ * Production never uses the mock.
  */
 export async function scanUploadOrRespond(
   bytes: Uint8Array,
   options: { sensitive?: boolean } = {},
 ): Promise<NextResponse | null> {
   const sensitive = options.sensitive ?? true;
-  const provider = getMalwareScanProvider();
-  const isRealScannerConfigured = getClamAVConfig() !== null;
+  const scanner = resolveMalwareScanner();
 
-  if (sensitive && !isRealScannerConfigured) {
+  if (scanner.status === 'unavailable' || (scanner.status === 'mock' && sensitive)) {
+    console.error(
+      '[uploadScan] no malware scanner is configured -- refusing the upload (fail closed)',
+    );
     return NextResponse.json(
       {
         error: {
@@ -49,43 +50,69 @@ export async function scanUploadOrRespond(
     );
   }
 
-  try {
-    const result = await provider.scan(bytes);
-    if (!result.clean) {
-      console.error(
-        `[uploadScan] rejected an upload: ${result.providerName} matched "${result.threatName}"`,
-      );
-      return NextResponse.json(
-        {
-          error: {
-            code: 'malware_detected',
-            message: 'This file could not be uploaded — it was flagged by malware scanning.',
-          },
-        },
-        { status: 422 },
-      );
-    }
-    return null;
-  } catch (err) {
-    if (!isRealScannerConfigured) {
-      // Should be unreachable -- MockMalwareScanProvider.scan() never throws -- but if it ever
-      // does, treat it the same as "no scanner" rather than blocking every upload in an
-      // environment that never opted into real scanning.
-      console.error('[uploadScan] mock scan provider threw unexpectedly', err);
-      return null;
-    }
-    console.error(
-      '[uploadScan] real malware scan failed -- refusing the upload (fail closed)',
-      err,
+  const { provider } = scanner;
+
+  if (provider.maxFileBytes !== undefined && bytes.byteLength > provider.maxFileBytes) {
+    console.warn(
+      `[uploadScan] refused a ${bytes.byteLength}-byte upload: above ${provider.providerName}'s ${provider.maxFileBytes}-byte scan limit`,
     );
     return NextResponse.json(
       {
         error: {
-          code: 'scan_unavailable',
-          message: 'File scanning is temporarily unavailable. Try again shortly.',
+          code: 'file_too_large_to_scan',
+          message: `This file is too large to be checked for malware. Upload a file of ${formatMegabytes(provider.maxFileBytes)} or smaller.`,
         },
       },
-      { status: 503 },
+      { status: 413 },
     );
   }
+
+  let result: ScanResult;
+  try {
+    result = await provider.scan(bytes);
+  } catch (err) {
+    console.error('[uploadScan] malware scan failed -- refusing the upload (fail closed)', err);
+    return scanUnavailableResponse();
+  }
+
+  if (result.clean === true) {
+    return null;
+  }
+  if (result.clean === false) {
+    console.error(
+      `[uploadScan] rejected an upload: ${result.providerName} matched "${result.threatName}"`,
+    );
+    return NextResponse.json(
+      {
+        error: {
+          code: 'malware_detected',
+          message: 'This file could not be uploaded — it was flagged by malware scanning.',
+        },
+      },
+      { status: 422 },
+    );
+  }
+
+  // Not a verdict at all. Unreachable through the typed providers; refuse rather than assume.
+  console.error(
+    '[uploadScan] malware scan returned no verdict -- refusing the upload (fail closed)',
+  );
+  return scanUnavailableResponse();
+}
+
+function scanUnavailableResponse(): NextResponse {
+  return NextResponse.json(
+    {
+      error: {
+        code: 'scan_unavailable',
+        message: 'File scanning is temporarily unavailable. Try again shortly.',
+      },
+    },
+    { status: 503 },
+  );
+}
+
+/** 3_500_000 -> "3.5 MB". Decimal megabytes, matching how the limit itself is defined. */
+function formatMegabytes(bytes: number): string {
+  return `${Number((bytes / 1_000_000).toFixed(1))} MB`;
 }

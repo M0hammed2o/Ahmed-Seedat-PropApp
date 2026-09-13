@@ -63,7 +63,9 @@ screen + client, Apple Developer Services ID + key) these four variables come fr
 | `WHATSAPP_WEBHOOK_VERIFY_TOKEN` | An arbitrary string you choose yourself and paste into BOTH this variable and the Meta App Dashboard's "Verify Token" field. Used only for Meta's one-time GET handshake when registering the callback URL — a different value from `WHATSAPP_WEBHOOK_SECRET`. | No — but the callback URL cannot be registered without it |
 | `WHATSAPP_UAT_OVERRIDE_NUMBER` | **UAT only, never production.** Redirects every outbound WhatsApp message to one E.164 number so a single handset can receive every template and persona. Ignored outright (with a loud error) when `NODE_ENV=production`; suppresses the send rather than falling through to the real recipient if unparseable. | No — inactive when unset |
 | ~~`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_TEXTRACT_REGION`~~ | **Removed 2026-09-12.** The AWS Textract provider was deleted; Proplyst uses Google Cloud Document AI only. Nothing reads these variables any more — if they are still set anywhere, unset them. | No — not read |
-| `CLAMAV_HOST` / `CLAMAV_PORT` | Real upload malware-scanning target (`apps/admin/lib/providers/malwareScan.ts`, Stage 7, 2026-08-06, TD-43). Points at the local `clamav` service in the repo-root `docker-compose.yml` by default (`docker compose up -d clamav`) -- unlike the other vendors on this list, self-hosted/free, so `.env.example` defaults it ON rather than blank. | No — falls back to `MockMalwareScanProvider` when unset (uploads go through unscanned, MIME-allowlist only) |
+| `CLOUDMERSIVE_API_KEY` | **Secret.** The production upload malware scanner, Cloudmersive Virus Scan API (`apps/admin/lib/providers/malwareScan.ts`, 2026-09-13). Server-only; never give it a `NEXT_PUBLIC_` name. When set it is used in every runtime, including local development — each scan costs one call from the plan's monthly allowance (600 on the free tier). | **Yes, in production.** Without it every upload is refused with `503 upload_temporarily_unavailable` |
+| `CLOUDMERSIVE_MAX_FILE_BYTES` | The Cloudmersive plan's maximum file size in bytes. Defaults to the free tier's 3.5 MB (`3500000`). Larger files are refused with `413 file_too_large_to_scan`, never passed through unscanned. Raise it only after upgrading the plan. | No |
+| `CLAMAV_HOST` / `CLAMAV_PORT` | Local development only: the `clamav` service in the repo-root `docker-compose.yml` (`docker compose up -d clamav`). **Ignored in production** — kept as the basis of a future self-hosted scanner. Also ignored whenever `CLOUDMERSIVE_API_KEY` is set. | No — in development and tests the mock stands in for property photos only; every other upload is refused |
 | `PLATFORM_ADMIN_ALLOWED_EMAILS` | Super Admin separation (`apps/admin/lib/auth.ts`, 2026-08-06). Comma-separated email allow-list, checked in addition to `platform_admin_users` -- a real admin whose email isn't listed here (when this is set) is treated as a non-admin entirely. | No — `platform_admin_users` alone (RLS default-deny, manual-only provisioning) is the allow-list when unset |
 
 ## External-communications go-live checklist
@@ -138,59 +140,36 @@ records the true destination in `whatsapp_messages.to_number`, and logs loudly o
 plus a standing warning while the mode is on. **Unset `WHATSAPP_UAT_MODE` the moment the UAT window
 ends.**
 
-## Document upload: what production still needs (audited 2026-09-07)
+## Upload malware scanning in production (Cloudmersive, 2026-09-13)
 
-Uploads currently return `503 upload_temporarily_unavailable` on the public site. This is correct,
-deliberate fail-closed behaviour, **not** a bug to code around.
+Every uploaded file is scanned by the Cloudmersive Virus Scan API before it reaches Supabase Storage.
+Google Document AI only ever reads files back out of Storage, so it never sees an unscanned file.
+The rule in `lib/uploadScan.ts`: **an upload proceeds only on an explicit clean verdict.**
 
 | | |
 | --- | --- |
-| **Scanner technology** | ClamAV, spoken to directly over clamd's TCP `INSTREAM` protocol (`lib/providers/malwareScan.ts`) — no vendor SDK, no per-file cost |
-| **Expected config** | `CLAMAV_HOST` + `CLAMAV_PORT` (local dev defaults to the repo's `docker-compose.yml` `clamav` service on `localhost:3310`) |
-| **Missing config** | Both, in the deployed environment — `getClamAVConfig()` returns null, so no real scanner is configured |
-| **Where it must run** | A clamd instance reachable on the private network from the Render web service. It is a long-running daemon holding virus definitions in memory, not a library call |
-| **How files flow** | upload route → MIME allowlist → `scanUploadOrRespond()` → clamd INSTREAM → Supabase Storage. Nothing reaches Storage before a clean verdict |
-| **Fail-closed behaviour** | `sensitive: true` (the default; callers must opt *out*) with no scanner → 503. A configured scanner that then throws → also 503, never a silent pass. Only explicitly non-sensitive paths (property photos, image-only allowlist) fall back to the mock |
-| **Cost / infrastructure** | One small always-on container. ClamAV is free/open-source; the cost is the instance plus ~1–2 GB RAM for definitions, and `freshclam` keeping them current |
-| **Recommended setup** | Run clamd as a private service beside the app, set `CLAMAV_HOST`/`CLAMAV_PORT` to it, and verify by uploading a harmless EICAR test file — it must be rejected, proving scanning is live rather than merely configured |
+| **Scanner** | `POST https://api.cloudmersive.com/virus/scan/file`, `Apikey` header, multipart `inputFile`; verdict from `CleanResult` / `FoundViruses` (`lib/providers/malwareScan.ts`) |
+| **Config** | `CLOUDMERSIVE_API_KEY` on the Render web service (secret). Optional `CLOUDMERSIVE_MAX_FILE_BYTES` |
+| **How files flow** | upload route → auth → size + MIME checks → `scanUploadOrRespond()` → Cloudmersive → Supabase Storage → (later) extraction routes → Google Document AI |
+| **Key missing in production** | Every upload → `503 upload_temporarily_unavailable`. ClamAV and the mock are never used in production |
+| **Threat found** | `422 malware_detected` |
+| **Scan fails** (timeout after 30 s, network error, 401/403, 429, 5xx, any other status, malformed body) | `503 scan_unavailable`, for sensitive and non-sensitive uploads alike |
+| **File above the plan's size cap** | `413 file_too_large_to_scan`, without contacting Cloudmersive |
+
+### Free-tier limits (Cloudmersive plan page, checked 2026-09-13)
+
+| Limit | Free tier | Effect on Proplyst |
+| --- | --- | --- |
+| Maximum file size | **3.5 MB** | Proplyst accepts up to 25 MB. Every file between 3.5 MB and 25 MB is refused with 413 until the plan is upgraded (paid plans: 1 GB+) and `CLOUDMERSIVE_MAX_FILE_BYTES` is raised |
+| Calls per month | **600** | Each scan is one call. Once the allowance is used up, Cloudmersive's refusals fail closed as 503 |
+| Rate | **1 call per second, one request at a time** | Uploads arriving together can be refused (503) and succeed on retry |
+| Data centres | North America only | EU regions start on paid plans |
+
+Cloudmersive describes the free tier as an evaluation plan with lower availability, and its APIs as
+stateless: payload data is not stored or retained after the call completes.
 
 **Do not** make uploads work by lowering `sensitive`, adding a bypass, or defaulting to the mock in
-production. The 503 is the system refusing to distribute unscanned files.
-
-### Exact Render setup (2026-09-08) — needs dashboard access, which this session does not have
-
-The repo already runs clamd locally (`docker-compose.yml`, `clamav/clamav:1.4` on port 3310). The
-production equivalent is the same image as a **Private Service**, reachable only inside Render's
-network:
-
-| Setting | Value |
-| --- | --- |
-| Service type | **Private Service** (never a Web Service — clamd must not be internet-reachable) |
-| Runtime | Docker |
-| Image | `clamav/clamav:1.4` (pin the same tag as `docker-compose.yml`) |
-| Port | `3310` |
-| Instance | ~2 GB RAM. clamd holds virus definitions in memory; smaller instances OOM on load |
-| Disk | Persistent disk mounted at `/var/lib/clamav`, ≥2 GB, so `freshclam` definitions survive restarts and are not re-downloaded on every deploy |
-| Region | Same region as the web service |
-
-Then, on the **web service**, set:
-
-```
-CLAMAV_HOST = <the private service's internal hostname>
-CLAMAV_PORT = 3310
-```
-
-Neither value is a secret. Nothing else changes: `getClamAVConfig()` starts returning a config, the
-real `ClamAVScanProvider` replaces the mock, and `scanUploadOrRespond()` stops short-circuiting to
-503.
-
-**First startup takes several minutes** — the official image's entrypoint runs `freshclam` before
-clamd accepts connections. Until it is ready, uploads keep failing closed, which is the correct
-behaviour, not a regression.
-
-Verify with the EICAR test string (a harmless industry-standard fixture, not malware): upload it and
-confirm it is **rejected**. A clean PDF uploading successfully proves only that scanning is
-configured; the EICAR rejection proves scanning is actually running.
+production. A 503 or 413 is the system refusing to store a file nobody has checked.
 
 ## Validation
 
