@@ -62,61 +62,120 @@ export interface InvoiceWithBalance {
   source: 'rent_schedule' | 'manual';
 }
 
+/** PostgREST caps every response at `max_rows` (1000 on Supabase): larger reads are paged. */
+export const INVOICE_PAGE_SIZE = 1000;
+/**
+ * Lease ids per `lease_id=in.(...)` filter. The ids travel in the request URL, and past ~8 KB the
+ * gateway answers HTTP 414 -- 100 UUIDs is ~3.7 KB.
+ */
+export const LEASE_ID_CHUNK_SIZE = 100;
+
+type PagedResult<T> = PromiseLike<{ data: T[] | null; error: { message: string } | null }>;
+
+/** Every row of a paged read. Any error throws: a failed read is never treated as "no rows". */
+async function readAllPages<T>(label: string, page: (from: number, to: number) => PagedResult<T>): Promise<T[]> {
+  const rows: T[] = [];
+  for (let from = 0; ; from += INVOICE_PAGE_SIZE) {
+    const { data, error } = await page(from, from + INVOICE_PAGE_SIZE - 1);
+    if (error) throw new Error(`Failed to load ${label}: ${error.message}`);
+    rows.push(...(data ?? []));
+    if (!data || data.length < INVOICE_PAGE_SIZE) return rows;
+  }
+}
+
+/** Rand amounts are summed in whole cents so a sum of cent values never drifts off its exact total. */
+const toCents = (value: unknown) => Math.round(Number(value) * 100);
+
+interface InvoiceQueryRow {
+  id: string;
+  invoice_number: string;
+  tenant_id: string;
+  lease_id: string;
+  period: string;
+  issued_at: string | null;
+  amount: number | string;
+  status: 'draft' | 'issued' | 'paid';
+  emailed_at: string | null;
+  voided_at: string | null;
+  source: 'rent_schedule' | 'manual';
+  description: string | null;
+  leases: unknown;
+  tenants: unknown;
+  invoice_payments: { amount: number | string; reversed_at: string | null }[] | null;
+}
+
 /**
  * The one query behind /accounting/invoices, the tenant detail page's Balance stat and Payments
- * tab, and (by extension) any future dashboard total -- Option A, unified invoice-payment ledger,
- * single-source-of-truth correction pass (migrations 158 + 159). paid_amount for EVERY invoice
- * (manual or rent-sourced) is SUM(invoice_payments.amount WHERE reversed_at IS NULL) -- full stop.
- * No other table independently contributes: confirm_bank_transaction_match() and
- * confirm_cash_receipt_deposit() (migration 159) now create their own invoice_payments allocation
- * row at match/deposit time, so a rent invoice's bank- or cash-derived payments are already IN this
- * one ledger, not a second total computed alongside it. This is the exact same formula
- * recompute_rent_schedule_status() uses server-side, so this can never disagree with Rent Due or
- * the property Accounting tab. A voided invoice is always excluded from balance (never negative,
- * never counted as outstanding) but remains in the returned list -- callers decide whether to
- * display it.
+ * tab, GET /api/v1/invoices and GET /api/v1/invoices/:id, and (by extension) any future dashboard
+ * total -- Option A, unified invoice-payment ledger, single-source-of-truth correction pass
+ * (migrations 158 + 159). paid_amount for EVERY invoice (manual or rent-sourced) is
+ * SUM(invoice_payments.amount WHERE reversed_at IS NULL) -- full stop. No other table independently
+ * contributes: confirm_bank_transaction_match() and confirm_cash_receipt_deposit() (migration 159)
+ * now create their own invoice_payments allocation row at match/deposit time, so a rent invoice's
+ * bank- or cash-derived payments are already IN this one ledger, not a second total computed
+ * alongside it. This is the exact same formula recompute_rent_schedule_status() uses server-side,
+ * so this can never disagree with Rent Due or the property Accounting tab. A voided invoice is
+ * always excluded from balance (never negative, never counted as outstanding) but remains in the
+ * returned list -- callers decide whether to display it.
+ *
+ * Each invoice's payments are embedded in the invoice read itself. They used to be fetched
+ * separately with `invoice_id=in.(<every invoice id>)`: past ~300 invoices that URL exceeded the
+ * gateway limit (HTTP 414), the error was discarded, and every invoice was reported as Paid R0 --
+ * the 2026-09-14 production defect. Any failed read now throws instead, so a caller shows an error,
+ * never a false balance.
  */
 export async function loadInvoicesWithBalances(
   supabase: SupabaseClient,
-  filters?: { tenantId?: string },
+  filters?: { tenantId?: string; invoiceId?: string },
 ): Promise<InvoiceWithBalance[]> {
-  let query = supabase
-    .from('invoices')
-    .select(
-      '*, leases(unit_id, units(unit_label, property_id, properties(nickname))), tenants(full_name)',
-    )
-    .order('period', { ascending: false });
-  if (filters?.tenantId) query = query.eq('tenant_id', filters.tenantId);
+  const invoiceRows = await readAllPages<InvoiceQueryRow>('invoices', (from, to) => {
+    let query = supabase
+      .from('invoices')
+      .select(
+        '*, leases(unit_id, units(unit_label, property_id, properties(nickname))), tenants(full_name), invoice_payments(amount, reversed_at)',
+      )
+      .order('period', { ascending: false })
+      .order('id', { ascending: true });
+    if (filters?.tenantId) query = query.eq('tenant_id', filters.tenantId);
+    if (filters?.invoiceId) query = query.eq('id', filters.invoiceId);
+    return query.range(from, to);
+  });
+  if (invoiceRows.length === 0) return [];
 
-  const { data: invoiceRows, error } = await query;
-  if (error) throw new Error(`Failed to load invoices: ${error.message}`);
-  if (!invoiceRows || invoiceRows.length === 0) return [];
-
-  const invoiceIds = invoiceRows.map((r) => r.id as string);
-  const { data: allPayments } = await supabase
-    .from('invoice_payments')
-    .select('invoice_id, amount')
-    .in('invoice_id', invoiceIds)
-    .is('reversed_at', null);
-  const paidByInvoiceId = new Map<string, number>();
-  for (const p of allPayments ?? []) {
-    paidByInvoiceId.set(p.invoice_id, (paidByInvoiceId.get(p.invoice_id) ?? 0) + Number(p.amount));
+  const paidCentsByInvoiceId = new Map<string, number>();
+  for (const row of invoiceRows) {
+    paidCentsByInvoiceId.set(
+      row.id,
+      (row.invoice_payments ?? [])
+        .filter((p) => p.reversed_at === null)
+        .reduce((sum, p) => sum + toCents(p.amount), 0),
+    );
   }
 
   // Schedule status is still needed for display purposes (the Overdue/Issued tie-break below), but
   // NOT for paid/balance -- that comes from invoice_payments alone.
-  const leaseIds = [...new Set(invoiceRows.map((r) => r.lease_id))];
-  const { data: schedules } = await supabase
-    .from('rent_schedules')
-    .select('id, lease_id, due_date, status')
-    .in('lease_id', leaseIds);
+  const leaseIds = [...new Set(invoiceRows.filter((r) => r.source !== 'manual').map((r) => r.lease_id))];
+  const schedules: { id: string; lease_id: string; due_date: string; status: string }[] = [];
+  for (let i = 0; i < leaseIds.length; i += LEASE_ID_CHUNK_SIZE) {
+    const chunk = leaseIds.slice(i, i + LEASE_ID_CHUNK_SIZE);
+    schedules.push(
+      ...(await readAllPages<{ id: string; lease_id: string; due_date: string; status: string }>(
+        'rent schedules',
+        (from, to) =>
+          supabase
+            .from('rent_schedules')
+            .select('id, lease_id, due_date, status')
+            .in('lease_id', chunk)
+            .order('id', { ascending: true })
+            .range(from, to),
+      )),
+    );
+  }
 
   // Authoritative link (invoice_rent_schedule(), migration 20260101000038): the invoice's own
   // (lease_id, period) is set from the source rent_schedule's (lease_id, due_date) at issuance
   // time, exact match -- there is no separate FK, this is how the two rows are actually related.
-  const scheduleByLeasePeriod = new Map(
-    (schedules ?? []).map((s) => [`${s.lease_id}:${s.due_date}`, s]),
-  );
+  const scheduleByLeasePeriod = new Map(schedules.map((s) => [`${s.lease_id}:${s.due_date}`, s]));
 
   return invoiceRows.map((row) => {
     const lease = row.leases as unknown as {
@@ -132,10 +191,12 @@ export async function loadInvoicesWithBalances(
     // ONE source, for every invoice regardless of source -- confirm_bank_transaction_match() and
     // confirm_cash_receipt_deposit() (migration 159) now create their own invoice_payments
     // allocation row, so a rent invoice's bank/cash-derived payments are already counted here.
-    const paid = paidByInvoiceId.get(row.id) ?? 0;
-    const amount = Number(row.amount);
+    const paidCents = paidCentsByInvoiceId.get(row.id) ?? 0;
+    const amountCents = toCents(row.amount);
+    const paid = paidCents / 100;
+    const amount = amountCents / 100;
     const isVoid = Boolean(row.voided_at);
-    const balance = isVoid ? 0 : Math.max(0, amount - paid);
+    const balance = isVoid ? 0 : Math.max(0, amountCents - paidCents) / 100;
 
     const displayStatus = computeInvoiceDisplayStatus({
       invoiceStatus: row.status as 'draft' | 'issued' | 'paid',

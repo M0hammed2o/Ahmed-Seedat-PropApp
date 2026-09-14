@@ -16,10 +16,8 @@ type RouteParams = { params: Promise<{ id: string }> };
  *
  * `balance` is now included too (Android V1 completion pass, WORKLOG.md this date) -- computed
  * the exact same way GET /api/v1/invoices' own list response is (`loadInvoicesWithBalances()`,
- * never a second, independently-written calculation that could disagree). The extra query this
- * costs (loads every RLS-visible invoice, not just this one id) is the same acceptable tradeoff
- * that function's own doc comment already accepts for the list route -- correctness over a
- * premature single-id optimization.
+ * never a second, independently-written calculation that could disagree), restricted to this one
+ * invoice. If that computation fails, paid/balance/displayStatus come back null ("reload"), never 0.
  */
 export async function GET(_request: NextRequest, { params }: RouteParams) {
   const { id } = await params;
@@ -59,7 +57,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 
   let balance: Awaited<ReturnType<typeof loadInvoicesWithBalances>>[number] | undefined;
   try {
-    const withBalances = await loadInvoicesWithBalances(supabase);
+    const withBalances = await loadInvoicesWithBalances(supabase, { invoiceId: id });
     balance = withBalances.find((inv) => inv.id === id);
   } catch (balanceError) {
     // Never fails the whole request over the balance enrichment alone -- the raw invoice/
