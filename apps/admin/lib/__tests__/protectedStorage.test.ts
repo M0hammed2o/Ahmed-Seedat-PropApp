@@ -67,7 +67,11 @@ vi.mock('@/lib/supabase/server', () => ({ getServiceRoleClient: () => h.client }
 vi.mock('../supabase/server', () => ({ getServiceRoleClient: () => h.client }));
 
 import * as malwareScanModule from '../providers/malwareScan';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import {
+  createProtectedSignedUrl,
+  downloadProtectedObject,
+  isStoragePathInOrg,
   removeProtectedObjects,
   requireCleanScanBeforeProcessing,
   storeScannedUpload,
@@ -356,6 +360,141 @@ describe('requireCleanScanBeforeProcessing', () => {
       status: 500,
       code: 'document_unavailable',
     });
+    expect(scan).not.toHaveBeenCalled();
+  });
+});
+
+// --- Cross-organisation path ownership (2026-09-14) ----------------------------------------------------
+// The same cases are asserted against the database's public.storage_path_in_org() in
+// supabase/tests/storage_path_org_ownership.test.sql -- keep the two lists in step.
+
+const ORG_A = '11111111-1111-4111-8111-111111111111';
+const ORG_B = '22222222-2222-4222-8222-222222222222';
+
+describe('isStoragePathInOrg -- the canonical path ownership rule', () => {
+  it.each([
+    `${ORG_A}/33333333-3333-4333-8333-333333333333/file.pdf`,
+    `${ORG_A}/lease-templates/template.docx`,
+    `${ORG_A}/file.pdf`,
+    `${ORG_A}/property/photo.hero.webp`,
+  ])('accepts %s', (path) => {
+    expect(isStoragePathInOrg(ORG_A, path)).toBe(true);
+  });
+
+  it.each([
+    ['another organisation', `${ORG_B}/33333333-3333-4333-8333-333333333333/file.pdf`],
+    ['the org id without a "/" boundary', `${ORG_A}evil/property/file.pdf`],
+    ['a leading traversal', `../${ORG_A}/file.pdf`],
+    ['a traversal inside the path', `${ORG_A}/../${ORG_B}/file.pdf`],
+    ['a "." segment', `${ORG_A}/./file.pdf`],
+    ['no organisation prefix', 'file.pdf'],
+    ['only the organisation folder', `${ORG_A}/`],
+    ['the bare organisation id', ORG_A],
+    ['a leading slash', `/${ORG_A}/file.pdf`],
+    ['an empty segment', `${ORG_A}//file.pdf`],
+    ['a trailing slash', `${ORG_A}/property/`],
+    ['a backslash', `${ORG_A}/..${String.fromCharCode(92)}${ORG_B}/file.pdf`],
+    ['a percent-encoded dot', `${ORG_A}/%2e%2e/${ORG_B}/file.pdf`],
+    ['a percent-encoded slash', `${ORG_A}%2F..%2F${ORG_B}/file.pdf`],
+    ['a percent-encoded backslash', `${ORG_A}/%5c${ORG_B}/file.pdf`],
+    ['a control character', `${ORG_A}/file${String.fromCharCode(0)}.pdf`],
+    ['an empty path', ''],
+  ])('rejects %s', (_label, path) => {
+    expect(isStoragePathInOrg(ORG_A, path)).toBe(false);
+  });
+
+  it('rejects a missing, empty or non-UUID organisation id, and a missing path', () => {
+    const path = `${ORG_A}/property/file.pdf`;
+    expect(isStoragePathInOrg(null, path)).toBe(false);
+    expect(isStoragePathInOrg(undefined, path)).toBe(false);
+    expect(isStoragePathInOrg('', path)).toBe(false);
+    expect(isStoragePathInOrg('org-1', 'org-1/property/file.pdf')).toBe(false);
+    expect(isStoragePathInOrg(ORG_A, null)).toBe(false);
+    expect(isStoragePathInOrg(ORG_A, undefined)).toBe(false);
+  });
+});
+
+describe('createProtectedSignedUrl / downloadProtectedObject', () => {
+  function fakeClient() {
+    const createSignedUrl = vi.fn(async (path: string) => ({
+      data: { signedUrl: `https://storage.example/${path}?token=x` },
+      error: null,
+    }));
+    const download = vi.fn(async () => ({ data: new Blob([new Uint8Array([1])]), error: null }));
+    const client = {
+      storage: { from: () => ({ createSignedUrl, download }) },
+    } as unknown as SupabaseClient;
+    return { client, createSignedUrl, download };
+  }
+
+  it("never asks Storage to sign or download another organisation's path", async () => {
+    const { client, createSignedUrl, download } = fakeClient();
+    const foreign = `${ORG_B}/property/file.pdf`;
+
+    const signed = await createProtectedSignedUrl(client, {
+      orgId: ORG_A,
+      storagePath: foreign,
+      expiresInSeconds: 60,
+    });
+    expect(signed).toMatchObject({ ok: false, reason: 'path_not_in_org' });
+    const downloaded = await downloadProtectedObject(client, {
+      orgId: ORG_A,
+      storagePath: foreign,
+    });
+    expect(downloaded).toMatchObject({ ok: false, reason: 'path_not_in_org' });
+
+    expect(createSignedUrl).not.toHaveBeenCalled();
+    expect(download).not.toHaveBeenCalled();
+  });
+
+  it('signs and downloads a path inside the row organisation', async () => {
+    const { client, createSignedUrl, download } = fakeClient();
+    const own = `${ORG_A}/property/file.pdf`;
+    const signed = await createProtectedSignedUrl(client, {
+      orgId: ORG_A,
+      storagePath: own,
+      expiresInSeconds: 60,
+    });
+    expect(signed).toEqual({ ok: true, value: `https://storage.example/${own}?token=x` });
+    expect((await downloadProtectedObject(client, { orgId: ORG_A, storagePath: own })).ok).toBe(
+      true,
+    );
+    expect(createSignedUrl).toHaveBeenCalledWith(own, 60);
+    expect(download).toHaveBeenCalledWith(own);
+  });
+
+  it('reports a Storage failure separately from an ownership refusal', async () => {
+    const client = {
+      storage: {
+        from: () => ({
+          createSignedUrl: async () => ({ data: null, error: { message: 'Object not found' } }),
+        }),
+      },
+    } as unknown as SupabaseClient;
+    const signed = await createProtectedSignedUrl(client, {
+      orgId: ORG_A,
+      storagePath: `${ORG_A}/property/missing.pdf`,
+      expiresInSeconds: 60,
+    });
+    expect(signed).toEqual({ ok: false, reason: 'storage_error', message: 'Object not found' });
+  });
+});
+
+describe('requireCleanScanBeforeProcessing -- cross-organisation', () => {
+  it("refuses another organisation's object even when a clean verdict is on record for it", async () => {
+    h.state.record = { org_id: ORG_B, scanner: 'cloudmersive' };
+    const scan = scannerSays({ clean: true });
+    const result = await requireCleanScanBeforeProcessing({
+      orgId: ORG_A,
+      storagePath: `${ORG_B}/property/file.pdf`,
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.response.status).toBe(403);
+      expect((await result.response.json()).error.code).toBe('document_not_processable');
+    }
+    // Refused on the path alone: no record lookup, no download, no scan.
+    expect(h.state.calls).toEqual([]);
     expect(scan).not.toHaveBeenCalled();
   });
 });

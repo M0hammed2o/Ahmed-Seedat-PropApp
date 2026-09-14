@@ -161,7 +161,9 @@ describeIfSupabase('PATCH /api/v1/applications/:id/document-requirements/:requir
       .rpc('record_application_document_upload', {
         p_token: token,
         p_requirement_key: 'id_document',
-        p_storage_path: `applications/${applicationId}/id-document.pdf`,
+        // The shape the real apply upload route writes ({org_id}/{property_id}/...): every stored
+        // path must sit inside its organisation's folder (migration 20260101000172).
+        p_storage_path: `${orgId}/${propertyId}/id-document-${applicationId}.pdf`,
         p_original_file_name: 'id-document.pdf',
         p_mime_type: 'application/pdf',
         p_file_size_bytes: 1024,

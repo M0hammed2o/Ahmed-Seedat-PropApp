@@ -61,7 +61,7 @@ insert into public.documents (
   mime_type, file_size_bytes, checksum_sha256
 )
 select o.id, current_setting('pgtap.opra_test.own_property_id')::uuid, dc.id, 'bill',
-  'test/opra-owned.pdf', 'owned.pdf', 'application/pdf', 1024, 'abc123'
+  o.id::text || '/' || current_setting('pgtap.opra_test.own_property_id') || '/opra-owned.pdf', 'owned.pdf', 'application/pdf', 1024, 'abc123'
 from public.organizations o, public.document_categories dc
 where o.legal_name = 'Owner Portal Test Org' and dc.slug = 'water';
 

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { requireOrgRole, requirePropertyAccess } from '@/lib/portfolio';
 import {
+  downloadProtectedObject,
   removeProtectedObjects,
   requireCleanScanBeforeProcessing,
   storeServerGeneratedObject,
@@ -150,15 +151,19 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   });
   if (!templateClearance.ok) return templateClearance.response;
 
-  const { data: templateFile, error: downloadError } = await supabase.storage
-    .from('documents')
-    .download(template.storage_path);
-  if (downloadError || !templateFile) {
+  // The template row was loaded for this lease's organisation; its path must sit inside that
+  // organisation's folder too (also enforced by requireCleanScanBeforeProcessing() above).
+  const templateDownload = await downloadProtectedObject(supabase, {
+    orgId: template.org_id,
+    storagePath: template.storage_path,
+  });
+  if (!templateDownload.ok) {
     return NextResponse.json(
-      { error: { code: 'template_download_failed', message: downloadError?.message ?? 'Could not read the template file.' } },
-      { status: 500 },
+      { error: { code: 'template_download_failed', message: templateDownload.message } },
+      { status: templateDownload.reason === 'path_not_in_org' ? 403 : 500 },
     );
   }
+  const templateFile = templateDownload.value;
 
   const unit = (
     lease as unknown as {

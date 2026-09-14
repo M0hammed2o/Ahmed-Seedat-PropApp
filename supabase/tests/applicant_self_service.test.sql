@@ -197,7 +197,7 @@ select is(
 -- === Document upload via token ===
 select is(
   (select success from public.record_application_document_upload(
-    current_setting('pgtap.ass.token'), 'id_document', 'orgid/lease-templates/does-not-matter.pdf',
+    current_setting('pgtap.ass.token'), 'id_document', current_setting('pgtap.ass.org_id') || '/applications/does-not-matter.pdf',
     'id.pdf', 'application/pdf', 12345, 'deadbeef'
   )),
   true,
@@ -206,7 +206,7 @@ select is(
 
 select is(
   (select success from public.record_application_document_upload(
-    current_setting('pgtap.ass.token'), 'nonexistent_requirement', 'orgid/lease-templates/x.pdf',
+    current_setting('pgtap.ass.token'), 'nonexistent_requirement', current_setting('pgtap.ass.org_id') || '/applications/x.pdf',
     'x.pdf', 'application/pdf', 100, 'abc'
   )),
   false,
@@ -272,7 +272,7 @@ select is(
 -- revoked (a new one was issued for the same application, tested above). ===
 select is(
   (select success from public.record_application_document_upload(
-    current_setting('pgtap.ass.token2'), 'id_document', 'orgid/lease-templates/replacement.pdf',
+    current_setting('pgtap.ass.token2'), 'id_document', current_setting('pgtap.ass.org_id') || '/applications/replacement.pdf',
     'id-v2.pdf', 'application/pdf', 22222, 'replacement-checksum'
   )),
   true,

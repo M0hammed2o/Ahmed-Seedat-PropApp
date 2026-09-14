@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { createProtectedSignedUrl } from '@/lib/protectedStorage';
 
 type RouteParams = { params: Promise<{ id: string; documentId: string }> };
 
@@ -27,7 +28,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 
   const { data, error } = await supabase
     .from('lease_documents')
-    .select('storage_path')
+    .select('org_id, storage_path')
     .eq('id', documentId)
     .maybeSingle();
   if (error) {
@@ -43,9 +44,23 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     );
   }
 
-  const { data: signed } = await supabase.storage
-    .from('documents')
-    .createSignedUrl(data.storage_path, SIGNED_URL_TTL_SECONDS);
+  // Row visibility (RLS) authorises the caller; the path must also belong to the row's organisation.
+  const signed = await createProtectedSignedUrl(supabase, {
+    orgId: data.org_id,
+    storagePath: data.storage_path,
+    expiresInSeconds: SIGNED_URL_TTL_SECONDS,
+  });
+  if (!signed.ok && signed.reason === 'path_not_in_org') {
+    return NextResponse.json(
+      {
+        error: {
+          code: 'document_file_not_accessible',
+          message: 'This lease document’s file cannot be opened.',
+        },
+      },
+      { status: 403 },
+    );
+  }
 
-  return NextResponse.json({ signedUrl: signed?.signedUrl ?? null });
+  return NextResponse.json({ signedUrl: signed.ok ? signed.value : null });
 }

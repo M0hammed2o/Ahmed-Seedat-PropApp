@@ -1,6 +1,7 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import sharp from 'sharp';
+import { createProtectedSignedUrl } from './protectedStorage';
 
 // Property cover-photo + image-quality audit (WORKLOG.md this date): the authoritative
 // cover-photo rule, in one place, used by BOTH the property detail hero and the /properties list
@@ -18,6 +19,8 @@ const CARD_WEBP_QUALITY = 78;
 
 export interface CoverPhotoRow {
   photoId: string;
+  /** The photo document's organisation -- every path below is signed only if it sits inside it. */
+  orgId: string | null;
   originalStoragePath: string;
   heroStoragePath: string | null;
   cardStoragePath: string | null;
@@ -37,7 +40,7 @@ export async function resolveCoverPhotoRow(
 ): Promise<CoverPhotoRow | null> {
   const { data } = await supabase
     .from('property_photos')
-    .select('id, hero_storage_path, card_storage_path, width, height, documents(storage_path)')
+    .select('id, hero_storage_path, card_storage_path, width, height, documents(org_id, storage_path)')
     .eq('property_id', propertyId)
     .order('is_cover', { ascending: false })
     .order('created_at', { ascending: true })
@@ -50,11 +53,12 @@ export async function resolveCoverPhotoRow(
     card_storage_path: string | null;
     width: number | null;
     height: number | null;
-    documents: { storage_path: string } | null;
+    documents: { org_id: string | null; storage_path: string } | null;
   };
   if (!row.documents) return null;
   return {
     photoId: row.id,
+    orgId: row.documents.org_id,
     originalStoragePath: row.documents.storage_path,
     heroStoragePath: row.hero_storage_path,
     cardStoragePath: row.card_storage_path,
@@ -78,7 +82,7 @@ export async function resolveCoverPhotoRowsByProperty(
   const { data } = await supabase
     .from('property_photos')
     .select(
-      'id, property_id, is_cover, created_at, hero_storage_path, card_storage_path, width, height, documents(storage_path)',
+      'id, property_id, is_cover, created_at, hero_storage_path, card_storage_path, width, height, documents(org_id, storage_path)',
     )
     .in('property_id', propertyIds)
     .order('is_cover', { ascending: false })
@@ -91,7 +95,7 @@ export async function resolveCoverPhotoRowsByProperty(
     card_storage_path: string | null;
     width: number | null;
     height: number | null;
-    documents: { storage_path: string } | null;
+    documents: { org_id: string | null; storage_path: string } | null;
   }[];
 
   // Rows already arrive ordered cover-first-then-oldest per the query above; the first row seen
@@ -100,6 +104,7 @@ export async function resolveCoverPhotoRowsByProperty(
     if (result.has(row.property_id) || !row.documents) continue;
     result.set(row.property_id, {
       photoId: row.id,
+      orgId: row.documents.org_id,
       originalStoragePath: row.documents.storage_path,
       heroStoragePath: row.hero_storage_path,
       cardStoragePath: row.card_storage_path,
@@ -119,8 +124,12 @@ export async function signCoverPhotoUrl(
   size: 'hero' | 'card',
 ): Promise<string | null> {
   const path = (size === 'hero' ? row.heroStoragePath : row.cardStoragePath) ?? row.originalStoragePath;
-  const { data } = await supabase.storage.from('documents').createSignedUrl(path, SIGNED_URL_TTL_SECONDS);
-  return data?.signedUrl ?? null;
+  const signed = await createProtectedSignedUrl(supabase, {
+    orgId: row.orgId,
+    storagePath: path,
+    expiresInSeconds: SIGNED_URL_TTL_SECONDS,
+  });
+  return signed.ok ? signed.value : null;
 }
 
 export interface PhotoDerivatives {

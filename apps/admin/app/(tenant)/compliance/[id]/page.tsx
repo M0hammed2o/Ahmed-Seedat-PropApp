@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { createProtectedSignedUrl } from '@/lib/protectedStorage';
 import { resolveTenantSession } from '@/lib/tenantSession';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 import { ComplianceAcknowledgeClient } from './ComplianceAcknowledgeClient';
@@ -67,14 +68,17 @@ export default async function ComplianceRequirementPage({ params }: PageParams) 
   if (ruleVersion) {
     const { data: document } = await supabase
       .from('documents')
-      .select('storage_path')
+      .select('org_id, storage_path')
       .eq('id', ruleVersion.document_id)
       .maybeSingle();
     if (document) {
-      const { data: signed } = await supabase.storage
-        .from('documents')
-        .createSignedUrl(document.storage_path, 300);
-      signedUrl = signed?.signedUrl ?? null;
+      // Only a path inside the document row's own organisation is ever signed.
+      const signed = await createProtectedSignedUrl(supabase, {
+        orgId: document.org_id,
+        storagePath: document.storage_path,
+        expiresInSeconds: 300,
+      });
+      signedUrl = signed.ok ? signed.value : null;
     }
   }
 

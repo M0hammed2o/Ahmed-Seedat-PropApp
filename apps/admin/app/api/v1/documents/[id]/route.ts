@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapDocumentRow } from '@/lib/documents';
 import { safeErrorMessage } from '@/lib/safeError';
+import { createProtectedSignedUrl } from '@/lib/protectedStorage';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -49,16 +50,31 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     );
   }
 
-  const { data: signed, error: signError } = await supabase.storage
-    .from('documents')
-    .createSignedUrl(data.storage_path, SIGNED_URL_TTL_SECONDS);
-  if (signError) {
+  // The row being visible (RLS) authorises the caller for the row; the path must also belong to the
+  // row's organisation, or a row pointing at another organisation's object would hand out its bytes.
+  const signed = await createProtectedSignedUrl(supabase, {
+    orgId: data.org_id,
+    storagePath: data.storage_path,
+    expiresInSeconds: SIGNED_URL_TTL_SECONDS,
+  });
+  if (!signed.ok && signed.reason === 'path_not_in_org') {
+    return NextResponse.json(
+      {
+        error: {
+          code: 'document_file_not_accessible',
+          message: 'This document’s file cannot be opened.',
+        },
+      },
+      { status: 403 },
+    );
+  }
+  if (!signed.ok) {
     return NextResponse.json(
       {
         error: {
           code: 'signed_url_failed',
           message: safeErrorMessage(
-            signError,
+            { message: signed.message },
             'Could not generate a download link for this document. Please try again, or contact support if this continues.',
             `documents.createSignedUrl(${id})`,
           ),
@@ -68,5 +84,5 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     );
   }
 
-  return NextResponse.json({ document: mapDocumentRow(data), signedUrl: signed.signedUrl });
+  return NextResponse.json({ document: mapDocumentRow(data), signedUrl: signed.value });
 }

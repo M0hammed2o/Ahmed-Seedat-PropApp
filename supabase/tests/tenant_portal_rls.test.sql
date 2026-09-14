@@ -73,9 +73,9 @@ values
 insert into public.documents (id, org_id, property_id, lease_id, category_id, document_type, storage_path, original_file_name, mime_type, file_size_bytes, checksum_sha256)
 values
   ('fb000000-0000-0000-0000-000000000071', 'fb000000-0000-0000-0000-000000000001', 'fb000000-0000-0000-0000-000000000011', 'fb000000-0000-0000-0000-000000000041',
-   (select id from public.document_categories where is_default limit 1), 'lease', 'a/lease-a.pdf', 'lease-a.pdf', 'application/pdf', 1000, 'aaa111'),
+   (select id from public.document_categories where is_default limit 1), 'lease', 'fb000000-0000-0000-0000-000000000001/fb000000-0000-0000-0000-000000000011/lease-a.pdf', 'lease-a.pdf', 'application/pdf', 1000, 'aaa111'),
   ('fb000000-0000-0000-0000-000000000072', 'fb000000-0000-0000-0000-000000000001', 'fb000000-0000-0000-0000-000000000012', 'fb000000-0000-0000-0000-000000000042',
-   (select id from public.document_categories where is_default limit 1), 'lease', 'b/lease-b.pdf', 'lease-b.pdf', 'application/pdf', 1000, 'bbb222');
+   (select id from public.document_categories where is_default limit 1), 'lease', 'fb000000-0000-0000-0000-000000000001/fb000000-0000-0000-0000-000000000012/lease-b.pdf', 'lease-b.pdf', 'application/pdf', 1000, 'bbb222');
 
 set local role authenticated;
 set local "request.jwt.claim.sub" = 'fa000000-0000-0000-0000-000000000001';

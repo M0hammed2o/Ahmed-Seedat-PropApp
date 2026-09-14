@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import type { DocumentRecord, ExtractionResult } from '@propvault/types';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { mapDocumentRow, mapExtractionResultRow } from '@/lib/documents';
+import { createProtectedSignedUrl } from '@/lib/protectedStorage';
 import { resolvePortalSession, findActiveMembership, canWriteOrgRecords } from '@/lib/orgSession';
 import { OcrPanel } from '@/components/documents/OcrPanel';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -61,11 +62,13 @@ export default async function DocumentDetailPage({ params }: RouteParams) {
   if (!data) notFound();
   const document = mapDocumentRow(data);
 
-  let signedUrl: string | null = null;
-  const { data: signed } = await supabase.storage
-    .from('documents')
-    .createSignedUrl(document.storagePath, SIGNED_URL_TTL_SECONDS);
-  if (signed) signedUrl = signed.signedUrl;
+  // Only a path inside the document row's own organisation is ever signed (lib/protectedStorage.ts).
+  const signed = await createProtectedSignedUrl(supabase, {
+    orgId: document.orgId,
+    storagePath: document.storagePath,
+    expiresInSeconds: SIGNED_URL_TTL_SECONDS,
+  });
+  const signedUrl: string | null = signed.ok ? signed.value : null;
 
   const { data: jobRow } = await supabase
     .from('extraction_jobs')

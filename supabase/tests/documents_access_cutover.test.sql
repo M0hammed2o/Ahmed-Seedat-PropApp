@@ -27,6 +27,15 @@ select set_config(
   false
 );
 
+-- Stored paths sit inside the organisation folder ({org_id}/{property_id}/...), as migration
+-- 20260101000172 requires and the upload route writes them.
+select set_config(
+  'pgtap.dac_test.path',
+  (select id::text from public.organizations where legal_name = 'Documents Cutover Test Org')
+    || '/' || current_setting('pgtap.dac_test.property_id') || '/cutover.pdf',
+  false
+);
+
 -- Exact API route sequence: insert ... select ... single()
 select lives_ok(
   $$ insert into public.documents (
@@ -34,14 +43,14 @@ select lives_ok(
        mime_type, file_size_bytes, checksum_sha256
      )
      select o.id, current_setting('pgtap.dac_test.property_id')::uuid, dc.id, 'bill',
-       'test/cutover.pdf', 'cutover.pdf', 'application/pdf', 1024, 'abc123'
+       current_setting('pgtap.dac_test.path'), 'cutover.pdf', 'application/pdf', 1024, 'abc123'
      from public.organizations o, public.document_categories dc
      where o.legal_name = 'Documents Cutover Test Org' and dc.slug = 'water' $$,
   'the property owner can upload a document (no bootstrapping problem, verified)'
 );
 
 select is(
-  (select original_file_name from public.documents where storage_path = 'test/cutover.pdf'),
+  (select original_file_name from public.documents where storage_path = current_setting('pgtap.dac_test.path')),
   'cutover.pdf',
   'the creator can fetch the document via a plain, separate SELECT'
 );
@@ -55,7 +64,7 @@ set local role authenticated;
 set local "request.jwt.claim.sub" = 'f5000000-0000-0000-0000-000000000002';
 
 select is(
-  (select count(*)::int from public.documents where storage_path = 'test/cutover.pdf'),
+  (select count(*)::int from public.documents where storage_path = current_setting('pgtap.dac_test.path')),
   1,
   'a coworker who joins the org is auto-granted access that cascades to documents'
 );
@@ -72,7 +81,7 @@ set local role authenticated;
 set local "request.jwt.claim.sub" = 'f5000000-0000-0000-0000-000000000002';
 
 select is(
-  (select count(*)::int from public.documents where storage_path = 'test/cutover.pdf'),
+  (select count(*)::int from public.documents where storage_path = current_setting('pgtap.dac_test.path')),
   0,
   'revoking property access removes document visibility too'
 );

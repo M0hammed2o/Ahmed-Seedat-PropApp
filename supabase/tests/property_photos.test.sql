@@ -32,7 +32,7 @@ select set_config(
 insert into public.documents (org_id, property_id, category_id, document_type, storage_path, original_file_name, mime_type, file_size_bytes, checksum_sha256)
 select o.id, current_setting('pgtap.pp.property_id')::uuid,
   (select id from public.document_categories where slug = 'property_photos'),
-  'other', current_setting('pgtap.pp.property_id') || '/photo1.jpg', 'photo1.jpg', 'image/jpeg', 1000, 'abc123'
+  'other', o.id::text || '/' || current_setting('pgtap.pp.property_id') || '/photo1.jpg', 'photo1.jpg', 'image/jpeg', 1000, 'abc123'
 from public.organizations o where o.legal_name = 'Property Photos Test Org';
 
 select set_config(
@@ -89,7 +89,8 @@ select is(
 );
 select lives_ok(
   $$ update public.property_photos
-     set hero_storage_path = 'org/prop/uuid-hero.webp', card_storage_path = 'org/prop/uuid-card.webp', width = 1600, height = 1067
+     set hero_storage_path = (select org_id::text from public.properties where id = current_setting('pgtap.pp.property_id')::uuid) || '/' || current_setting('pgtap.pp.property_id') || '/uuid-hero.webp',
+         card_storage_path = (select org_id::text from public.properties where id = current_setting('pgtap.pp.property_id')::uuid) || '/' || current_setting('pgtap.pp.property_id') || '/uuid-card.webp', width = 1600, height = 1067
      where document_id = current_setting('pgtap.pp.document_id')::uuid $$,
   'hero_storage_path/card_storage_path/width/height accept real values'
 );

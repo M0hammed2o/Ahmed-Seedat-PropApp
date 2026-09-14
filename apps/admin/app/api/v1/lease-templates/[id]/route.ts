@@ -4,6 +4,7 @@ import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/se
 import { requireOrgRole } from '@/lib/portfolio';
 import { mapLeaseTemplateRow } from '@/lib/leaseTemplates';
 import { writeAuditEvent } from '@/lib/audit';
+import { createProtectedSignedUrl } from '@/lib/protectedStorage';
 
 const SIGNED_URL_TTL_SECONDS = 60 * 10;
 
@@ -48,13 +49,27 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     );
   }
 
-  const { data: signed } = await supabase.storage
-    .from('documents')
-    .createSignedUrl(data.storage_path, SIGNED_URL_TTL_SECONDS);
+  // Only a path inside the template row's own organisation is ever signed.
+  const signed = await createProtectedSignedUrl(supabase, {
+    orgId: data.org_id,
+    storagePath: data.storage_path,
+    expiresInSeconds: SIGNED_URL_TTL_SECONDS,
+  });
+  if (!signed.ok && signed.reason === 'path_not_in_org') {
+    return NextResponse.json(
+      {
+        error: {
+          code: 'document_file_not_accessible',
+          message: 'This template’s file cannot be opened.',
+        },
+      },
+      { status: 403 },
+    );
+  }
 
   return NextResponse.json({
     leaseTemplate: mapLeaseTemplateRow(data),
-    signedUrl: signed?.signedUrl ?? null,
+    signedUrl: signed.ok ? signed.value : null,
   });
 }
 

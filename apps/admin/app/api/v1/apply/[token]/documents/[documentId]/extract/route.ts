@@ -5,7 +5,10 @@ import { canUseOcr } from '@/lib/subscriptionEntitlements';
 import { resolveDocumentIntelligence } from '@/lib/providers/documentIntelligence';
 import { isTrustedExtractionResult } from '@/lib/documentIntelligencePolicy';
 import { documentExtractionUnavailableResponse } from '@/lib/documentExtractionResponses';
-import { requireCleanScanBeforeProcessing } from '@/lib/protectedStorage';
+import {
+  createProtectedSignedUrl,
+  requireCleanScanBeforeProcessing,
+} from '@/lib/protectedStorage';
 import { mapExtractionResultRow } from '@/lib/documents';
 import { writeAuditEvent } from '@/lib/audit';
 
@@ -55,9 +58,14 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     .select('id, org_id, application_id, document_type, storage_path, mime_type')
     .eq('id', documentId)
     .maybeSingle();
-  if (!document || document.application_id !== app.application_id) {
-    // Deliberately the same 404 whether the document doesn't exist or belongs to a different
-    // application -- never confirms/denies another application's document exists.
+  if (
+    !document ||
+    document.application_id !== app.application_id ||
+    document.org_id !== app.org_id
+  ) {
+    // Deliberately the same 404 whether the document doesn't exist, belongs to a different
+    // application, or (read with the service role, so RLS isn't checking) to a different
+    // organisation than the one the token resolves to -- never confirms another document exists.
     return NextResponse.json(
       { error: { code: 'not_found', message: 'Document not found.' } },
       { status: 404 },
@@ -146,12 +154,14 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     );
   }
 
-  const { data: signedUrlData, error: signedUrlError } = await serviceRole.storage
-    .from('documents')
-    .createSignedUrl(document.storage_path, SIGNED_URL_TTL_SECONDS);
-  if (signedUrlError || !signedUrlData) {
+  const signed = await createProtectedSignedUrl(serviceRole, {
+    orgId: document.org_id,
+    storagePath: document.storage_path,
+    expiresInSeconds: SIGNED_URL_TTL_SECONDS,
+  });
+  if (!signed.ok) {
     return NextResponse.json(
-      { error: { code: 'signed_url_failed', message: signedUrlError?.message ?? 'Could not create a signed URL.' } },
+      { error: { code: 'signed_url_failed', message: signed.message } },
       { status: 500 },
     );
   }
@@ -161,7 +171,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     documentId: document.id,
     storagePath: document.storage_path,
     mimeType: document.mime_type,
-    signedUrl: signedUrlData.signedUrl,
+    signedUrl: signed.value,
   };
 
   try {

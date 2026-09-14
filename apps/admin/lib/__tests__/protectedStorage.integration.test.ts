@@ -41,6 +41,7 @@ const { POST: uploadDocument } = await import('@/app/api/v1/documents/route');
 const { GET: getDocument } = await import('@/app/api/v1/documents/[id]/route');
 const { POST: extractDocument } = await import('@/app/api/v1/documents/[id]/extract/route');
 const { MockDocumentIntelligenceProvider } = await import('@/lib/providers/documentIntelligence');
+const { requireCleanScanBeforeProcessing } = await import('@/lib/protectedStorage');
 
 const realFetch = globalThis.fetch;
 
@@ -491,15 +492,27 @@ describeIfSupabase(
       const foreignPath = `${otherOrgId}/${otherPropertyId}/foreign-${suffix}.pdf`;
       await serviceUpload(foreignPath, pdf('other organisation'));
       otherOrgPaths.push(foreignPath);
-      const documentId = await clientDocumentRow(foreignPath);
       const extractSpy = vi.spyOn(MockDocumentIntelligenceProvider.prototype, 'extractFields');
 
-      const response = await extract(documentId);
-      expect(response.status).toBe(403);
-      expect((await response.json()).error.code).toBe('document_not_processable');
+      // Since migration 20260101000172 the row itself cannot be written (crossOrgStorageAccess covers
+      // that in depth), so there is no documents row to point the extract route at...
+      await expect(clientDocumentRow(foreignPath)).rejects.toThrow(
+        /23514.*documents_storage_path_in_org_folder/,
+      );
+      expect(
+        await adminSelect(`documents?storage_path=eq.${encodeURIComponent(foreignPath)}&select=id`),
+      ).toEqual([]);
+
+      // ...and the processing gate still refuses the path on its own -- for a row written before the
+      // constraint -- before any scan, Storage read or verdict write.
+      const clearance = await requireCleanScanBeforeProcessing({ orgId, storagePath: foreignPath });
+      expect(clearance.ok).toBe(false);
+      if (clearance.ok) return;
+      expect(clearance.response.status).toBe(403);
+      expect((await clearance.response.json()).error.code).toBe('document_not_processable');
       expect(calls).toHaveLength(0);
       expect(extractSpy).not.toHaveBeenCalled();
-      expect(await jobsFor(documentId)).toHaveLength(0);
+      expect(await scanRecord(foreignPath)).toBeNull();
     }, 30_000);
   },
 );

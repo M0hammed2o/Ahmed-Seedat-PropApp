@@ -4,7 +4,7 @@ import { requireOrgRole } from '@/lib/portfolio';
 import { canUseOcr } from '@/lib/subscriptionEntitlements';
 import { resolveDocumentIntelligence } from '@/lib/providers/documentIntelligence';
 import { documentExtractionUnavailableResponse } from '@/lib/documentExtractionResponses';
-import { requireCleanScanBeforeProcessing } from '@/lib/protectedStorage';
+import { createProtectedSignedUrl, requireCleanScanBeforeProcessing } from '@/lib/protectedStorage';
 import { parseLevyStatementLineItems } from '@/lib/levyStatementParsing';
 import { writeAuditEvent } from '@/lib/audit';
 import { safeErrorMessage } from '@/lib/safeError';
@@ -88,10 +88,12 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
 
   const { data: document } = await serviceRole
     .from('documents')
-    .select('storage_path, mime_type')
+    .select('org_id, storage_path, mime_type')
     .eq('id', statement.document_id)
     .maybeSingle();
-  if (!document) {
+  // levy_statements.document_id is client-writable, and this read bypasses RLS: the document must
+  // belong to the same organisation as the statement the caller was authorised for.
+  if (!document || document.org_id !== statement.org_id) {
     return NextResponse.json(
       {
         error: {
@@ -137,13 +139,15 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     .update({ status: 'extracting', extraction_job_id: job.id })
     .eq('id', id);
 
-  const { data: signedUrlData, error: signedUrlError } = await serviceRole.storage
-    .from('documents')
-    .createSignedUrl(document.storage_path, SIGNED_URL_TTL_SECONDS);
-  if (signedUrlError || !signedUrlData) {
+  const signed = await createProtectedSignedUrl(serviceRole, {
+    orgId: document.org_id,
+    storagePath: document.storage_path,
+    expiresInSeconds: SIGNED_URL_TTL_SECONDS,
+  });
+  if (!signed.ok) {
     await serviceRole
       .from('extraction_jobs')
-      .update({ status: 'failed', error_message: signedUrlError?.message ?? 'Signed URL failed' })
+      .update({ status: 'failed', error_message: signed.message })
       .eq('id', job.id);
     return NextResponse.json(
       {
@@ -166,7 +170,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       documentId: statement.document_id,
       storagePath: document.storage_path,
       mimeType: document.mime_type,
-      signedUrl: signedUrlData.signedUrl,
+      signedUrl: signed.value,
     });
 
     const { error: resultError } = await serviceRole.from('extraction_results').insert({

@@ -5,7 +5,10 @@ import { requireOrgRole } from '@/lib/portfolio';
 import { canUseOcr } from '@/lib/subscriptionEntitlements';
 import { resolveDocumentIntelligence } from '@/lib/providers/documentIntelligence';
 import { documentExtractionUnavailableResponse } from '@/lib/documentExtractionResponses';
-import { requireCleanScanBeforeProcessing } from '@/lib/protectedStorage';
+import {
+  createProtectedSignedUrl,
+  requireCleanScanBeforeProcessing,
+} from '@/lib/protectedStorage';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -222,15 +225,17 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   // can fetch the file's bytes itself without this route handing it a Supabase client of its own
   // (see ProcessingInput's own comment). Short TTL matches every other signed-URL issuance in this
   // codebase; the provider call below happens well within it.
-  const { data: signedUrlData, error: signedUrlError } = await serviceRole.storage
-    .from('documents')
-    .createSignedUrl(document.storage_path, SIGNED_URL_TTL_SECONDS);
-  if (signedUrlError || !signedUrlData) {
+  const signed = await createProtectedSignedUrl(serviceRole, {
+    orgId: document.org_id,
+    storagePath: document.storage_path,
+    expiresInSeconds: SIGNED_URL_TTL_SECONDS,
+  });
+  if (!signed.ok) {
     return NextResponse.json(
       {
         error: {
           code: 'signed_url_failed',
-          message: signedUrlError?.message ?? 'Could not create a signed URL for this document.',
+          message: signed.message,
         },
       },
       { status: 500 },
@@ -240,7 +245,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     documentId: document.id,
     storagePath: document.storage_path,
     mimeType: document.mime_type,
-    signedUrl: signedUrlData.signedUrl,
+    signedUrl: signed.value,
   };
 
   try {

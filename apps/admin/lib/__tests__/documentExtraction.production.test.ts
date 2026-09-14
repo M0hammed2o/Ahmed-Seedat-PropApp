@@ -162,16 +162,16 @@ describe('POST /api/v1/documents/:id/extract', () => {
     h.state.session.documents = {
       maybeSingle: {
         id: 'doc-1',
-        org_id: 'org-1',
-        property_id: 'prop-1',
+        org_id: '11111111-1111-4111-8111-111111111111',
+        property_id: '33333333-3333-4333-8333-333333333333',
         document_type: 'lease',
-        storage_path: 'org-1/prop-1/lease.pdf',
+        storage_path: '11111111-1111-4111-8111-111111111111/33333333-3333-4333-8333-333333333333/lease.pdf',
         mime_type: 'application/pdf',
       },
     };
     // A clean malware-scan record for that object, so the route clears
     // requireCleanScanBeforeProcessing() and reaches the part this suite is about.
-    h.state.service.upload_malware_scans = { maybeSingle: { org_id: 'org-1', scanner: 'cloudmersive' } };
+    h.state.service.upload_malware_scans = { maybeSingle: { org_id: '11111111-1111-4111-8111-111111111111', scanner: 'cloudmersive' } };
     h.state.service.extraction_jobs = { error: { message: 'insert blocked in test' } };
   }
 
@@ -211,16 +211,16 @@ describe('POST /api/v1/documents/:id/extract', () => {
 
 describe('POST /api/v1/leases/:id/upload-and-parse', () => {
   function scriptLease() {
-    h.state.session.leases = { maybeSingle: { id: 'lease-1', org_id: 'org-1' } };
+    h.state.session.leases = { maybeSingle: { id: 'lease-1', org_id: '11111111-1111-4111-8111-111111111111' } };
     h.state.session.documents = {
       maybeSingle: {
         id: '11111111-1111-4111-8111-111111111111',
-        org_id: 'org-1',
-        storage_path: 'org-1/lease.pdf',
+        org_id: '11111111-1111-4111-8111-111111111111',
+        storage_path: '11111111-1111-4111-8111-111111111111/lease.pdf',
         mime_type: 'application/pdf',
       },
     };
-    h.state.service.upload_malware_scans = { maybeSingle: { org_id: 'org-1', scanner: 'cloudmersive' } };
+    h.state.service.upload_malware_scans = { maybeSingle: { org_id: '11111111-1111-4111-8111-111111111111', scanner: 'cloudmersive' } };
     h.state.service.extraction_jobs = { error: { message: 'insert blocked in test' } };
   }
   const BODY = { documentId: '11111111-1111-4111-8111-111111111111' };
@@ -254,12 +254,18 @@ describe('POST /api/v1/leases/:id/upload-and-parse', () => {
 describe('POST /api/v1/levy-statements/:id/extract', () => {
   function scriptStatement() {
     h.state.session.levy_statements = {
-      maybeSingle: { id: 'levy-1', org_id: 'org-1', document_id: 'doc-1' },
+      maybeSingle: { id: 'levy-1', org_id: '11111111-1111-4111-8111-111111111111', document_id: 'doc-1' },
     };
     h.state.service.documents = {
-      maybeSingle: { id: 'doc-1', storage_path: 'org-1/prop-1/levy.pdf', mime_type: 'application/pdf' },
+      maybeSingle: {
+        id: 'doc-1',
+        // The document must belong to the statement's organisation (the route refuses otherwise).
+        org_id: '11111111-1111-4111-8111-111111111111',
+        storage_path: '11111111-1111-4111-8111-111111111111/33333333-3333-4333-8333-333333333333/levy.pdf',
+        mime_type: 'application/pdf',
+      },
     };
-    h.state.service.upload_malware_scans = { maybeSingle: { org_id: 'org-1', scanner: 'cloudmersive' } };
+    h.state.service.upload_malware_scans = { maybeSingle: { org_id: '11111111-1111-4111-8111-111111111111', scanner: 'cloudmersive' } };
     h.state.service.extraction_jobs = { error: { message: 'insert blocked in test' } };
   }
 
@@ -292,7 +298,7 @@ describe('POST /api/v1/levy-statements/:id/extract', () => {
 
 describe('POST /api/v1/documents/:id/review', () => {
   function scriptStoredResult(providerName: string | null) {
-    h.state.session.documents = { maybeSingle: { id: 'doc-1', org_id: 'org-1', property_id: 'prop-1' } };
+    h.state.session.documents = { maybeSingle: { id: 'doc-1', org_id: '11111111-1111-4111-8111-111111111111', property_id: '33333333-3333-4333-8333-333333333333' } };
     h.state.service.extraction_jobs = { maybeSingle: { id: 'job-1' } };
     h.state.service.extraction_results = {
       maybeSingle: { provider_name: providerName },
@@ -332,7 +338,7 @@ describe('POST /api/v1/documents/:id/review', () => {
 
 describe('POST /api/v1/apply/:token/documents/:documentId/corrections', () => {
   function scriptStoredResult(providerName: string | null) {
-    h.state.rpcSingle = { valid: true, error_code: null, application_id: 'app-1', org_id: 'org-1' };
+    h.state.rpcSingle = { valid: true, error_code: null, application_id: 'app-1', org_id: '11111111-1111-4111-8111-111111111111' };
     h.state.service.documents = { maybeSingle: { id: 'doc-1', application_id: 'app-1' } };
     h.state.service.extraction_jobs = { maybeSingle: { id: 'job-1' } };
     h.state.service.extraction_results = { maybeSingle: { provider_name: providerName, id: 'res-1' } };

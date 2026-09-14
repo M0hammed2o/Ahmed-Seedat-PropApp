@@ -2,6 +2,7 @@ import { FileText } from 'lucide-react';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { createProtectedSignedUrl } from '@/lib/protectedStorage';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 const SIGNED_URL_TTL_SECONDS = 60 * 10;
@@ -126,7 +127,7 @@ async function loadOwnerDocuments(): Promise<OwnerDocumentRow[]> {
   const { data, error } = await supabase
     .from('documents')
     .select(
-      'id, original_file_name, document_type, storage_path, file_size_bytes, created_at, properties(nickname)',
+      'id, org_id, original_file_name, document_type, storage_path, file_size_bytes, created_at, properties(nickname)',
     )
     .is('deleted_at', null)
     .order('created_at', { ascending: false });
@@ -134,9 +135,12 @@ async function loadOwnerDocuments(): Promise<OwnerDocumentRow[]> {
 
   return Promise.all(
     (data ?? []).map(async (row) => {
-      const { data: signed } = await supabase.storage
-        .from('documents')
-        .createSignedUrl(row.storage_path as string, SIGNED_URL_TTL_SECONDS);
+      // Only a path inside the document row's own organisation is ever signed.
+      const signed = await createProtectedSignedUrl(supabase, {
+        orgId: row.org_id as string | null,
+        storagePath: row.storage_path as string,
+        expiresInSeconds: SIGNED_URL_TTL_SECONDS,
+      });
       const property = row.properties as unknown as { nickname: string } | null;
       return {
         id: row.id as string,
@@ -145,7 +149,7 @@ async function loadOwnerDocuments(): Promise<OwnerDocumentRow[]> {
         propertyNickname: property?.nickname ?? null,
         fileSizeBytes: row.file_size_bytes as number,
         createdAt: row.created_at as string,
-        signedUrl: signed?.signedUrl ?? null,
+        signedUrl: signed.ok ? signed.value : null,
       };
     }),
   );

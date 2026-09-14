@@ -5,6 +5,7 @@ import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/se
 import { requireOrgRole, requirePropertyAccess } from '@/lib/portfolio';
 import { scanUpload } from '@/lib/uploadScan';
 import {
+  createProtectedSignedUrl,
   removeProtectedObjects,
   storeScannedUpload,
   storeServerGeneratedObject,
@@ -41,7 +42,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
   const { data, error } = await supabase
     .from('property_photos')
     .select(
-      'id, is_cover, created_at, card_storage_path, documents(id, storage_path, original_file_name)',
+      'id, is_cover, created_at, card_storage_path, documents(id, org_id, storage_path, original_file_name)',
     )
     .eq('property_id', id)
     .order('is_cover', { ascending: false })
@@ -58,7 +59,12 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     is_cover: boolean;
     created_at: string;
     card_storage_path: string | null;
-    documents: { id: string; storage_path: string; original_file_name: string } | null;
+    documents: {
+      id: string;
+      org_id: string | null;
+      storage_path: string;
+      original_file_name: string;
+    } | null;
   }[];
 
   const photos = await Promise.all(
@@ -68,15 +74,18 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
         // Panel thumbnails use the card derivative when one exists (bandwidth-friendlier than the
         // original at this display size) -- falls back to the original for a photo uploaded
         // before this feature existed, or one whose derivative generation failed.
-        const { data: signed } = await supabase.storage
-          .from('documents')
-          .createSignedUrl(r.card_storage_path ?? r.documents!.storage_path, SIGNED_URL_TTL_SECONDS);
+        // Either path is signed only if it sits inside the photo document's own organisation.
+        const signed = await createProtectedSignedUrl(supabase, {
+          orgId: r.documents!.org_id,
+          storagePath: r.card_storage_path ?? r.documents!.storage_path,
+          expiresInSeconds: SIGNED_URL_TTL_SECONDS,
+        });
         return {
           id: r.id,
           documentId: r.documents!.id,
           isCover: r.is_cover,
           fileName: r.documents!.original_file_name,
-          signedUrl: signed?.signedUrl ?? null,
+          signedUrl: signed.ok ? signed.value : null,
           createdAt: r.created_at,
         };
       }),

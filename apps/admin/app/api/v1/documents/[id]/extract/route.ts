@@ -5,7 +5,7 @@ import { requireOrgRole, requirePropertyAccess } from '@/lib/portfolio';
 import { canUseOcr } from '@/lib/subscriptionEntitlements';
 import { resolveDocumentIntelligence } from '@/lib/providers/documentIntelligence';
 import { documentExtractionUnavailableResponse } from '@/lib/documentExtractionResponses';
-import { requireCleanScanBeforeProcessing } from '@/lib/protectedStorage';
+import { createProtectedSignedUrl, requireCleanScanBeforeProcessing } from '@/lib/protectedStorage';
 import { mapExtractionResultRow } from '@/lib/documents';
 import { writeAuditEvent } from '@/lib/audit';
 import { safeErrorMessage } from '@/lib/safeError';
@@ -178,21 +178,21 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     );
   }
 
-  const { data: signedUrlData, error: signedUrlError } = await serviceRole.storage
-    .from('documents')
-    .createSignedUrl(document.storage_path, SIGNED_URL_TTL_SECONDS);
-  if (signedUrlError || !signedUrlData) {
+  const signed = await createProtectedSignedUrl(serviceRole, {
+    orgId: document.org_id,
+    storagePath: document.storage_path,
+    expiresInSeconds: SIGNED_URL_TTL_SECONDS,
+  });
+  if (!signed.ok) {
     return NextResponse.json(
       {
         error: {
           code: 'signed_url_failed',
-          message: signedUrlError
-            ? safeErrorMessage(
-                signedUrlError,
-                'Could not prepare this document for scanning. Please try again, or contact support if this continues.',
-                `documents.createSignedUrl(${id})`,
-              )
-            : 'Could not prepare this document for scanning. Please try again, or contact support if this continues.',
+          message: safeErrorMessage(
+            { message: signed.message },
+            'Could not prepare this document for scanning. Please try again, or contact support if this continues.',
+            `documents.createSignedUrl(${id})`,
+          ),
         },
       },
       { status: 500 },
@@ -204,7 +204,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     documentId: document.id,
     storagePath: document.storage_path,
     mimeType: document.mime_type,
-    signedUrl: signedUrlData.signedUrl,
+    signedUrl: signed.value,
   };
 
   try {
