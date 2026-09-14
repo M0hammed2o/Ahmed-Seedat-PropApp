@@ -1,7 +1,10 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { createClient } from '@supabase/supabase-js';
 import { ADMIN_DEMO_MODE } from './lib/demoMode';
-import { requireCustomerMfaIfEnrolled } from './lib/mfaGate';
+import { bearerTokenMfaStatus, requireCustomerMfaIfEnrolled } from './lib/mfaGate';
+import { mfaRuleForApiRequest } from './lib/mfaPolicy';
+import { extractBearerToken } from './lib/supabase/server';
 
 type CookieToSet = { name: string; value: string; options: CookieOptions };
 
@@ -302,25 +305,60 @@ export async function proxy(request: NextRequest) {
   // requireAdminRoleOrRespond()'s own, stricter, unconditional AAL2 requirement. A customer who
   // never enrolled MFA is completely unaffected: `nextLevel` never requires 'aal2' for them, so
   // `requireCustomerMfaIfEnrolled()` always resolves false.
-  if (user && request.nextUrl.pathname.startsWith('/api/v1/')) {
-    const isExemptApi =
-      request.nextUrl.pathname.startsWith('/api/v1/auth/') ||
-      request.nextUrl.pathname.startsWith('/api/v1/admin/');
+  //
+  // Channel-aware since 2026-09-14 (lib/mfaPolicy.ts has the full V1 posture). The check above only
+  // ever read the COOKIE session, so a bearer-token request -- the Android app -- skipped it by
+  // accident. The channel is decided the way getServerSupabaseClient() picks its identity: a bearer
+  // token wins over any cookie, so the route and this check always judge the same caller.
+  if (request.nextUrl.pathname.startsWith('/api/v1/')) {
+    const bearerToken = extractBearerToken(request.headers.get('authorization'));
+    const rule = mfaRuleForApiRequest({
+      channel: bearerToken ? 'mobile_bearer' : 'web_session',
+      method: request.method,
+      pathname: request.nextUrl.pathname,
+    });
 
-    if (!isExemptApi && (await requireCustomerMfaIfEnrolled(supabase))) {
-      return NextResponse.json(
-        {
-          error: {
-            code: 'mfa_required',
-            message: 'Complete two-factor authentication to continue.',
-          },
-        },
-        { status: 403 },
-      );
+    if (rule === 'step_up_if_enrolled') {
+      if (bearerToken) {
+        const status = await bearerTokenMfaStatus(
+          createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL as string,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+            { auth: { autoRefreshToken: false, persistSession: false } },
+          ),
+          bearerToken,
+        );
+        if (status === 'step_up_required') return mfaRequiredResponse();
+        if (status === 'unverifiable') {
+          return NextResponse.json(
+            {
+              error: {
+                code: 'mfa_check_unavailable',
+                message: 'We could not verify your sign-in right now. Please try again shortly.',
+              },
+            },
+            { status: 503 },
+          );
+        }
+      } else if (user && (await requireCustomerMfaIfEnrolled(supabase))) {
+        return mfaRequiredResponse();
+      }
     }
   }
 
   return response;
+}
+
+function mfaRequiredResponse() {
+  return NextResponse.json(
+    {
+      error: {
+        code: 'mfa_required',
+        message: 'Complete two-factor authentication to continue.',
+      },
+    },
+    { status: 403 },
+  );
 }
 
 // The nonce must be set on every page request, not just protected ones (an unauthenticated visitor

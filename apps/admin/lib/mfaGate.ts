@@ -47,3 +47,34 @@ export async function requireCustomerMfaIfEnrolled(
   if (!aal) return false;
   return aal.nextLevel === 'aal2' && aal.currentLevel !== aal.nextLevel;
 }
+
+export type BearerMfaStatus =
+  /** No verified factor, or the token is already AAL2. */
+  | 'satisfied'
+  /** A verified factor exists and this token is below AAL2. */
+  | 'step_up_required'
+  /** Supabase Auth rejected the token -- the route's own auth check answers 401, nothing leaks. */
+  | 'invalid_token'
+  /** Supabase Auth could not be reached: the caller must refuse rather than skip the check. */
+  | 'unverifiable';
+
+/**
+ * The bearer-token (mobile app) counterpart of requireCustomerMfaIfEnrolled(). A bearer client holds
+ * no stored session, so the no-argument getAuthenticatorAssuranceLevel() above would see nothing and
+ * report "no MFA" -- the accidental bypass lib/mfaPolicy.ts closes. Passing the token itself makes
+ * Supabase Auth read that token's `aal` claim and the account's verified factors.
+ */
+export async function bearerTokenMfaStatus(
+  supabase: SupabaseClient,
+  accessToken: string,
+): Promise<BearerMfaStatus> {
+  const { data, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel(accessToken);
+  if (error) {
+    const status = (error as { status?: number }).status;
+    return status !== undefined && status >= 400 && status < 500 ? 'invalid_token' : 'unverifiable';
+  }
+  if (!data) return 'unverifiable';
+  return data.nextLevel === 'aal2' && data.currentLevel !== 'aal2'
+    ? 'step_up_required'
+    : 'satisfied';
+}
