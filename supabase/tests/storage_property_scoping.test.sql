@@ -4,9 +4,15 @@
 -- (RLS enforcement happens at the table layer regardless of whether a row was created through the
 -- real Storage REST API or a raw INSERT; storage.foldername() parses `name` directly with no
 -- dependency on any Storage-service-populated column, confirmed by reading its definition).
+--
+-- Updated 2026-09-14 for migration 20260101000171: clients can no longer write storage.objects at
+-- all -- uploads go client -> Proplyst API -> malware scan -> service-role Storage write
+-- (apps/admin/lib/protectedStorage.ts). Fixture objects are therefore created as service_role, the
+-- way the server creates them, and the write-side section proves every client write -- even into a
+-- property the caller manages -- is refused, while the read policies below are unchanged.
 
 begin;
-select plan(13);
+select plan(16);
 
 insert into auth.users (id, email) values
   ('b2000000-0000-0000-0000-000000000001', 'sps-principal@test.propertyvault.example'),
@@ -83,16 +89,16 @@ values (
   current_setting('pgtap.sps.category_c_id')::uuid, 'other', current_setting('pgtap.sps.path_c'), 'doc-c.pdf', 'application/pdf', 100, 'checksum-c'
 );
 
--- The actual storage.objects rows -- simulating what Storage would have written for each upload.
--- storage.objects has no client-facing RLS-bypass concept here; inserting as the test-runner role
--- (reset) mirrors that these rows exist independently of who's *querying* them next, same as real
--- uploaded files do.
+-- The actual storage.objects rows -- written the way the server writes every upload since
+-- 20260101000171: with the service role, never through a client's session. These rows exist
+-- independently of who's *querying* them next, same as real uploaded files do.
 reset role;
 insert into public.organization_members (org_id, user_id, role, status, joined_at)
 values
   (current_setting('pgtap.sps.org_id')::uuid, 'b2000000-0000-0000-0000-000000000002', 'agent', 'active', now()),
   (current_setting('pgtap.sps.org_id')::uuid, 'b2000000-0000-0000-0000-000000000003', 'agent', 'active', now());
 
+set local role service_role;
 insert into storage.objects (bucket_id, name, owner)
 values
   ('documents', current_setting('pgtap.sps.path_a'), 'b2000000-0000-0000-0000-000000000001'),
@@ -102,6 +108,7 @@ values
   -- documents row references (nobody ever uploaded/registered it) -- proves guessing a
   -- plausible-looking path alone, with no backing metadata, can never resolve to a readable row.
   ('documents', current_setting('pgtap.sps.org_id') || '/' || current_setting('pgtap.sps.property_a_id') || '/guessed-uuid-that-was-never-uploaded.pdf', 'b2000000-0000-0000-0000-000000000001');
+reset role;
 
 set local role authenticated;
 
@@ -184,8 +191,10 @@ values (
   current_setting('pgtap.sps.path_lease_doc'), 'lease-doc.pdf', 'application/pdf', 100, 'checksum-lease'
 );
 reset role;
+set local role service_role;
 insert into storage.objects (bucket_id, name, owner)
 values ('documents', current_setting('pgtap.sps.path_lease_doc'), 'b2000000-0000-0000-0000-000000000001');
+reset role;
 set local role authenticated;
 
 set local "request.jwt.claim.sub" = 'b2000000-0000-0000-0000-000000000005';
@@ -212,17 +221,52 @@ select is(
   'G: the property photo''s underlying storage object still resolves for the org principal'
 );
 
--- === write-side: the same property scoping applies to INSERT, not only SELECT ===
+-- === write-side: no client writes storage.objects directly (20260101000171) ===
 set local "request.jwt.claim.sub" = 'b2000000-0000-0000-0000-000000000002';
 select throws_ok(
   $$ insert into storage.objects (bucket_id, name, owner) values ('documents', current_setting('pgtap.sps.org_id') || '/' || current_setting('pgtap.sps.property_b_id') || '/attempted-upload.pdf', 'b2000000-0000-0000-0000-000000000002') $$,
   'new row violates row-level security policy for table "objects"',
   'staff scoped to Property A cannot upload (INSERT) into Property B''s storage path'
 );
-select lives_ok(
-  $$ insert into storage.objects (bucket_id, name, owner) values ('documents', current_setting('pgtap.sps.org_id') || '/' || current_setting('pgtap.sps.property_a_id') || '/allowed-upload.pdf', 'b2000000-0000-0000-0000-000000000002') $$,
-  'staff scoped to Property A can upload (INSERT) into Property A''s own storage path'
+select throws_ok(
+  $$ insert into storage.objects (bucket_id, name, owner) values ('documents', current_setting('pgtap.sps.org_id') || '/' || current_setting('pgtap.sps.property_a_id') || '/direct-upload-attempt.pdf', 'b2000000-0000-0000-0000-000000000002') $$,
+  'new row violates row-level security policy for table "objects"',
+  'staff scoped to Property A cannot upload (INSERT) directly even into Property A''s own storage path -- uploads are server-only'
 );
+
+set local "request.jwt.claim.sub" = 'b2000000-0000-0000-0000-000000000001';
+select throws_ok(
+  $$ insert into storage.objects (bucket_id, name, owner) values ('documents', current_setting('pgtap.sps.org_id') || '/' || current_setting('pgtap.sps.property_a_id') || '/principal-direct-upload-attempt.pdf', 'b2000000-0000-0000-0000-000000000001') $$,
+  'new row violates row-level security policy for table "objects"',
+  'the org principal (highest org role) cannot upload (INSERT) directly into a property storage path either'
+);
+
+-- Staff A CAN read Property A's object (test A above) but cannot replace (UPDATE) it. With no UPDATE
+-- policy the statement affects zero rows rather than raising, so the proof is the unchanged row.
+set local "request.jwt.claim.sub" = 'b2000000-0000-0000-0000-000000000002';
+update storage.objects
+   set metadata = jsonb_build_object('replaced_by_client', true)
+ where bucket_id = 'documents' and name = current_setting('pgtap.sps.path_a');
+reset role;
+select is(
+  (select coalesce(metadata ->> 'replaced_by_client', 'unchanged') from storage.objects where name = current_setting('pgtap.sps.path_a')),
+  'unchanged',
+  'staff with read access to Property A''s storage object cannot replace (UPDATE) it'
+);
+
+-- === 20260101000171 removed only the client write policies: DELETE and SELECT are unchanged ===
+select is(
+  (select array_agg(cmd || ' ' || policyname order by cmd, policyname)::text
+     from pg_policies where schemaname = 'storage' and tablename = 'objects'),
+  (array[
+    'DELETE documents_bucket_delete_agent_plus_and_property_access_or_own_u',
+    'SELECT documents_bucket_select_org_member_and_property_access',
+    'SELECT documents_bucket_select_tenant_compliance',
+    'SELECT documents_bucket_select_tenant_self'
+  ])::text,
+  'storage.objects has no client INSERT/UPDATE/ALL policy, and its DELETE and SELECT policies are the unchanged set'
+);
+set local role authenticated;
 
 -- Note: the DELETE policy's `owner = auth.uid()` self-cleanup escape hatch (see
 -- 20260101000086) is not exercised here -- this local Supabase stack has its own
