@@ -9,6 +9,9 @@ import retrofit2.http.Body
 import retrofit2.http.POST
 import retrofit2.http.Query
 
+/** Supabase Auth logout scope that ends only the calling session. */
+const val LOGOUT_SCOPE_THIS_DEVICE = "local"
+
 /** Supabase Auth REST endpoints, called against BuildConfig.SUPABASE_URL (a different host than
  * the app's own API -- see NetworkModule's two separate Retrofit instances). */
 interface SupabaseAuthApi {
@@ -24,8 +27,12 @@ interface SupabaseAuthApi {
         @Body body: RefreshTokenRequest,
     ): Response<AuthSessionResponse>
 
+    /** Signs out THIS device's session only (2026-09-14, Android release P0). Supabase Auth's logout
+     * defaults to `scope=global`, which revoked every session of the account -- the shared reviewer
+     * account's other devices included -- while the app promised "Ends your session on this
+     * device". `local` revokes only the session whose access token authorises this request. */
     @POST("auth/v1/logout")
-    suspend fun signOut(): Response<Unit>
+    suspend fun signOut(@Query("scope") scope: String = LOGOUT_SCOPE_THIS_DEVICE): Response<Unit>
 
     /** Password reset (Proplyst Mobile Design System redesign pass, "Forgot password?" -- design
      * handoff §"Forgot / sent"). Supabase's own GoTrue "recover" endpoint always returns 200

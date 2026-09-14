@@ -21,9 +21,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -37,13 +39,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import za.co.proplyst.app.data.tenancy.TenancyLease
 import za.co.proplyst.app.data.tenancy.TenancyLeaseResult
+import za.co.proplyst.app.ui.common.LegalLinks
 import za.co.proplyst.app.ui.common.formatCurrency
+import za.co.proplyst.app.ui.common.openLegalPage
 import za.co.proplyst.app.ui.theme.ProplystTheme
 
 /**
@@ -64,6 +69,7 @@ fun TenantProfileScreen(
 ) {
     val leaseState by viewModel.leaseUiState.collectAsState()
     val lease = (leaseState as? TenancyLeaseResult.Loaded)?.lease
+    val context = LocalContext.current
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         ProfileHeader(lease = lease)
@@ -75,6 +81,17 @@ fun TenantProfileScreen(
             item { ProfileRow("Account & security", "Sign out, biometric app lock", Icons.Filled.Security, onAccountClick) }
             item { ProfileRow("Appearance", "Light, dark, or system", Icons.Filled.Palette, onAppearanceClick) }
             item { ProfileRow("Help", "Contact Proplyst support", Icons.AutoMirrored.Filled.HelpOutline, onAccountClick) }
+            item { Spacer(modifier = Modifier.height(16.dp)) }
+            item {
+                ProfileRow("Privacy Policy", "How Proplyst handles your information", Icons.Filled.PrivacyTip) {
+                    openLegalPage(context, LegalLinks.PRIVACY_POLICY_URL)
+                }
+            }
+            item {
+                ProfileRow("Terms of Service", "The terms for using Proplyst", Icons.Filled.Gavel) {
+                    openLegalPage(context, LegalLinks.TERMS_OF_SERVICE_URL)
+                }
+            }
             item { Spacer(modifier = Modifier.height(48.dp)) }
         }
     }

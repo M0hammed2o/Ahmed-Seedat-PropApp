@@ -135,4 +135,42 @@ class ReleaseHygieneTest {
         }.map { it.name }
         assertEquals("no shipped source may hard-code a development host", emptyList<String>(), offenders)
     }
+
+    // 2026-09-14, Android release P0: Google Play's User Data policy requires a privacy policy link
+    // inside the app. Raw text on purpose -- code() above cuts lines at "//", which would truncate URLs.
+    @Test
+    fun `privacy policy and terms are linked from the owner More screen and the tenant Profile screen`() {
+        val legal = File(sourceRoot, "ui/common/LegalLinks.kt").readText()
+        assertTrue(legal.contains("const val PRIVACY_POLICY_URL = \"https://proplyst.co.za/privacy\""))
+        assertTrue(legal.contains("const val TERMS_OF_SERVICE_URL = \"https://proplyst.co.za/terms\""))
+        // Any WebView use needs android.webkit, imported or fully qualified; comments cannot trip this.
+        assertTrue("legal pages open in the browser, never a WebView", !legal.contains("android.webkit"))
+
+        for (screen in listOf("ui/more/OwnerMoreScreen.kt", "ui/tenancy/TenantProfileScreen.kt")) {
+            val text = File(sourceRoot, screen).readText()
+            assertTrue("$screen: Privacy Policy row", text.contains("\"Privacy Policy\""))
+            assertTrue("$screen: Terms of Service row", text.contains("\"Terms of Service\""))
+            assertTrue("$screen opens the privacy policy", text.contains("openLegalPage(context, LegalLinks.PRIVACY_POLICY_URL)"))
+            assertTrue("$screen opens the terms", text.contains("openLegalPage(context, LegalLinks.TERMS_OF_SERVICE_URL)"))
+        }
+    }
+
+    // 2026-09-14, Android release P0: allowBackup=false does not stop Android 12+ device-to-device
+    // transfer; a transferred encrypted session file cannot be decrypted without its Keystore key.
+    @Test
+    fun `session data is excluded from cloud backup and from device-to-device transfer`() {
+        val manifest = File("src/main/AndroidManifest.xml").readText()
+        assertTrue(manifest.contains("android:allowBackup=\"false\""))
+        assertTrue(manifest.contains("android:dataExtractionRules=\"@xml/data_extraction_rules\""))
+        assertTrue(manifest.contains("android:fullBackupContent=\"@xml/backup_rules\""))
+        val legacyRules = File("src/main/res/xml/backup_rules.xml").readText()
+        assertTrue("Android 11 and lower exclude app data too", legacyRules.contains("<exclude domain=\"root\" path=\".\" />"))
+
+        val rules = File("src/main/res/xml/data_extraction_rules.xml").readText()
+        for (section in listOf("cloud-backup", "device-transfer")) {
+            val body = rules.substringAfter("<$section>").substringBefore("</$section>")
+            assertTrue("$section excludes app data", body.contains("<exclude domain=\"root\" path=\".\" />"))
+            assertTrue("$section excludes device-protected data", body.contains("<exclude domain=\"device_root\" path=\".\" />"))
+        }
+    }
 }

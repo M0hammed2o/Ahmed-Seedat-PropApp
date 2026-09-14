@@ -1,8 +1,6 @@
 package za.co.proplyst.app.data.auth
 
 import android.content.Context
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -11,37 +9,34 @@ import javax.inject.Singleton
  * Session token storage -- NATIVE_ANDROID_SPEC.md §12: EncryptedSharedPreferences with a
  * Keystore-backed master key, the Android equivalent of iOS's Keychain
  * `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`. Android Keystore keys are hardware-backed and
- * non-exportable by design, giving the same "device-only, never synced" guarantee without needing
- * an explicit flag the way Keychain does -- confirmed by AndroidManifest.xml's own
- * `android:allowBackup="false"`, which additionally stops the whole prefs file from ever entering
- * an Android auto-backup archive.
+ * non-exportable by design. `android:allowBackup="false"` keeps the file out of cloud backup, and
+ * `res/xml/data_extraction_rules.xml` keeps it out of Android 12+ device-to-device transfer, which
+ * `allowBackup` alone does not stop.
+ *
+ * The store itself is opened lazily through [RecoverableSessionStorage]: an encrypted file this
+ * device can no longer decrypt resets to "signed out" instead of crashing app start (see that
+ * class for the failure modes).
  */
 @Singleton
-class SessionManager @Inject constructor(@ApplicationContext context: Context) {
+class SessionManager internal constructor(private val storage: SessionStorage) {
 
-    private val masterKey = MasterKey.Builder(context)
-        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-        .build()
-
-    private val prefs = EncryptedSharedPreferences.create(
-        context,
-        "propertyvault_session",
-        masterKey,
-        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-    )
+    @Inject
+    constructor(@ApplicationContext context: Context) :
+        this(RecoverableSessionStorage(EncryptedPrefsSessionStorageOpener(context)))
 
     fun saveSession(accessToken: String, refreshToken: String, userId: String) {
-        prefs.edit()
-            .putString(KEY_ACCESS_TOKEN, accessToken)
-            .putString(KEY_REFRESH_TOKEN, refreshToken)
-            .putString(KEY_USER_ID, userId)
-            .apply()
+        storage.write(
+            mapOf(
+                KEY_ACCESS_TOKEN to accessToken,
+                KEY_REFRESH_TOKEN to refreshToken,
+                KEY_USER_ID to userId,
+            ),
+        )
     }
 
-    fun getAccessToken(): String? = prefs.getString(KEY_ACCESS_TOKEN, null)
-    fun getRefreshToken(): String? = prefs.getString(KEY_REFRESH_TOKEN, null)
-    fun getUserId(): String? = prefs.getString(KEY_USER_ID, null)
+    fun getAccessToken(): String? = storage.read(KEY_ACCESS_TOKEN)
+    fun getRefreshToken(): String? = storage.read(KEY_REFRESH_TOKEN)
+    fun getUserId(): String? = storage.read(KEY_USER_ID)
 
     /** Display email for the signed-in account (fidelity audit pass: lock screen / returning-user
      * row / avatar initial). A display identifier, not a credential -- stored in the same
@@ -49,13 +44,13 @@ class SessionManager @Inject constructor(@ApplicationContext context: Context) {
      * cleared atomically with it on sign-out. Saved separately from [saveSession] so the
      * TokenAuthenticator refresh path (which has no email in its response) never wipes it. */
     fun saveEmail(email: String?) {
-        prefs.edit().putString(KEY_EMAIL, email).apply()
+        storage.write(mapOf(KEY_EMAIL to email))
     }
 
-    fun getEmail(): String? = prefs.getString(KEY_EMAIL, null)
+    fun getEmail(): String? = storage.read(KEY_EMAIL)
 
     fun clear() {
-        prefs.edit().clear().apply()
+        storage.clear()
     }
 
     private companion object {

@@ -80,9 +80,11 @@ A Proplyst account is required.
 ```
 https://proplyst.co.za/privacy
 ```
-Live, returns HTTP 200, and is now the **real, binding policy** (published 2026-09-11,
-version `v1.0-2026-09-11`). It names the contact address, states the retention rule, and matches
-the Data safety answers in `DATA_SAFETY.md`.
+Live, returns HTTP 200, and is the **real, binding policy** (first published 2026-09-11; the current
+version is `PRIVACY_VERSION` in `packages/config/src/legal.ts`). It names the contact address, states
+the retention rule, and matches the Data safety answers in `DATA_SAFETY.md`. The same policy, and
+the Terms at `https://proplyst.co.za/terms`, are linked inside the app at More → Legal (tenant
+accounts: Profile), as Google Play's User Data policy requires.
 
 ## Account deletion URL
 ```

@@ -56,7 +56,9 @@ The same login works at https://proplyst.co.za.
 | Synthetic data? | Yes — entirely | Portfolio was seeded; no real tenant or landlord records |
 | Does the password expire? | No expiry mechanism exists | No rotation or max-age logic in the auth layer |
 | OTP / email confirmation? | Neither | Password sign-in only |
-| Two-factor (MFA)? | **Not for this account** | `lib/mfaGate.ts` only forces AAL2 for platform super-admins; an ordinary org owner is never asked |
+| Two-factor (MFA)? | **Never in the Android app** | V1 policy (`apps/admin/lib/mfaPolicy.ts`): the Android app has no MFA screen and its routes are allowed at password-only sign-in; this account has no factor enrolled anyway. Platform administration always requires MFA and is not reachable from the app |
+| Privacy Policy / Terms? | In the app | More → Legal → Privacy Policy / Terms of Service (tenant accounts: Profile) |
+| Sign out? | This device only | More → Sign out ends only this device's session, so a sign-out never signs anyone else out of this shared account |
 | Google Sign-In required? | No, and it cannot be used | `googleSignInAvailable = BuildConfig.GOOGLE_WEB_CLIENT_ID.isNotBlank()`, and that property is unset, so the button is inert |
 | Biometric skippable? | Yes — opt-in, default off | `BiometricLockPreferences`: `getBoolean(KEY_ENABLED, false)` |
 | Paywall or purchase gate? | None found | No subscription check blocks navigation in the app or middleware |

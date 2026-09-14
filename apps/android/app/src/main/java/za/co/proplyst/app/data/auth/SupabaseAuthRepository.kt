@@ -1,5 +1,6 @@
 package za.co.proplyst.app.data.auth
 
+import za.co.proplyst.app.data.biometric.BiometricLockPreferences
 import za.co.proplyst.app.data.network.PostgrestApi
 import za.co.proplyst.app.data.network.SupabaseAuthApi
 import za.co.proplyst.app.data.network.dto.RecoverPasswordRequest
@@ -25,6 +26,7 @@ class SupabaseAuthRepository @Inject constructor(
     private val postgrestApi: PostgrestApi,
     private val sessionManager: SessionManager,
     private val authEventStore: AuthEventStore,
+    private val biometricLockPreferences: BiometricLockPreferences,
 ) : AuthRepository {
     private val _authState = MutableStateFlow<AuthState>(AuthState.Loading)
     override val authState: StateFlow<AuthState> = _authState.asStateFlow()
@@ -71,12 +73,17 @@ class SupabaseAuthRepository @Inject constructor(
     override suspend fun signOut() {
         authEventStore.recordUserSignOut()
         try {
+            // scope=local (the default argument): revokes this device's session and no other.
             authApi.signOut()
         } catch (_: Exception) {
             // Best-effort server-side revocation -- clearing the local session below is what
             // actually matters for this device; a failed network call here must never block
             // sign-out.
         }
+        // The sign-out dialog promises "Fingerprint unlock on this device will be turned off": an
+        // app lock guarding a signed-out app is meaningless, and the next account on this device
+        // must opt in again for itself.
+        biometricLockPreferences.setEnabled(false)
         forceSignOutLocally()
     }
 

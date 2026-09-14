@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 11 and lower (2026-09-14, Android release P0). android:allowBackup="false" already
+     disables every backup form on these versions; this states the same intent explicitly so it does
+     not depend on that one flag. Android 12+ uses data_extraction_rules.xml. -->
+<full-backup-content>
+    <exclude domain="root" path="." />
+    <exclude domain="device_root" path="." />
+    <exclude domain="external" path="." />
+</full-backup-content>

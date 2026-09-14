@@ -25,11 +25,13 @@ import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
 import androidx.compose.material.icons.automirrored.outlined.ShowChart
 import androidx.compose.material.icons.outlined.Build
+import androidx.compose.material.icons.outlined.Gavel
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.People
 import androidx.compose.material.icons.outlined.PieChart
 import androidx.compose.material.icons.outlined.PriceCheck
+import androidx.compose.material.icons.outlined.PrivacyTip
 import androidx.compose.material.icons.outlined.Receipt
 import androidx.compose.material.icons.outlined.WaterDrop
 import androidx.compose.material.icons.outlined.RequestQuote
@@ -49,7 +51,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import za.co.proplyst.app.ui.common.LegalLinks
 import za.co.proplyst.app.ui.common.navyHeaderGlow
+import za.co.proplyst.app.ui.common.openLegalPage
 import za.co.proplyst.app.ui.dashboard.DashboardViewModel
 import za.co.proplyst.app.ui.theme.ProplystTheme
 
@@ -196,6 +200,24 @@ fun OwnerMoreScreen(
                     Icons.AutoMirrored.Outlined.Logout,
                     onClick = onAccountClick,
                     destructive = true,
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            SectionLabel("Legal")
+            GroupCard {
+                MoreRow(
+                    "Privacy Policy",
+                    "How Proplyst handles your information",
+                    Icons.Outlined.PrivacyTip,
+                    onClick = { openLegalPage(context, LegalLinks.PRIVACY_POLICY_URL) },
+                )
+                RowDivider()
+                MoreRow(
+                    "Terms of Service",
+                    "The terms for using Proplyst",
+                    Icons.Outlined.Gavel,
+                    onClick = { openLegalPage(context, LegalLinks.TERMS_OF_SERVICE_URL) },
                 )
             }
 

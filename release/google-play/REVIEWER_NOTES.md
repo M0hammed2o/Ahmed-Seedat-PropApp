@@ -12,9 +12,11 @@ All functionality is behind a sign-in. Demonstration credentials are supplied un
 They open a populated demo portfolio so every screen shows real data.
 
 PERMISSIONS
-The app declares only two:
+The app requests only:
 - INTERNET — it is a client for a hosted service.
-- USE_BIOMETRIC — optional fingerprint unlock for the app, off by default.
+- USE_BIOMETRIC — optional fingerprint unlock for the app, off by default (USE_FINGERPRINT is
+  added alongside it by the AndroidX biometric library for older Android versions).
+The merged manifest also carries one AndroidX-generated permission internal to the app itself.
 It declares no camera or storage permission. Receipts and evidence are attached through the system
 camera app and the Android photo/file picker, so the app never has ambient access to the gallery.
 
@@ -27,11 +29,15 @@ Android app moves no funds, holds no funds, and contains no payment SDK. Subscri
 the service itself happens on the web and is not part of this app.
 
 ACCOUNT DELETION
-In-app at More → Account → Delete account, and on the web at
+In-app at More → Account & security → Delete account, and on the web at
 https://proplyst.co.za/delete-account (public, no sign-in needed). Deleting removes the person's
 name, email address and phone number and permanently disables sign-in. Accounting records are
 retained to satisfy South African tax-record law and no longer identify the person; this is stated
 on the deletion page and in the privacy policy.
+
+PRIVACY POLICY AND TERMS
+Both are linked inside the app at More → Legal (tenant accounts: Profile), and published at
+https://proplyst.co.za/privacy and https://proplyst.co.za/terms.
 
 DATA LOCATION
 Data is held in Supabase (Postgres) with row-level security, and the application is hosted on
