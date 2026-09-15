@@ -210,6 +210,10 @@ dependencies {
     implementation(libs.androidx.security.crypto)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.coil.compose)
+    // Reads the EXIF orientation of photos picked for upload (UploadPreparation.kt). The AndroidX
+    // parser, not android.media's, which has known bugs with untrusted files. Coil already pulled
+    // in this exact version; declaring it pins it for our own code.
+    implementation(libs.androidx.exifinterface)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

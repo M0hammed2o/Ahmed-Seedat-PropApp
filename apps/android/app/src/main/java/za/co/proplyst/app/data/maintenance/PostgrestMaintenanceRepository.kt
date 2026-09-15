@@ -13,16 +13,11 @@ import za.co.proplyst.app.data.network.dto.DocumentDto
 import za.co.proplyst.app.data.network.dto.MaintenanceTicketCreatedDto
 import za.co.proplyst.app.data.network.dto.MaintenanceTicketDto
 import za.co.proplyst.app.data.network.dto.WebApiErrorBody
+import za.co.proplyst.app.data.network.prepareUpload
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.serialization.decodeFromString
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
-import okhttp3.MediaType.Companion.toMediaTypeOrNull
-import okhttp3.MultipartBody
-import okhttp3.RequestBody.Companion.asRequestBody
 import retrofit2.Response
-import java.io.File
 import javax.inject.Inject
 
 class PostgrestMaintenanceRepository @Inject constructor(
@@ -112,8 +107,11 @@ class PostgrestMaintenanceRepository @Inject constructor(
 
     override suspend fun uploadAttachment(ticketId: String, fileUri: Uri): AttachmentUploadResult {
         return try {
-            val part = uriToMultipart(fileUri)
-            val response = webApi.uploadMaintenanceTicketDocument(ticketId, part)
+            // Photos are resized and re-encoded to fit the upload scanner (UploadImagePolicy); the
+            // prepared cache file is deleted as soon as the upload call returns.
+            val response = prepareUpload(context, fileUri, "maintenance_attachment").use { upload ->
+                webApi.uploadMaintenanceTicketDocument(ticketId, upload.part)
+            }
             val body = response.body()
             if (!response.isSuccessful || body == null) {
                 AttachmentUploadResult.Error(
@@ -140,36 +138,6 @@ class PostgrestMaintenanceRepository @Inject constructor(
         } catch (e: Exception) {
             DocumentUrlResult.Error(e.message ?: "Failed to open this attachment — check your connection.")
         }
-    }
-
-    /** Reads the picked file into a temporary cache file (content:// Uris aren't directly
-     * readable as a File by OkHttp) -- same conversion WebApiPaymentReportsRepository's own
-     * proof-of-payment upload uses. */
-    /**
-     * Copies a content:// Uri into a cache file so OkHttp can upload it.
-     *
-     * Runs on Dispatchers.IO. This is deliberate and load-bearing: the whole body is blocking file
-     * I/O (createTempFile + openInputStream + copyTo), it is reached from a suspend function that
-     * the ViewModel launches on viewModelScope -- i.e. Dispatchers.Main -- and Retrofit's own
-     * suspend support only moves the NETWORK call off the main thread, never work the caller does
-     * first. Copying a multi-megabyte photo inline therefore froze the UI and produced a
-     * "Proplyst isn't responding" ANR on Add Expense (Android UX pass, 2026-09-08).
-     */
-    private suspend fun uriToMultipart(uri: Uri): MultipartBody.Part = withContext(Dispatchers.IO) {
-        val resolver = context.contentResolver
-        val mimeType = resolver.getType(uri) ?: "application/octet-stream"
-        val extension = when (mimeType) {
-            "image/png" -> ".png"
-            "application/pdf" -> ".pdf"
-            "image/heic" -> ".heic"
-            else -> ".jpg"
-        }
-        val tempFile = File.createTempFile("maintenance_attachment", extension, context.cacheDir)
-        resolver.openInputStream(uri)?.use { input ->
-            tempFile.outputStream().use { output -> input.copyTo(output) }
-        }
-        val requestBody = tempFile.asRequestBody(mimeType.toMediaTypeOrNull())
-        MultipartBody.Part.createFormData("file", tempFile.name, requestBody)
     }
 
     private suspend fun fallbackToCache(errorMessage: String): MaintenanceResult {

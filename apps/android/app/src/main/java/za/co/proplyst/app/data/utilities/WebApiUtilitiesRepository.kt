@@ -3,13 +3,9 @@ package za.co.proplyst.app.data.utilities
 import android.content.Context
 import android.net.Uri
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.decodeFromString
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
-import okhttp3.MultipartBody
-import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import retrofit2.Response
 import za.co.proplyst.app.data.network.WebApi
@@ -17,7 +13,7 @@ import za.co.proplyst.app.data.network.dto.UtilityHistoryPointDto
 import za.co.proplyst.app.data.network.dto.UtilityMeterDto
 import za.co.proplyst.app.data.network.dto.UtilityReadingCreateRequest
 import za.co.proplyst.app.data.network.dto.WebApiErrorBody
-import java.io.File
+import za.co.proplyst.app.data.network.prepareUpload
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -76,13 +72,17 @@ class WebApiUtilitiesRepository @Inject constructor(
                 val categoryId = categoriesResponse.body()?.categories?.firstOrNull { it.slug == categorySlug }?.id
                     ?: return UtilityReadingSubmitResult.Error("Evidence upload is unavailable right now -- save the reading without it.")
 
-                val uploadResponse = webApi.uploadDocument(
-                    orgId = orgId.toRequestBody("text/plain".toMediaTypeOrNull()),
-                    propertyId = propertyId.toRequestBody("text/plain".toMediaTypeOrNull()),
-                    categoryId = categoryId.toRequestBody("text/plain".toMediaTypeOrNull()),
-                    documentType = "bill".toRequestBody("text/plain".toMediaTypeOrNull()),
-                    file = uriToMultipart(evidenceUri),
-                )
+                // Photos are resized and re-encoded to fit the upload scanner (UploadImagePolicy); the
+                // prepared cache file is deleted as soon as the upload call returns.
+                val uploadResponse = prepareUpload(context, evidenceUri, "utility_bill").use { upload ->
+                    webApi.uploadDocument(
+                        orgId = orgId.toRequestBody("text/plain".toMediaTypeOrNull()),
+                        propertyId = propertyId.toRequestBody("text/plain".toMediaTypeOrNull()),
+                        categoryId = categoryId.toRequestBody("text/plain".toMediaTypeOrNull()),
+                        documentType = "bill".toRequestBody("text/plain".toMediaTypeOrNull()),
+                        file = upload.part,
+                    )
+                }
                 if (!uploadResponse.isSuccessful) {
                     return UtilityReadingSubmitResult.Error(errorMessage(uploadResponse) ?: "Failed to upload evidence.")
                 }
@@ -107,32 +107,6 @@ class WebApiUtilitiesRepository @Inject constructor(
         } catch (e: Exception) {
             UtilityReadingSubmitResult.Error(e.message ?: "Failed to record this reading -- check your connection.")
         }
-    }
-
-    /**
-     * Copies a content:// Uri into a cache file so OkHttp can upload it.
-     *
-     * Runs on Dispatchers.IO. This is deliberate and load-bearing: the whole body is blocking file
-     * I/O (createTempFile + openInputStream + copyTo), it is reached from a suspend function that
-     * the ViewModel launches on viewModelScope -- i.e. Dispatchers.Main -- and Retrofit's own
-     * suspend support only moves the NETWORK call off the main thread, never work the caller does
-     * first. Copying a multi-megabyte photo inline therefore froze the UI and produced a
-     * "Proplyst isn't responding" ANR on Add Expense (Android UX pass, 2026-09-08).
-     */
-    private suspend fun uriToMultipart(uri: Uri): MultipartBody.Part = withContext(Dispatchers.IO) {
-        val resolver = context.contentResolver
-        val mimeType = resolver.getType(uri) ?: "application/octet-stream"
-        val extension = when (mimeType) {
-            "image/png" -> ".png"
-            "application/pdf" -> ".pdf"
-            else -> ".jpg"
-        }
-        val tempFile = File.createTempFile("utility_bill", extension, context.cacheDir)
-        resolver.openInputStream(uri)?.use { input ->
-            tempFile.outputStream().use { output -> input.copyTo(output) }
-        }
-        val requestBody = tempFile.asRequestBody(mimeType.toMediaTypeOrNull())
-        MultipartBody.Part.createFormData("file", tempFile.name, requestBody)
     }
 
     private fun errorMessage(response: Response<*>): String? {
