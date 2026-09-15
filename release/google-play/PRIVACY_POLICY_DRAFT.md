@@ -90,7 +90,7 @@ sit with the organisation that owns them and no longer identify you personally.
 
 You can delete your account at any time:
 
-- In the Android app: **More → Account → Delete account**.
+- In the Android app: **More → Account & security → Delete account** (tenants: **Profile → Account & security → Delete account**).
 - On the web: **https://proplyst.co.za/delete-account**, which also explains what happens if you can
   no longer sign in.
 

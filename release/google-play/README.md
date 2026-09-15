@@ -9,7 +9,7 @@ Prepared 2026-09-10 for the first production release of the Proplyst Android app
 | Version code | 1 |
 | Min SDK | 26 (Android 8.0) |
 | Target SDK | **36 (Android 16)** — required for new apps from 2026-08-31 |
-| Artifact | `apps/android/app/build/outputs/bundle/release/app-release.aab` |
+| Artifact | Not built yet. See `ARTIFACTS.md` |
 
 ## Files here
 
@@ -23,6 +23,8 @@ Prepared 2026-09-10 for the first production release of the Proplyst Android app
 | `SIGNING.md` | Upload key location, fingerprints, backup rules |
 | `PRIVACY_POLICY_DRAFT.md` | Accurate policy text — **needs Mohammed's legal sign-off** |
 | `ASSETS.md` | Which store graphics exist and which are still needed |
+| `ARTIFACTS.md` | Build record for the upload bundle, and the versionCode check before building it |
+| `DEVICE_TEST_CHECKLIST.md` | Real-phone checks an emulator cannot cover (camera, fingerprint, gallery) |
 
 ## What is blocking publication
 

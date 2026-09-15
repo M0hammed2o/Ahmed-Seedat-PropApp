@@ -33,8 +33,10 @@ export default function DeleteAccountPage() {
       <h2 className="mt-10 font-display text-lg font-semibold">Delete it yourself, now</h2>
       <ol className="mt-3 list-decimal space-y-2 pl-5 text-light-textSecondary dark:text-dark-textSecondary">
         <li>
-          <strong>In the Android app:</strong> open <strong>More → Account → Delete account</strong>,
-          then confirm. Deletion happens immediately.
+          <strong>In the Android app:</strong> open{' '}
+          <strong>More → Account &amp; security → Delete account</strong> (tenants:{' '}
+          <strong>Profile → Account &amp; security → Delete account</strong>), then confirm.
+          Deletion happens immediately.
         </li>
         <li>
           <strong>On the web:</strong>{' '}

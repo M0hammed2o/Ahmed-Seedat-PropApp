@@ -210,7 +210,8 @@ export default function PrivacyPage() {
       <Section title="Deleting your account">
         <p>
           You can delete your account at any time. In the Android app, open{' '}
-          <strong>More → Account → Delete account</strong>. On the web, use{' '}
+          <strong>More → Account &amp; security → Delete account</strong> (tenants:{' '}
+          <strong>Profile → Account &amp; security → Delete account</strong>). On the web, use{' '}
           <Link
             href="/delete-account"
             className="text-light-accent hover:underline dark:text-dark-accent"

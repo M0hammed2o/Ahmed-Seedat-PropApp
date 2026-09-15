@@ -42,8 +42,8 @@ Record an expense against a property or a specific unit, choose a category, and 
 from your camera, your gallery or your files.
 
 Budgets
-Set a monthly operating budget per property and watch actual spend against it, with the amount
-remaining and a clear on-track, approaching or over-budget state.
+See each property's monthly operating budget against actual spend, with the amount remaining and a
+clear on-track, approaching or over-budget state. Budgets are set up in Proplyst on the web.
 
 Utilities
 Capture water and electricity meter readings. Proplyst works out consumption from the previous

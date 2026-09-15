@@ -1,5 +1,50 @@
 # Worklog
 
+## 2026-09-15 (later) — Android V1 release-readiness / P1 closure pass
+
+`origin/main` eb63d17 -> (this commit). No migration, no production data change, versionCode 1 /
+versionName 1.0.0 untouched, no final AAB built, nothing uploaded to Play.
+
+**Photos vs the 3.5 MB scanner limit.** Cloudmersive refuses files over 3,500,000 bytes, and a
+normal phone photo is 5-15 MB, so camera and gallery evidence would have been refused with a 413. All
+four upload paths (expense evidence, utility bill, proof of payment, maintenance attachment) now go
+through `data/network/UploadPreparation.kt`. It applies the EXIF orientation, caps the long edge at
+2,560 px, and re-encodes as JPEG, stepping down to 1,280 px, until the file is under 3,000,000
+bytes. Transparent PNGs are flattened onto white. It refuses sources over 250 MP, and the prepared
+cache file is deleted once the upload call returns. EXIF (including GPS) is not carried into the
+uploaded file. PDFs are copied byte-for-byte and are still subject to the server limit. Server
+limits and scanning are unchanged. Uses `androidx.exifinterface`, the version Coil already pulled in
+(lint flags the framework parser). Tests: `UploadImagePolicyTest` (JVM), and
+`UploadPreparationInstrumentedTest` (7 tests, Pixel 7 API 35 emulator) covering a >3.5 MB photo,
+rotation + GPS removal, a transparent PNG, a PDF, refused and fake files, and cache cleanup. **No
+physical camera was used**; see `release/google-play/DEVICE_TEST_CHECKLIST.md`.
+
+**Public delete path.** `/delete-account`, `/privacy` and `/terms` said "More → Account → Delete
+account". The row is "Account & security", and tenants reach it from Profile. Only the navigation
+text changed; policy versions were not bumped.
+
+**Release docs.** `ARTIFACTS.md` marks the 2026-09-11 AAB superseded and lists the Play Console
+versionCode check to do before the final build. `STORE_LISTING.md` no longer claims budgets can be
+set in the app (Android only views them). `DATA_SAFETY.md` describes photo resizing and metadata
+removal. `ASSETS.md` records that Pixel 7 captures (1080×2400, 2.22:1) exceed Play's 2:1 screenshot
+limit.
+
+**Verified:**
+- Android: 325 unit tests, 0 failures; lintRelease 0 errors; R8 release build. Release APK dump:
+  INTERNET, USE_BIOMETRIC, USE_FINGERPRINT and the AndroidX-internal receiver permission only; not
+  debuggable; allowBackup false. A secret scan found only the public anon key.
+- Owner acceptance on the release build against production: Home figures reconcile, INV-001972 is
+  Paid R9,500 / Balance R0, legal links open the right URLs, the delete dialog was opened and
+  cancelled, and sign-out left 0 server sessions.
+- Admin: full Vitest 1,338 passed / 3 skipped (ClamAV daemon) on a migration-172 local stack;
+  pgTAP 1,494 passed; tsc clean; `next build` OK.
+
+**Not verified:**
+- Tenant acceptance: the production demo org's 36 tenants have no portal login, and creating one
+  would change production data.
+- Play Console versionCode history.
+- Physical device.
+
 ## 2026-09-11 (later) — real privacy policy published, real support address wired
 
 `origin/main` c7dd4ab -> (this commit). Two of the three Play blockers from the earlier entry are

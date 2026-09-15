@@ -81,6 +81,12 @@ or Android's own photo picker (`PickVisualMedia`) — see `ui/common/EvidenceUpl
 declares **no** `CAMERA`, `READ_MEDIA_IMAGES` or storage permission, so it never has ambient access
 to the gallery.
 
+Before upload, the app resizes each photo on the device (long edge at most 2,560 px) and re-encodes
+it as a JPEG under 3 MB, so it fits the server's malware-scan size limit. Re-encoding writes pixels
+only: EXIF metadata, including any GPS location a camera embedded, is not carried into the uploaded
+file. The temporary copy is deleted when the upload call returns. See
+`data/network/UploadPreparation.kt`. PDFs are uploaded unchanged.
+
 ### Audio files
 **Not collected.** No microphone permission, no recording API.
 
@@ -123,7 +129,8 @@ fingerprint is read.
 
 ### Location
 **Not collected.** No location permission, no location API. Property addresses are typed by the
-user, never derived from the device.
+user, never derived from the device. Photo GPS metadata is removed on the device before upload (see
+Photos and videos).
 
 ### Health and fitness
 **Not collected.**

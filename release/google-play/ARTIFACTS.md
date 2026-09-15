@@ -1,9 +1,30 @@
-# Release artefacts — verified 2026-09-11
+# Release artefacts
 
-Built from commit `4e879d5` (origin/main). No source file is newer than the artefacts, so they
-match the pushed code.
+## Status — 2026-09-15: no current upload artefact
 
-## Android App Bundle — upload this to Play
+**The artefacts recorded below are superseded. Do not upload them.** They were built on 2026-09-11
+from `4e879d5`, before the 2026-09-15 fixes: in-app privacy and terms links, local sign-out,
+recoverable session storage, backup and transfer exclusions, and photo resizing before upload. The
+AAB is no longer in `app/build/outputs/bundle/release/`.
+
+The final signed AAB is built in a separate step, **after** the Play Console version history has
+been checked:
+
+1. In Play Console, open **App bundle explorer** (under *Test and release*, or *Release* in older
+   menus) and each track (internal, closed, open testing, production). Note the highest versionCode ever uploaded, including drafts
+   and rejected or discarded releases. Play reserves a versionCode once a bundle is uploaded.
+2. If nothing was ever uploaded, versionCode 1 is valid. Otherwise set versionCode to that highest
+   value + 1 in `apps/android/app/build.gradle.kts`, and keep versionName `1.0.0` unless you want a
+   different public label.
+3. Build the bundle from a clean, pushed commit, then record its size, SHA-256, signature,
+   versionCode and permissions here, checked the same way as below.
+
+Release builds made during audits (APK or AAB) are test artefacts. They are moved out of the build
+folder into a folder named `…NOT-FOR-UPLOAD` and are never uploaded.
+
+## Superseded record — 2026-09-11, commit `4e879d5`
+
+### Android App Bundle (superseded)
 
 ```
 apps/android/app/build/outputs/bundle/release/app-release.aab
@@ -20,7 +41,7 @@ apps/android/app/build/outputs/bundle/release/app-release.aab
 | Target SDK | 36 |
 | Min SDK | 26 |
 
-## Release APK — for sideload checks only, not for Play
+### Release APK — for sideload checks only, not for Play (superseded)
 
 ```
 apps/android/app/build/outputs/apk/release/app-release.apk
@@ -51,7 +72,7 @@ Not assumed from a successful Gradle run:
 - `apksigner verify --print-certs` for the signature scheme and certificate digest
 - `jarsigner -verify` and `keytool -printcert -jarfile` for the AAB
 - installed on an Android 15 emulator, signed in against production, and driven through Home,
-  Properties, property detail, Activity, and More → Account → Delete account
+  Properties, property detail, Activity, and More → Account & security → Delete account
 
 ## Permissions in the shipped artefact
 

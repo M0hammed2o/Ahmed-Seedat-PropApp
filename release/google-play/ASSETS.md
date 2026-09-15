@@ -4,9 +4,9 @@
 
 | Asset | Spec | Status |
 |---|---|---|
-| App icon | 512×512 PNG, 32-bit, <1 MB | **Available** — see below |
-| Feature graphic | 1024×500 PNG/JPG | **Missing — must be produced** |
-| Phone screenshots | 2–8, 16:9 or 9:16, min 320px, max 3840px | **Capturable** — see below |
+| App icon | 512×512 PNG, 32-bit, <1 MB | **Available** — checked 2026-09-15: 512×512, RGBA, 128,585 bytes |
+| Feature graphic | 1024×500 PNG/JPG, required to publish | **Missing — must be produced** |
+| Phone screenshots | 2–8, PNG/JPG, min 320px, max 3840px, long side ≤ 2× short side; 9:16 at 1080×1920 recommended | **Not captured** — see below |
 | 7" tablet screenshots | optional | Not planned for V1 |
 | 10" tablet screenshots | optional | Not planned for V1 |
 
@@ -37,8 +37,17 @@ in order:
 4. **Properties** — the portfolio cards with occupancy bars
 5. **Add expense** — showing the receipt attach row
 
+Optional sixth: a tenant screen (Home or Payments), from a synthetic tenant, never a real one.
+
+Size warning: a Pixel 7 (and its emulator) captures 1080×2400, which is 2.22:1, and Play refuses a
+screenshot whose long side is more than twice its short side. Either capture on a 1080×1920
+(9:16) device profile, or crop the system status and navigation bars off until the image is at
+most 2:1 (for example 1080×2160). Do not stretch the image, and do not add features, numbers or
+text the app does not show.
+
 Rules:
 - Use the demo account only.
+- Every screenshot must be the real app as built for this release, not a mock-up.
 - Frame out the status bar clock/battery if you want them uniform, or leave them — Play accepts both.
 - Do not show any real customer organisation.
 - Do not commit device screenshots that contain personal information.

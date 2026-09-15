@@ -280,7 +280,8 @@ export default function TermsPage() {
       <Section title="16. Deleting your account">
         <p>
           You can delete your account at any time — in the Android app under{' '}
-          <strong>More → Account → Delete account</strong>, or on the web at{' '}
+          <strong>More → Account &amp; security → Delete account</strong> (tenants:{' '}
+          <strong>Profile → Account &amp; security → Delete account</strong>), or on the web at{' '}
           <Link
             href="/delete-account"
             className="text-light-accent hover:underline dark:text-dark-accent"
