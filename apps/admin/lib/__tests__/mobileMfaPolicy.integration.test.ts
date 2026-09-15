@@ -145,13 +145,11 @@ describeIfSupabase('V1 mobile MFA policy (real local Supabase Auth, real TOTP)',
     tokens.plain = (await passwordToken(plain.email)).token;
 
     const admin = await createUser('admin');
-    const { error } = await service
-      .from('platform_admin_users')
-      .insert({
-        auth_user_id: admin.id,
-        role: 'super_admin',
-        display_name: 'MFA policy vitest admin',
-      });
+    const { error } = await service.from('platform_admin_users').insert({
+      auth_user_id: admin.id,
+      role: 'super_admin',
+      display_name: 'MFA policy vitest admin',
+    });
     if (error) throw error;
     const adminFirst = await passwordToken(admin.email);
     tokens.adminAal2 = await enrollVerifiedTotp(adminFirst.client);
