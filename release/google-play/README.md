@@ -4,7 +4,7 @@ Prepared 2026-09-10 for the first production release of the Proplyst Android app
 
 | | |
 |---|---|
-| Application ID | `za.co.proplyst.app` |
+| Application ID | `za.co.genbridge.proplyst`, the Play Console package (Kotlin namespace stays `za.co.proplyst.app`) |
 | Version name | 1.0.0 |
 | Version code | 1 |
 | Min SDK | 26 (Android 8.0) |

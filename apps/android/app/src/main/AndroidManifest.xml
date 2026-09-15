@@ -61,7 +61,7 @@
              only that one file, never the whole cache directory. -->
         <provider
             android:name="androidx.core.content.FileProvider"
-            android:authorities="za.co.proplyst.app.fileprovider"
+            android:authorities="${applicationId}.fileprovider"
             android:exported="false"
             android:grantUriPermissions="true">
             <meta-data

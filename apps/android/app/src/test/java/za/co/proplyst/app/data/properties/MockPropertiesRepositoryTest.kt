@@ -12,7 +12,7 @@ class MockPropertiesRepositoryTest {
 
     private fun repository(): MockPropertiesRepository {
         val context = mockk<Context>()
-        every { context.packageName } returns "za.co.proplyst.app"
+        every { context.packageName } returns "za.co.genbridge.proplyst"
         return MockPropertiesRepository(context)
     }
 

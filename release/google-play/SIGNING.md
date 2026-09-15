@@ -48,17 +48,24 @@ the *upload* key: it proves uploads come from you, and is not the certificate us
 **This matters for App Links.** `https://proplyst.co.za/.well-known/assetlinks.json` currently
 returns `[]`, so the `autoVerify` intent filter in `AndroidManifest.xml` never verifies and Proplyst
 links open in the browser instead of the app. To fix it, use the **app signing certificate**
-SHA-256 from *Play Console → Setup → App signing* — **not** the upload SHA-256 above. Publish it as:
+SHA-256 from *Play Console → Setup → App signing* — **not** the upload SHA-256 above. That page
+shows the certificate only after the first bundle is uploaded. Set it as
+`ANDROID_APP_SHA256_FINGERPRINTS` in Render. The route then serves:
 
 ```json
 [{
   "relation": ["delegate_permission/common.handle_all_urls"],
   "target": {
     "namespace": "android_app",
-    "package_name": "za.co.proplyst.app",
+    "package_name": "za.co.genbridge.proplyst",
     "sha256_cert_fingerprints": ["<Play app signing SHA-256>"]
   }
 }]
 ```
+
+`package_name` comes from `androidPackageName` in `packages/config/src/branding.ts`. It must equal
+the applicationId in `apps/android/app/build.gradle.kts` and the Play Console package,
+`za.co.genbridge.proplyst`. A release-hygiene unit test checks the Gradle and branding values
+agree.
 
 App Links are a post-launch improvement, not a release blocker — the app works fully without them.

@@ -14,13 +14,13 @@ export const branding = {
   productName: 'Proplyst',
   tagline: 'Property Intelligence. Simplified.',
   iosBundleIdentifier: 'com.proplyst.app', // TO_BE_CONFIRMED before store submission -- iOS not started (Android V1 final gap-closure pass, WORKLOG.md this date)
-  // CONFIRMED (Android V1 final gap-closure pass, WORKLOG.md this date, Phase 1): the real
-  // apps/android applicationId, changed from the never-published com.propertyvault.app.
-  // za.co.<company>.<app> matches proplyst.co.za's own real domain. Consumed by
-  // apps/admin/app/.well-known/assetlinks.json/route.ts for Android App Links verification --
+  // The apps/android applicationId, which must equal the package registered in Google Play Console:
+  // za.co.genbridge.proplyst (confirmed 2026-09-15, replacing the unregistered za.co.proplyst.app).
+  // Consumed by apps/admin/app/.well-known/assetlinks.json/route.ts for Android App Links
+  // verification, so it must match apps/android/app/build.gradle.kts exactly --
   // apps/mobile/app.config.ts does NOT read this constant (it has its own separate, unrelated,
   // pre-existing local branding object; apps/mobile is a distinct, out-of-scope Expo app).
-  androidPackageName: 'za.co.proplyst.app',
+  androidPackageName: 'za.co.genbridge.proplyst',
   // Real, monitored mailbox, confirmed by Mohammed for the Google Play v1.0 release
   // (2026-09-11). This replaced a long-standing `support@proplyst.example` placeholder that every
   // renderer deliberately suppressed rather than display a bouncing address. Now that it is real,

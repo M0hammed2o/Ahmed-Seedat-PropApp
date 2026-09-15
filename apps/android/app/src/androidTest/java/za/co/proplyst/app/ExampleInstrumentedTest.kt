@@ -19,6 +19,7 @@ class ExampleInstrumentedTest {
     @Test
     fun useAppContext() {
         val appContext = InstrumentationRegistry.getInstrumentation().targetContext
-        assertEquals("za.co.proplyst.app", appContext.packageName)
+        // The applicationId (the Play Console package), not the Kotlin namespace this file lives in.
+        assertEquals("za.co.genbridge.proplyst", appContext.packageName)
     }
 }

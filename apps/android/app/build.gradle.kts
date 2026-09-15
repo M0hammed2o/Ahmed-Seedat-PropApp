@@ -74,12 +74,9 @@ val hasUploadKey = keystoreProperties.getProperty("storeFile") != null &&
     file(keystoreProperties.getProperty("storeFile")).exists()
 
 android {
-    // Android V1 final gap-closure pass (WORKLOG.md this date), Phase 1: renamed from
-    // com.propertyvault.app -- the product is Proplyst, and this had never been published to
-    // Google Play (versionCode 1, no real installs), so there is no post-publish
-    // applicationId-permanence constraint blocking the change. za.co.proplyst.app follows the
-    // reverse-domain convention for a South African product (za.co.<company>.<app>), matching
-    // proplyst.co.za's own real domain.
+    // The namespace is the Kotlin/R/BuildConfig package, and is deliberately NOT the applicationId
+    // (see defaultConfig). It stays za.co.proplyst.app so no source file has to move; Android
+    // identifies the installed app, the Play listing and FileProvider authorities by applicationId.
     namespace = "za.co.proplyst.app"
     // Google Play requires new apps and updates to target Android 16 (API 36) from
     // 2026-08-31 (developer.android.com/google/play/requirements/target-sdk). API 34 would be
@@ -87,13 +84,16 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "za.co.proplyst.app"
+        // Must equal the package of the app registered in Google Play Console, which is
+        // za.co.genbridge.proplyst (confirmed 2026-09-15; that listing has no releases and no
+        // bundles yet). Earlier builds used za.co.proplyst.app, which no Play listing matches. The
+        // applicationId can never change once a bundle is uploaded.
+        applicationId = "za.co.genbridge.proplyst"
         minSdk = 26
         targetSdk = 36
-        // First Google Play release. Nothing has ever been uploaded under this applicationId
-        // (it was renamed from com.propertyvault.app precisely because it had no Play history),
-        // so versionCode starts at 1. Bump before any re-upload -- Play permanently reserves a
-        // versionCode once accepted.
+        // First Google Play release. Play Console shows no bundle ever uploaded to
+        // za.co.genbridge.proplyst, so versionCode 1 is unconsumed. Bump before any re-upload --
+        // Play permanently reserves a versionCode once a bundle is uploaded.
         versionCode = 1
         versionName = "1.0.0"
 

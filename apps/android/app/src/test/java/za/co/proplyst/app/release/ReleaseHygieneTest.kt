@@ -173,4 +173,28 @@ class ReleaseHygieneTest {
             assertTrue("$section excludes device-protected data", body.contains("<exclude domain=\"device_root\" path=\".\" />"))
         }
     }
+
+    // 2026-09-15: the Play Console app is registered as za.co.genbridge.proplyst, with no bundle
+    // uploaded yet. A bundle under any other applicationId would need a new Play listing, and the
+    // applicationId can never change after the first upload.
+    @Test
+    fun `the applicationId is the Play Console package and everything derived from it agrees`() {
+        val playPackage = "za.co.genbridge.proplyst"
+        val gradle = File("build.gradle.kts").readText()
+        val applicationIds = Regex("""applicationId\s*=\s*"([^"]+)"""").findAll(gradle).map { it.groupValues[1] }.toList()
+        assertEquals("exactly one applicationId, the Play package", listOf(playPackage), applicationIds)
+        assertTrue("no suffix or flavour may alter the published package", !gradle.contains("applicationIdSuffix") && !gradle.contains("productFlavors"))
+
+        // FileProvider authorities must follow the applicationId, not the Kotlin namespace:
+        // WebApiInvoicesRepository resolves "${packageName}.fileprovider" at runtime.
+        val manifest = File("src/main/AndroidManifest.xml").readText()
+        assertTrue(manifest.contains("android:authorities=\"\${applicationId}.fileprovider\""))
+        val literalAuthorities = kotlinSources().filter { code(it).contains(Regex(""""[a-z0-9_.]+\.fileprovider"""")) }.map { it.name }
+        assertEquals("no hard-coded FileProvider authority", emptyList<String>(), literalAuthorities)
+
+        // The web app's /.well-known/assetlinks.json names this package for App Links verification.
+        val branding = File("../../../packages/config/src/branding.ts")
+        assertTrue("branding.ts not found at ${branding.absolutePath}", branding.isFile)
+        assertTrue("assetlinks.json package must match", branding.readText().contains("androidPackageName: '$playPackage'"))
+    }
 }

@@ -104,12 +104,14 @@ This section is rewritten each pass rather than appended to, so it never goes st
 did between 2026-08-01 and the commercial-launch pass. Current state, verified via real `gradlew`
 runs this pass — see `WORKLOG.md` for the full transcript and exact test counts:
 
-- **applicationId/package**: `za.co.proplyst.app` (this pass, Phase 1) — renamed from the
-  never-published `com.propertyvault.app`. `za.co.<company>.<app>` matches `proplyst.co.za`'s own
-  real domain. Every reference (namespace, `ProplystApplication`, `ProplystDatabase`,
-  `Theme.Proplyst`, OAuth/manifest config, `packages/config/src/branding.ts`'s
-  `androidPackageName`) was updated together; the old Room schema directory under the old FQN was
-  removed so it regenerates correctly.
+- **applicationId**: `za.co.genbridge.proplyst` (2026-09-15), the package of the app registered
+  in Google Play Console. It replaced `za.co.proplyst.app`, which no Play listing matches; no
+  bundle had been uploaded. The **namespace and Kotlin packages stay `za.co.proplyst.app`**. AGP
+  keeps namespace and applicationId separate, so no source moved. FileProvider authorities use
+  `${applicationId}` / `context.packageName`. `packages/config/src/branding.ts`'s
+  `androidPackageName` (served in `/.well-known/assetlinks.json`) must match. `ReleaseHygieneTest`
+  enforces all three. (History: `com.propertyvault.app` → `za.co.proplyst.app` in the earlier
+  final gap-closure pass.)
 - **Auth shell**: splash/session-restore, sign-in, sign-out. Session token in
   `EncryptedSharedPreferences` (Keystore-backed), `android:allowBackup="false"`. **Automatic token
   refresh** (this pass, Phase 2): an OkHttp `Authenticator` (`TokenAuthenticator.kt`) retries a

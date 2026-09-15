@@ -1,5 +1,43 @@
 # Worklog
 
+## 2026-09-15 (latest) — Android applicationId aligned with the Play Console app
+
+`origin/main` 20d5f0c -> (this commit). Mohammed confirmed Play Console's Proplyst app is registered
+as `za.co.genbridge.proplyst`, with Latest releases None and Latest app bundles None. The Android
+build's effective applicationId was `za.co.proplyst.app`, hard-coded in `build.gradle.kts` with no
+flavour or suffix. That was a real mismatch, not a stale reference.
+
+**Changed:**
+- `applicationId` is now `za.co.genbridge.proplyst`. The **namespace stays `za.co.proplyst.app`**, so
+  the R, BuildConfig and Kotlin packages are unchanged and no source file moved.
+- The FileProvider authority is now `${applicationId}.fileprovider`. Before this, the manifest
+  hard-coded the old ID while the invoice PDF code builds the authority from
+  `context.packageName`, so the rename alone would have broken invoice PDFs. The camera picker's
+  hard-coded authority now uses `context.packageName` too.
+- `branding.androidPackageName`, the `package_name` served by `/.well-known/assetlinks.json`, now
+  uses the new ID. Production serves `[]` today because no fingerprint is set, so this has no live
+  effect yet.
+- `ReleaseHygieneTest` now fails if the Gradle applicationId, the manifest authority or the
+  branding package drift apart.
+- versionCode stays 1: no bundle was ever uploaded to this Play app.
+
+**No package dependency found:**
+- Google Sign-In: not implemented on Android (no library, no client ID, button hidden).
+- Firebase/FCM: not used.
+- Supabase auth: password grant, no mobile redirect.
+- Keystore and prefs names: not package-bound.
+- Backend, CI and scripts: no package checks.
+
+**Verified:**
+- `aapt2` shows the release and debug APKs as `za.co.genbridge.proplyst`, versionCode 1, authority
+  `za.co.genbridge.proplyst.fileprovider`. BuildConfig.APPLICATION_ID matches.
+- 326 unit tests pass; lint has 0 errors; the release build (R8) succeeds.
+- 8 instrumented tests pass, including the on-device package-name assertion.
+- On the emulator, the release build under the new package signed in, opened the camera capture
+  URI (cancelled) and opened the INV-001972 PDF through the new authority.
+- Production showed 0 new expenses, documents or payments, and 0 demo sessions afterwards.
+- assetlinks route test and admin tsc pass.
+
 ## 2026-09-15 (later) — Android V1 release-readiness / P1 closure pass
 
 `origin/main` eb63d17 -> (this commit). No migration, no production data change, versionCode 1 /
