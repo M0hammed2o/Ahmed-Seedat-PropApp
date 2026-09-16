@@ -11,6 +11,11 @@ object Destinations {
     // is off, and the offer has never been shown on this install.
     const val BIO_OFFER = "bio_offer"
 
+    // Signed in, but the account has no organisation and no tenancy yet -- what a brand-new Google
+    // account looks like on its first sign-in from the phone. Organisation creation and plan
+    // selection are web-only, so this hands off instead of dead-ending on the sign-in screen.
+    const val ACCOUNT_SETUP_REQUIRED = "account_setup_required"
+
     const val OWNER_ROOT = "owner_root"
 
     // Proplyst Mobile Design System redesign pass -- owner IA collapsed to 4 primary destinations

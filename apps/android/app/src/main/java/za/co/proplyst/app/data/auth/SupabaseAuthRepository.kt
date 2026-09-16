@@ -3,6 +3,9 @@ package za.co.proplyst.app.data.auth
 import za.co.proplyst.app.data.biometric.BiometricLockPreferences
 import za.co.proplyst.app.data.network.PostgrestApi
 import za.co.proplyst.app.data.network.SupabaseAuthApi
+import retrofit2.Response
+import za.co.proplyst.app.data.network.dto.AuthSessionResponse
+import za.co.proplyst.app.data.network.dto.IdTokenSignInRequest
 import za.co.proplyst.app.data.network.dto.RecoverPasswordRequest
 import za.co.proplyst.app.data.network.dto.SignInRequest
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -52,22 +55,52 @@ class SupabaseAuthRepository @Inject constructor(
     override suspend fun signIn(email: String, password: String): Result<Unit> {
         return try {
             val response = authApi.signInWithPassword(body = SignInRequest(email, password))
-            val session = response.body()
-            if (!response.isSuccessful || session == null) {
-                return Result.failure(Exception("Sign-in failed (${response.code()})"))
-            }
-            sessionManager.saveSession(session.accessToken, session.refreshToken, session.user.id)
-            sessionManager.saveEmail(session.user.email ?: email)
-            val memberships = fetchOrgMemberships(session.user.id) ?: emptyList()
-            _authState.value = AuthState.Authenticated(
-                session.user.id,
-                memberships,
-                fetchTenancies(session.user.id),
-            )
-            Result.success(Unit)
+            establishSession(response, fallbackEmail = email, failureLabel = "Sign-in failed")
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    /**
+     * "Continue with Google". The Google ID token is exchanged by Supabase for one of its own
+     * sessions, then everything after that is the password flow's code, unchanged: the same
+     * encrypted session store, the same org/tenancy lookup, the same AuthState. That is what makes
+     * the app and the web two clients of one Proplyst account rather than two accounts -- Supabase
+     * resolves the Google identity to an existing auth user when there is one, and creates a single
+     * new one (with its profile row, via the database's own on_auth_user_created trigger) when
+     * there is not. The app provisions nothing itself.
+     */
+    override suspend fun signInWithGoogle(idToken: String, rawNonce: String): Result<Unit> {
+        return try {
+            val response = authApi.signInWithIdToken(
+                body = IdTokenSignInRequest(provider = "google", idToken = idToken, nonce = rawNonce),
+            )
+            establishSession(response, fallbackEmail = null, failureLabel = "Google sign-in failed")
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** The single place a successful sign-in becomes a persisted session and an authenticated
+     * state, shared by every sign-in method so they cannot drift apart. */
+    private suspend fun establishSession(
+        response: Response<AuthSessionResponse>,
+        fallbackEmail: String?,
+        failureLabel: String,
+    ): Result<Unit> {
+        val session = response.body()
+        if (!response.isSuccessful || session == null) {
+            return Result.failure(Exception("$failureLabel (${response.code()})"))
+        }
+        sessionManager.saveSession(session.accessToken, session.refreshToken, session.user.id)
+        (session.user.email ?: fallbackEmail)?.let(sessionManager::saveEmail)
+        val memberships = fetchOrgMemberships(session.user.id) ?: emptyList()
+        _authState.value = AuthState.Authenticated(
+            session.user.id,
+            memberships,
+            fetchTenancies(session.user.id),
+        )
+        return Result.success(Unit)
     }
 
     override suspend fun signOut() {

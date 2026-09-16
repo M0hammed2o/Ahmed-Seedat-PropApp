@@ -1,5 +1,50 @@
 # Worklog
 
+## 2026-09-16 — "Continue with Google" on Android (1.0.1, versionCode 2)
+
+1.0.0 reached Play Internal Testing, and real-device testing found the sign-in screen had no Google
+option while the web has had one since PRODUCT DECISION 1.
+
+**Root cause, not a missing feature.** The button, its badge and the "or continue with" divider
+have been in `SignInScreen.kt` all along, gated on `googleSignInAvailable`, which was
+`BuildConfig.GOOGLE_WEB_CLIENT_ID.isNotBlank()`. No client ID was ever put in `local.properties`,
+so release builds shipped with the gate closed — deliberately, since 0a22bca removed the dead
+button a reviewer would otherwise see. Nothing was broken; the flow behind the button had simply
+never been written, and no client ID was configured.
+
+**Architecture: the same identity system, a native front door.** The web redirects through
+`signInWithOAuth` → `/auth/callback` → `exchangeCodeForSession`. Android uses Credential Manager
+instead: the system account picker returns a Google ID token, and Supabase's `grant_type=id_token`
+exchanges it for a session (`SupabaseAuthApi.signInWithIdToken`). No browser hop, so **no OAuth
+redirect URI or deep link is involved at all**. The ID token's audience is the same Web client ID
+Supabase is already configured with, which is exactly why both clients resolve to one `auth.users`
+row: the Google identity (provider + sub) is the same on both. Nothing is provisioned client-side —
+`profiles` still comes from the `on_auth_user_created` trigger, as `/auth/callback`'s own comment
+documents.
+
+`signIn` and `signInWithGoogle` now share `establishSession()`, so a Google sign-in persists through
+the identical encrypted session store, org/tenancy lookup and AuthState as an email sign-in.
+
+**Nonce.** `external_google_skip_nonce_check` is false on this project, so the documented pair is
+used: Google is given the SHA-256 hash, Supabase is given the raw value.
+
+**A routing bug this surfaced.** `destinationForRole()` sent an authenticated account with no org
+and no tenancy back to `SIGN_IN` — which is exactly what a brand-new Google account is, so signing
+up from the phone would have looked like a failed sign-in. It now routes to a setup hand-off screen
+that opens the web, because organisation creation ends in plan selection and payment, which must
+never live in the Android app (BILLING_COMPLIANCE.md).
+
+**Verified:** 346 unit tests (17 new), lintRelease 0 errors, R8 release build, and the signed AAB
+checked from the artefact (`za.co.genbridge.proplyst`, versionCode 2, 1.0.1, not debuggable,
+permissions unchanged). On a Pixel 7 emulator with Play services the release build renders the
+button, and tapping it runs Credential Manager and reports "No Google account is available on this
+device" with no crash — the honest result on a device with no Google account. Email/password
+sign-in, session restore across a cold relaunch and sign-out all still work in the same build.
+
+**Not verified locally, and cannot be:** a real Google account completing sign-in. That needs an
+Android OAuth client for this package registered with the Play app-signing SHA-1 (SIGNING.md), and
+a device with a Google account.
+
 ## 2026-09-15 (latest) — Android applicationId aligned with the Play Console app
 
 `origin/main` 20d5f0c -> (this commit). Mohammed confirmed Play Console's Proplyst app is registered

@@ -16,6 +16,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import za.co.proplyst.app.data.auth.AuthState
+import za.co.proplyst.app.ui.auth.AccountSetupRequiredScreen
 import za.co.proplyst.app.ui.auth.SignInScreen
 import za.co.proplyst.app.ui.auth.SplashScreen
 import za.co.proplyst.app.ui.biometric.BiometricGateViewModel
@@ -149,6 +150,9 @@ fun RootNavGraph() {
                     },
                 )
             }
+            composable(Destinations.ACCOUNT_SETUP_REQUIRED) {
+                AccountSetupRequiredScreen(onSignOut = authViewModel::signOut)
+            }
             composable(Destinations.OWNER_ROOT) {
                 OwnerRootScreen(pendingRoute = pendingOwnerRoute)
             }
@@ -186,10 +190,12 @@ fun RootNavGraph() {
 
 /** Owner/staff (has an org membership) takes precedence over tenant when an account somehow holds
  * both -- mirrors the web app's own destinationResolver.ts precedence (an org-staff caller lands
- * on the staff dashboard first). Neither -- the genuine "signed in, no portal access" edge case --
- * falls back to SIGN_IN rather than crashing on a portal with nothing to show. */
-private fun destinationForRole(state: AuthState.Authenticated): String = when {
+ * on the staff dashboard first). Neither -- a signed-in account with no portal access, which is
+ * exactly what a brand-new Google account is until its organisation exists -- goes to the setup
+ * hand-off. It used to return to SIGN_IN, which looked like a failed sign-in to anyone who had
+ * just completed one (2026-09-16, added with "Continue with Google"). */
+internal fun destinationForRole(state: AuthState.Authenticated): String = when {
     state.organizations.isNotEmpty() -> Destinations.OWNER_ROOT
     state.tenancies.isNotEmpty() -> Destinations.TENANT_ROOT
-    else -> Destinations.SIGN_IN
+    else -> Destinations.ACCOUNT_SETUP_REQUIRED
 }

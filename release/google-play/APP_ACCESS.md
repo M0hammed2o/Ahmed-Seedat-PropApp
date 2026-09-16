@@ -36,8 +36,8 @@ in the store listing.
 
 ```
 Sign in with the email and password above on the first screen. No OTP, no two-factor and no email
-confirmation are needed, and there is no Google sign-in option to worry about. Fingerprint unlock
-is offered after sign-in but is optional; skip it.
+confirmation are needed. Ignore "Continue with Google"; the account above uses a password.
+Fingerprint unlock is offered after sign-in but is optional; skip it.
 
 The account opens a populated demonstration portfolio, so every screen has data. Nothing is
 paywalled, and the app contains no purchase flow at all. It holds no real customer data.
@@ -77,12 +77,13 @@ was already true for ordinary users before the review.
 
 ## Two things that used to need explaining, and no longer do
 
-**The dead Google button is gone.** The sign-in screen used to render an enabled "Continue with
-Google" button with a caption admitting it did not work, because `GOOGLE_WEB_CLIENT_ID` is unset in
-the release build. The button, the Google badge and the "or continue with" divider are now rendered
-only when Google sign-in is actually available, so the reviewer sees a plain email-and-password
-screen with nothing inert on it. This is a visibility gate, not a removal: configuring
-`GOOGLE_WEB_CLIENT_ID` brings the existing UI back with no further code change.
+**"Continue with Google" works from 1.0.1.** It was hidden in 1.0.0 because the build had no
+`GOOGLE_WEB_CLIENT_ID`, and a button that cannot complete is worse than no button. The build now
+carries the client ID, so the button renders and runs the real flow: the Android system account
+picker returns a Google ID token, and Supabase exchanges it for the same session an email sign-in
+produces. It is the same Google sign-in the web app offers, against the same accounts — signing in
+with a Google account already used on proplyst.co.za opens that same Proplyst account, never a
+second one. The reviewer account above is a password account and does not need it.
 
 **There is no subscription purchase link.** The "Manage subscription" row was removed from More for
 this release — see BILLING_COMPLIANCE.md. A reviewer will find no purchase, upgrade or external

@@ -33,6 +33,11 @@ interface AuthRepository {
     val authState: StateFlow<AuthState>
     suspend fun restoreSession()
     suspend fun signIn(email: String, password: String): Result<Unit>
+
+    /** "Continue with Google": exchanges a Google ID token (from Credential Manager) for a Supabase
+     * session. [rawNonce] is the unhashed half of the pair whose hash was given to Google. Lands on
+     * the same account the web Google sign-in uses -- never a second one. */
+    suspend fun signInWithGoogle(idToken: String, rawNonce: String): Result<Unit>
     suspend fun signOut()
 
     /** Synchronous, non-network local sign-out -- for the one caller (TokenAuthenticator) that

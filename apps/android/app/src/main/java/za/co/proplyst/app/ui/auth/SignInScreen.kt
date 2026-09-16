@@ -62,6 +62,7 @@ import za.co.proplyst.app.ui.biometric.BiometricAvailability
 import za.co.proplyst.app.ui.biometric.BiometricResult
 import za.co.proplyst.app.ui.biometric.authenticateWithBiometrics
 import za.co.proplyst.app.ui.biometric.checkBiometricAvailability
+import za.co.proplyst.app.ui.common.findActivity
 import za.co.proplyst.app.ui.common.navyHeaderGlow
 import za.co.proplyst.app.ui.common.ProplystTextField
 import za.co.proplyst.app.ui.theme.ProplystPillShape
@@ -84,6 +85,9 @@ fun SignInScreen(
     viewModel: SignInViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    // Credential Manager renders the Google account picker over the current Activity, so the flow
+    // needs it; Compose only hands out a Context, which is a ContextWrapper chain below it.
+    val activity = LocalContext.current.findActivity()
 
     when (uiState.mode) {
         SignInMode.SIGN_IN -> SignInContent(
@@ -95,7 +99,13 @@ fun SignInScreen(
             onPasswordChange = viewModel::onPasswordChange,
             onTogglePasswordVisibility = viewModel::onTogglePasswordVisibility,
             onForgotPasswordClick = viewModel::onForgotPasswordClick,
-            onGoogleClick = viewModel::onGoogleSignInUnavailable,
+            onGoogleClick = {
+                if (activity != null) {
+                    viewModel.signInWithGoogle(activity, onSignedIn)
+                } else {
+                    viewModel.onGoogleSignInUnavailable()
+                }
+            },
             onRetry = viewModel::retry,
             onSignInClick = { viewModel.signIn(onSignedIn) },
             onReturningUnlocked = onReturningUnlocked,

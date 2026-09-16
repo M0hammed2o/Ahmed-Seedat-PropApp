@@ -69,3 +69,21 @@ the applicationId in `apps/android/app/build.gradle.kts` and the Play Console pa
 agree.
 
 App Links are a post-launch improvement, not a release blocker — the app works fully without them.
+
+## Google Sign-In needs the same certificate registered in Google Cloud
+
+"Continue with Google" (1.0.1) uses Android Credential Manager. Google only returns an ID token to
+an app it recognises, which means an **Android OAuth client** must exist in the same Google Cloud
+project as the Web client Supabase is configured with:
+
+| Field | Value |
+|---|---|
+| Application type | Android |
+| Package name | `za.co.genbridge.proplyst` |
+| SHA-1 | The **Play app signing** certificate SHA-1, from *Play Console → Test and release → App integrity → App signing key certificate* |
+
+Add a second Android client (or a second SHA-1) for the **upload** certificate above if you want a
+locally-built release APK to sign in too, and for the debug keystore
+(`~/.android/debug.keystore`, password `android`) if you want it in Android Studio debug builds.
+No client secret is involved, and nothing is added to the app: the app carries only the public Web
+client ID, injected at build time from `GOOGLE_WEB_CLIENT_ID` in `local.properties`.

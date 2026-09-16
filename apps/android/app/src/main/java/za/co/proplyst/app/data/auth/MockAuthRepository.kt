@@ -59,6 +59,19 @@ class MockAuthRepository @Inject constructor(
         return Result.success(Unit)
     }
 
+    /** Mock builds have no Google account picker; this keeps the interface honest by behaving like
+     * a successful owner sign-in, the same shape the real repository produces. */
+    override suspend fun signInWithGoogle(idToken: String, rawNonce: String): Result<Unit> {
+        delay(400)
+        if (idToken.isBlank()) return Result.failure(Exception("Google sign-in failed."))
+        sessionManager.saveEmail("demo-google-user@proplyst.local")
+        _authState.value = AuthState.Authenticated(
+            userId = "demo-user-1",
+            organizations = listOf(OrgMembership(orgId = "demo-org-1", role = "principal", status = "active")),
+        )
+        return Result.success(Unit)
+    }
+
     override suspend fun signOut() {
         delay(100)
         authEventStore.recordUserSignOut()

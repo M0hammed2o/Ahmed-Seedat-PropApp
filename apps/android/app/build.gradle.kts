@@ -91,11 +91,11 @@ android {
         applicationId = "za.co.genbridge.proplyst"
         minSdk = 26
         targetSdk = 36
-        // First Google Play release. Play Console shows no bundle ever uploaded to
-        // za.co.genbridge.proplyst, so versionCode 1 is unconsumed. Bump before any re-upload --
-        // Play permanently reserves a versionCode once a bundle is uploaded.
-        versionCode = 1
-        versionName = "1.0.0"
+        // versionCode 1 / 1.0.0 was uploaded to Play Internal Testing on 2026-09-16 and is now
+        // permanently consumed for za.co.genbridge.proplyst, so this release takes the next one.
+        // 1.0.1 because the change is an addition to sign-in, not a new feature set.
+        versionCode = 2
+        versionName = "1.0.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -214,6 +214,12 @@ dependencies {
     // parser, not android.media's, which has known bugs with untrusted files. Coil already pulled
     // in this exact version; declaring it pins it for our own code.
     implementation(libs.androidx.exifinterface)
+    // "Continue with Google" on the sign-in screen. Credential Manager shows the system account
+    // picker and returns a Google ID token, which Supabase exchanges for the SAME session an
+    // email/password sign-in produces. No browser redirect, so no OAuth deep link is involved.
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services.auth)
+    implementation(libs.google.identity.googleid)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

@@ -121,9 +121,18 @@ class ReleaseHygieneTest {
 
         val vm = code(kotlinSources().single { it.name == "SignInViewModel.kt" })
         assertTrue(
-            "availability must still derive from the build's client id",
-            "BuildConfig.GOOGLE_WEB_CLIENT_ID" in vm,
+            "availability must still derive from the configured client id",
+            "googleAuthConfig.isConfigured" in vm,
         )
+        // The id itself comes from the build, never from a literal in source (2026-09-16): the
+        // ViewModel takes it through GoogleAuthConfig so it can be tested both ways.
+        val module = kotlinSources().single { it.name == "GoogleAuthModule.kt" }
+        assertTrue(
+            "the client id must come from BuildConfig",
+            "BuildConfig.GOOGLE_WEB_CLIENT_ID" in code(module),
+        )
+        val hardCoded = kotlinSources().filter { "apps.googleusercontent.com" in code(it) }.map { it.name }
+        assertEquals("no OAuth client id may be hard-coded in source", emptyList<String>(), hardCoded)
     }
 
     @Test

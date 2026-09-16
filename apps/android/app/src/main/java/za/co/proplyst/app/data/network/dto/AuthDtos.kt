@@ -14,6 +14,17 @@ data class SignInRequest(
     val password: String,
 )
 
+/** "Continue with Google": Supabase exchanges a Google ID token for one of its own sessions
+ * (`grant_type=id_token`). The same Google account always resolves to the same auth user, so the
+ * web and the app land on one Proplyst account -- no separate mobile identity is created. */
+@Serializable
+data class IdTokenSignInRequest(
+    val provider: String,
+    @SerialName("id_token") val idToken: String,
+    /** The RAW nonce. Supabase hashes it to compare with the token's own hashed `nonce` claim. */
+    val nonce: String,
+)
+
 @Serializable
 data class AuthSessionResponse(
     @SerialName("access_token") val accessToken: String,

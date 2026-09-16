@@ -1,6 +1,7 @@
 package za.co.proplyst.app.data.network
 
 import za.co.proplyst.app.data.network.dto.AuthSessionResponse
+import za.co.proplyst.app.data.network.dto.IdTokenSignInRequest
 import za.co.proplyst.app.data.network.dto.RecoverPasswordRequest
 import za.co.proplyst.app.data.network.dto.RefreshTokenRequest
 import za.co.proplyst.app.data.network.dto.SignInRequest
@@ -19,6 +20,16 @@ interface SupabaseAuthApi {
     suspend fun signInWithPassword(
         @Query("grant_type") grantType: String = "password",
         @Body body: SignInRequest,
+    ): Response<AuthSessionResponse>
+
+    /** "Continue with Google" (Credential Manager). Supabase verifies the Google ID token itself --
+     * signature, issuer, audience and nonce -- and returns its own session, so the app never has to
+     * trust the token on its own. A Google account that already signed in on the web resolves to
+     * that same auth user, never a duplicate. */
+    @POST("auth/v1/token")
+    suspend fun signInWithIdToken(
+        @Query("grant_type") grantType: String = "id_token",
+        @Body body: IdTokenSignInRequest,
     ): Response<AuthSessionResponse>
 
     @POST("auth/v1/token")

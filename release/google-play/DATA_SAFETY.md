@@ -44,6 +44,12 @@ In-app: More → Account & security → Delete account. Web:
 | Sexual orientation | No | — | — | Not collected |
 | **Other info** | No | — | — | See "Government ID" below |
 
+Sign-in is by email and password, or "Continue with Google" (1.0.1). Google sign-in uses Android's
+own Credential Manager: the user picks an account, Google returns a signed ID token naming that
+account's email, and Supabase exchanges it for a Proplyst session. The app asks Google for no
+scopes beyond the sign-in identity, stores no Google token, and reads no contacts or profile data.
+The email it yields is the same "Email address" row above, collected for the same purpose.
+
 - **Email** is the sign-in credential (Supabase Auth) and cannot be avoided.
 - **User IDs** — the Supabase `auth.users` UUID. Declare it; it is a persistent account identifier.
 - **Name** is the profile display name; **phone** is optional on a member and on tenant records.

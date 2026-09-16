@@ -1,6 +1,33 @@
 # Release artefacts
 
-## Status — 2026-09-15: no current upload artefact
+## Current upload candidate — 1.0.1 (versionCode 2), 2026-09-16
+
+Adds "Continue with Google" to the Android sign-in screen. Built from the Google Sign-In commit.
+
+```
+C:\Users\junsm\Downloads\Proplyst-Play-Release-1.0.1-vc2\proplyst-1.0.1-vc2-release.aab
+```
+
+| | |
+|---|---|
+| Size | 7,911,341 bytes (7.5 MiB) |
+| SHA-256 | `1a00273aac325efa80eef1169b5cfd6bcb2d7b45d624509e902b16186045fe66` |
+| Application ID | `za.co.genbridge.proplyst` |
+| Version code | 2 |
+| Version name | 1.0.1 |
+| Min / target SDK | 26 / 36 |
+| Debuggable | No |
+| Signature | `jar verified`, upload certificate SHA-256 `4B:F6:79:…:63:E3` |
+| Permissions | Unchanged from 1.0.0 — INTERNET, USE_BIOMETRIC, USE_FINGERPRINT, and the AndroidX-internal receiver permission |
+
+Verified from the artefact with `bundletool validate`, `bundletool dump manifest`, `jarsigner
+-verify` and `keytool -printcert -jarfile`.
+
+**Before it works on a real phone**, an Android OAuth client for `za.co.genbridge.proplyst` must
+exist in the same Google Cloud project as the Web client Supabase uses, registered with the Play
+app-signing SHA-1. Without it the button appears and fails gracefully. See SIGNING.md.
+
+## Status — 2026-09-15: 1.0.0 uploaded to Internal Testing
 
 **The artefacts recorded below are superseded. Do not upload them.** They were built on 2026-09-11
 from `4e879d5`, before the 2026-09-15 fixes: in-app privacy and terms links, local sign-out,

@@ -1,10 +1,11 @@
 package za.co.proplyst.app.ui.auth
 
+import android.app.Activity
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import za.co.proplyst.app.BuildConfig
 import za.co.proplyst.app.data.auth.AuthEventStore
 import za.co.proplyst.app.data.auth.AuthRepository
+import za.co.proplyst.app.data.auth.GoogleAuthConfig
 import za.co.proplyst.app.data.auth.SessionManager
 import za.co.proplyst.app.data.auth.SignOutReason
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -42,14 +43,17 @@ class SignInViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val authEventStore: AuthEventStore,
     private val sessionManager: SessionManager,
+    private val googleCredentialClient: GoogleCredentialClient,
+    private val googleAuthConfig: GoogleAuthConfig,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SignInUiState())
     val uiState: StateFlow<SignInUiState> = _uiState.asStateFlow()
 
     /** Google Sign-In (spec §7): only ever true when a real OAuth web client ID has been
-     * configured via local.properties -- never fabricated. */
-    val googleSignInAvailable: Boolean = BuildConfig.GOOGLE_WEB_CLIENT_ID.isNotBlank()
+     * configured via local.properties -- never fabricated. The value reaches here through
+     * [GoogleAuthConfig] (di/GoogleAuthModule.kt reads BuildConfig.GOOGLE_WEB_CLIENT_ID). */
+    val googleSignInAvailable: Boolean = googleAuthConfig.isConfigured
 
     /** Display email for the returning-user row / expired prefill (display identifier only). */
     val storedEmail: String? = sessionManager.getEmail()
@@ -111,6 +115,70 @@ class SignInViewModel @Inject constructor(
     fun onGoogleSignInUnavailable() {
         _uiState.value = _uiState.value.copy(
             errorMessage = "Google Sign-In needs to be configured by Proplyst before it can be used.",
+            errorKind = SignInErrorKind.GENERIC,
+        )
+    }
+
+    /**
+     * "Continue with Google". Two steps, both of which can fail on their own: the system account
+     * picker returns a Google ID token, then Supabase exchanges it for a Proplyst session. Success
+     * is indistinguishable from an email sign-in from here on -- same session store, same routing.
+     *
+     * Cancelling the picker is silent by design: the user chose to back out, and an error banner
+     * for their own deliberate action reads as a fault.
+     */
+    fun signInWithGoogle(activity: Activity, onSuccess: () -> Unit) {
+        if (!googleSignInAvailable) {
+            onGoogleSignInUnavailable()
+            return
+        }
+        if (_uiState.value.isSubmitting) return
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                isSubmitting = true,
+                errorMessage = null,
+                errorKind = null,
+                showSignedOutToast = false,
+            )
+            when (val credential = googleCredentialClient.requestIdToken(activity, googleAuthConfig.webClientId)) {
+                is GoogleCredentialResult.Cancelled ->
+                    _uiState.value = _uiState.value.copy(isSubmitting = false)
+
+                is GoogleCredentialResult.NoGoogleAccount -> showGoogleError(
+                    "No Google account is available on this device. Add one in Settings, or sign in with your email and password.",
+                )
+
+                is GoogleCredentialResult.Failed -> showGoogleError(credential.message)
+
+                is GoogleCredentialResult.Success -> {
+                    val result = authRepository.signInWithGoogle(credential.idToken, credential.rawNonce)
+                    result.fold(
+                        onSuccess = {
+                            _uiState.value = _uiState.value.copy(isSubmitting = false)
+                            onSuccess()
+                        },
+                        onFailure = { error ->
+                            val network = error is IOException || error is UnknownHostException
+                            _uiState.value = _uiState.value.copy(
+                                isSubmitting = false,
+                                errorMessage = if (network) {
+                                    "Can't reach Proplyst right now. Check your connection."
+                                } else {
+                                    "Google signed you in, but Proplyst couldn't start your session. Try again."
+                                },
+                                errorKind = if (network) SignInErrorKind.NETWORK else SignInErrorKind.GENERIC,
+                            )
+                        },
+                    )
+                }
+            }
+        }
+    }
+
+    private fun showGoogleError(message: String) {
+        _uiState.value = _uiState.value.copy(
+            isSubmitting = false,
+            errorMessage = message,
             errorKind = SignInErrorKind.GENERIC,
         )
     }
