@@ -23,9 +23,11 @@ C:\Users\junsm\Downloads\Proplyst-Play-Release-1.0.1-vc2\proplyst-1.0.1-vc2-rele
 Verified from the artefact with `bundletool validate`, `bundletool dump manifest`, `jarsigner
 -verify` and `keytool -printcert -jarfile`.
 
-**Before it works on a real phone**, an Android OAuth client for `za.co.genbridge.proplyst` must
-exist in the same Google Cloud project as the Web client Supabase uses, registered with the Play
-app-signing SHA-1. Without it the button appears and fails gracefully. See SIGNING.md.
+**Google Sign-In prerequisite, satisfied 2026-09-16:** an Android OAuth client for
+`za.co.genbridge.proplyst` exists in the same Google Cloud project as the Web client Supabase uses.
+It must carry the Play app-signing SHA-1 `BE:B7:2B:77:…:97:0A` for builds installed from Play. A
+sideloaded release APK is signed by the upload key instead and needs that certificate registered
+too. See SIGNING.md for all three fingerprints. Supabase needs no change.
 
 ## Status — 2026-09-15: 1.0.0 uploaded to Internal Testing
 

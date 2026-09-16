@@ -80,10 +80,29 @@ project as the Web client Supabase is configured with:
 |---|---|
 | Application type | Android |
 | Package name | `za.co.genbridge.proplyst` |
-| SHA-1 | The **Play app signing** certificate SHA-1, from *Play Console → Test and release → App integrity → App signing key certificate* |
+| SHA-1 | The certificate of whichever build is being signed in — see the table below |
 
-Add a second Android client (or a second SHA-1) for the **upload** certificate above if you want a
-locally-built release APK to sign in too, and for the debug keystore
-(`~/.android/debug.keystore`, password `android`) if you want it in Android Studio debug builds.
-No client secret is involved, and nothing is added to the app: the app carries only the public Web
-client ID, injected at build time from `GOOGLE_WEB_CLIENT_ID` in `local.properties`.
+**Created 2026-09-16.** An Android OAuth client now exists in the same Google Cloud project as the
+"Proplyst PWA" Web client. The Web client is what Supabase is configured with and must not be
+deleted; the Android client authorises the app itself, and its client ID is never put in the app.
+
+### Which certificate authorises which build
+
+A Google ID token is only issued to an app whose package **and signing certificate** match a
+registered Android client. The three certificates differ, so register each build you intend to sign
+in from:
+
+| Build | Signed by | SHA-1 | Needed for |
+|---|---|---|---|
+| Installed from Play (Internal Testing, production) | Play app signing key | `BE:B7:2B:77:7E:7B:0E:E8:DC:9C:14:D3:6D:2F:82:F0:47:E6:97:0A` | **Required** — this is what testers and users run |
+| Release APK built here and sideloaded | Upload key (`proplyst-upload`) | `49:92:D4:8F:1D:95:9A:1A:7D:82:31:5A:F5:88:A2:C3:92:EE:BC:4E` | Optional — only to test a sideloaded release APK |
+| Debug build from Android Studio / `assembleDebug` | `~/.android/debug.keystore` (alias `androiddebugkey`, password `android`) | `6D:0E:1C:41:E6:2C:60:E9:5D:FC:DE:32:19:B0:C8:61:B6:BF:BC:55` | Optional — only to test Google sign-in in a debug build |
+
+All three are public certificate fingerprints, not secrets. Several SHA-1s can sit on one Android
+OAuth client, or you can create one client per certificate.
+
+No client secret is involved, and nothing is added to the app: it carries only the public Web
+client ID, injected at build time from `GOOGLE_WEB_CLIENT_ID` in `local.properties` (git-ignored).
+Because the app asks Google for a token whose audience is that Web client ID, **Supabase needs no
+new configuration** — the same client ID already backs web Google sign-in, which is why one Google
+account resolves to one Proplyst user on both.
