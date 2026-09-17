@@ -91,11 +91,12 @@ android {
         applicationId = "za.co.genbridge.proplyst"
         minSdk = 26
         targetSdk = 36
-        // versionCode 1 / 1.0.0 was uploaded to Play Internal Testing on 2026-09-16 and is now
-        // permanently consumed for za.co.genbridge.proplyst, so this release takes the next one.
-        // 1.0.1 because the change is an addition to sign-in, not a new feature set.
-        versionCode = 2
-        versionName = "1.0.1"
+        // Play permanently reserves a versionCode once a bundle is uploaded: 1 (1.0.0) and 2 (1.0.1)
+        // are both consumed on Internal Testing, so this release takes 3. 1.0.2 because the changes
+        // are fixes and presentation -- payment confirmation, alert and activity clearing, the
+        // record screens in the design system -- not a new feature set.
+        versionCode = 3
+        versionName = "1.0.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
