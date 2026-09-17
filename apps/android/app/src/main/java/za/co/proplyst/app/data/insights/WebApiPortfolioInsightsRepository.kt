@@ -31,6 +31,25 @@ class WebApiPortfolioInsightsRepository @Inject constructor(
         }
     }
 
+    override suspend fun dismiss(insightId: String): AlertActionResult =
+        act(insightId, dismissing = true)
+
+    override suspend fun acknowledge(insightId: String): AlertActionResult =
+        act(insightId, dismissing = false)
+
+    private suspend fun act(insightId: String, dismissing: Boolean): AlertActionResult {
+        return try {
+            val response = if (dismissing) webApi.dismissInsight(insightId) else webApi.acknowledgeInsight(insightId)
+            if (!response.isSuccessful) {
+                AlertActionResult.Error(errorMessage(response) ?: "Couldn't update this alert.")
+            } else {
+                AlertActionResult.Success
+            }
+        } catch (e: Exception) {
+            AlertActionResult.Error(e.message ?: "Couldn't update this alert — check your connection.")
+        }
+    }
+
     private fun errorMessage(response: Response<*>): String? {
         val raw = response.errorBody()?.string() ?: return null
         return try {

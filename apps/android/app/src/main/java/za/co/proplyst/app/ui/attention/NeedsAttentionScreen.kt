@@ -24,6 +24,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -44,6 +46,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.KeyboardArrowUp
+import androidx.compose.material.icons.outlined.MoreVert
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import za.co.proplyst.app.data.insights.AttentionMember
 import za.co.proplyst.app.navigation.AttentionDestination
@@ -197,6 +200,12 @@ fun NeedsAttentionScreen(
                     AttentionDetailRow(
                         item = item,
                         expanded = isExpanded,
+                        onAcknowledge = item.insightIds
+                            .takeIf { it.isNotEmpty() }
+                            ?.let { ids -> { ids.forEach { viewModel.resolveAlert(it, acknowledge = true) } } },
+                        onDismiss = item.insightIds
+                            .takeIf { it.isNotEmpty() }
+                            ?.let { ids -> { ids.forEach { viewModel.resolveAlert(it, acknowledge = false) } } },
                         // A group with no list screen of its own expands here; everything else
                         // leads somewhere, and only a genuinely unresolvable row stays inert.
                         expandable = destination is AttentionDestination.Expand,
@@ -259,9 +268,12 @@ private fun AttentionDetailRow(
     expandable: Boolean,
     hasDestination: Boolean,
     onClick: () -> Unit,
+    onAcknowledge: (() -> Unit)? = null,
+    onDismiss: (() -> Unit)? = null,
 ) {
     val colors = ProplystTheme.colors
     val type = ProplystTheme.type
+    var menuOpen by remember { mutableStateOf(false) }
     val accent = when (item.severity) {
         AttentionSeverity.CRITICAL -> colors.critical
         AttentionSeverity.WARNING -> colors.warning
@@ -315,6 +327,40 @@ private fun AttentionDetailRow(
                     tint = colors.textSecondary,
                     modifier = Modifier.padding(start = 6.dp),
                 )
+            }
+            // Acknowledging or dismissing NEVER changes the underlying business fact: rent that is
+            // overdue stays overdue and unpaid, a ticket stays open. This only decides whether
+            // Proplyst keeps asking about it.
+            if (onAcknowledge != null || onDismiss != null) {
+                Box {
+                    IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(32.dp)) {
+                        Icon(
+                            Icons.Outlined.MoreVert,
+                            contentDescription = "Alert options",
+                            tint = colors.textSecondary,
+                        )
+                    }
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        if (onAcknowledge != null) {
+                            DropdownMenuItem(
+                                text = { Text("Mark as seen", style = type.body) },
+                                onClick = {
+                                    menuOpen = false
+                                    onAcknowledge()
+                                },
+                            )
+                        }
+                        if (onDismiss != null) {
+                            DropdownMenuItem(
+                                text = { Text("Dismiss", style = type.body) },
+                                onClick = {
+                                    menuOpen = false
+                                    onDismiss()
+                                },
+                            )
+                        }
+                    }
+                }
             }
         }
     }

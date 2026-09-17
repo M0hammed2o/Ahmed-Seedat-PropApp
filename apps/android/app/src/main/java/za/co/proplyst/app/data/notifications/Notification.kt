@@ -27,4 +27,8 @@ sealed interface MarkReadResult {
 interface NotificationsRepository {
     suspend fun getMyNotifications(): NotificationsResult
     suspend fun markRead(id: String): MarkReadResult
+
+    /** Hides one entry from this user's Activity feed. The underlying record -- the payment,
+     * the invoice, the ticket -- is never touched, and no other user's feed changes. */
+    suspend fun dismiss(id: String): MarkReadResult
 }

@@ -443,15 +443,23 @@ export async function reconcilePortfolioInsights(
   const fresh = await evaluateRules(client, orgId, now);
   const freshByKey = new Map(fresh.map((insight) => [insight.key, insight]));
 
+  // acknowledged_at is deliberately NOT filtered out here (2026-09-17). An acknowledged alert is one
+  // whose condition is still true and which the user has simply seen; it must stay in this lookup,
+  // or every run would treat it as new, insert a duplicate, and the alert the user just acknowledged
+  // would reappear minutes later. dismissed_at stays filtered: that is this function's own
+  // auto-resolve marker for conditions that stopped being true.
   const { data: existingRows, error: existingError } = await client
     .from('portfolio_insights')
-    .select('id, insight_type, data_source, severity, message')
+    .select('id, insight_type, data_source, severity, message, acknowledged_at')
     .eq('org_id', orgId)
     .is('dismissed_at', null);
   if (existingError)
     throw new Error(`Failed to load existing portfolio_insights: ${existingError.message}`);
 
-  const existingByKey = new Map<string, { id: string; severity: string; message: string }>();
+  const existingByKey = new Map<
+    string,
+    { id: string; severity: string; message: string; acknowledgedAt: string | null }
+  >();
   for (const row of existingRows ?? []) {
     const dataSource = row.data_source as { triggering_records?: TriggeringRecord[] };
     const primaryId = dataSource.triggering_records?.[0]?.id;
@@ -460,6 +468,7 @@ export async function reconcilePortfolioInsights(
       id: row.id as string,
       severity: row.severity as string,
       message: row.message as string,
+      acknowledgedAt: (row.acknowledged_at as string | null) ?? null,
     });
   }
 
@@ -486,6 +495,10 @@ export async function reconcilePortfolioInsights(
           message: insight.message,
           severity: insight.severity,
           generated_at: now.toISOString(),
+          // The alert materially changed -- more rent overdue, a budget now over rather than near
+          // its limit -- so an earlier acknowledgement no longer covers what it now says, and it
+          // returns to the feed.
+          acknowledged_at: null,
         })
         .eq('id', existing.id);
       if (error)

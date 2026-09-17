@@ -52,6 +52,10 @@ export const MOBILE_V1_API_ROUTES: ReadonlyArray<{ method: string; path: string 
   { method: 'GET', path: '/api/v1/documents/{id}' },
   { method: 'POST', path: '/api/v1/expenses' },
   { method: 'GET', path: '/api/v1/insights' },
+  // Needs-attention housekeeping from the app (2026-09-17). Neither changes business data: dismiss
+  // hides an alert, acknowledge marks a still-true one as seen. Both are org-scoped by RLS.
+  { method: 'POST', path: '/api/v1/insights/{id}/dismiss' },
+  { method: 'POST', path: '/api/v1/insights/{id}/acknowledge' },
   { method: 'GET', path: '/api/v1/invoices' },
   { method: 'GET', path: '/api/v1/invoices/{id}' },
   { method: 'GET', path: '/api/v1/invoices/{id}/payments' },

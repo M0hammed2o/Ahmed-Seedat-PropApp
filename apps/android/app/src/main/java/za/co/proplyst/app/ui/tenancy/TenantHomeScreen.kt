@@ -242,7 +242,8 @@ private fun TenantNavyHero(
             .background(colors.navy)
             .navyHeaderGlow()
             .statusBarsPadding()
-            .padding(bottom = 70.dp),
+            // Same as Home: clears the floating nav and its margin, not just the bar itself.
+            .padding(bottom = 96.dp),
     ) {
         Column(modifier = Modifier.padding(top = 10.dp, start = 20.dp, end = 20.dp)) {
             Row(

@@ -42,4 +42,6 @@ class MockNotificationsRepository @Inject constructor() : NotificationsRepositor
         notifications[index] = notifications[index].copy(readAt = "2026-08-17T00:00:00Z")
         return MarkReadResult.Success
     }
+
+    override suspend fun dismiss(id: String): MarkReadResult = MarkReadResult.Success
 }

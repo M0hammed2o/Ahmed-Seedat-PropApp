@@ -15,6 +15,11 @@ import android.widget.Toast
 object LegalLinks {
     const val PRIVACY_POLICY_URL = "https://proplyst.co.za/privacy"
     const val TERMS_OF_SERVICE_URL = "https://proplyst.co.za/terms"
+
+    /** Registration stays on the web (apps/admin/app/register). The Android app deliberately has no
+     * sign-up form of its own: creating an organisation ends in plan selection and payment, which
+     * must not live inside the app (BILLING_COMPLIANCE.md). Host matches `branding.websiteUrl`. */
+    const val CREATE_ACCOUNT_URL = "https://proplyst.co.za/register"
 }
 
 /**

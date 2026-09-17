@@ -15,11 +15,19 @@ data class NotificationDto(
     @SerialName("related_entity_type") val relatedEntityType: String? = null,
     @SerialName("related_entity_id") val relatedEntityId: String? = null,
     @SerialName("read_at") val readAt: String? = null,
+    // Optional on purpose (2026-09-17): a backend that predates the dismissed_at column simply
+    // never sends it, and the feed then shows everything, exactly as it did before.
+    @SerialName("dismissed_at") val dismissedAt: String? = null,
     @SerialName("created_at") val createdAt: String,
 )
 
 @Serializable
 data class NotificationReadUpdate(@SerialName("read_at") val readAt: String)
+
+/** Hides one Activity entry from this user's own feed (2026-09-17). Never deletes the payment,
+ * invoice or ticket the notification describes. */
+@Serializable
+data class NotificationDismissUpdate(@SerialName("dismissed_at") val dismissedAt: String)
 
 /** Mirrors `notification_preferences` (same migration), RLS `notification_preferences_all_own`
  * (the caller can read/write their own rows directly -- no web-API layer needed). Phase 9. */

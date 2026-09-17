@@ -1,5 +1,62 @@
 # Worklog
 
+## 2026-09-17 — Android V1 cleanup: payment confirmation, Google sign-in, alert/activity clearing, screen styling
+
+Real-device testing on a Samsung found six things. Each one traced to a root cause before anything
+was changed.
+
+**Payment confirmation failed because an organisation had no chart of accounts.** "Confirm payment
+received" returned "could not be allocated ... it may already be fully paid", which was untrue: the
+invoice was issued, unpaid, and for the exact amount. Traced by running the RPC inside a transaction
+that always rolls back: `confirm_payment_report` → `record_invoice_payment` → `post_journal_entry`,
+which raises `chart_of_accounts_incomplete` because the "Ahmed Seedat" org has **zero**
+`chart_of_accounts` rows. `seed_chart_of_accounts()` only runs inside `create_organization()`, and
+the demo/provisioning scripts insert the org row directly, so three production orgs never got their
+accounts. Their 430 existing invoice_payments were seeded straight into the table, bypassing the
+ledger, which is why this never surfaced before. Migration 173 backfills any org with no accounts
+and gives that cause its own error code, so the message names something a person can act on.
+`record_invoice_payment` itself is untouched -- no financial calculation changed.
+
+**Needs attention is a persisted table reconciled only by a scheduled job**, so an alert stayed on
+screen until the next run. Confirm/reject now re-run reconciliation for that org, unawaited: the
+first version awaited it and pushed the route past its own 5-second test timeout, which is exactly
+the delay the user would have felt on the button.
+
+**Acknowledge vs dismiss.** `dismissed_at` is the reconciler's own "no longer true" marker, so
+reusing it for "the user dismissed this" meant a still-true condition was re-inserted as a new row
+minutes later. `acknowledged_at` (migration 173) is the separate, honest state: hidden from the
+feed, still unresolved, and back the moment the alert's severity or message changes. Overdue rent
+stays overdue either way -- neither action touches an invoice.
+
+**Activity dismissal** hides one row of `notifications`, which is already per-user. The payment,
+invoice or ticket it describes is untouched. The app filters dismissed entries client-side rather
+than in the query, so it keeps working against a backend that does not have the column yet -- caught
+on the emulator, where the server-side filter broke the whole feed.
+
+**Google sign-in said "No Google account is available on this device" on a phone that had several.**
+`GetGoogleIdOption` is the quiet one-tap variant and answers `NoCredentialException` when it has
+nothing to offer -- including when the build's signing certificate is not registered against the
+Android OAuth client. The explicit button now uses `GetSignInWithGoogleOption`, which always opens
+the account chooser, with the old option as a fallback, and the message no longer asserts a cause
+the app cannot actually know.
+
+**Styling.** The record screens used Material's stock `ListItem` and raw `MaterialTheme` colours.
+The shared `StatusChip` and the loading/empty/error views now use Proplyst tokens, which lifts every
+screen that already called them, and Invoices, Payments, Payment review, Maintenance (list and
+detail), Tenants, Notices, Summary, Documents and Activity moved onto shared Proplyst cards. No
+screen invents data it does not have.
+
+**Bottom navigation overlap.** Home and Tenant home reserved 64/70 dp under a floating bar that
+needs more; Properties, Tenant profile and More reserved none. All now clear it.
+
+Verified: 356 Android unit tests (10 new), lint 0 errors, release build; 89 pgTAP assertions across
+four payment suites including a new one for this bug; 12 reconcile integration tests (2 new); admin
+typecheck clean. On the emulator: the Google button and "Create account" both render and the link
+opens proplyst.co.za/register, Activity and Maintenance render as Proplyst cards, both overflow
+menus work, and a refused dismissal restores the row instead of losing it.
+
+**Not deployed.** Migration 173 is applied locally only, and nothing is pushed.
+
 ## 2026-09-16 — "Continue with Google" on Android (1.0.1, versionCode 2)
 
 1.0.0 reached Play Internal Testing, and real-device testing found the sign-in screen had no Google

@@ -11,10 +11,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -36,6 +34,25 @@ import za.co.proplyst.app.data.notifications.AppNotification
 import za.co.proplyst.app.ui.common.EmptyStateView
 import za.co.proplyst.app.ui.common.ErrorStateView
 import za.co.proplyst.app.ui.common.LoadingView
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
+import za.co.proplyst.app.ui.common.relativeTimeLabel
+import za.co.proplyst.app.ui.theme.ProplystTheme
 
 /** In-app notification centre (Android V1 final gap-closure pass, WORKLOG.md this date, Phase
  * 7). RLS (`notifications_select_own`) scopes this to the caller's own notifications regardless
@@ -100,8 +117,9 @@ fun NotificationsListScreen(
             // squeezed to an 11 dp-wide sliver, and simply could not be tapped: the lease-expiry row
             // was unreachable on the emulator no matter how far the list was scrolled.
             is NotificationsUiState.Loaded -> LazyColumn(
-                modifier = Modifier.padding(padding),
-                contentPadding = PaddingValues(bottom = 96.dp),
+                modifier = Modifier.padding(padding).background(ProplystTheme.colors.background),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 96.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 items(state.notifications, key = { it.id }) { notification ->
                     val destination = destinationForNotification(notification)
@@ -114,8 +132,8 @@ fun NotificationsListScreen(
                             viewModel.markRead(notification.id)
                             (destination as? AttentionDestination.Route)?.let { onOpenRoute(it.route) }
                         },
+                        onDismiss = { viewModel.dismiss(notification.id) },
                     )
-                    HorizontalDivider()
                 }
             }
         }
@@ -135,30 +153,81 @@ private fun NotificationRow(
     notification: AppNotification,
     hasDestination: Boolean,
     onClick: () -> Unit,
+    onDismiss: () -> Unit,
 ) {
+    val colors = ProplystTheme.colors
+    val type = ProplystTheme.type
     val unread = notification.readAt == null
-    ListItem(
-        headlineContent = {
-            Text(notification.title, fontWeight = if (unread) FontWeight.Bold else FontWeight.Normal)
-        },
-        supportingContent = notification.body?.let { { Text(it) } },
-        trailingContent = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(notification.createdAt.take(10), style = MaterialTheme.typography.bodySmall)
-                // The one affordance added here: a chevron, only on rows that actually lead
-                // somewhere, so "tappable" is visible without decorating every row in the feed.
-                if (hasDestination) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                        contentDescription = null,
-                        modifier = Modifier.padding(start = 4.dp),
+    var menuOpen by remember { mutableStateOf(false) }
+
+    Surface(
+        color = colors.surface,
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+    ) {
+        Row(
+            verticalAlignment = Alignment.Top,
+            modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp, horizontal = 16.dp),
+        ) {
+            // Unread marker in the Proplyst accent, in place of the old full-row grey fill.
+            Box(
+                modifier = Modifier
+                    .padding(top = 5.dp)
+                    .size(8.dp)
+                    .background(if (unread) colors.primary else Color.Transparent, CircleShape),
+            )
+            Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
+                Text(
+                    notification.title,
+                    style = type.cardTitle,
+                    color = colors.textPrimary,
+                    fontWeight = if (unread) FontWeight.SemiBold else FontWeight.Medium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                notification.body?.let { body ->
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(
+                        body,
+                        style = type.body,
+                        color = colors.textSecondary,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    relativeTimeLabel(notification.createdAt),
+                    style = type.meta,
+                    color = colors.textTertiary,
+                    maxLines = 1,
+                )
+            }
+            if (hasDestination) {
+                Icon(
+                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = colors.textSecondary,
+                    modifier = Modifier.padding(start = 4.dp, top = 2.dp),
+                )
+            }
+            Box {
+                IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Filled.MoreVert, contentDescription = "Activity options", tint = colors.textSecondary)
+                }
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    // Hides this entry for this user only. The payment, invoice or ticket it
+                    // describes is untouched -- clearing "Partial rent received" never deletes the
+                    // payment.
+                    DropdownMenuItem(
+                        text = { Text("Dismiss", style = type.body) },
+                        onClick = {
+                            menuOpen = false
+                            onDismiss()
+                        },
                     )
                 }
             }
-        },
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(if (unread) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface)
-            .clickable(onClick = onClick),
-    )
+        }
+    }
 }

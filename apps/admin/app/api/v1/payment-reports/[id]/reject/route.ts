@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { paymentReportRejectSchema } from '@propvault/validation';
 import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { writeAuditEvent } from '@/lib/audit';
+import { refreshOrgInsights } from '@/lib/insightsRefresh';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -89,6 +90,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     entityId: id,
     after: { reason: parsed.data.reason },
   });
+
+  // Same reason as the confirm route: a rejected report is no longer awaiting review, so the
+  // Needs-attention alert should go now rather than at the next scheduled reconciliation.
+  refreshOrgInsights(report?.org_id ?? null);
 
   return NextResponse.json({ rejected: true });
 }

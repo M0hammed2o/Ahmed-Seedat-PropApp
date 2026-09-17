@@ -29,6 +29,19 @@ sealed interface PortfolioInsightsResult {
     data class Error(val message: String) : PortfolioInsightsResult
 }
 
+/** Outcome of taking an alert off the Needs-attention feed. */
+sealed interface AlertActionResult {
+    data object Success : AlertActionResult
+    data class Error(val message: String) : AlertActionResult
+}
+
 interface PortfolioInsightsRepository {
     suspend fun getPortfolioInsights(orgId: String): PortfolioInsightsResult
+
+    /** Hides an alert the user does not want to see again. */
+    suspend fun dismiss(insightId: String): AlertActionResult
+
+    /** Marks an alert whose condition is STILL true as seen. The rent stays overdue, the ticket
+     * stays open; only the reminder goes, and it returns if the alert materially changes. */
+    suspend fun acknowledge(insightId: String): AlertActionResult
 }

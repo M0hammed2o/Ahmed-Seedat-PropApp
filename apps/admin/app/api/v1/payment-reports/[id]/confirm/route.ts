@@ -8,6 +8,7 @@ import {
 import { buildPaymentReceivedConfirmationVariables } from '@/lib/whatsappTemplateVariables';
 import { getAppUrl } from '@/lib/appUrl';
 import { writeAuditEvent } from '@/lib/audit';
+import { refreshOrgInsights } from '@/lib/insightsRefresh';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -62,9 +63,14 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     const message =
       result.error_code === 'invoice_not_issued'
         ? 'This payment references a rent period that has not been invoiced yet -- issue the invoice first, then confirm this report.'
-        : result.error_code === 'ledger_allocation_failed'
-          ? 'This payment could not be allocated against the invoice (it may already be fully paid, or the amount does not match the outstanding balance). No changes were made.'
-          : 'Could not confirm this payment report.';
+        : result.error_code === 'chart_of_accounts_incomplete'
+          ? // 2026-09-17: previously reported as ledger_allocation_failed, whose message blamed the
+            // invoice. The real cause is an organisation with no ledger accounts to post to, which
+            // support can fix; saying so is the difference between an actionable error and a dead end.
+            'This organisation has no ledger accounts set up yet, so the payment cannot be posted. Contact Proplyst support to finish the accounting setup. No changes were made.'
+          : result.error_code === 'ledger_allocation_failed'
+            ? 'This payment could not be allocated against the invoice (it may already be fully paid, or the amount does not match the outstanding balance). No changes were made.'
+            : 'Could not confirm this payment report.';
     return NextResponse.json(
       {
         error: {
@@ -131,6 +137,12 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       );
     }
   }
+
+  // Needs-attention is a persisted table reconciled by a scheduled job, so without this the
+  // "1 payment is awaiting your confirmation" alert stayed on the dashboard until the next run --
+  // the exact complaint from real-device testing (2026-09-17). Re-running it for this org alone
+  // resolves that alert now. Never blocks or fails the confirmation, which already committed.
+  refreshOrgInsights(result.org_id);
 
   return NextResponse.json({
     confirmed: true,

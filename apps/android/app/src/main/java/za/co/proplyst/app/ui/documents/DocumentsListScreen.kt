@@ -10,9 +10,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -29,6 +27,13 @@ import za.co.proplyst.app.data.documents.TenantDocument
 import za.co.proplyst.app.ui.common.EmptyStateView
 import za.co.proplyst.app.ui.common.ErrorStateView
 import za.co.proplyst.app.ui.common.LoadingView
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Surface
+import za.co.proplyst.app.ui.common.ProplystListPadding
+import za.co.proplyst.app.ui.common.ProplystListSpacing
+import za.co.proplyst.app.ui.common.ProplystRecordCard
+import za.co.proplyst.app.ui.theme.ProplystTheme
 
 /** Tenant "Documents" (Android V1 final gap-closure pass, WORKLOG.md this date, Phase 5) --
  * RLS scopes the list to only documents explicitly tagged with this tenant's own lease (see
@@ -65,19 +70,29 @@ fun DocumentsListScreen(viewModel: DocumentsViewModel = hiltViewModel()) {
                 onRetry = viewModel::load,
                 modifier = Modifier.padding(padding),
             )
-            is DocumentsUiState.Loaded -> LazyColumn(modifier = Modifier.padding(padding)) {
+            is DocumentsUiState.Loaded -> LazyColumn(
+                modifier = Modifier.padding(padding).background(ProplystTheme.colors.background),
+                contentPadding = ProplystListPadding,
+                verticalArrangement = ProplystListSpacing,
+            ) {
                 if (openError != null) {
                     item {
-                        Text(
-                            openError.orEmpty(),
-                            color = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.padding(16.dp),
-                        )
+                        Surface(
+                            color = ProplystTheme.colors.criticalBg,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                        ) {
+                            Text(
+                                openError.orEmpty(),
+                                style = ProplystTheme.type.body,
+                                color = ProplystTheme.colors.criticalDeep,
+                                modifier = Modifier.padding(12.dp),
+                            )
+                        }
                     }
                 }
                 items(state.documents, key = { it.id }) { document ->
                     DocumentRow(document, onClick = { viewModel.openDocument(document.id) })
-                    HorizontalDivider()
                 }
             }
         }
@@ -86,12 +101,9 @@ fun DocumentsListScreen(viewModel: DocumentsViewModel = hiltViewModel()) {
 
 @Composable
 private fun DocumentRow(document: TenantDocument, onClick: () -> Unit) {
-    ListItem(
-        leadingContent = { Icon(Icons.Filled.Description, contentDescription = null) },
-        headlineContent = { Text(document.originalFileName ?: "Document") },
-        supportingContent = document.documentType?.let { { Text(it.replace('_', ' ')) } },
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
+    ProplystRecordCard(
+        title = document.originalFileName ?: "Document",
+        meta = document.documentType?.replace('_', ' ')?.replaceFirstChar { it.uppercase() },
+        onClick = onClick,
     )
 }

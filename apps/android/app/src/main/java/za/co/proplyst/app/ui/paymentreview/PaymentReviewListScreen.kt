@@ -10,8 +10,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -33,6 +31,26 @@ import za.co.proplyst.app.data.paymentreports.PaymentReport
 import za.co.proplyst.app.ui.common.EmptyStateView
 import za.co.proplyst.app.ui.common.ErrorStateView
 import za.co.proplyst.app.ui.common.LoadingView
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Surface
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
+import za.co.proplyst.app.ui.common.ProplystListPadding
+import za.co.proplyst.app.ui.common.ProplystListSpacing
+import za.co.proplyst.app.ui.common.StatusChip
+import za.co.proplyst.app.ui.common.toneForStatus
+import za.co.proplyst.app.ui.theme.ProplystPillShape
+import za.co.proplyst.app.ui.theme.ProplystTheme
 
 /** Owner/staff "Payment reports" review (Android V1 final gap-closure pass, WORKLOG.md this
  * date, Phase 3). Confirm/reject never touches the ledger on-device -- both call the same RPC-
@@ -60,19 +78,29 @@ fun PaymentReviewListScreen(viewModel: PaymentReviewViewModel = hiltViewModel())
     Scaffold(
         topBar = { TopAppBar(title = { Text("Payment reports") }) },
     ) { padding ->
-        Column(modifier = Modifier.padding(padding)) {
+        Column(modifier = Modifier.padding(padding).background(ProplystTheme.colors.background)) {
             if (actionError != null) {
-                Text(
-                    actionError ?: "",
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(16.dp),
-                )
+                Surface(
+                    color = ProplystTheme.colors.criticalBg,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                ) {
+                    Text(
+                        actionError ?: "",
+                        style = ProplystTheme.type.body,
+                        color = ProplystTheme.colors.criticalDeep,
+                        modifier = Modifier.padding(12.dp),
+                    )
+                }
             }
             when (val state = uiState) {
                 is PaymentReviewUiState.Loading -> LoadingView()
                 is PaymentReviewUiState.Empty -> EmptyStateView(title = "No payment reports yet")
                 is PaymentReviewUiState.Error -> ErrorStateView(message = state.message, onRetry = viewModel::load)
-                is PaymentReviewUiState.Loaded -> LazyColumn {
+                is PaymentReviewUiState.Loaded -> LazyColumn(
+                    contentPadding = ProplystListPadding,
+                    verticalArrangement = ProplystListSpacing,
+                ) {
                     items(state.reports, key = { it.id }) { report ->
                         PaymentReviewRow(
                             report = report,
@@ -92,7 +120,6 @@ fun PaymentReviewListScreen(viewModel: PaymentReviewViewModel = hiltViewModel())
                             },
                             onOpenProof = { report.documentId?.let(viewModel::openDocument) },
                         )
-                        HorizontalDivider()
                     }
                 }
             }
@@ -121,58 +148,111 @@ private fun PaymentReviewRow(
     onConfirmReject: () -> Unit,
     onOpenProof: () -> Unit,
 ) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        ListItem(
-            headlineContent = { Text("R%.2f — ${report.tenantName ?: "Unknown tenant"}".format(report.amount)) },
-            supportingContent = {
-                Column {
-                    Text("${report.propertyName ?: "Unknown property"} · ${paymentMethodLabel(report.paymentMethod)} · ${report.paymentDate}")
+    val colors = ProplystTheme.colors
+    val type = ProplystTheme.type
+    val origin = when {
+        report.paymentMethod == "cash" && !report.reportedByTenant -> "Cash collected by staff on the tenant's behalf"
+        report.reportedByTenant -> "Reported by tenant"
+        else -> "Recorded by staff"
+    }
+
+    Surface(color = colors.surface, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        if (report.paymentMethod == "cash" && !report.reportedByTenant)
-                            "Cash collected by staff on the tenant's behalf"
-                        else if (report.reportedByTenant)
-                            "Reported by tenant"
-                        else
-                            "Recorded by staff",
-                        style = MaterialTheme.typography.bodySmall,
+                        "R%.2f".format(report.amount),
+                        style = type.settingsTitle,
+                        color = colors.textPrimary,
+                        maxLines = 1,
                     )
-                    if (report.status == "rejected" && report.rejectionReason != null) {
-                        Text(
-                            "Rejected: ${report.rejectionReason}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error,
-                        )
-                    } else if (report.status == "confirmed") {
-                        Text(
-                            "Confirmed",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
+                    Text(
+                        report.tenantName ?: "Unknown tenant",
+                        style = type.body,
+                        color = colors.textSecondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                StatusChip(
+                    label = when (report.status) {
+                        "confirmed" -> "Confirmed"
+                        "rejected" -> "Rejected"
+                        else -> "Awaiting confirmation"
+                    },
+                    tone = toneForStatus(report.status),
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                "${report.propertyName ?: "Unknown property"} · ${paymentMethodLabel(report.paymentMethod)} · ${report.paymentDate}",
+                style = type.meta,
+                color = colors.textSecondary,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(origin, style = type.meta, color = colors.textTertiary, maxLines = 1)
+            if (report.status == "rejected" && report.rejectionReason != null) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text("Rejected: ${report.rejectionReason}", style = type.meta, color = colors.criticalDeep)
+            }
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(top = 12.dp),
+            ) {
+                if (report.documentId != null) {
+                    TextButton(onClick = onOpenProof, contentPadding = PaddingValues(horizontal = 8.dp)) {
+                        Text("View proof", style = type.buttonSecondary, color = colors.primary)
                     }
                 }
-            },
-        )
-        Row(modifier = Modifier.padding(start = 16.dp, bottom = 8.dp)) {
-            if (report.documentId != null) {
-                TextButton(onClick = onOpenProof) { Text("View proof") }
+                if (report.status == "reported") {
+                    // Disabled while the call is in flight, so a double tap cannot fire it twice.
+                    // The server is idempotent too (confirm_payment_report returns success without
+                    // re-allocating), so neither half depends on the other being perfect.
+                    Button(
+                        onClick = onConfirm,
+                        enabled = !busy,
+                        shape = ProplystPillShape,
+                        colors = ButtonDefaults.buttonColors(containerColor = colors.primary),
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        if (busy) {
+                            CircularProgressIndicator(
+                                strokeWidth = 2.dp,
+                                color = Color.White,
+                                modifier = Modifier.size(16.dp),
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                        Text(if (busy) "Confirming…" else "Confirm payment received", style = type.button, maxLines = 1)
+                    }
+                    TextButton(onClick = onStartReject, enabled = !busy, contentPadding = PaddingValues(horizontal = 8.dp)) {
+                        Text("Reject", style = type.buttonSecondary, color = colors.textSecondary)
+                    }
+                }
             }
-            if (report.status == "reported") {
-                Button(onClick = onConfirm, enabled = !busy) { Text("Confirm payment received") }
-                TextButton(onClick = onStartReject, enabled = !busy) { Text("Reject") }
-            }
-        }
-        if (rejecting) {
-            Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+
+            if (rejecting) {
                 OutlinedTextField(
                     value = rejectReason,
                     onValueChange = onRejectReasonChange,
-                    label = { Text("Reason for rejecting") },
-                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Reason for rejecting", style = type.meta) },
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                 )
-            }
-            Row(modifier = Modifier.padding(start = 16.dp, bottom = 8.dp)) {
-                Button(onClick = onConfirmReject) { Text("Confirm rejection") }
-                TextButton(onClick = onCancelReject) { Text("Cancel") }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+                    Button(
+                        onClick = onConfirmReject,
+                        shape = ProplystPillShape,
+                        colors = ButtonDefaults.buttonColors(containerColor = colors.critical),
+                    ) {
+                        Text("Confirm rejection", style = type.button)
+                    }
+                    TextButton(onClick = onCancelReject) {
+                        Text("Cancel", style = type.buttonSecondary, color = colors.textSecondary)
+                    }
+                }
             }
         }
     }

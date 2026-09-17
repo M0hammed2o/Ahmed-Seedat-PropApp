@@ -20,6 +20,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.background
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.ui.text.style.TextAlign
+import za.co.proplyst.app.ui.theme.ProplystPillShape
+import za.co.proplyst.app.ui.theme.ProplystTheme
 
 // DESIGN_SYSTEM.md "Empty states"/"Error states"/"Loading states", NATIVE_ANDROID_SPEC.md §4's
 // component-mapping table -- one shared implementation per state, reused by every screen rather
@@ -27,8 +32,11 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun LoadingView(modifier: Modifier = Modifier) {
-    Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator()
+    Box(
+        modifier = modifier.fillMaxSize().background(ProplystTheme.colors.background),
+        contentAlignment = Alignment.Center,
+    ) {
+        CircularProgressIndicator(color = ProplystTheme.colors.primary)
     }
 }
 
@@ -39,22 +47,28 @@ fun EmptyStateView(
     modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = modifier.fillMaxSize().padding(32.dp),
+        modifier = modifier.fillMaxSize().background(ProplystTheme.colors.background).padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
         Icon(
             imageVector = Icons.Filled.Inbox,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            tint = ProplystTheme.colors.textTertiary,
             modifier = Modifier.padding(bottom = 12.dp),
         )
-        Text(title, style = MaterialTheme.typography.titleLarge)
+        Text(
+            title,
+            style = ProplystTheme.type.cardTitle,
+            color = ProplystTheme.colors.textPrimary,
+            textAlign = TextAlign.Center,
+        )
         if (description != null) {
             Text(
                 description,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = ProplystTheme.type.body,
+                color = ProplystTheme.colors.textSecondary,
+                textAlign = TextAlign.Center,
                 modifier = Modifier.padding(top = 4.dp),
             )
         }
@@ -68,19 +82,29 @@ fun ErrorStateView(
     modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = modifier.fillMaxSize().padding(32.dp),
+        modifier = modifier.fillMaxSize().background(ProplystTheme.colors.background).padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
         Icon(
             imageVector = Icons.Filled.ErrorOutline,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.error,
+            tint = ProplystTheme.colors.critical,
             modifier = Modifier.padding(bottom = 12.dp),
         )
-        Text(message, style = MaterialTheme.typography.titleLarge)
-        Button(onClick = onRetry, modifier = Modifier.padding(top = 16.dp)) {
-            Text("Retry")
+        Text(
+            message,
+            style = ProplystTheme.type.cardTitle,
+            color = ProplystTheme.colors.textPrimary,
+            textAlign = TextAlign.Center,
+        )
+        Button(
+            onClick = onRetry,
+            shape = ProplystPillShape,
+            colors = ButtonDefaults.buttonColors(containerColor = ProplystTheme.colors.primary),
+            modifier = Modifier.padding(top = 16.dp),
+        ) {
+            Text("Retry", style = ProplystTheme.type.button)
         }
     }
 }
@@ -93,25 +117,9 @@ fun ErrorStateView(
  * status this app doesn't know about yet. */
 @Composable
 fun StatusChip(status: String, modifier: Modifier = Modifier) {
-    val (container, content) = when (status) {
-        "Paid", "confirmed" -> MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
-        "Overdue", "rejected" -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
-        "Partially paid", "reported" -> MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
-        "Void" -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
-        else -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
-    }
-    Surface(
-        color = container,
-        contentColor = content,
-        shape = RoundedCornerShape(50),
-        modifier = modifier,
-    ) {
-        Text(
-            status,
-            style = MaterialTheme.typography.labelSmall,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-        )
-    }
+    // 2026-09-17: was Material's generic container colours, which is a large part of why the record
+    // screens read as plain Android pages next to Home. Same signature, same labels, Proplyst tones.
+    StatusChip(label = status, tone = toneForStatus(status), modifier = modifier)
 }
 
 /** NATIVE_ANDROID_SPEC.md §7/§8: "never silently stale" -- a persistent, visible banner whenever

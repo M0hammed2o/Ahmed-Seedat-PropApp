@@ -29,11 +29,14 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  // Acknowledged alerts are hidden from the feed but remain unresolved in the table (2026-09-17):
+  // acknowledging says "I have seen this", never "this is fixed". Overdue rent stays overdue.
   const { data, error } = await supabase
     .from('portfolio_insights')
     .select('*')
     .eq('org_id', orgId)
     .is('dismissed_at', null)
+    .is('acknowledged_at', null)
     .order('severity', { ascending: false })
     .order('generated_at', { ascending: false });
 

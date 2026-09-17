@@ -18,6 +18,7 @@ import za.co.proplyst.app.data.auth.SessionManager
 import za.co.proplyst.app.data.financials.FinancialSummary
 import za.co.proplyst.app.data.financials.FinancialSummaryRepository
 import za.co.proplyst.app.data.financials.FinancialSummaryResult
+import za.co.proplyst.app.data.insights.AlertActionResult
 import za.co.proplyst.app.data.insights.PortfolioInsight
 import za.co.proplyst.app.data.insights.PortfolioInsightsRepository
 import za.co.proplyst.app.data.insights.PortfolioInsightsResult
@@ -247,6 +248,70 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch {
             if (notificationsRepository.markRead(id) is MarkReadResult.Error) {
                 if (_recentActivity.value.firstOrNull { it.id == id }?.readAt == optimisticAt) apply(null)
+            }
+        }
+    }
+
+    /**
+     * Take one alert off the Needs-attention feed (2026-09-17).
+     *
+     * [acknowledge] = the condition is still true and the user has seen it; false = dismiss it
+     * outright. Neither touches business data: an overdue invoice stays overdue and unpaid either
+     * way, which is why acknowledging is offered at all rather than a single "clear" that would
+     * imply the problem was handled.
+     *
+     * Removed from the list straight away so the tap feels immediate, and put back if the server
+     * refuses, so the feed never quietly disagrees with what Proplyst actually knows.
+     */
+    fun resolveAlert(insightId: String, acknowledge: Boolean) {
+        val current = _insightsUiState.value as? InsightsUiState.Loaded ?: return
+        val target = current.insights.firstOrNull { it.id == insightId } ?: return
+        val remaining = current.insights.filterNot { it.id == insightId }
+        _insightsUiState.value = if (remaining.isEmpty()) InsightsUiState.Empty else InsightsUiState.Loaded(remaining)
+
+        viewModelScope.launch {
+            val result = if (acknowledge) {
+                insightsRepository.acknowledge(insightId)
+            } else {
+                insightsRepository.dismiss(insightId)
+            }
+            if (result is AlertActionResult.Error) {
+                // Put it back where it was, so the order the server sent is preserved.
+                val now = (_insightsUiState.value as? InsightsUiState.Loaded)?.insights ?: emptyList()
+                _insightsUiState.value = InsightsUiState.Loaded(
+                    current.insights.filter { it.id == insightId || now.any { kept -> kept.id == it.id } },
+                )
+                _alertActionError.value = result.message
+            }
+        }
+    }
+
+    /** One-shot message for an alert action that the server refused. */
+    private val _alertActionError = MutableStateFlow<String?>(null)
+    val alertActionError: StateFlow<String?> = _alertActionError.asStateFlow()
+
+    fun consumeAlertActionError() {
+        _alertActionError.value = null
+    }
+
+    /**
+     * Hide one Activity entry from this user's own feed. The payment, invoice or ticket it
+     * describes is untouched, and nobody else's feed changes -- notifications rows are per-user.
+     */
+    fun dismissActivity(id: String) {
+        if (_recentActivity.value.none { it.id == id }) return
+        val before = _recentActivity.value
+        _recentActivity.value = before.filterNot { it.id == id }
+        _hasUnread.value = _recentActivity.value.any { it.readAt == null }
+
+        viewModelScope.launch {
+            if (notificationsRepository.dismiss(id) is MarkReadResult.Error) {
+                _recentActivity.value = before
+                _hasUnread.value = before.any { it.readAt == null }
+                _alertActionError.value = "Couldn't dismiss that activity item. Try again."
+            } else {
+                // Backfill the list so the feed does not shrink permanently after a dismissal.
+                fetchRecentActivity()
             }
         }
     }

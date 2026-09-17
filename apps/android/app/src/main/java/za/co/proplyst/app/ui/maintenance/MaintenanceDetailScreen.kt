@@ -16,10 +16,8 @@ import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -37,6 +35,21 @@ import za.co.proplyst.app.data.documents.TenantDocument
 import za.co.proplyst.app.ui.common.EmptyStateView
 import za.co.proplyst.app.ui.common.ErrorStateView
 import za.co.proplyst.app.ui.common.LoadingView
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Surface
+import za.co.proplyst.app.ui.common.ProplystDetailPadding
+import za.co.proplyst.app.ui.common.ProplystListSpacing
+import za.co.proplyst.app.ui.common.ProplystRecordCard
+import za.co.proplyst.app.ui.common.ProplystSectionLabel
+import za.co.proplyst.app.ui.common.StatusChip
+import za.co.proplyst.app.ui.common.StatusTone
+import za.co.proplyst.app.ui.common.relativeTimeLabel
+import za.co.proplyst.app.ui.common.toneForStatus
+import za.co.proplyst.app.ui.theme.ProplystTheme
 
 /** Android V1 last local blocker pass (WORKLOG.md this date): attachments section added below
  * the ticket details. Opens files via OpenDocument (not GetContent), same reasoning
@@ -86,28 +99,70 @@ fun MaintenanceDetailScreen(
                 title = "Ticket not found",
                 modifier = Modifier.padding(padding),
             )
-            is MaintenanceDetailUiState.Loaded -> LazyColumn(modifier = Modifier.padding(padding)) {
+            is MaintenanceDetailUiState.Loaded -> LazyColumn(
+                modifier = Modifier.padding(padding).background(ProplystTheme.colors.background),
+                contentPadding = ProplystDetailPadding,
+                verticalArrangement = ProplystListSpacing,
+            ) {
                 item {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(state.ticket.summary, style = MaterialTheme.typography.headlineMedium)
-                        DetailRow(label = "Priority", value = state.ticket.priority.replace('_', ' '))
-                        DetailRow(label = "Status", value = state.ticket.status.replace('_', ' '))
-                        if (!state.ticket.description.isNullOrBlank()) {
-                            DetailRow(label = "Description", value = state.ticket.description)
+                    Surface(color = ProplystTheme.colors.surface, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                state.ticket.summary,
+                                style = ProplystTheme.type.settingsTitle,
+                                color = ProplystTheme.colors.textPrimary,
+                            )
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier.padding(top = 10.dp),
+                            ) {
+                                val priority = state.ticket.priority.replace('_', ' ')
+                                val status = state.ticket.status.replace('_', ' ')
+                                StatusChip(
+                                    label = priority.replaceFirstChar { it.uppercase() },
+                                    tone = when (priority.lowercase()) {
+                                        "urgent", "high" -> StatusTone.CRITICAL
+                                        "medium" -> StatusTone.WARNING
+                                        else -> StatusTone.NEUTRAL
+                                    },
+                                )
+                                StatusChip(label = status.replaceFirstChar { it.uppercase() }, tone = toneForStatus(status))
+                            }
+                            Text(
+                                "Reported ${relativeTimeLabel(state.ticket.createdAt)}",
+                                style = ProplystTheme.type.meta,
+                                color = ProplystTheme.colors.textTertiary,
+                                modifier = Modifier.padding(top = 8.dp),
+                            )
+                            if (!state.ticket.description.isNullOrBlank()) {
+                                Text(
+                                    state.ticket.description,
+                                    style = ProplystTheme.type.body,
+                                    color = ProplystTheme.colors.textSecondary,
+                                    modifier = Modifier.padding(top = 10.dp),
+                                )
+                            }
                         }
+                    }
+                }
 
-                        Text(
-                            "Photos & files",
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.padding(top = 20.dp, bottom = 4.dp),
-                        )
+                item {
+                    Column {
+                        ProplystSectionLabel("Photos & files")
 
                         if (uploadError != null) {
-                            Text(
-                                uploadError.orEmpty(),
-                                color = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.padding(bottom = 8.dp),
-                            )
+                            Surface(
+                                color = ProplystTheme.colors.criticalBg,
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                            ) {
+                                Text(
+                                    uploadError.orEmpty(),
+                                    style = ProplystTheme.type.body,
+                                    color = ProplystTheme.colors.criticalDeep,
+                                    modifier = Modifier.padding(12.dp),
+                                )
+                            }
                         }
 
                         OutlinedButton(
@@ -120,11 +175,15 @@ fun MaintenanceDetailScreen(
                             modifier = Modifier.fillMaxWidth(),
                         ) {
                             if (uploading) {
-                                CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp))
-                                Text("Uploading…")
+                                CircularProgressIndicator(
+                                    strokeWidth = 2.dp,
+                                    color = ProplystTheme.colors.primary,
+                                    modifier = Modifier.padding(end = 8.dp).size(16.dp),
+                                )
+                                Text("Uploading…", style = ProplystTheme.type.buttonSecondary)
                             } else {
                                 Icon(Icons.Filled.AttachFile, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
-                                Text("Attach a photo or file")
+                                Text("Attach a photo or file", style = ProplystTheme.type.buttonSecondary)
                             }
                         }
                     }
@@ -146,15 +205,14 @@ fun MaintenanceDetailScreen(
                             item {
                                 Text(
                                     "No photos or files attached yet.",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                    style = ProplystTheme.type.body,
+                                    color = ProplystTheme.colors.textTertiary,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
                                 )
                             }
                         } else {
                             items(attachState.attachments, key = { it.id }) { attachment ->
                                 AttachmentRow(attachment, onClick = { viewModel.openAttachment(attachment.id) })
-                                HorizontalDivider()
                             }
                         }
                     }
@@ -166,20 +224,12 @@ fun MaintenanceDetailScreen(
 
 @Composable
 private fun AttachmentRow(attachment: TenantDocument, onClick: () -> Unit) {
-    ListItem(
-        leadingContent = { Icon(Icons.Filled.Description, contentDescription = null) },
-        headlineContent = { Text(attachment.originalFileName ?: "Attachment") },
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
+    ProplystRecordCard(
+        title = attachment.originalFileName ?: "Attachment",
+        meta = attachment.documentType?.replace('_', ' ')?.replaceFirstChar { it.uppercase() },
+        onClick = onClick,
     )
 }
 
-@Composable
-private fun DetailRow(label: String, value: String) {
-    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value, style = MaterialTheme.typography.bodyLarge)
-    }
-}
+
 

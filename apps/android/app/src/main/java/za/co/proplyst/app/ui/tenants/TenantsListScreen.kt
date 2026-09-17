@@ -7,8 +7,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -21,6 +19,13 @@ import za.co.proplyst.app.ui.common.CachedDataBanner
 import za.co.proplyst.app.ui.common.EmptyStateView
 import za.co.proplyst.app.ui.common.ErrorStateView
 import za.co.proplyst.app.ui.common.LoadingView
+import androidx.compose.foundation.background
+import za.co.proplyst.app.ui.common.ProplystListPadding
+import za.co.proplyst.app.ui.common.ProplystListSpacing
+import za.co.proplyst.app.ui.common.ProplystRecordCard
+import za.co.proplyst.app.ui.common.StatusChip
+import za.co.proplyst.app.ui.common.toneForStatus
+import za.co.proplyst.app.ui.theme.ProplystTheme
 
 /** View-only, org-wide list -- mirrors apps/admin's own /tenants (not property-nested). */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -49,16 +54,25 @@ fun TenantsListScreen(
                 if (state.cachedAt != null) {
                     CachedDataBanner(relativeTime = state.cachedAt)
                 }
-                LazyColumn {
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth().background(ProplystTheme.colors.background),
+                    contentPadding = ProplystListPadding,
+                    verticalArrangement = ProplystListSpacing,
+                ) {
                     items(state.tenants, key = { it.id }) { tenant ->
-                        ListItem(
-                            headlineContent = { Text(tenant.fullName) },
-                            supportingContent = { Text(tenant.email ?: tenant.phone ?: "") },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onTenantClick(tenant.id) },
+                        ProplystRecordCard(
+                            title = tenant.fullName,
+                            // Whichever contact detail exists; nothing is shown when neither does.
+                            subtitle = tenant.email ?: tenant.phone,
+                            meta = tenant.phone?.takeIf { tenant.email != null },
+                            onClick = { onTenantClick(tenant.id) },
+                            chips = {
+                                StatusChip(
+                                    label = tenant.status.replace('_', ' ').replaceFirstChar { it.uppercase() },
+                                    tone = toneForStatus(tenant.status),
+                                )
+                            },
                         )
-                        HorizontalDivider()
                     }
                 }
             }

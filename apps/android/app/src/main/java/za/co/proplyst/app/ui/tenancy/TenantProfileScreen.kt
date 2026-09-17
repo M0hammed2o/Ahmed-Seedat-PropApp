@@ -73,7 +73,8 @@ fun TenantProfileScreen(
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         ProfileHeader(lease = lease)
-        LazyColumn(contentPadding = PaddingValues(20.dp)) {
+        // bottom clears the floating nav, which is drawn over this list.
+        LazyColumn(contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 96.dp)) {
             item { ProfileRow("My lease", "Property, unit, and lease status", Icons.Filled.Home, onMyLeaseClick) }
             item { ProfileRow("Documents", "Leases and other shared files", Icons.Filled.Description, onDocumentsClick) }
             item { ProfileRow("Notices", "Announcements from management", Icons.Filled.Notifications, onNoticesClick) }

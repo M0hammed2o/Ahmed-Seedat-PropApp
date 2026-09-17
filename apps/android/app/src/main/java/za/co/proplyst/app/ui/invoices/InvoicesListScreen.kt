@@ -8,8 +8,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -27,6 +25,11 @@ import za.co.proplyst.app.ui.common.EmptyStateView
 import za.co.proplyst.app.ui.common.LoadingView
 import za.co.proplyst.app.ui.common.StatusChip
 import za.co.proplyst.app.ui.common.formatCurrency
+import androidx.compose.foundation.background
+import za.co.proplyst.app.ui.common.ProplystListPadding
+import za.co.proplyst.app.ui.common.ProplystListSpacing
+import za.co.proplyst.app.ui.common.ProplystRecordCard
+import za.co.proplyst.app.ui.theme.ProplystTheme
 
 /** Invoice V1 completion pass (WORKLOG.md this date) -- the authoritative invoice/balance ledger,
  * a real, previously-missing V1 gap distinct from the tenant-REPORTED payment-claim workflow
@@ -58,10 +61,13 @@ fun InvoicesListScreen(
                 onRetry = viewModel::load,
                 modifier = Modifier.padding(padding),
             )
-            is InvoicesListUiState.Loaded -> LazyColumn(modifier = Modifier.padding(padding)) {
+            is InvoicesListUiState.Loaded -> LazyColumn(
+                modifier = Modifier.padding(padding).background(ProplystTheme.colors.background),
+                contentPadding = ProplystListPadding,
+                verticalArrangement = ProplystListSpacing,
+            ) {
                 items(state.invoices, key = { it.id }) { invoice ->
                     InvoiceRow(invoice = invoice, onClick = { onInvoiceClick(invoice.id) })
-                    HorizontalDivider()
                 }
             }
         }
@@ -70,61 +76,17 @@ fun InvoicesListScreen(
 
 @Composable
 private fun InvoiceRow(invoice: Invoice, onClick: () -> Unit) {
-    ListItem(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        headlineContent = {
-            Text(
-                invoice.invoiceNumber,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        },
-        supportingContent = {
-            Column {
-                // Long tenant/property/unit names truncate with an ellipsis rather than wrapping
-                // into a second/third line and pushing the amount/status column around --
-                // NATIVE_ANDROID_SPEC.md's own component-mapping table treats list rows as a
-                // fixed two-line shape.
-                Text(
-                    "${invoice.tenantName} · ${invoice.propertyNickname} ${invoice.unitLabel}",
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    invoice.description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        },
-        trailingContent = {
-            // The amount here is what is still owed, not the invoice total -- unlabelled, a settled
-            // invoice read as an inexplicable "R0" (visual QA, 2026-09-08). "Balance" is the word
-            // this invoice's own detail screen and the web invoice page both already use for it;
-            // "Outstanding" is reserved for totals across invoices.
-            val settled = invoice.balance <= 0.0
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    "Balance",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    "R${formatCurrency(invoice.balance)}",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = if (settled) {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    } else {
-                        MaterialTheme.colorScheme.onSurface
-                    },
-                )
-                StatusChip(invoice.displayStatus, modifier = Modifier.padding(top = 4.dp))
-            }
-        },
+    // The amount shown is what is still owed, not the invoice total -- unlabelled, a settled invoice
+    // read as an inexplicable "R0" (visual QA, 2026-09-08). "Balance" is the word this invoice's own
+    // detail screen and the web invoice page both use; "Outstanding" is reserved for totals across
+    // invoices.
+    ProplystRecordCard(
+        title = invoice.invoiceNumber,
+        subtitle = "${invoice.tenantName} · ${invoice.propertyNickname} ${invoice.unitLabel}",
+        meta = invoice.description,
+        amount = "R${formatCurrency(invoice.balance)}",
+        amountCaption = "Balance",
+        onClick = onClick,
+        chips = { StatusChip(invoice.displayStatus) },
     )
 }

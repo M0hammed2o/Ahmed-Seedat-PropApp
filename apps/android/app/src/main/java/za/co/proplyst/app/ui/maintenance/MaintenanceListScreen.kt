@@ -10,9 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -25,6 +23,15 @@ import za.co.proplyst.app.ui.common.CachedDataBanner
 import za.co.proplyst.app.ui.common.EmptyStateView
 import za.co.proplyst.app.ui.common.ErrorStateView
 import za.co.proplyst.app.ui.common.LoadingView
+import androidx.compose.foundation.background
+import za.co.proplyst.app.ui.common.ProplystListPadding
+import za.co.proplyst.app.ui.common.ProplystListSpacing
+import za.co.proplyst.app.ui.common.ProplystRecordCard
+import za.co.proplyst.app.ui.common.StatusChip
+import za.co.proplyst.app.ui.common.StatusTone
+import za.co.proplyst.app.ui.common.relativeTimeLabel
+import za.co.proplyst.app.ui.common.toneForStatus
+import za.co.proplyst.app.ui.theme.ProplystTheme
 
 /** RLS (`maintenance_tickets_select_tenant_self`/`_select_staff_or_owner`) scopes this list to
  * whatever the caller is allowed to see -- org-wide for staff/owner, own tickets only for a
@@ -65,18 +72,41 @@ fun MaintenanceListScreen(
                 if (state.cachedAt != null) {
                     CachedDataBanner(relativeTime = state.cachedAt)
                 }
-                LazyColumn {
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth().background(ProplystTheme.colors.background),
+                    contentPadding = ProplystListPadding,
+                    verticalArrangement = ProplystListSpacing,
+                ) {
                     items(state.tickets, key = { it.id }) { ticket ->
-                        ListItem(
-                            headlineContent = { Text(ticket.summary) },
-                            supportingContent = {
-                                Text("${ticket.priority.replace('_', ' ')} — ${ticket.status.replace('_', ' ')}")
+                        val priority = ticket.priority.replace('_', ' ')
+                        val status = ticket.status.replace('_', ' ')
+                        ProplystRecordCard(
+                            title = ticket.summary,
+                            // Only what the ticket actually carries: no property name is available
+                            // on this payload, so none is invented.
+                            subtitle = ticket.description?.takeIf { it.isNotBlank() },
+                            meta = "Reported ${relativeTimeLabel(ticket.createdAt)}",
+                            accent = when (priority.lowercase()) {
+                                "urgent", "high" -> ProplystTheme.colors.critical
+                                "medium" -> ProplystTheme.colors.warning
+                                else -> ProplystTheme.colors.primary
                             },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onTicketClick(ticket.id) },
+                            onClick = { onTicketClick(ticket.id) },
+                            chips = {
+                                StatusChip(
+                                    label = priority.replaceFirstChar { it.uppercase() },
+                                    tone = when (priority.lowercase()) {
+                                        "urgent", "high" -> StatusTone.CRITICAL
+                                        "medium" -> StatusTone.WARNING
+                                        else -> StatusTone.NEUTRAL
+                                    },
+                                )
+                                StatusChip(
+                                    label = status.replaceFirstChar { it.uppercase() },
+                                    tone = toneForStatus(status),
+                                )
+                            },
                         )
-                        HorizontalDivider()
                     }
                 }
             }

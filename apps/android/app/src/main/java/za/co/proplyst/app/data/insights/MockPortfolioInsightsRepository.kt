@@ -21,4 +21,8 @@ class MockPortfolioInsightsRepository @Inject constructor() : PortfolioInsightsR
         delay(300)
         return PortfolioInsightsResult.Loaded(insights)
     }
+
+    override suspend fun dismiss(insightId: String): AlertActionResult = AlertActionResult.Success
+
+    override suspend fun acknowledge(insightId: String): AlertActionResult = AlertActionResult.Success
 }

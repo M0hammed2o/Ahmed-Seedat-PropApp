@@ -191,6 +191,90 @@ describeIfSupabase('reconcilePortfolioInsights (real local Supabase integration)
     expect(insight!.dismissed_at).not.toBeNull();
   });
 
+  // Acknowledging is for an alert that is STILL true -- the person has seen it, the rent is still
+  // overdue (2026-09-17). Before acknowledged_at existed, the only way to take such an alert off the
+  // feed was dismissed_at, which the reconciler treats as "no longer true", so the very next run
+  // inserted the condition again as a brand-new row and the alert came straight back.
+  it('keeps an acknowledged alert acknowledged while the condition is unchanged, and never duplicates it', async () => {
+    await serviceClient.from('rent_schedules').insert({
+      org_id: orgId,
+      lease_id: leaseId,
+      due_date: '2026-01-01',
+      amount: 4000,
+      status: 'overdue',
+    });
+    await reconcilePortfolioInsights(serviceClient, orgId);
+
+    const { data: raised } = await serviceClient
+      .from('portfolio_insights')
+      .select('id')
+      .eq('org_id', orgId)
+      .single();
+    await serviceClient
+      .from('portfolio_insights')
+      .update({ acknowledged_at: new Date().toISOString() })
+      .eq('id', raised!.id);
+
+    const result = await reconcilePortfolioInsights(serviceClient, orgId);
+
+    expect(result.inserted).toBe(0);
+    expect(result.autoResolved).toBe(0);
+    const { data: rows } = await serviceClient
+      .from('portfolio_insights')
+      .select('id, acknowledged_at, dismissed_at')
+      .eq('org_id', orgId);
+    expect(rows).toHaveLength(1);
+    const kept = rows![0]!;
+    expect(kept.acknowledged_at).not.toBeNull();
+    // Still unresolved: acknowledging never says the rent was paid.
+    expect(kept.dismissed_at).toBeNull();
+  });
+
+  it('brings an acknowledged alert back when it materially changes', async () => {
+    const { data: schedule } = await serviceClient
+      .from('rent_schedules')
+      .insert({
+        org_id: orgId,
+        lease_id: leaseId,
+        due_date: '2026-01-01',
+        amount: 4000,
+        status: 'overdue',
+      })
+      .select('id')
+      .single();
+    await reconcilePortfolioInsights(serviceClient, orgId);
+
+    const { data: raised } = await serviceClient
+      .from('portfolio_insights')
+      .select('id')
+      .eq('org_id', orgId)
+      .single();
+    await serviceClient
+      .from('portfolio_insights')
+      .update({ acknowledged_at: new Date().toISOString() })
+      .eq('id', raised!.id);
+
+    // The same alert now says something different -- more days overdue, a bigger amount. Simulated
+    // by staling the stored message, which is exactly the state the reconciler compares against.
+    await serviceClient
+      .from('portfolio_insights')
+      .update({ message: 'Rent overdue (an earlier, now-outdated wording)' })
+      .eq('id', raised!.id);
+
+    await reconcilePortfolioInsights(serviceClient, orgId);
+
+    const { data: rows } = await serviceClient
+      .from('portfolio_insights')
+      .select('id, acknowledged_at, message')
+      .eq('org_id', orgId)
+      .eq('id', raised!.id);
+    // Back in the feed: what the user acknowledged is no longer what the alert says.
+    const refreshed = rows![0]!;
+    expect(refreshed.acknowledged_at).toBeNull();
+    expect(refreshed.message).not.toBe('Rent overdue (an earlier, now-outdated wording)');
+    void schedule;
+  });
+
   it('never creates an insight for an org that has no triggering data at all', async () => {
     const result = await reconcilePortfolioInsights(serviceClient, orgId);
     expect(result.inserted).toBe(0);

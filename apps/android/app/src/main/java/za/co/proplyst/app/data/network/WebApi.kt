@@ -143,6 +143,15 @@ interface WebApi {
         @Query("filter[org_id]") orgId: String,
     ): Response<InsightListResponse>
 
+    /** Needs-attention housekeeping (2026-09-17). Dismiss hides an alert the user does not want to
+     * see again; acknowledge marks one whose condition is STILL true as seen, so overdue rent stays
+     * overdue and no invoice is ever marked paid by tapping either. Both are org-scoped by RLS. */
+    @POST("api/v1/insights/{id}/dismiss")
+    suspend fun dismissInsight(@Path("id") id: String): Response<Unit>
+
+    @POST("api/v1/insights/{id}/acknowledge")
+    suspend fun acknowledgeInsight(@Path("id") id: String): Response<Unit>
+
     /** Android V1 completion pass (WORKLOG.md this date) -- the ONE invoice list, shared by both
      * portals. RLS alone decides visibility (`invoices_select_org_member` for staff,
      * `invoices_select_tenant_self` for a tenant, issued-only for the latter since migration

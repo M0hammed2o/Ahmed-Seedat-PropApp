@@ -78,6 +78,34 @@ class NotificationsViewModel @Inject constructor(
      * opening, then reverted if the write fails -- showing something as read when the server still
      * has it unread would be a small lie that survives the next refresh.
      */
+    /**
+     * Hide one entry from this user's Activity feed (2026-09-17).
+     *
+     * The business record it describes -- the payment, the invoice, the ticket -- is never touched,
+     * and notifications rows are per-user, so nobody else's feed changes. Removed from the list
+     * immediately, and put back if the server refuses.
+     */
+    fun dismiss(id: String) {
+        val current = _uiState.value as? NotificationsUiState.Loaded ?: return
+        if (current.notifications.none { it.id == id }) return
+        val remaining = current.notifications.filterNot { it.id == id }
+        _uiState.value = if (remaining.isEmpty()) NotificationsUiState.Empty else NotificationsUiState.Loaded(remaining)
+
+        viewModelScope.launch {
+            if (repository.dismiss(id) is MarkReadResult.Error) {
+                _uiState.value = NotificationsUiState.Loaded(current.notifications)
+                _actionError.value = "Couldn't dismiss that activity item. Try again."
+            }
+        }
+    }
+
+    private val _actionError = MutableStateFlow<String?>(null)
+    val actionError: StateFlow<String?> = _actionError.asStateFlow()
+
+    fun consumeActionError() {
+        _actionError.value = null
+    }
+
     fun markRead(id: String) {
         val current = _uiState.value as? NotificationsUiState.Loaded ?: return
         val target = current.notifications.firstOrNull { it.id == id } ?: return

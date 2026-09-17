@@ -26,6 +26,21 @@ import za.co.proplyst.app.data.announcements.Announcement
 import za.co.proplyst.app.ui.common.EmptyStateView
 import za.co.proplyst.app.ui.common.ErrorStateView
 import za.co.proplyst.app.ui.common.LoadingView
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.ui.graphics.Color
+import za.co.proplyst.app.ui.common.StatusChip
+import za.co.proplyst.app.ui.common.StatusTone
+import za.co.proplyst.app.ui.common.relativeTimeLabel
+import za.co.proplyst.app.ui.theme.ProplystPillShape
+import za.co.proplyst.app.ui.theme.ProplystTheme
+import androidx.compose.foundation.layout.PaddingValues
 
 /** Tenant "Notices" (Android V1 final gap-closure pass, WORKLOG.md this date, Phase 6; read/
  * unread tracking added in the following last-local-blocker pass). RLS scopes the list to
@@ -54,14 +69,24 @@ fun AnnouncementsListScreen(viewModel: AnnouncementsViewModel = hiltViewModel())
                 onRetry = viewModel::load,
                 modifier = Modifier.padding(padding),
             )
-            is AnnouncementsUiState.Loaded -> LazyColumn(modifier = Modifier.padding(padding)) {
+            is AnnouncementsUiState.Loaded -> LazyColumn(
+                modifier = Modifier.padding(padding).background(ProplystTheme.colors.background),
+                contentPadding = PaddingValues(top = 8.dp, bottom = 96.dp),
+            ) {
                 if (actionError != null) {
                     item {
-                        Text(
-                            actionError.orEmpty(),
-                            color = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.padding(16.dp),
-                        )
+                        Surface(
+                            color = ProplystTheme.colors.criticalBg,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                        ) {
+                            Text(
+                                actionError.orEmpty(),
+                                style = ProplystTheme.type.body,
+                                color = ProplystTheme.colors.criticalDeep,
+                                modifier = Modifier.padding(12.dp),
+                            )
+                        }
                     }
                 }
                 items(state.announcements, key = { it.id }) { announcement ->
@@ -84,42 +109,57 @@ private fun AnnouncementCard(
     onAcknowledge: () -> Unit,
     onView: () -> Unit,
 ) {
+    val colors = ProplystTheme.colors
+    val type = ProplystTheme.type
     val unread = announcement.readAt == null
-    Card(
+
+    Surface(
+        color = colors.surface,
+        shape = RoundedCornerShape(16.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(horizontal = 16.dp, vertical = 5.dp)
             .clickable(enabled = unread && !announcement.requiresAcknowledgement, onClick = onView),
-        colors = if (unread) {
-            CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-        } else {
-            CardDefaults.cardColors()
-        },
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                announcement.title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = if (unread) FontWeight.Bold else FontWeight.Normal,
+        Row(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+            // Unread marker in the Proplyst accent, rather than tinting the whole card grey.
+            Box(
+                modifier = Modifier
+                    .padding(top = 5.dp, end = 12.dp)
+                    .size(8.dp)
+                    .background(if (unread) colors.primary else Color.Transparent, CircleShape),
             )
-            Text(
-                announcement.publishedAt.take(10),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 2.dp, bottom = 8.dp),
-            )
-            Text(announcement.body, style = MaterialTheme.typography.bodyMedium)
-            if (announcement.requiresAcknowledgement) {
-                if (!unread) {
-                    Text(
-                        "Acknowledged",
-                        color = MaterialTheme.colorScheme.primary,
-                        style = MaterialTheme.typography.labelLarge,
-                        modifier = Modifier.padding(top = 8.dp),
-                    )
-                } else {
-                    TextButton(onClick = onAcknowledge, enabled = !busy, modifier = Modifier.padding(top = 4.dp)) {
-                        Text(if (busy) "Acknowledging…" else "Acknowledge")
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    announcement.title,
+                    style = type.cardTitle,
+                    color = colors.textPrimary,
+                    fontWeight = if (unread) FontWeight.SemiBold else FontWeight.Medium,
+                )
+                Text(
+                    relativeTimeLabel(announcement.publishedAt),
+                    style = type.meta,
+                    color = colors.textTertiary,
+                    modifier = Modifier.padding(top = 2.dp, bottom = 8.dp),
+                )
+                Text(announcement.body, style = type.body, color = colors.textSecondary)
+                if (announcement.requiresAcknowledgement) {
+                    if (!unread) {
+                        StatusChip(
+                            label = "Acknowledged",
+                            tone = StatusTone.POSITIVE,
+                            modifier = Modifier.padding(top = 10.dp),
+                        )
+                    } else {
+                        Button(
+                            onClick = onAcknowledge,
+                            enabled = !busy,
+                            shape = ProplystPillShape,
+                            colors = ButtonDefaults.buttonColors(containerColor = colors.primary),
+                            modifier = Modifier.padding(top = 10.dp),
+                        ) {
+                            Text(if (busy) "Acknowledging…" else "Acknowledge", style = type.button)
+                        }
                     }
                 }
             }

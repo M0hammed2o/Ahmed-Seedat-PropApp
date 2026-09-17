@@ -63,6 +63,10 @@ class PaymentReviewViewModel @Inject constructor(
     }
 
     fun confirm(reportId: String) {
+        // A second tap while the first call is still in flight is ignored (2026-09-17). The button
+        // is also disabled while busy, and confirm_payment_report is idempotent server-side, so a
+        // payment cannot be recorded twice even if one of those three fails.
+        if (_busyReportId.value != null) return
         _actionError.value = null
         _busyReportId.value = reportId
         viewModelScope.launch {
@@ -79,6 +83,7 @@ class PaymentReviewViewModel @Inject constructor(
             _actionError.value = "A reason is required to reject a payment report."
             return
         }
+        if (_busyReportId.value != null) return
         _actionError.value = null
         _busyReportId.value = reportId
         viewModelScope.launch {

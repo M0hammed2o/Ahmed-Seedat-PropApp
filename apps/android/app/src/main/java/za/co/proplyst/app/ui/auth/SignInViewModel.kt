@@ -144,8 +144,12 @@ class SignInViewModel @Inject constructor(
                 is GoogleCredentialResult.Cancelled ->
                     _uiState.value = _uiState.value.copy(isSubmitting = false)
 
+                // Google reports "no credential" both when the device really has no Google account
+                // and when this build of Proplyst is not authorised for Google sign-in, and the two
+                // are indistinguishable from here -- so the message names both instead of asserting
+                // the wrong one, which is what a real device saw on 2026-09-17.
                 is GoogleCredentialResult.NoGoogleAccount -> showGoogleError(
-                    "No Google account is available on this device. Add one in Settings, or sign in with your email and password.",
+                    "Google sign-in isn't available on this device right now. Check that a Google account is added in Settings and that Google Play services is up to date, or sign in with your email and password.",
                 )
 
                 is GoogleCredentialResult.Failed -> showGoogleError(credential.message)

@@ -89,7 +89,7 @@ class SignInGoogleViewModelTest {
     }
 
     @Test
-    fun `a device with no Google account gets told what to do instead`() = runTest(dispatcher) {
+    fun `an unavailable Google sign-in does not claim the device has no account`() = runTest(dispatcher) {
         val client = mockk<GoogleCredentialClient>()
         coEvery { client.requestIdToken(any(), any()) } returns GoogleCredentialResult.NoGoogleAccount
         val vm = viewModel(client = client)
@@ -98,7 +98,15 @@ class SignInGoogleViewModelTest {
         advanceUntilIdle()
 
         val message = vm.uiState.value.errorMessage.orEmpty()
-        assertTrue("must name the cause: $message", message.contains("No Google account", ignoreCase = true))
+        // A real Samsung device with Google accounts signed in still reached this branch, because
+        // Google reports "no credential" for an unauthorised build too. Saying "no Google account is
+        // available" sent the user to fix something that was never wrong.
+        assertFalse(
+            "must not assert that no account exists: $message",
+            message.contains("No Google account is available", ignoreCase = true),
+        )
+        assertTrue("must name the Google account possibility", message.contains("Google account", ignoreCase = true))
+        assertTrue("must name Play services", message.contains("Play services", ignoreCase = true))
         assertTrue("must offer the alternative", message.contains("email", ignoreCase = true))
         assertFalse(vm.uiState.value.isSubmitting)
     }

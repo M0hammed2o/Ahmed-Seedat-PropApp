@@ -81,7 +81,8 @@ fun PropertiesListScreen(
             is PropertiesListUiState.Loaded -> Column(modifier = Modifier.fillMaxSize()) {
                 if (state.cachedAt != null) CachedDataBanner(relativeTime = state.cachedAt)
                 LazyColumn(
-                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
+                    // bottom clears the floating nav, which is drawn over this list.
+                    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 96.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
                     items(state.properties, key = { it.id }) { property ->

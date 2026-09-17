@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -38,6 +39,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -63,7 +65,9 @@ import za.co.proplyst.app.ui.biometric.BiometricResult
 import za.co.proplyst.app.ui.biometric.authenticateWithBiometrics
 import za.co.proplyst.app.ui.biometric.checkBiometricAvailability
 import za.co.proplyst.app.ui.common.findActivity
+import za.co.proplyst.app.ui.common.LegalLinks
 import za.co.proplyst.app.ui.common.navyHeaderGlow
+import za.co.proplyst.app.ui.common.openLegalPage
 import za.co.proplyst.app.ui.common.ProplystTextField
 import za.co.proplyst.app.ui.theme.ProplystPillShape
 import za.co.proplyst.app.ui.theme.ProplystTheme
@@ -293,6 +297,22 @@ private fun SignInContent(
                         }
                         Spacer(modifier = Modifier.width(10.dp))
                         Text("Continue with Google", style = type.buttonSecondary, color = colors.textPrimary)
+                    }
+                }
+                // Registration is web-only, by design: creating an organisation ends in plan
+                // selection and payment, which must never live inside the Android app
+                // (BILLING_COMPLIANCE.md). This opens the same /register page the web uses.
+                Row(
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                ) {
+                    Text("Don't have an account?", style = type.meta, color = colors.textSecondary)
+                    TextButton(
+                        onClick = { openLegalPage(context, LegalLinks.CREATE_ACCOUNT_URL) },
+                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
+                    ) {
+                        Text("Create account", style = type.meta.copy(fontWeight = FontWeight.SemiBold), color = colors.primary)
                     }
                 }
                 if (returningUser) {

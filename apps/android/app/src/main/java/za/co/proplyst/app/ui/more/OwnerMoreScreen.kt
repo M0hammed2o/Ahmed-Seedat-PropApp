@@ -87,7 +87,14 @@ fun OwnerMoreScreen(
     val type = ProplystTheme.type
     val context = LocalContext.current
 
-    Column(modifier = Modifier.fillMaxSize().background(colors.background).verticalScroll(rememberScrollState())) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(colors.background)
+            .verticalScroll(rememberScrollState())
+            // The last row (Help / Legal) sat under the floating nav before this.
+            .padding(bottom = 96.dp),
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()

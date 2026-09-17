@@ -209,7 +209,9 @@ private fun NavyHeroSection(
             .background(colors.navy)
             .navyHeaderGlow()
             .statusBarsPadding()
-            .padding(bottom = 64.dp),
+            // 96 dp, not 64: the floating nav plus its own bottom margin was still clipping
+            // the final row on a real device (2026-09-17).
+            .padding(bottom = 96.dp),
     ) {
         Column(modifier = Modifier.padding(top = 10.dp, start = 20.dp, end = 20.dp)) {
             Row(

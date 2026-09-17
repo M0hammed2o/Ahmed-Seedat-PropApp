@@ -6,6 +6,7 @@ import za.co.proplyst.app.data.network.dto.MaintenanceTicketDto
 import za.co.proplyst.app.data.network.dto.NotificationDto
 import za.co.proplyst.app.data.network.dto.NotificationPreferenceDto
 import za.co.proplyst.app.data.network.dto.NotificationPreferenceUpsert
+import za.co.proplyst.app.data.network.dto.NotificationDismissUpdate
 import za.co.proplyst.app.data.network.dto.NotificationReadUpdate
 import za.co.proplyst.app.data.network.dto.OrganizationMemberDto
 import za.co.proplyst.app.data.network.dto.OwnerSummaryDto
@@ -149,6 +150,12 @@ interface PostgrestApi {
         @Query("order") order: String = "created_at.desc",
         @Query("limit") limit: Int = 50,
     ): Response<List<NotificationDto>>
+
+    @PATCH("rest/v1/notifications")
+    suspend fun dismissNotification(
+        @Query("id") idFilter: String,
+        @Body body: NotificationDismissUpdate,
+    ): Response<Unit>
 
     @PATCH("rest/v1/notifications")
     suspend fun markNotificationRead(
