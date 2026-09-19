@@ -91,12 +91,14 @@ android {
         applicationId = "za.co.genbridge.proplyst"
         minSdk = 26
         targetSdk = 36
-        // Play permanently reserves a versionCode once a bundle is uploaded: 1 (1.0.0) and 2 (1.0.1)
-        // are both consumed on Internal Testing, so this release takes 3. 1.0.2 because the changes
-        // are fixes and presentation -- payment confirmation, alert and activity clearing, the
-        // record screens in the design system -- not a new feature set.
-        versionCode = 3
-        versionName = "1.0.2"
+        // Play permanently reserves a versionCode once a bundle is uploaded. 1 (1.0.0) and 2 (1.0.1)
+        // are consumed on Internal Testing and the 1.0.2/vc3 bundle is already built and held for
+        // upload, so this release takes 4 rather than overwriting that artefact. 1.0.3 because the
+        // change is the visual consistency pass over the record screens -- the record screens now
+        // carry the same navy header, canvas and card language as Home, More and Needs attention --
+        // with no change to any business behaviour.
+        versionCode = 4
+        versionName = "1.0.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

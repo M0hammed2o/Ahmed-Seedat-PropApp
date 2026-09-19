@@ -12,9 +12,7 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -24,6 +22,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import za.co.proplyst.app.data.documents.TenantDocument
+import za.co.proplyst.app.ui.common.ProplystScreenScaffold
 import za.co.proplyst.app.ui.common.EmptyStateView
 import za.co.proplyst.app.ui.common.ErrorStateView
 import za.co.proplyst.app.ui.common.LoadingView
@@ -56,8 +55,9 @@ fun DocumentsListScreen(viewModel: DocumentsViewModel = hiltViewModel()) {
         }
     }
 
-    Scaffold(
-        topBar = { TopAppBar(title = { Text("Documents") }) },
+    ProplystScreenScaffold(
+        title = "Documents",
+        eyebrow = "My tenancy",
     ) { padding ->
         when (val state = uiState) {
             is DocumentsUiState.Loading -> LoadingView(modifier = Modifier.padding(padding))

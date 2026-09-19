@@ -11,9 +11,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -31,6 +29,9 @@ import za.co.proplyst.app.ui.common.ProplystRecordCard
 import za.co.proplyst.app.ui.common.StatusChip
 import za.co.proplyst.app.ui.common.toneForStatus
 import za.co.proplyst.app.ui.theme.ProplystTheme
+import za.co.proplyst.app.ui.common.ProplystScreenScaffold
+import za.co.proplyst.app.ui.common.relativeTimeLabel
+import za.co.proplyst.app.ui.common.formatCurrency
 
 /** Tenant portal "My Payments" (Android V1 commercial-launch pass, WORKLOG.md this date, Phase
  * 4) -- mirrors the web app's /my-payments payment-report history + report-a-payment entry point.
@@ -44,8 +45,9 @@ fun PaymentReportsListScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    Scaffold(
-        topBar = { TopAppBar(title = { Text("My Payments") }) },
+    ProplystScreenScaffold(
+        title = "My Payments",
+        eyebrow = "Payments",
         floatingActionButton = {
             FloatingActionButton(onClick = onReportPaymentClick) {
                 Icon(Icons.Filled.Add, contentDescription = "Report a payment")
@@ -86,11 +88,11 @@ private fun PaymentReportRow(report: PaymentReport) {
         else -> "Awaiting confirmation"
     }
     ProplystRecordCard(
-        title = "R%.2f".format(report.amount),
+        title = "R${formatCurrency(report.amount)}",
         subtitle = listOfNotNull(report.tenantName, report.propertyName)
             .takeIf { it.isNotEmpty() }
             ?.joinToString(" · "),
-        meta = "${report.paymentMethod.replaceFirstChar { it.uppercase() }} · ${report.paymentDate}",
+        meta = "${report.paymentMethod.replaceFirstChar { it.uppercase() }} · paid ${report.paymentDate} · reported ${relativeTimeLabel(report.createdAt)}",
         accent = when (report.status) {
             "confirmed" -> colors.success
             "rejected" -> colors.critical

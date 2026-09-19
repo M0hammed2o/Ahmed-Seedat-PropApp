@@ -11,10 +11,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -23,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import za.co.proplyst.app.data.announcements.Announcement
+import za.co.proplyst.app.ui.common.ProplystScreenScaffold
 import za.co.proplyst.app.ui.common.EmptyStateView
 import za.co.proplyst.app.ui.common.ErrorStateView
 import za.co.proplyst.app.ui.common.LoadingView
@@ -55,13 +54,15 @@ fun AnnouncementsListScreen(viewModel: AnnouncementsViewModel = hiltViewModel())
     val busyId by viewModel.busyId.collectAsState()
     val actionError by viewModel.actionError.collectAsState()
 
-    Scaffold(
-        topBar = { TopAppBar(title = { Text("Notices") }) },
+    ProplystScreenScaffold(
+        title = "Notices",
+        eyebrow = "Communication",
     ) { padding ->
         when (val state = uiState) {
             is AnnouncementsUiState.Loading -> LoadingView(modifier = Modifier.padding(padding))
             is AnnouncementsUiState.Empty -> EmptyStateView(
                 title = "No notices yet",
+                description = "Notices sent to your tenants will appear here.",
                 modifier = Modifier.padding(padding),
             )
             is AnnouncementsUiState.Error -> ErrorStateView(

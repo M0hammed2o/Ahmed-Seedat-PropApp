@@ -14,10 +14,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -27,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import za.co.proplyst.app.ui.theme.ProplystTheme
 import za.co.proplyst.app.ui.theme.ThemeMode
+import za.co.proplyst.app.ui.common.ProplystScreenScaffold
 
 /** Appearance (System/Light/Dark) -- lives under More/Profile per the redesign pass spec, never a
  * per-screen toggle. Persisted via [za.co.proplyst.app.data.appearance.AppearancePreferences]. */
@@ -38,17 +37,10 @@ fun AppearanceScreen(
 ) {
     val themeMode by viewModel.themeMode.collectAsState()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Appearance") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-            )
-        },
+    ProplystScreenScaffold(
+        title = "Appearance",
+        eyebrow = "Settings",
+        onBack = onBack,
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding).padding(20.dp)) {
             ThemeMode.entries.forEach { mode ->

@@ -9,9 +9,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -20,6 +18,15 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import za.co.proplyst.app.ui.common.EmptyStateView
 import za.co.proplyst.app.ui.common.LoadingView
+import za.co.proplyst.app.ui.common.ProplystScreenScaffold
+import za.co.proplyst.app.ui.common.toneForStatus
+import za.co.proplyst.app.ui.common.StatusChip
+import za.co.proplyst.app.ui.common.ProplystDetailRow
+import za.co.proplyst.app.ui.common.ProplystDetailPadding
+import za.co.proplyst.app.ui.common.ProplystDetailHeadline
+import za.co.proplyst.app.ui.common.ProplystDetailCard
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -29,17 +36,10 @@ fun TenantDetailScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Tenant") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-            )
-        },
+    ProplystScreenScaffold(
+        title = "Tenant",
+        eyebrow = "Portfolio",
+        onBack = onBack,
     ) { padding ->
         when (val state = uiState) {
             is TenantDetailUiState.Loading -> LoadingView(modifier = Modifier.padding(padding))
@@ -47,20 +47,27 @@ fun TenantDetailScreen(
                 title = "Tenant not found",
                 modifier = Modifier.padding(padding),
             )
-            is TenantDetailUiState.Loaded -> Column(modifier = Modifier.padding(padding).padding(16.dp)) {
-                Text(state.tenant.fullName, style = MaterialTheme.typography.headlineMedium)
-                DetailRow(label = "Status", value = state.tenant.status.replace('_', ' '))
-                DetailRow(label = "Email", value = state.tenant.email ?: "—")
-                DetailRow(label = "Phone", value = state.tenant.phone ?: "—")
+            is TenantDetailUiState.Loaded -> Column(
+                modifier = Modifier
+                    .padding(padding)
+                    .verticalScroll(rememberScrollState())
+                    .padding(ProplystDetailPadding),
+            ) {
+                val status = state.tenant.status.replace('_', ' ')
+                ProplystDetailHeadline(
+                    title = state.tenant.fullName,
+                    chips = {
+                        StatusChip(
+                            label = status.replaceFirstChar { it.uppercase() },
+                            tone = toneForStatus(status),
+                        )
+                    },
+                )
+                ProplystDetailCard {
+                    ProplystDetailRow(label = "Email", value = state.tenant.email ?: "—")
+                    ProplystDetailRow(label = "Phone", value = state.tenant.phone ?: "—")
+                }
             }
         }
-    }
-}
-
-@Composable
-private fun DetailRow(label: String, value: String) {
-    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value, style = MaterialTheme.typography.bodyLarge)
     }
 }

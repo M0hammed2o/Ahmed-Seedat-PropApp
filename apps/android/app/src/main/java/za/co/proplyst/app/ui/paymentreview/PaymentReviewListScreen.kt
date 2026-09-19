@@ -12,10 +12,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -51,6 +49,9 @@ import za.co.proplyst.app.ui.common.StatusChip
 import za.co.proplyst.app.ui.common.toneForStatus
 import za.co.proplyst.app.ui.theme.ProplystPillShape
 import za.co.proplyst.app.ui.theme.ProplystTheme
+import za.co.proplyst.app.ui.common.ProplystScreenScaffold
+import za.co.proplyst.app.ui.common.relativeTimeLabel
+import za.co.proplyst.app.ui.common.formatCurrency
 
 /** Owner/staff "Payment reports" review (Android V1 final gap-closure pass, WORKLOG.md this
  * date, Phase 3). Confirm/reject never touches the ledger on-device -- both call the same RPC-
@@ -75,8 +76,9 @@ fun PaymentReviewListScreen(viewModel: PaymentReviewViewModel = hiltViewModel())
         }
     }
 
-    Scaffold(
-        topBar = { TopAppBar(title = { Text("Payment reports") }) },
+    ProplystScreenScaffold(
+        title = "Payment reports",
+        eyebrow = "Finance",
     ) { padding ->
         Column(modifier = Modifier.padding(padding).background(ProplystTheme.colors.background)) {
             if (actionError != null) {
@@ -161,7 +163,7 @@ private fun PaymentReviewRow(
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        "R%.2f".format(report.amount),
+                        "R${formatCurrency(report.amount)}",
                         style = type.settingsTitle,
                         color = colors.textPrimary,
                         maxLines = 1,
@@ -191,7 +193,13 @@ private fun PaymentReviewRow(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text(origin, style = type.meta, color = colors.textTertiary, maxLines = 1)
+            Text(
+                "$origin · reported ${relativeTimeLabel(report.createdAt)}",
+                style = type.meta,
+                color = colors.textTertiary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
             if (report.status == "rejected" && report.rejectionReason != null) {
                 Spacer(modifier = Modifier.height(6.dp))
                 Text("Rejected: ${report.rejectionReason}", style = type.meta, color = colors.criticalDeep)

@@ -10,9 +10,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.runtime.Composable
@@ -27,6 +25,13 @@ import za.co.proplyst.app.ui.common.ErrorStateView
 import za.co.proplyst.app.ui.common.LoadingView
 import za.co.proplyst.app.ui.common.StatusChip
 import za.co.proplyst.app.ui.common.formatCurrency
+import za.co.proplyst.app.ui.common.ProplystScreenScaffold
+import za.co.proplyst.app.ui.common.ProplystDetailRow
+import za.co.proplyst.app.ui.common.ProplystDetailPadding
+import za.co.proplyst.app.ui.common.ProplystDetailHeadline
+import za.co.proplyst.app.ui.common.ProplystDetailCard
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 
 /** "My Lease" (Invoice V1 completion pass, WORKLOG.md this date) -- answers "what property/unit
  * am I renting, what is my lease status" for the tenant portal, a real, previously-missing V1
@@ -42,17 +47,10 @@ fun MyLeaseScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("My Lease") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-            )
-        },
+    ProplystScreenScaffold(
+        title = "My Lease",
+        eyebrow = "My tenancy",
+        onBack = onBack,
     ) { padding ->
         when (val state = uiState) {
             is MyLeaseUiState.Loading -> LoadingView(modifier = Modifier.padding(padding))
@@ -73,39 +71,35 @@ fun MyLeaseScreen(
 
 @Composable
 private fun MyLeaseContent(lease: TenancyLease, modifier: Modifier = Modifier) {
-    Column(modifier = modifier.fillMaxWidth().padding(16.dp)) {
-        Text(lease.propertyNickname ?: "Your property", style = MaterialTheme.typography.headlineSmall)
-        lease.propertyAddress?.let {
-            Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        lease.unitLabel?.let {
-            Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        lease.leaseStatus?.let {
-            StatusChip(
-                // Capitalized to match InvoiceDisplayStatus's own Title Case convention
-                // (StatusChip's colour map keys on that shape) -- the raw lease.status is
-                // lowercase ("active"/"expired"/"terminated") straight off the leases table.
-                it.replaceFirstChar { c -> c.uppercase() },
-                modifier = Modifier.padding(top = 8.dp),
-            )
-        }
-
-        HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
-
-        DetailRow("Start date", lease.startDate ?: "—")
-        DetailRow("End date", lease.endDate ?: "Month-to-month (no fixed end date)")
-        lease.rentAmount?.let { DetailRow("Rent", "R${formatCurrency(it)}") }
-    }
-}
-
-@Composable
-private fun DetailRow(label: String, value: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(ProplystDetailPadding),
     ) {
-        Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value, style = MaterialTheme.typography.bodyMedium)
+        ProplystDetailHeadline(
+            title = lease.propertyNickname ?: "Your property",
+            subtitle = listOfNotNull(lease.propertyAddress, lease.unitLabel)
+                .takeIf { it.isNotEmpty() }
+                ?.joinToString(" · "),
+            chips = {
+                lease.leaseStatus?.let {
+                    // Capitalized to match InvoiceDisplayStatus's own Title Case convention
+                    // (StatusChip's colour map keys on that shape) -- the raw lease.status is
+                    // lowercase ("active"/"expired"/"terminated") straight off the leases table.
+                    StatusChip(it.replaceFirstChar { c -> c.uppercase() })
+                }
+            },
+        )
+        ProplystDetailCard {
+            ProplystDetailRow(label = "Start date", value = lease.startDate ?: "—")
+            ProplystDetailRow(
+                label = "End date",
+                value = lease.endDate ?: "Month-to-month (no fixed end date)",
+            )
+            lease.rentAmount?.let {
+                ProplystDetailRow(label = "Rent", value = "R${formatCurrency(it)}")
+            }
+        }
     }
 }

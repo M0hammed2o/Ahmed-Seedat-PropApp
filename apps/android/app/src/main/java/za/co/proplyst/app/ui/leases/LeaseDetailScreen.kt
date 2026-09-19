@@ -9,9 +9,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -21,6 +19,15 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import za.co.proplyst.app.ui.common.EmptyStateView
 import za.co.proplyst.app.ui.common.LoadingView
 import za.co.proplyst.app.ui.common.formatCurrency
+import za.co.proplyst.app.ui.common.ProplystScreenScaffold
+import za.co.proplyst.app.ui.common.toneForStatus
+import za.co.proplyst.app.ui.common.StatusChip
+import za.co.proplyst.app.ui.common.ProplystDetailRow
+import za.co.proplyst.app.ui.common.ProplystDetailPadding
+import za.co.proplyst.app.ui.common.ProplystDetailHeadline
+import za.co.proplyst.app.ui.common.ProplystDetailCard
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -30,17 +37,10 @@ fun LeaseDetailScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Lease") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-            )
-        },
+    ProplystScreenScaffold(
+        title = "Lease",
+        eyebrow = "Property",
+        onBack = onBack,
     ) { padding ->
         when (val state = uiState) {
             is LeaseDetailUiState.Loading -> LoadingView(modifier = Modifier.padding(padding))
@@ -48,26 +48,34 @@ fun LeaseDetailScreen(
                 title = "Lease not found",
                 modifier = Modifier.padding(padding),
             )
-            is LeaseDetailUiState.Loaded -> Column(modifier = Modifier.padding(padding).padding(16.dp)) {
-                Text(
-                    "${state.lease.startDate} — ${state.lease.endDate ?: "Ongoing"}",
-                    style = MaterialTheme.typography.headlineMedium,
+            is LeaseDetailUiState.Loaded -> Column(
+                modifier = Modifier
+                    .padding(padding)
+                    .verticalScroll(rememberScrollState())
+                    .padding(ProplystDetailPadding),
+            ) {
+                val status = state.lease.status.replace('_', ' ')
+                ProplystDetailHeadline(
+                    title = "${state.lease.startDate} — ${state.lease.endDate ?: "Ongoing"}",
+                    subtitle = "Lease period",
+                    chips = {
+                        StatusChip(
+                            label = status.replaceFirstChar { it.uppercase() },
+                            tone = toneForStatus(status),
+                        )
+                    },
                 )
-                DetailRow(label = "Status", value = state.lease.status.replace('_', ' '))
-                DetailRow(
-                    label = "Rent",
-                    value = "R${formatCurrency(state.lease.rentAmount)} / ${state.lease.rentFrequency}",
-                )
-                DetailRow(label = "Deposit", value = "R${formatCurrency(state.lease.depositAmount)}")
+                ProplystDetailCard {
+                    ProplystDetailRow(
+                        label = "Rent",
+                        value = "R${formatCurrency(state.lease.rentAmount)} / ${state.lease.rentFrequency}",
+                    )
+                    ProplystDetailRow(
+                        label = "Deposit",
+                        value = "R${formatCurrency(state.lease.depositAmount)}",
+                    )
+                }
             }
         }
-    }
-}
-
-@Composable
-private fun DetailRow(label: String, value: String) {
-    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value, style = MaterialTheme.typography.bodyLarge)
     }
 }

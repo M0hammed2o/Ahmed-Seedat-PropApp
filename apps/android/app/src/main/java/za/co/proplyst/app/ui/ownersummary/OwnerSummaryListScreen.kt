@@ -7,9 +7,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -33,6 +31,8 @@ import za.co.proplyst.app.ui.common.ProplystListSpacing
 import za.co.proplyst.app.ui.common.StatusChip
 import za.co.proplyst.app.ui.common.StatusTone
 import za.co.proplyst.app.ui.theme.ProplystTheme
+import za.co.proplyst.app.ui.common.ProplystScreenScaffold
+import za.co.proplyst.app.ui.common.formatCurrency
 
 /** Owner "Monthly property summary" (Android V1 final gap-closure pass, WORKLOG.md this date,
  * Phase 8) -- a read-only render of what the server already aggregated
@@ -43,8 +43,9 @@ import za.co.proplyst.app.ui.theme.ProplystTheme
 fun OwnerSummaryListScreen(viewModel: OwnerSummaryViewModel = hiltViewModel()) {
     val uiState by viewModel.uiState.collectAsState()
 
-    Scaffold(
-        topBar = { TopAppBar(title = { Text("Monthly summary") }) },
+    ProplystScreenScaffold(
+        title = "Monthly summary",
+        eyebrow = "Reports",
     ) { padding ->
         when (val state = uiState) {
             is OwnerSummaryUiState.Loading -> LoadingView(modifier = Modifier.padding(padding))
@@ -115,6 +116,6 @@ private fun SummaryRow(label: String, amount: Double, valueColor: Color? = null)
         modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
     ) {
         Text(label, style = type.body, color = colors.textSecondary)
-        Text("R%.2f".format(amount), style = type.body, color = valueColor ?: colors.textPrimary, maxLines = 1)
+        Text("R${formatCurrency(amount)}", style = type.body, color = valueColor ?: colors.textPrimary, maxLines = 1)
     }
 }

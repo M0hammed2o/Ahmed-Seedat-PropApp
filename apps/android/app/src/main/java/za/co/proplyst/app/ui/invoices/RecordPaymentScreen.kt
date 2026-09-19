@@ -18,10 +18,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -37,6 +35,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import za.co.proplyst.app.ui.common.ProplystScreenScaffold
+import za.co.proplyst.app.ui.theme.ProplystTheme
 
 // Matches invoicePaymentMethodSchema (packages/validation/src/accounting.ts) exactly -- the
 // server rejects anything else with a 400, this app never sends a value outside this set.
@@ -76,8 +76,9 @@ fun RecordPaymentScreen(
         if (uiState == RecordPaymentUiState.Success) onSubmitted()
     }
 
-    Scaffold(
-        topBar = { TopAppBar(title = { Text("Record payment") }) },
+    ProplystScreenScaffold(
+        title = "Record payment",
+        eyebrow = "Billing",
     ) { padding ->
         Column(
             modifier = Modifier
@@ -88,7 +89,12 @@ fun RecordPaymentScreen(
         ) {
             val serverError = (uiState as? RecordPaymentUiState.Error)?.message
             (validationError ?: serverError)?.let {
-                Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(bottom = 12.dp))
+                Text(
+                    it,
+                    style = ProplystTheme.type.body,
+                    color = ProplystTheme.colors.criticalDeep,
+                    modifier = Modifier.padding(bottom = 12.dp),
+                )
             }
 
             OutlinedTextField(
@@ -100,7 +106,8 @@ fun RecordPaymentScreen(
 
             Text(
                 "Payment method",
-                style = MaterialTheme.typography.labelLarge,
+                style = ProplystTheme.type.captionEmphasis,
+                color = ProplystTheme.colors.textSecondary,
                 modifier = Modifier.padding(top = 16.dp, bottom = 4.dp),
             )
             Column(Modifier.selectableGroup()) {

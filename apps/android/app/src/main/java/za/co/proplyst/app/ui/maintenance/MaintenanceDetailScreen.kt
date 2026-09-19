@@ -20,9 +20,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -50,6 +48,7 @@ import za.co.proplyst.app.ui.common.StatusTone
 import za.co.proplyst.app.ui.common.relativeTimeLabel
 import za.co.proplyst.app.ui.common.toneForStatus
 import za.co.proplyst.app.ui.theme.ProplystTheme
+import za.co.proplyst.app.ui.common.ProplystScreenScaffold
 
 /** Android V1 last local blocker pass (WORKLOG.md this date): attachments section added below
  * the ticket details. Opens files via OpenDocument (not GetContent), same reasoning
@@ -81,17 +80,10 @@ fun MaintenanceDetailScreen(
         if (uri != null) viewModel.uploadAttachment(uri)
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Ticket") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-            )
-        },
+    ProplystScreenScaffold(
+        title = "Ticket",
+        eyebrow = "Maintenance",
+        onBack = onBack,
     ) { padding ->
         when (val state = uiState) {
             is MaintenanceDetailUiState.Loading -> LoadingView(modifier = Modifier.padding(padding))

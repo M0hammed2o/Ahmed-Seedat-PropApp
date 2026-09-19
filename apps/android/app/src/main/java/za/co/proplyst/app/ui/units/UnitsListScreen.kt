@@ -13,9 +13,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -25,6 +23,12 @@ import za.co.proplyst.app.ui.common.CachedDataBanner
 import za.co.proplyst.app.ui.common.EmptyStateView
 import za.co.proplyst.app.ui.common.ErrorStateView
 import za.co.proplyst.app.ui.common.LoadingView
+import za.co.proplyst.app.ui.common.ProplystScreenScaffold
+import za.co.proplyst.app.ui.common.toneForStatus
+import za.co.proplyst.app.ui.common.StatusChip
+import za.co.proplyst.app.ui.common.ProplystListSpacing
+import za.co.proplyst.app.ui.common.ProplystListPadding
+import za.co.proplyst.app.ui.common.ProplystRecordCard
 
 /** View-only per MOBILE_ARCHITECTURE_DECISION.md §6's native-app scope ("Units (view)") -- no
  * create/edit UI, matching PropertiesListScreen's own read-only-list-first shape. */
@@ -37,17 +41,10 @@ fun UnitsListScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Units") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-            )
-        },
+    ProplystScreenScaffold(
+        title = "Units",
+        eyebrow = "Property",
+        onBack = onBack,
     ) { padding ->
         when (val state = uiState) {
             is UnitsListUiState.Loading -> LoadingView(modifier = Modifier.padding(padding))
@@ -64,16 +61,22 @@ fun UnitsListScreen(
                 if (state.cachedAt != null) {
                     CachedDataBanner(relativeTime = state.cachedAt)
                 }
-                LazyColumn {
+                LazyColumn(
+                    contentPadding = ProplystListPadding,
+                    verticalArrangement = ProplystListSpacing,
+                ) {
                     items(state.units, key = { it.id }) { unit ->
-                        ListItem(
-                            headlineContent = { Text(unit.unitLabel) },
-                            supportingContent = { Text(unit.status.replace('_', ' ')) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onUnitClick(unit.id) },
+                        val status = unit.status.replace('_', ' ')
+                        ProplystRecordCard(
+                            title = unit.unitLabel,
+                            onClick = { onUnitClick(unit.id) },
+                            chips = {
+                                StatusChip(
+                                    label = status.replaceFirstChar { it.uppercase() },
+                                    tone = toneForStatus(status),
+                                )
+                            },
                         )
-                        HorizontalDivider()
                     }
                 }
             }

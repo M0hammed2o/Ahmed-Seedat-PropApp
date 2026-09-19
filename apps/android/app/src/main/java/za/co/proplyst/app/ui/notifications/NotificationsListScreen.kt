@@ -14,9 +14,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -53,6 +51,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import za.co.proplyst.app.ui.common.relativeTimeLabel
 import za.co.proplyst.app.ui.theme.ProplystTheme
+import za.co.proplyst.app.ui.common.ProplystScreenScaffold
 
 /** In-app notification centre (Android V1 final gap-closure pass, WORKLOG.md this date, Phase
  * 7). RLS (`notifications_select_own`) scopes this to the caller's own notifications regardless
@@ -77,25 +76,16 @@ fun NotificationsListScreen(
         onPauseOrDispose { }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                // "Activity", matching the bottom-nav tab that opens this screen and Home's own
-                // "Recent activity" section, whose "View all" lands right here on the same feed --
-                // the tab said Activity while the screen said Notifications (visual QA,
-                // 2026-09-08). This destination is the portfolio's activity history; the gear
-                // beside it still says "Notification settings", because that one genuinely
-                // configures notification delivery.
-                title = { Text("Activity") },
-                actions = {
-                    IconButton(onClick = onAccountClick) {
-                        Icon(Icons.Filled.AccountCircle, contentDescription = "Account")
+    ProplystScreenScaffold(
+        title = "Activity",
+        eyebrow = "Portfolio",
+        actions = {
+            IconButton(onClick = onAccountClick) {
+                        Icon(Icons.Filled.AccountCircle, contentDescription = "Account", tint = Color.White)
                     }
                     IconButton(onClick = onSettingsClick) {
-                        Icon(Icons.Filled.Settings, contentDescription = "Notification settings")
-                    }
-                },
-            )
+                        Icon(Icons.Filled.Settings, contentDescription = "Notification settings", tint = Color.White)
+            }
         },
     ) { padding ->
         when (val state = uiState) {
@@ -177,6 +167,17 @@ private fun NotificationRow(
                     .background(if (unread) colors.primary else Color.Transparent, CircleShape),
             )
             Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
+                // What kind of activity this is, straight off the notification's own `type` --
+                // the same eyebrow-over-title hierarchy the More and Needs-attention headers use,
+                // so a feed of mixed events can be scanned by category without opening anything.
+                Text(
+                    notification.type.replace('_', ' ').uppercase(),
+                    style = type.meta,
+                    color = colors.textTertiary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     notification.title,
                     style = type.cardTitle,

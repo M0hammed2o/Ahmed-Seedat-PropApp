@@ -13,9 +13,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -25,6 +23,12 @@ import za.co.proplyst.app.ui.common.CachedDataBanner
 import za.co.proplyst.app.ui.common.EmptyStateView
 import za.co.proplyst.app.ui.common.ErrorStateView
 import za.co.proplyst.app.ui.common.LoadingView
+import za.co.proplyst.app.ui.common.ProplystScreenScaffold
+import za.co.proplyst.app.ui.common.toneForStatus
+import za.co.proplyst.app.ui.common.StatusChip
+import za.co.proplyst.app.ui.common.ProplystListSpacing
+import za.co.proplyst.app.ui.common.ProplystListPadding
+import za.co.proplyst.app.ui.common.ProplystRecordCard
 
 /** View-only, scoped to a unit -- same shape as UnitsListScreen being scoped to a property. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -36,17 +40,10 @@ fun LeasesListScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Leases") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-            )
-        },
+    ProplystScreenScaffold(
+        title = "Leases",
+        eyebrow = "Property",
+        onBack = onBack,
     ) { padding ->
         when (val state = uiState) {
             is LeasesListUiState.Loading -> LoadingView(modifier = Modifier.padding(padding))
@@ -63,16 +60,23 @@ fun LeasesListScreen(
                 if (state.cachedAt != null) {
                     CachedDataBanner(relativeTime = state.cachedAt)
                 }
-                LazyColumn {
+                LazyColumn(
+                    contentPadding = ProplystListPadding,
+                    verticalArrangement = ProplystListSpacing,
+                ) {
                     items(state.leases, key = { it.id }) { lease ->
-                        ListItem(
-                            headlineContent = { Text("${lease.startDate} — ${lease.endDate ?: "Ongoing"}") },
-                            supportingContent = { Text(lease.status.replace('_', ' ')) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onLeaseClick(lease.id) },
+                        val status = lease.status.replace('_', ' ')
+                        ProplystRecordCard(
+                            title = "${lease.startDate} — ${lease.endDate ?: "Ongoing"}",
+                            meta = "Lease period",
+                            onClick = { onLeaseClick(lease.id) },
+                            chips = {
+                                StatusChip(
+                                    label = status.replaceFirstChar { it.uppercase() },
+                                    tone = toneForStatus(status),
+                                )
+                            },
                         )
-                        HorizontalDivider()
                     }
                 }
             }

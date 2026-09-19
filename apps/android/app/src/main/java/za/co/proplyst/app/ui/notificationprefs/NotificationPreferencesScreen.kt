@@ -10,9 +10,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -21,6 +19,13 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import za.co.proplyst.app.data.notificationprefs.NotificationPreference
 import za.co.proplyst.app.ui.common.ErrorStateView
 import za.co.proplyst.app.ui.common.LoadingView
+import za.co.proplyst.app.ui.common.ProplystScreenScaffold
+import za.co.proplyst.app.ui.common.ProplystListSpacing
+import za.co.proplyst.app.ui.common.ProplystListPadding
+import za.co.proplyst.app.ui.common.ProplystDetailCard
+import androidx.compose.ui.Alignment
+import za.co.proplyst.app.ui.theme.ProplystTheme
+import androidx.compose.ui.unit.dp
 
 /** Notification settings (Android V1 final gap-closure pass, WORKLOG.md this date, Phase 9) --
  * human-readable category labels only (NotificationCategory.label), never a raw category or Meta
@@ -36,8 +41,9 @@ fun NotificationPreferencesScreen(
     val uiState by viewModel.uiState.collectAsState()
     val busyCategory by viewModel.busyCategory.collectAsState()
 
-    Scaffold(
-        topBar = { TopAppBar(title = { Text("Notification settings") }) },
+    ProplystScreenScaffold(
+        title = "Notification settings",
+        eyebrow = "Settings",
     ) { padding ->
         when (val state = uiState) {
             is NotificationPreferencesUiState.Loading -> LoadingView(modifier = Modifier.padding(padding))
@@ -46,14 +52,17 @@ fun NotificationPreferencesScreen(
                 onRetry = viewModel::load,
                 modifier = Modifier.padding(padding),
             )
-            is NotificationPreferencesUiState.Loaded -> LazyColumn(modifier = Modifier.padding(padding)) {
+            is NotificationPreferencesUiState.Loaded -> LazyColumn(
+                modifier = Modifier.padding(padding),
+                contentPadding = ProplystListPadding,
+                verticalArrangement = ProplystListSpacing,
+            ) {
                 items(state.preferences, key = { it.category }) { preference ->
                     PreferenceRow(
                         preference = preference,
                         busy = busyCategory == preference.category,
                         onToggle = { channel, enabled -> viewModel.toggle(preference, channel, enabled) },
                     )
-                    HorizontalDivider()
                 }
             }
         }
@@ -66,28 +75,31 @@ private fun PreferenceRow(
     busy: Boolean,
     onToggle: (NotificationPreferencesViewModel.Channel, Boolean) -> Unit,
 ) {
-    ListItem(
-        headlineContent = { Text(preference.category.label) },
-        supportingContent = {
-            Row(modifier = Modifier.fillMaxWidth()) {
-                LabeledCheckbox("Email", preference.emailEnabled, busy) {
-                    onToggle(NotificationPreferencesViewModel.Channel.EMAIL, it)
-                }
-                LabeledCheckbox("Push", preference.pushEnabled, busy) {
-                    onToggle(NotificationPreferencesViewModel.Channel.PUSH, it)
-                }
-                LabeledCheckbox("WhatsApp", preference.whatsappEnabled, busy) {
-                    onToggle(NotificationPreferencesViewModel.Channel.WHATSAPP, it)
-                }
+    ProplystDetailCard {
+        Text(
+            preference.category.label,
+            style = ProplystTheme.type.cardTitle,
+            color = ProplystTheme.colors.textPrimary,
+            modifier = Modifier.padding(top = 10.dp),
+        )
+        Row(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
+            LabeledCheckbox("Email", preference.emailEnabled, busy) {
+                onToggle(NotificationPreferencesViewModel.Channel.EMAIL, it)
             }
-        },
-    )
+            LabeledCheckbox("Push", preference.pushEnabled, busy) {
+                onToggle(NotificationPreferencesViewModel.Channel.PUSH, it)
+            }
+            LabeledCheckbox("WhatsApp", preference.whatsappEnabled, busy) {
+                onToggle(NotificationPreferencesViewModel.Channel.WHATSAPP, it)
+            }
+        }
+    }
 }
 
 @Composable
 private fun LabeledCheckbox(label: String, checked: Boolean, busy: Boolean, onCheckedChange: (Boolean) -> Unit) {
-    Row {
+    Row(verticalAlignment = Alignment.CenterVertically) {
         Checkbox(checked = checked, enabled = !busy, onCheckedChange = onCheckedChange)
-        Text(label, style = MaterialTheme.typography.bodySmall)
+        Text(label, style = ProplystTheme.type.meta, color = ProplystTheme.colors.textSecondary)
     }
 }

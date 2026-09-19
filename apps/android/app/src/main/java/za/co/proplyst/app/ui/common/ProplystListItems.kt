@@ -191,3 +191,77 @@ fun ProplystSectionLabel(text: String, modifier: Modifier = Modifier) {
         modifier = modifier.padding(start = 4.dp, bottom = 6.dp),
     )
 }
+
+/**
+ * A white card for a detail screen's body (2026-09-19).
+ *
+ * Detail screens were label/value pairs printed straight onto the page with Material's default
+ * typography, which is why walking from a polished list into a record still landed on a plain white
+ * Android page. Same surface, radius and padding as the cards on Home.
+ */
+@Composable
+fun ProplystDetailCard(
+    modifier: Modifier = Modifier,
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+) {
+    Surface(
+        color = ProplystTheme.colors.surface,
+        shape = RoundedCornerShape(16.dp),
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), content = content)
+    }
+}
+
+/** One label/value pair inside a [ProplystDetailCard]. An absent value is the caller's decision --
+ * pass the em dash the screen already used, or omit the row entirely. */
+@Composable
+fun ProplystDetailRow(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    valueColor: Color? = null,
+) {
+    Column(modifier = modifier.fillMaxWidth().padding(vertical = 10.dp)) {
+        Text(label, style = ProplystTheme.type.meta, color = ProplystTheme.colors.textTertiary)
+        Text(
+            value,
+            style = ProplystTheme.type.body,
+            color = valueColor ?: ProplystTheme.colors.textPrimary,
+            modifier = Modifier.padding(top = 2.dp),
+        )
+    }
+}
+
+/** The headline block at the top of a detail screen: the record's own identity, above its card. */
+@Composable
+fun ProplystDetailHeadline(
+    title: String,
+    modifier: Modifier = Modifier,
+    subtitle: String? = null,
+    chips: @Composable RowScope.() -> Unit = {},
+) {
+    Column(modifier = modifier.fillMaxWidth().padding(bottom = 14.dp)) {
+        Text(
+            title,
+            style = ProplystTheme.type.cardTitleLarge,
+            color = ProplystTheme.colors.textPrimary,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (subtitle != null) {
+            Text(
+                subtitle,
+                style = ProplystTheme.type.body,
+                color = ProplystTheme.colors.textSecondary,
+                modifier = Modifier.padding(top = 3.dp),
+            )
+        }
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(top = 10.dp),
+            content = chips,
+        )
+    }
+}

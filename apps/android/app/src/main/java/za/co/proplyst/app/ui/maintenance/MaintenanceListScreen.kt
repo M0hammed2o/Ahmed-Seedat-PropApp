@@ -11,9 +11,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -32,6 +30,7 @@ import za.co.proplyst.app.ui.common.StatusTone
 import za.co.proplyst.app.ui.common.relativeTimeLabel
 import za.co.proplyst.app.ui.common.toneForStatus
 import za.co.proplyst.app.ui.theme.ProplystTheme
+import za.co.proplyst.app.ui.common.ProplystScreenScaffold
 
 /** RLS (`maintenance_tickets_select_tenant_self`/`_select_staff_or_owner`) scopes this list to
  * whatever the caller is allowed to see -- org-wide for staff/owner, own tickets only for a
@@ -47,8 +46,9 @@ fun MaintenanceListScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    Scaffold(
-        topBar = { TopAppBar(title = { Text("Maintenance") }) },
+    ProplystScreenScaffold(
+        title = "Maintenance",
+        eyebrow = "Operations",
         floatingActionButton = {
             if (onCreateClick != null) {
                 FloatingActionButton(onClick = onCreateClick) {

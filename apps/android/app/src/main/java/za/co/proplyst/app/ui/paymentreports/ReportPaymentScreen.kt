@@ -24,10 +24,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -43,6 +41,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import za.co.proplyst.app.ui.common.ProplystScreenScaffold
+import za.co.proplyst.app.ui.theme.ProplystTheme
 
 private val PAYMENT_METHODS = listOf("eft" to "EFT / bank transfer", "cash" to "Cash", "other" to "Other")
 private val ISO_DATE_FORMAT = SimpleDateFormat("yyyy-MM-dd", Locale.US)
@@ -70,8 +70,9 @@ fun ReportPaymentScreen(
         viewModel.setProofUri(uri)
     }
 
-    Scaffold(
-        topBar = { TopAppBar(title = { Text("Report a payment") }) },
+    ProplystScreenScaffold(
+        title = "Report a payment",
+        eyebrow = "Payments",
     ) { padding ->
         Column(
             modifier = Modifier
@@ -82,7 +83,12 @@ fun ReportPaymentScreen(
         ) {
             val errorMessage = formState.error
             if (errorMessage != null) {
-                Text(errorMessage, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(bottom = 12.dp))
+                Text(
+                    errorMessage,
+                    style = ProplystTheme.type.body,
+                    color = ProplystTheme.colors.criticalDeep,
+                    modifier = Modifier.padding(bottom = 12.dp),
+                )
             }
 
             OutlinedTextField(
@@ -94,7 +100,8 @@ fun ReportPaymentScreen(
 
             Text(
                 "Payment method",
-                style = MaterialTheme.typography.labelLarge,
+                style = ProplystTheme.type.captionEmphasis,
+                color = ProplystTheme.colors.textSecondary,
                 modifier = Modifier.padding(top = 16.dp, bottom = 4.dp),
             )
             Column(Modifier.selectableGroup()) {

@@ -4,7 +4,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -13,7 +16,6 @@ import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -43,25 +45,41 @@ fun LoadingView(modifier: Modifier = Modifier) {
 @Composable
 fun EmptyStateView(
     title: String,
-    description: String? = null,
     modifier: Modifier = Modifier,
+    description: String? = null,
+    /** An optional way out of the empty state -- "Report a payment", "Add a notice". */
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null,
 ) {
+    // 2026-09-19: an empty screen used to be a small grey glyph adrift in a full page of white,
+    // which is what "mostly blank" meant on the Samsung. The glyph now sits in the same tinted
+    // rounded square the More screen uses for its row icons, and the block is nudged above the
+    // optical centre so it does not float at the bottom of a tall phone.
     Column(
         modifier = modifier.fillMaxSize().background(ProplystTheme.colors.background).padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Icon(
-            imageVector = Icons.Filled.Inbox,
-            contentDescription = null,
-            tint = ProplystTheme.colors.textTertiary,
-            modifier = Modifier.padding(bottom = 12.dp),
-        )
+        Surface(
+            color = ProplystTheme.colors.blueTint,
+            shape = RoundedCornerShape(18.dp),
+            modifier = Modifier.size(64.dp),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = Icons.Filled.Inbox,
+                    contentDescription = null,
+                    tint = ProplystTheme.colors.primary,
+                    modifier = Modifier.size(28.dp),
+                )
+            }
+        }
         Text(
             title,
-            style = ProplystTheme.type.cardTitle,
+            style = ProplystTheme.type.cardTitleLarge,
             color = ProplystTheme.colors.textPrimary,
             textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 18.dp),
         )
         if (description != null) {
             Text(
@@ -69,9 +87,21 @@ fun EmptyStateView(
                 style = ProplystTheme.type.body,
                 color = ProplystTheme.colors.textSecondary,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 4.dp),
+                modifier = Modifier.padding(top = 6.dp),
             )
         }
+        if (actionLabel != null && onAction != null) {
+            Button(
+                onClick = onAction,
+                shape = ProplystPillShape,
+                colors = ButtonDefaults.buttonColors(containerColor = ProplystTheme.colors.primary),
+                modifier = Modifier.padding(top = 20.dp),
+            ) {
+                Text(actionLabel, style = ProplystTheme.type.button)
+            }
+        }
+        // Balances the block against the header above it rather than centring on raw screen height.
+        Spacer(modifier = Modifier.height(48.dp))
     }
 }
 
@@ -86,12 +116,21 @@ fun ErrorStateView(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Icon(
-            imageVector = Icons.Filled.ErrorOutline,
-            contentDescription = null,
-            tint = ProplystTheme.colors.critical,
-            modifier = Modifier.padding(bottom = 12.dp),
-        )
+        Surface(
+            color = ProplystTheme.colors.criticalBg,
+            shape = RoundedCornerShape(18.dp),
+            modifier = Modifier.size(64.dp),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = Icons.Filled.ErrorOutline,
+                    contentDescription = null,
+                    tint = ProplystTheme.colors.critical,
+                    modifier = Modifier.size(28.dp),
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(18.dp))
         Text(
             message,
             style = ProplystTheme.type.cardTitle,
@@ -128,11 +167,12 @@ fun StatusChip(status: String, modifier: Modifier = Modifier) {
 fun CachedDataBanner(relativeTime: String, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surfaceVariant,
+        color = ProplystTheme.colors.networkBg,
     ) {
         Text(
             text = "Showing cached data from $relativeTime",
-            style = MaterialTheme.typography.bodySmall,
+            style = ProplystTheme.type.meta,
+            color = ProplystTheme.colors.networkText,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
         )
     }

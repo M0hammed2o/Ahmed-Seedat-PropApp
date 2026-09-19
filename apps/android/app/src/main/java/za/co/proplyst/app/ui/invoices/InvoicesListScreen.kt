@@ -9,9 +9,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -20,6 +18,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import za.co.proplyst.app.data.invoices.Invoice
+import za.co.proplyst.app.ui.common.ProplystScreenScaffold
 import za.co.proplyst.app.ui.common.ErrorStateView
 import za.co.proplyst.app.ui.common.EmptyStateView
 import za.co.proplyst.app.ui.common.LoadingView
@@ -46,8 +45,9 @@ fun InvoicesListScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    Scaffold(
-        topBar = { TopAppBar(title = { Text("Invoices") }) },
+    ProplystScreenScaffold(
+        title = "Invoices",
+        eyebrow = "Portfolio",
     ) { padding ->
         when (val state = uiState) {
             is InvoicesListUiState.Loading -> LoadingView(modifier = Modifier.padding(padding))
@@ -83,7 +83,13 @@ private fun InvoiceRow(invoice: Invoice, onClick: () -> Unit) {
     ProplystRecordCard(
         title = invoice.invoiceNumber,
         subtitle = "${invoice.tenantName} · ${invoice.propertyNickname} ${invoice.unitLabel}",
-        meta = invoice.description,
+        // Period and description are separate columns and often say different things ("2026-09"
+        // vs "Monthly rent"); the period is what identifies WHICH bill this is, so it leads.
+        meta = listOf(invoice.period, invoice.description)
+            .filter { it.isNotBlank() }
+            .distinct()
+            .joinToString(" · ")
+            .takeIf { it.isNotBlank() },
         amount = "R${formatCurrency(invoice.balance)}",
         amountCaption = "Balance",
         onClick = onClick,

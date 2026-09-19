@@ -20,9 +20,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.PictureAsPdf
@@ -38,10 +36,23 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import za.co.proplyst.app.data.invoices.InvoiceDetail
 import za.co.proplyst.app.data.invoices.InvoiceLineItem
 import za.co.proplyst.app.data.invoices.InvoicePayment
+import za.co.proplyst.app.ui.common.ProplystScreenScaffold
 import za.co.proplyst.app.ui.common.ErrorStateView
 import za.co.proplyst.app.ui.common.LoadingView
 import za.co.proplyst.app.ui.common.StatusChip
 import za.co.proplyst.app.ui.common.formatCurrency
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.layout.size
+import za.co.proplyst.app.ui.theme.ProplystTheme
+import za.co.proplyst.app.ui.theme.ProplystPillShape
+import za.co.proplyst.app.ui.common.ProplystSectionLabel
+import za.co.proplyst.app.ui.common.ProplystListSpacing
+import za.co.proplyst.app.ui.common.ProplystDetailPadding
+import za.co.proplyst.app.ui.common.ProplystDetailHeadline
+import za.co.proplyst.app.ui.common.ProplystDetailCard
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.foundation.background
 
 /** Invoice V1 completion pass (WORKLOG.md this date). Shows the SAME `paid`/`balance`/
  * `displayStatus` truth the web app's own invoice detail/tenant `/my-payments` pages show --
@@ -82,25 +93,22 @@ fun InvoiceDetailScreen(
         Toast.makeText(context, message, Toast.LENGTH_LONG).show()
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Invoice") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = viewModel::openPdf, enabled = !openingPdf) {
-                        if (openingPdf) {
-                            CircularProgressIndicator(modifier = Modifier.padding(4.dp))
-                        } else {
-                            Icon(Icons.Filled.PictureAsPdf, contentDescription = "Open PDF")
-                        }
-                    }
-                },
-            )
+    ProplystScreenScaffold(
+        title = "Invoice",
+        eyebrow = "Billing",
+        onBack = onBack,
+        actions = {
+            IconButton(onClick = viewModel::openPdf, enabled = !openingPdf) {
+                if (openingPdf) {
+                    CircularProgressIndicator(
+                        color = Color.White,
+                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(20.dp),
+                    )
+                } else {
+                    Icon(Icons.Filled.PictureAsPdf, contentDescription = "Open PDF", tint = Color.White)
+                }
+            }
         },
     ) { padding ->
         when (val state = detailState) {
@@ -129,54 +137,81 @@ private fun InvoiceDetailContent(
     onRecordPaymentClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
-    LazyColumn(modifier = modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+    LazyColumn(
+        modifier = modifier.fillMaxSize().background(ProplystTheme.colors.background),
+        contentPadding = ProplystDetailPadding,
+        verticalArrangement = ProplystListSpacing,
+    ) {
         item {
-            Spacer(Modifier.height(16.dp))
-            Text(detail.invoiceNumber, style = MaterialTheme.typography.headlineSmall)
-            detail.description?.let {
-                Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Spacer(Modifier.height(4.dp))
-            detail.displayStatus?.let { StatusChip(it) }
-            Spacer(Modifier.height(16.dp))
+            ProplystDetailHeadline(
+                title = detail.invoiceNumber,
+                subtitle = detail.description,
+                chips = { detail.displayStatus?.let { StatusChip(it) } },
+            )
         }
         item {
-            AmountSummaryRow(label = "Amount", value = detail.amount)
-            AmountSummaryRow(label = "Paid", value = detail.paid)
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            AmountSummaryRow(label = "Balance", value = detail.balance, emphasized = true)
-            Spacer(Modifier.height(16.dp))
+            ProplystDetailCard {
+                AmountSummaryRow(label = "Amount", value = detail.amount)
+                AmountSummaryRow(label = "Paid", value = detail.paid)
+                HorizontalDivider(color = ProplystTheme.colors.divider)
+                AmountSummaryRow(label = "Balance", value = detail.balance, emphasized = true)
+            }
         }
         if (detail.lineItems.isNotEmpty()) {
+            item { ProplystSectionLabel("Line items") }
             item {
-                Text("Line items", style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.height(4.dp))
+                ProplystDetailCard {
+                    detail.lineItems.forEachIndexed { index, line ->
+                        if (index > 0) HorizontalDivider(color = ProplystTheme.colors.divider)
+                        LineItemRow(line)
+                    }
+                }
             }
-            items(detail.lineItems, key = { it.id }) { line -> LineItemRow(line) }
-            item { Spacer(Modifier.height(16.dp)) }
         }
-        item {
-            Text("Payment history", style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(4.dp))
-        }
+        item { ProplystSectionLabel("Payment history") }
         when (paymentsState) {
             is PaymentHistoryUiState.Loading -> item {
-                Row(modifier = Modifier.padding(vertical = 8.dp)) { CircularProgressIndicator(modifier = Modifier.height(20.dp)) }
+                ProplystDetailCard {
+                    Row(modifier = Modifier.padding(vertical = 10.dp)) {
+                        CircularProgressIndicator(
+                            color = ProplystTheme.colors.primary,
+                            strokeWidth = 2.dp,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                }
             }
             is PaymentHistoryUiState.Error -> item {
-                Text(paymentsState.message, color = MaterialTheme.colorScheme.error)
+                ProplystDetailCard {
+                    Text(
+                        paymentsState.message,
+                        style = ProplystTheme.type.body,
+                        color = ProplystTheme.colors.criticalDeep,
+                        modifier = Modifier.padding(vertical = 10.dp),
+                    )
+                }
             }
-            is PaymentHistoryUiState.Loaded -> {
-                if (paymentsState.payments.isEmpty()) {
-                    item { Text("No payments recorded yet.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                } else {
-                    items(paymentsState.payments, key = { it.id }) { payment -> PaymentHistoryRow(payment) }
+            is PaymentHistoryUiState.Loaded -> item {
+                ProplystDetailCard {
+                    if (paymentsState.payments.isEmpty()) {
+                        Text(
+                            "No payments recorded yet.",
+                            style = ProplystTheme.type.body,
+                            color = ProplystTheme.colors.textSecondary,
+                            modifier = Modifier.padding(vertical = 10.dp),
+                        )
+                    } else {
+                        paymentsState.payments.forEachIndexed { index, payment ->
+                            if (index > 0) HorizontalDivider(color = ProplystTheme.colors.divider)
+                            PaymentHistoryRow(payment)
+                        }
+                    }
                 }
             }
         }
         if (canRecordPayment && onRecordPaymentClick != null) {
             item {
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(8.dp))
                 // A settled invoice still ACCEPTS a payment -- corrections and genuine overpayments
                 // are real accounting events and the server remains the authority on both, so
                 // nothing about the calculation or the permission changes here. What changes is
@@ -187,84 +222,128 @@ private fun InvoiceDetailContent(
                 if (settled) {
                     Text(
                         "This invoice is fully paid.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = ProplystTheme.type.body,
+                        color = ProplystTheme.colors.textSecondary,
                     )
                     Spacer(Modifier.height(8.dp))
-                    OutlinedButton(onClick = onRecordPaymentClick, modifier = Modifier.fillMaxWidth()) {
-                        Text("Record another payment")
+                    OutlinedButton(
+                        onClick = onRecordPaymentClick,
+                        shape = ProplystPillShape,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            "Record another payment",
+                            style = ProplystTheme.type.buttonSecondary,
+                            color = ProplystTheme.colors.primary,
+                        )
                     }
                 } else {
-                    Button(onClick = onRecordPaymentClick, modifier = Modifier.fillMaxWidth()) {
-                        Text("Record payment")
+                    Button(
+                        onClick = onRecordPaymentClick,
+                        shape = ProplystPillShape,
+                        colors = ButtonDefaults.buttonColors(containerColor = ProplystTheme.colors.primary),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("Record payment", style = ProplystTheme.type.button)
                     }
                 }
-                Spacer(Modifier.height(16.dp))
             }
-        } else {
-            item { Spacer(Modifier.height(24.dp)) }
         }
     }
 }
 
 @Composable
 private fun AmountSummaryRow(label: String, value: Double?, emphasized: Boolean = false) {
+    val type = ProplystTheme.type
+    val colors = ProplystTheme.colors
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(label, style = if (emphasized) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyMedium)
+        Text(
+            label,
+            style = if (emphasized) type.cardTitle else type.body,
+            color = if (emphasized) colors.textPrimary else colors.textSecondary,
+        )
         Text(
             // null means "the server's balance-enrichment step failed, reload to try again" --
             // never rendered as R0, which would misrepresent an unknown amount as a known zero.
             if (value != null) "R${formatCurrency(value)}" else "—",
-            style = if (emphasized) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyMedium,
+            style = if (emphasized) type.cardTitle else type.body,
+            color = colors.textPrimary,
+            maxLines = 1,
         )
     }
 }
 
 @Composable
 private fun LineItemRow(line: InvoiceLineItem) {
+    val type = ProplystTheme.type
+    val colors = ProplystTheme.colors
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(line.description, style = MaterialTheme.typography.bodyMedium)
+            Text(
+                line.description,
+                style = type.body,
+                color = colors.textPrimary,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
             Text(
                 "${line.quantity.toInt().takeIf { it.toDouble() == line.quantity } ?: line.quantity} × R${formatCurrency(line.unitPrice)}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = type.meta,
+                color = colors.textTertiary,
             )
         }
-        Text("R${formatCurrency(line.amount)}", style = MaterialTheme.typography.bodyMedium)
+        Text(
+            "R${formatCurrency(line.amount)}",
+            style = type.body,
+            color = colors.textPrimary,
+            maxLines = 1,
+            modifier = Modifier.padding(start = 12.dp),
+        )
     }
 }
 
 @Composable
 private fun PaymentHistoryRow(payment: InvoicePayment) {
+    val type = ProplystTheme.type
+    val colors = ProplystTheme.colors
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column {
-            Text("${payment.paidAt} · ${payment.method ?: "—"}", style = MaterialTheme.typography.bodyMedium)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                "${payment.paidAt} · ${payment.method ?: "—"}",
+                style = type.body,
+                color = colors.textPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
             payment.reference?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(it, style = type.meta, color = colors.textTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             if (payment.reversedAt != null) {
                 Text(
                     "Reversed${payment.reversalReason?.let { ": $it" } ?: ""}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
+                    style = type.meta,
+                    color = colors.criticalDeep,
+                    maxLines = 2,
                 )
             }
         }
         Text(
             "R${formatCurrency(payment.amount)}",
-            style = MaterialTheme.typography.bodyMedium,
-            color = if (payment.reversedAt != null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+            style = type.body,
+            color = if (payment.reversedAt != null) colors.textTertiary else colors.textPrimary,
+            maxLines = 1,
+            modifier = Modifier.padding(start = 12.dp),
         )
     }
 }
