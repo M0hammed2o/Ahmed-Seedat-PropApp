@@ -30,22 +30,18 @@ export default function DeleteAccountPage() {
         This page explains how to delete your account and exactly what happens to your information.
       </p>
 
-      <h2 className="mt-10 font-display text-lg font-semibold">Delete it yourself, now</h2>
-      <ol className="mt-3 list-decimal space-y-2 pl-5 text-light-textSecondary dark:text-dark-textSecondary">
-        <li>
-          <strong>In the Android app:</strong> open{' '}
-          <strong>More → Account &amp; security → Delete account</strong> (tenants:{' '}
-          <strong>Profile → Account &amp; security → Delete account</strong>), then confirm.
-          Deletion happens immediately.
-        </li>
-        <li>
-          <strong>On the web:</strong>{' '}
-          <Link href="/login" className="text-light-accent hover:underline dark:text-dark-accent">
-            sign in
-          </Link>{' '}
-          and use the same option under your account settings.
-        </li>
-      </ol>
+      <h2 className="mt-10 font-display text-lg font-semibold">Delete it yourself, in the app</h2>
+      <p className="mt-3 text-light-textSecondary dark:text-dark-textSecondary">
+        Open <strong>More → Account &amp; security → Delete account</strong> (tenants:{' '}
+        <strong>Profile → Account &amp; security → Delete account</strong>), then confirm.
+        You are signing in to the app already, which is how we know the request is really yours.
+        Deletion happens immediately and cannot be undone.
+      </p>
+      <p className="mt-3 text-light-textSecondary dark:text-dark-textSecondary">
+        There is no delete button on this website. If you cannot use the app &mdash; you have
+        uninstalled it, or you can no longer sign in &mdash; use the route below and we will do
+        it for you.
+      </p>
 
       <h2 className="mt-10 font-display text-lg font-semibold">
         If you can no longer sign in

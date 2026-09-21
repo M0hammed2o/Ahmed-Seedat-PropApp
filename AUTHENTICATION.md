@@ -147,7 +147,73 @@ function comment.
   all — see §4).
 - Confirm **Automatic linking** stays off (the safe default this design relies on).
 
-## 7. What's verified vs. not
+## 7. Account deletion
+
+Required by Google Play's "App account deletion" policy, which wants both an in-app path and a
+public web page. Both exist: **Account & security → Delete account** in the Android app (tenants
+reach it via Profile), and <https://proplyst.co.za/delete-account> on the web.
+
+Deletion is **anonymisation in place**, not a row drop. `audit_events` carries an immutability
+trigger and a real foreign key on the acting user, and invoices and journal entries are financial
+records, so a hard `auth.admin.deleteUser()` is refused by the database for any identity that has
+ever acted — which is every real user. `POST /api/v1/account/delete` therefore, acting only on the
+authenticated caller and taking no user id at all:
+
+1. revokes the caller's membership of every organisation;
+2. rewrites `profiles.display_name` to "Deleted user";
+3. rewrites `auth.users.email` to `deleted-<id>@deleted.proplyst.invalid` (`.invalid` is reserved
+   by RFC 2606, so it can never route) and bans sign-in for ~100 years;
+4. calls `public.purge_deleted_account_auth_pii(<id>)`, which deletes the `auth.identities` rows
+   and clears `raw_user_meta_data` and `phone`;
+5. writes an `account_deleted` audit event;
+6. signs the caller out.
+
+Steps 1–4 are each idempotent, so the whole endpoint is safely retryable: calling it twice
+anonymises an already-anonymised account to the same values and purges an already-purged one to no
+effect.
+
+### Why step 4 is a database function
+
+`auth.identities.identity_data` holds a copy of the email address for **every** provider, and the
+name and avatar URL for Google/Apple sign-ins; `raw_user_meta_data` holds the same again. Neither is
+reachable through the Auth admin API — and `user_metadata: {}` does not clear metadata, because
+GoTrue merges that object rather than replacing it. The auth schema is not exposed through
+PostgREST, so the work has to happen in a `SECURITY DEFINER` function.
+
+That function refuses to run unless the account has **already** been anonymised and banned by step
+3, so it cannot be aimed at a live identity even by a caller holding the service-role key. Execute
+is revoked from `anon` and `authenticated` and granted only to `service_role`.
+
+### Manual recovery: an incomplete purge
+
+Step 4 is retried three times. If all three fail, the endpoint returns 500 and writes an
+`account_deletion_purge_incomplete` audit event, because by then the account is banned and a caller
+whose access token has expired can no longer sign in to try again.
+
+That state is recoverable and the audit row is how you find it. As an operator, with the service
+role:
+
+```sql
+-- every deletion whose purge did not complete
+select entity_id, occurred_at
+  from public.audit_events
+ where action = 'account_deletion_purge_incomplete'
+ order by occurred_at desc;
+
+-- finish one (safe to re-run; the function's own guard still applies)
+select public.purge_deleted_account_auth_pii('<entity_id>');
+```
+
+Nothing else is needed: the account is already anonymised, banned and out of every organisation.
+
+### What deletion does not touch
+
+Organisations, properties, units, tenants, leases, invoices, payments, payment reports, journal
+entries, documents and maintenance records all belong to the organisation rather than to the
+personal account, and are left exactly as they were. The endpoint writes to two tables only:
+`organization_members` and `profiles`.
+
+## 8. What's verified vs. not
 
 `Verified`: pgTAP (`tenant_invitations.test.sql`, 26 adversarial assertions — link/short-code
 acceptance, expiry, revocation, replay, lockout, cross-org, already-linked, email mismatch,

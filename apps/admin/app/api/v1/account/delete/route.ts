@@ -15,8 +15,9 @@ import { writeAuditEvent } from '@/lib/audit';
  * user. Erasing the personal data while preserving the immutable financial trail is the correct
  * outcome for a financial system, and is what /delete-account and the privacy policy disclose.
  *
- * What this removes immediately: the person's name, email address and phone number, their ability
- * to sign in, and their access to every organisation.
+ * What this removes immediately: the person's name, email address and phone number -- including
+ * the copies held in auth.identities and raw_user_meta_data, which step 4 erases -- their
+ * ability to sign in, and their access to every organisation.
  * What it deliberately keeps: financial and audit records, which no longer identify the person.
  *
  * Acts ONLY on the caller's own identity -- there is no user id parameter, so it cannot be aimed
@@ -58,8 +59,6 @@ export async function POST() {
   //    RFC 2606 reserved TLD, so the result can never route anywhere.
   const { error: authError } = await service.auth.admin.updateUserById(userId, {
     email: `deleted-${userId}@deleted.proplyst.invalid`,
-    phone: undefined,
-    user_metadata: {},
     ban_duration: '876000h', // ~100 years; Supabase has no permanent-disable flag
   });
   if (authError) {
@@ -69,7 +68,53 @@ export async function POST() {
     );
   }
 
-  // 4. Record that it happened. orgId is null: this is an identity-level action, not an org one.
+  // 4. Erase the copies of the same personal data that the Auth admin API cannot reach, which this
+  //    endpoint previously left behind (audited against production 2026-09-21):
+  //      * auth.identities.identity_data holds the email address for every provider, plus the name
+  //        and avatar URL for Google/Apple sign-ins;
+  //      * raw_user_meta_data survives `user_metadata: {}` because GoTrue MERGES that object
+  //        instead of replacing it, so an empty object clears nothing;
+  //      * `phone` was passed as `undefined`, which JSON.stringify drops, so it was never sent.
+  //    The database function refuses to touch any account that step 3 has not already anonymised
+  //    and banned, so it cannot be aimed at a live identity. Ordering matters: it must run AFTER
+  //    step 3, because that guard is what authorises it.
+  //
+  //    Retried, because by this point the account is already banned: a caller whose access token
+  //    has expired can no longer authenticate, so they cannot come back and finish the job
+  //    themselves. A transient database blip must not be what leaves a person's email address
+  //    behind. The call is idempotent -- re-running it on an account with no identities left
+  //    simply removes none -- so retrying is always safe.
+  let purgeError: { message?: string } | null = null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const { error } = await service.rpc('purge_deleted_account_auth_pii', { p_user_id: userId });
+    purgeError = error ?? null;
+    if (!purgeError) break;
+  }
+  if (purgeError) {
+    // Recorded rather than swallowed. The account is anonymised and banned, which is exactly the
+    // state the function's own guard requires, so this is recoverable: an operator can complete it
+    // by calling public.purge_deleted_account_auth_pii(<user id>) with the service role. Without
+    // this row there would be nothing to tell them it needs doing. See AUTHENTICATION.md §7.
+    await writeAuditEvent(service, {
+      orgId: null,
+      actorUserId: null,
+      actorType: 'system',
+      action: 'account_deletion_purge_incomplete',
+      entityType: 'user_account',
+      entityId: userId,
+    });
+    return NextResponse.json(
+      {
+        error: {
+          code: 'account_deletion_failed',
+          message: 'Could not remove the stored sign-in details.',
+        },
+      },
+      { status: 500 },
+    );
+  }
+
+  // 5. Record that it happened. orgId is null: this is an identity-level action, not an org one.
   await writeAuditEvent(service, {
     orgId: null,
     actorUserId: null, // the actor no longer exists as an identifiable person
@@ -79,7 +124,7 @@ export async function POST() {
     entityId: userId,
   });
 
-  // 5. Drop the caller's own session.
+  // 6. Drop the caller's own session.
   await supabase.auth.signOut();
 
   return NextResponse.json({
