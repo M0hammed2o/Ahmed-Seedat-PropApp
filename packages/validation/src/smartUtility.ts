@@ -74,13 +74,46 @@ export const manualMeterReadingSchema = z.object({
 });
 export type ManualMeterReadingInput = z.infer<typeof manualMeterReadingSchema>;
 
+const PROVIDER_IDS = [
+  'milesight_lorawan',
+  'shelly_gen2',
+  'generic_json',
+  'simulator',
+  'chirpstack_v4',
+  'tts_v3',
+  'thingsboard',
+] as const;
+
+const credentialsSchema = z
+  .record(z.string().regex(/^[a-zA-Z]{1,30}$/), z.string().max(2000))
+  .refine((v) => Object.keys(v).length <= 10, 'Too many credential fields.');
+
 export const meterIntegrationCreateSchema = z.object({
-  provider: z.enum(['milesight_lorawan', 'shelly_gen2', 'generic_json', 'simulator']),
+  provider: z.enum(PROVIDER_IDS),
   name: z.string().trim().min(1).max(100),
+  /** Non-secret provider settings, e.g. {baseUrl} for ThingsBoard. */
+  config: z.record(z.string().regex(/^[a-zA-Z]{1,30}$/), z.string().max(500)).optional().default({}),
+  /** Secret values; encrypted server-side and never returned. */
+  credentials: credentialsSchema.optional(),
+  syncIntervalMinutes: z.union([z.literal(15), z.literal(60), z.literal(1440)]).optional(),
 });
 
-export const meterIntegrationActionSchema = z.object({
-  action: z.enum(['rotate', 'revoke']),
+export const meterIntegrationActionSchema = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('rotate') }),
+  z.object({ action: z.literal('revoke') }),
+  z.object({ action: z.literal('verify') }),
+  z.object({ action: z.literal('sync_now') }),
+  z.object({ action: z.literal('update_credentials'), credentials: credentialsSchema }),
+]);
+
+export const meterIntegrationRequestSchema = z.object({
+  propertyId: z.string().uuid().optional().nullable(),
+  utilityType: z.enum(['water', 'electricity']),
+  manufacturer: z.string().trim().min(1).max(100),
+  model: z.string().trim().min(1).max(100),
+  connectionMethod: z.string().trim().max(100).optional().nullable(),
+  supplier: z.string().trim().max(200).optional().nullable(),
+  notes: z.string().trim().max(1000).optional().nullable(),
 });
 
 export const buildingCreateSchema = z.object({ name: z.string().trim().min(1).max(100) });

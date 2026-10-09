@@ -14,6 +14,9 @@ import {
   serverError,
 } from '@/lib/smartUtility/http';
 import { issueToken } from '@/lib/smartUtility/tokens';
+import { AdapterError } from '@/lib/smartUtility/adapters';
+import { getProvider, validateBaseUrl } from '@/lib/smartUtility/providers';
+import { encryptCredentials, isCredentialsKeyConfigured } from '@/lib/smartUtility/secrets';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -40,11 +43,38 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     return jsonError(403, 'forbidden', 'Only an organisation manager or principal can connect meter hardware.');
   }
 
+  const provider = getProvider(parsed.data.provider)!;
+  const integrationId = crypto.randomUUID();
+  let credentialsCiphertext: string | null = null;
+  if (provider.mode === 'poll') {
+    // Poll providers hold server-side credentials: validate config, require the encryption key
+    // (fail closed), and bind the ciphertext to this row's id.
+    try {
+      validateBaseUrl(parsed.data.config.baseUrl, process.env.NODE_ENV !== 'production');
+    } catch (err) {
+      return jsonError(400, 'invalid_config', err instanceof AdapterError ? err.message : 'Invalid server address.');
+    }
+    const creds = parsed.data.credentials ?? {};
+    const allowed = new Set(provider.credentialFields.map((f) => f.key));
+    if (Object.keys(creds).some((k) => !allowed.has(k)) || Object.values(creds).every((v) => !v)) {
+      return jsonError(400, 'invalid_credentials', 'Provide the credentials this provider needs.');
+    }
+    if (!isCredentialsKeyConfigured()) {
+      return jsonError(
+        503,
+        'credentials_key_missing',
+        'Secure credential storage is not configured on this server, so polled connections cannot be created yet.',
+      );
+    }
+    credentialsCiphertext = encryptCredentials(creds, integrationId);
+  }
+
   const issued = issueToken();
   const service = getServiceRoleClient();
   const { data, error } = await service
     .from('meter_integrations')
     .insert({
+      id: integrationId,
       org_id: property.org_id,
       property_id: property.id,
       provider: parsed.data.provider,
@@ -52,8 +82,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       token_prefix: issued.prefix,
       token_hash: issued.hash,
       created_by: auth.user.id,
+      sync_mode: provider.mode,
+      provider_config: provider.mode === 'poll' ? parsed.data.config : {},
+      credentials_ciphertext: credentialsCiphertext,
+      sync_interval_minutes: provider.mode === 'poll' ? (parsed.data.syncIntervalMinutes ?? 60) : null,
+      next_sync_at: provider.mode === 'poll' ? new Date().toISOString() : null,
     })
-    .select('id, provider, name, token_prefix, status, created_at')
+    .select('id, provider, name, token_prefix, status, sync_mode, created_at')
     .single();
   if (error) return serverError('integration_create_failed', 'Could not create the integration.', 'meter_integrations.insert', error);
 
@@ -69,9 +104,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   return NextResponse.json(
     {
       integration: data,
-      // Shown once. Never logged, never stored in plaintext.
-      token: issued.token,
-      ingestUrl: `${getAppUrl()}${INGEST_PATH}`,
+      // Push providers: shown once, never logged or stored in plaintext. Poll providers need no
+      // inbound token (Proplyst calls them), so none is returned.
+      token: provider.mode === 'push' ? issued.token : null,
+      ingestUrl: provider.mode === 'push' ? `${getAppUrl()}${INGEST_PATH}` : null,
     },
     { status: 201 },
   );

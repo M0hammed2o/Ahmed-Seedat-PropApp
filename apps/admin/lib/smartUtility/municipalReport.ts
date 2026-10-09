@@ -1,6 +1,7 @@
 import 'server-only';
 import PDFDocument from 'pdfkit';
 import { computeIntervals, sastDateString, type MeterReadingPoint } from './consumption';
+import { DEFAULT_INCLUDE_FIELDS, readingLines, type IncludeFields } from './templates';
 
 // Monthly municipal meter-reading pack (docs/SMART_UTILITY_ARCHITECTURE.md §8). Building the snapshot
 // is pure (unit-tested); rendering produces email text, CSV and PDF from the SAME snapshot, so what
@@ -235,18 +236,122 @@ export function renderReportCsv(r: MunicipalReport): string {
   return [header, ...rows].map((row) => row.map(csvCell).join(',')).join('\r\n') + '\r\n';
 }
 
-export function renderReportPdf(r: MunicipalReport): Promise<Buffer> {
+export interface PdfImage {
+  meterId: string;
+  buffer: Buffer;
+  caption: string;
+}
+
+/**
+ * The pack's PDF. `fields` mirrors the template toggles (default: everything); `images` are meter
+ * photos (JPEG/PNG bytes already loaded through the protected-storage ownership check).
+ */
+export function renderReportPdf(
+  r: MunicipalReport,
+  opts: { fields?: IncludeFields; images?: PdfImage[] } = {},
+): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: 'A4', margin: 50 });
     const chunks: Buffer[] = [];
     doc.on('data', (chunk: Buffer) => chunks.push(chunk));
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
-    doc.fontSize(16).text('Meter reading submission', { underline: false });
+    const f = opts.fields ?? DEFAULT_INCLUDE_FIELDS;
+    doc.fontSize(16).fillColor('#111111').text('Meter reading submission');
     doc.moveDown(0.5).fontSize(10);
-    for (const line of reportTextLines(r)) doc.text(line);
+    doc.text(`Property: ${r.property.name}${f.propertyAddress ? `, ${r.property.address}` : ''}`);
+    if (r.preparedFor) doc.text(`Owner / managing agent: ${r.preparedFor}`);
+    if (r.municipality) doc.text(`Municipality: ${r.municipality.name}`);
+    if (r.municipalAccountNumber && f.accountNumber) doc.text(`Municipal account number: ${r.municipalAccountNumber}`);
+    doc.text(`Reporting period: ${r.period.start} to ${r.period.end}`);
+    doc.moveDown();
+    for (const m of r.meters) {
+      for (const l of readingLines(m, f)) doc.text(l);
+      const imgs = (opts.images ?? []).filter((i) => i.meterId === m.meterId);
+      for (const img of imgs) {
+        try {
+          doc.moveDown(0.3);
+          doc.image(img.buffer, { fit: [240, 180] });
+          doc.fontSize(8).fillColor('#555555').text(img.caption).fontSize(10).fillColor('#111111');
+        } catch {
+          doc.fontSize(8).fillColor('#555555').text('(photo could not be embedded)').fontSize(10).fillColor('#111111');
+        }
+      }
+      doc.moveDown();
+    }
+    for (const n of r.notes) doc.text(`Note: ${n}`);
     doc.moveDown().fontSize(8).fillColor('#555555').text(
       `Generated ${fmtDate(r.generatedAt)} by Proplyst. A sent submission is not confirmation that the municipality accepted the reading.`,
+    );
+    doc.end();
+  });
+}
+
+export interface EvidenceReportInput {
+  propertyName: string;
+  propertyAddress: string;
+  meterLabel: string;
+  meterNumber: string | null;
+  serialNumber: string | null;
+  utilityType: 'water' | 'electricity';
+  reading: number;
+  unit: string;
+  readAt: string;
+  submittedBy: string | null;
+  source: string;
+  verificationStatus: string;
+  verifiedBy: string | null;
+  verifiedAt: string | null;
+  note: string | null;
+  image: Buffer | null;
+  imageCaption: string;
+}
+
+/** One-page meter evidence report: the photo alongside the reading and who recorded/verified it. */
+export function renderEvidencePdf(e: EvidenceReportInput): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ size: 'A4', margin: 50 });
+    const chunks: Buffer[] = [];
+    doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+    doc.fontSize(16).fillColor('#111111').text('Meter reading evidence');
+    doc.fontSize(10).fillColor('#555555').text(`${e.propertyName}, ${e.propertyAddress}`);
+    doc.moveDown();
+    const top = doc.y;
+    if (e.image) {
+      try {
+        doc.image(e.image, 50, top, { fit: [250, 300] });
+      } catch {
+        doc.fillColor('#555555').text('(photo could not be embedded)', 50, top);
+      }
+    } else {
+      doc.rect(50, top, 250, 200).stroke('#cccccc');
+      doc.fillColor('#777777').text('No photo provided', 60, top + 90);
+    }
+    doc.fontSize(8).fillColor('#555555').text(e.imageCaption, 50, top + 305, { width: 250 });
+    const rows: [string, string][] = [
+      ['Meter', e.meterLabel],
+      ['Meter number', e.meterNumber ?? '—'],
+      ['Serial number', e.serialNumber ?? '—'],
+      ['Utility', e.utilityType === 'water' ? 'Water' : 'Electricity'],
+      ['Reading', `${e.reading.toLocaleString('en-ZA', { maximumFractionDigits: 3 })} ${e.unit}`],
+      ['Reading date', fmtDate(e.readAt)],
+      ['Recorded by', e.submittedBy ?? '—'],
+      ['Source', e.source],
+      ['Verification', e.verificationStatus.replace('_', ' ')],
+      ['Verified by', e.verifiedBy ? `${e.verifiedBy}${e.verifiedAt ? ` on ${fmtDate(e.verifiedAt)}` : ''}` : '—'],
+      ['Note', e.note ?? '—'],
+    ];
+    let y = top;
+    for (const [k, v] of rows) {
+      doc.fontSize(9).fillColor('#555555').text(k, 320, y, { width: 90 });
+      doc.fontSize(10).fillColor('#111111').text(v, 410, y, { width: 135 });
+      y += 22;
+    }
+    doc.fontSize(8).fillColor('#555555').text(
+      'Readings entered by a person are shown as unverified until reviewed. Proplyst does not treat photo-based or automated readings as verified without a reviewer.',
+      50, top + 340, { width: 495 },
     );
     doc.end();
   });

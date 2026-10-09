@@ -2,8 +2,6 @@
 // turns a provider's push payload into NormalisedReading[]; ingest.ts does auth, binding and storage.
 // A new manufacturer = a new adapter + a test, never a schema change.
 
-export type MeterProvider = 'milesight_lorawan' | 'shelly_gen2' | 'generic_json' | 'simulator';
-
 export interface NormalisedReading {
   externalDeviceId: string;
   /** '' when the device has one register; otherwise e.g. 'total', 'a', 'em1:0', 'input:0'. */
@@ -226,20 +224,4 @@ export function parseGenericJson(body: unknown, receivedAt: Date): NormalisedRea
       typeof r.eventId === 'string' && r.eventId.trim() ? r.eventId.slice(0, 200) : null;
     return { externalDeviceId: deviceId.trim(), channel, readAt: at, rawValue: value, eventId };
   });
-}
-
-export function parseProviderPayload(
-  provider: MeterProvider,
-  body: unknown,
-  receivedAt: Date,
-): NormalisedReading[] {
-  switch (provider) {
-    case 'milesight_lorawan':
-      return parseMilesight(body, receivedAt);
-    case 'shelly_gen2':
-      return parseShelly(body, receivedAt);
-    case 'generic_json':
-    case 'simulator':
-      return parseGenericJson(body, receivedAt);
-  }
 }

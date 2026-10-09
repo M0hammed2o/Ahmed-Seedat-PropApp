@@ -50,7 +50,12 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await ingestPayload(service, { integration: auth.integration, body, sourceIp: ip });
+    const result = await ingestPayload(service, {
+      integration: auth.integration,
+      body,
+      sourceIp: ip,
+      query: request.nextUrl.searchParams,
+    });
     const status = result.rejected.some((r) => r.reason === 'payload_invalid') ? 422 : 200;
     return NextResponse.json(result, { status });
   } catch (err) {

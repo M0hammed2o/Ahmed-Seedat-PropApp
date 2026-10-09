@@ -211,7 +211,12 @@ const TEMPLATE_BODY: Record<EmailTemplateName, (vars: Record<string, unknown>) =
   lease_ready: (v) =>
     `Your lease for ${v.propertyLabel ?? 'your rental'} is ready to review. ${v.leaseUrl ? `View it securely here: ${v.leaseUrl}.` : ''} Sign in to review the terms and confirm receipt.`,
   municipal_meter_reading_report: (v) =>
-    [
+    typeof v.bodyText === 'string'
+      ? `${v.bodyText}
+
+—
+Sent on behalf of ${v.preparedFor ?? 'the property owner'} via ${branding.productName}.`
+      : [
       'Good day,',
       '',
       'Please find the meter readings below for the property and period stated. The same readings are attached as CSV and PDF.',
@@ -481,11 +486,18 @@ const TEMPLATE_HTML_CONTENT: Record<
   municipal_meter_reading_report: (v, _appUrl) => ({
     eyebrow: 'Meter readings',
     heading: String(v.heading ?? 'Meter reading submission'),
+    // Owner-edited body (approved template) when present: its first line is the intro, the rest
+    // are paragraphs. Otherwise the default intro + reading lines.
     intro:
-      'Please find the meter readings for the property and period below. The same readings are attached as CSV and PDF.',
-    paragraphs: Array.isArray(v.textLines)
-      ? (v.textLines as string[]).filter((l) => l.trim().length > 0)
-      : undefined,
+      typeof v.bodyText === 'string'
+        ? (String(v.bodyText).split('\n').find((l) => l.trim().length > 0) ?? '')
+        : 'Please find the meter readings for the property and period below. The same readings are attached as CSV and PDF.',
+    paragraphs:
+      typeof v.bodyText === 'string'
+        ? String(v.bodyText).split('\n').filter((l) => l.trim().length > 0).slice(1)
+        : Array.isArray(v.textLines)
+          ? (v.textLines as string[]).filter((l) => l.trim().length > 0)
+          : undefined,
     infoBox: {
       label: 'Sent on behalf of',
       text: `${v.preparedFor ?? 'the property owner'} via ${branding.productName}`,

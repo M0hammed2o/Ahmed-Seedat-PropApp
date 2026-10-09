@@ -1,7 +1,8 @@
 import 'server-only';
 import crypto from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { AdapterError, parseProviderPayload, type MeterProvider, type NormalisedReading } from './adapters';
+import { AdapterError, type NormalisedReading } from './adapters';
+import { parsePush, type ProviderId } from './providers';
 import { classifyDecrease } from './consumption';
 import { parseTokenPrefix, tokenMatchesHash } from './tokens';
 
@@ -16,7 +17,7 @@ export interface IntegrationRow {
   id: string;
   org_id: string;
   property_id: string;
-  provider: MeterProvider;
+  provider: ProviderId;
   status: 'active' | 'revoked';
   token_hash: string;
   previous_token_hash: string | null;
@@ -96,6 +97,8 @@ export interface IngestResult {
   accepted: number;
   duplicates: number;
   suspect: number;
+  /** Readings for a bound device on a channel no meter uses (e.g. a codec's battery field). */
+  ignored: number;
   rejected: IngestRejection[];
 }
 
@@ -104,6 +107,8 @@ export interface IngestInput {
   body: unknown;
   sourceIp?: string | null;
   now?: Date;
+  /** URL query parameters of the push (ChirpStack sends ?event=up). */
+  query?: URLSearchParams;
 }
 
 export async function ingestPayload(
@@ -112,17 +117,33 @@ export async function ingestPayload(
 ): Promise<IngestResult> {
   const now = input.now ?? new Date();
   const { integration } = input;
-  const result: IngestResult = { accepted: 0, duplicates: 0, suspect: 0, rejected: [] };
+  const result: IngestResult = { accepted: 0, duplicates: 0, suspect: 0, ignored: 0, rejected: [] };
 
   let readings: NormalisedReading[];
   try {
-    readings = parseProviderPayload(integration.provider, input.body, now);
+    readings = parsePush(integration.provider, input.body, now, input.query);
   } catch (err) {
     const detail = err instanceof AdapterError ? err.message : 'Unparseable payload';
     result.rejected.push({ deviceId: '', channel: '', readAt: null, reason: 'payload_invalid', detail });
     await logIngestEvent(serviceClient, integration, result, input.sourceIp);
     return result;
   }
+  return storeReadings(serviceClient, integration, readings, { now, sourceIp: input.sourceIp });
+}
+
+/**
+ * The one validate-and-store path for normalised readings, shared by push ingestion (above) and
+ * scheduled polling (sync.ts): device binding, timestamp window, monotonicity/rollover/reset,
+ * idempotent insert, meter + integration bookkeeping, and the ingest log row.
+ */
+export async function storeReadings(
+  serviceClient: SupabaseClient,
+  integration: IntegrationRow,
+  readings: NormalisedReading[],
+  opts: { now?: Date; sourceIp?: string | null; source?: 'device' | 'simulator' } = {},
+): Promise<IngestResult> {
+  const now = opts.now ?? new Date();
+  const result: IngestResult = { accepted: 0, duplicates: 0, suspect: 0, ignored: 0, rejected: [] };
 
   // Resolve meters for every device/channel in ONE query, scoped to this integration only -- a
   // device id belonging to another org/integration can never match.
@@ -140,8 +161,10 @@ export async function ingestPayload(
   if (meterError) throw new Error(`meter lookup failed: ${meterError.message}`);
 
   const meterByKey = new Map<string, MeterRow>();
+  const boundDevices = new Set<string>();
   for (const m of (meterRows ?? []) as MeterRow[]) {
     meterByKey.set(`${m.external_device_id}\u0000${m.external_channel}`, m);
+    boundDevices.add(m.external_device_id);
   }
 
   // Validate and group per meter.
@@ -150,7 +173,9 @@ export async function ingestPayload(
     const meter = meterByKey.get(`${r.externalDeviceId}\u0000${r.channel}`);
     const base = { deviceId: r.externalDeviceId, channel: r.channel, readAt: r.readAt.toISOString() };
     if (!meter) {
-      result.rejected.push({ ...base, reason: 'unknown_device' });
+      // A known device reporting an unbound field (battery, temperature …) is normal, not an attack.
+      if (boundDevices.has(r.externalDeviceId)) result.ignored += 1;
+      else result.rejected.push({ ...base, reason: 'unknown_device' });
       continue;
     }
     if (r.readAt.getTime() > now.getTime() + MAX_FUTURE_SKEW_MS) {
@@ -210,7 +235,7 @@ export async function ingestPayload(
         raw_value: r.rawValue,
         multiplier,
         value: toValue(r.rawValue),
-        source: integration.provider === 'simulator' ? 'simulator' : 'device',
+        source: opts.source ?? (integration.provider === 'simulator' ? 'simulator' : 'device'),
         integration_id: integration.id,
         external_event_id: r.eventId,
         status,
@@ -254,7 +279,7 @@ export async function ingestPayload(
     .from('meter_integrations')
     .update({ last_seen_at: now.toISOString() })
     .eq('id', integration.id);
-  await logIngestEvent(serviceClient, integration, result, input.sourceIp);
+  await logIngestEvent(serviceClient, integration, result, opts.sourceIp);
   return result;
 }
 

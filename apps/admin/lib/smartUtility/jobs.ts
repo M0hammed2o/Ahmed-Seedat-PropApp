@@ -13,12 +13,14 @@ import {
 import { loadPoints, replacementChain, SMART_METER_COLUMNS, type SmartMeterRow } from './data';
 import { reconcile } from './reconciliation';
 import { duePeriod, generateSubmission, sendDueDeliveries, syncDeliveryStatuses } from './submissions';
+import { runPollSync } from './sync';
 
 // runSmartUtilityJob (docs/SMART_UTILITY_ARCHITECTURE.md §9). Appended to POST
 // /api/v1/system/daily-jobs and exposed separately as POST /api/v1/system/smart-utility-jobs. Each
 // step is caught independently so one failing step never blocks the others.
 
 export interface SmartUtilityJobResult {
+  pollSync: { attempted: number; succeeded: number; failed: number } | { error: string };
   health: { stale: number; offline: number; alerts: number } | { error: string };
   anomalies: { metersAnalysed: number; alertsCreated: number } | { error: string };
   reconciliation: { scopes: number; alertsCreated: number } | { error: string };
@@ -347,6 +349,8 @@ export async function runSmartUtilityJob(
   now: Date = new Date(),
 ): Promise<SmartUtilityJobResult> {
   return {
+    // Poll first so the health sweep and rules see the freshest data.
+    pollSync: await step(() => runPollSync(serviceClient, { now })),
     health: await step(() => runHealthSweep(serviceClient, now)),
     anomalies: await step(() => runDailyAnomalies(serviceClient, now)),
     reconciliation: await step(() => runMonthlyReconciliation(serviceClient, now)),
