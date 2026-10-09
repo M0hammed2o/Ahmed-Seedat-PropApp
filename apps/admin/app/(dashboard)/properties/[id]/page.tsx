@@ -24,6 +24,7 @@ import { PropertyCompliancePanel } from '@/components/properties/PropertyComplia
 import { PropertyManagementPanel } from '@/components/properties/PropertyManagementPanel';
 import { PropertyFinancesPanel } from '@/components/properties/PropertyFinancesPanel';
 import { PropertyUtilityMetersPanel } from '@/components/properties/PropertyUtilityMetersPanel';
+import { SmartUtilityPanel } from '@/components/smartUtility/SmartUtilityPanel';
 import { PropertyDocumentFolders } from '@/components/properties/PropertyDocumentFolders';
 import { PropertyOwnersPanel } from '@/components/properties/PropertyOwnersPanel';
 import { resolveCoverPhotoRow, signCoverPhotoUrl } from '@/lib/propertyPhotos';
@@ -1147,6 +1148,13 @@ function PropertyDetailView({
                 />
               </div>
             ),
+          },
+          {
+            // Smart Utility Monitoring (docs/SMART_UTILITY_ARCHITECTURE.md §10, 2026-10-08). The
+            // monthly manual-reading panel stays in Finances (Android parity); this tab is the
+            // meters/telemetry/alerts/municipal-submission experience.
+            label: 'Utilities',
+            content: <SmartUtilityPanel propertyId={property.id} canManage={canManage} />,
           },
           {
             label: `Documents (${documents.length})`,
