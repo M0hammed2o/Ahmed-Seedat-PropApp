@@ -210,3 +210,28 @@ export const municipalTemplateApprovalSchema = z.object({
   /** The hash shown with the preview the owner approved; must match the server's current hash. */
   templateHash: z.string().regex(/^[0-9a-f]{64}$/),
 });
+
+const tariffBlockSchema = z.object({ upTo: z.number().positive().nullable(), rate: z.number().min(0).max(100_000) });
+
+export const utilityTariffCreateSchema = z.object({
+  utilityType: z.enum(['water', 'electricity']),
+  name: z.string().trim().min(1).max(100),
+  fixedCharge: z.number().min(0).max(1_000_000).default(0),
+  blocks: z.array(tariffBlockSchema).min(1).max(10),
+  vatInclusive: z.boolean().default(true),
+  effectiveFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  notes: optionalText(500),
+});
+
+export const utilityTariffEndSchema = z.object({ effectiveTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) });
+
+export const utilityChargesGenerateSchema = z.object({
+  periodStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  periodEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+
+export const utilityChargesActionSchema = z.object({
+  action: z.enum(['approve', 'void', 'invoice']),
+  chargeIds: z.array(z.string().uuid()).min(1).max(200),
+  dueInDays: z.number().int().min(0).max(90).optional(),
+});

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Panel } from '@/components/ui/Panel';
 import { MiniLineChart } from '@/components/ui/MiniLineChart';
+import { BillingSection } from './BillingSection';
 import { IntegrationsSection } from './IntegrationsSection';
 import { MetersSection } from './MetersSection';
 import { SubmissionsSection } from './SubmissionsSection';
@@ -223,6 +224,7 @@ export function SmartUtilityPanel({ propertyId, canManage }: { propertyId: strin
       <MetersSection data={data} canManage={canManage} onChanged={() => void load()} />
       <IntegrationsSection data={data} canManage={canManage} onChanged={() => void load()} />
       <SubmissionsSection data={data} canManage={canManage} onChanged={() => void load()} />
+      <BillingSection data={data} canManage={canManage} />
     </div>
   );
 }
