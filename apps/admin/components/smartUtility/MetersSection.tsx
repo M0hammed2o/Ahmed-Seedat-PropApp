@@ -3,6 +3,7 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Panel } from '@/components/ui/Panel';
+import { AddMeterWizard } from './AddMeterWizard';
 import { DEVICE_MODELS, INTERVALS_BY_CONNECTIVITY, intervalLabel } from '@/lib/smartUtility/catalog';
 import {
   api,
@@ -60,7 +61,7 @@ export function MetersSection({
       description="Main meters, building check meters and unit meters"
       actions={canManage ? <Button size="sm" onClick={() => setAdding((v) => !v)}>{adding ? 'Close' : 'Add meter'}</Button> : null}
     >
-      {adding ? <MeterForm data={data} onDone={() => { setAdding(false); onChanged(); }} /> : null}
+      {adding ? <AddMeterWizard data={data} onDone={() => { setAdding(false); onChanged(); }} /> : null}
       {replacing ? (
         <MeterForm data={data} replacing={replacing} onDone={() => { setReplacing(null); onChanged(); }} />
       ) : null}
@@ -94,6 +95,7 @@ export function MetersSection({
                     <div className="text-xs text-muted-foreground">
                       {[m.manufacturer, m.model].filter(Boolean).join(' ') || 'Manual'}
                       {m.ownership === 'municipal' ? ' · Municipal meter' : ''}
+                      {m.location ? ` · ${m.location}` : ''}
                     </div>
                   </td>
                   <td className="py-2 pr-3 capitalize">{m.meterRole}</td>
@@ -110,6 +112,12 @@ export function MetersSection({
                   </td>
                   <td className="py-2 pr-3">
                     <Badge tone={HEALTH_TONE[m.healthStatus] ?? 'neutral'}>{HEALTH_LABEL[m.healthStatus] ?? m.healthStatus}</Badge>
+                    {m.readingsLast24h.missing ? (
+                      <div className="mt-1 text-[11px] text-light-warning dark:text-dark-warning">
+                        {m.readingsLast24h.missing} of {m.readingsLast24h.expected} readings missing (24 h)
+                      </div>
+                    ) : null}
+                    {m.latestReadingStatus === 'suspect' ? <div className="mt-1 text-[11px] text-muted-foreground">Latest reading flagged</div> : null}
                   </td>
                   {canManage ? (
                     <td className="py-2">

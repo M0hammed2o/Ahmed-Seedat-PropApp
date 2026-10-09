@@ -14,6 +14,7 @@ export function meterInsertRow(orgId: string, propertyId: string, d: SmartMeterC
     ownership: d.ownership,
     parent_meter_id: d.parentMeterId ?? null,
     meter_number: d.meterNumber || null,
+    location: d.location || null,
     manufacturer: d.manufacturer || null,
     model: d.model || null,
     serial_number: d.serialNumber || null,

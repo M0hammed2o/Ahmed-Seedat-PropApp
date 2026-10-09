@@ -5,6 +5,7 @@ import { analyseDay, DEFAULT_THRESHOLDS, estimateCost, type AlertThresholds } fr
 import {
   bucketConsumption,
   consumptionForChain,
+  consumptionForPeriod,
   lastCompleteBillingPeriod,
   sastDateString,
   sastInstant,
@@ -24,6 +25,8 @@ export interface SmartUtilityJobResult {
   health: { stale: number; offline: number; alerts: number } | { error: string };
   anomalies: { metersAnalysed: number; alertsCreated: number } | { error: string };
   reconciliation: { scopes: number; alertsCreated: number } | { error: string };
+  snapshots: { created: number } | { error: string };
+  reminders: { sent: number } | { error: string };
   submissions: { generated: number } | { error: string };
   deliveries: { attempted: number; sent: number; failed: number; exhausted: number } | { error: string };
   statusSync: { changed: number } | { error: string };
@@ -328,6 +331,85 @@ export async function runMonthlyReconciliation(serviceClient: SupabaseClient, no
   return { scopes, alertsCreated: await insertAlerts(serviceClient, alerts) };
 }
 
+/**
+ * Monthly snapshots (meter_period_snapshots): on each property's billing day, the just-ended period's
+ * opening/closing/consumption per physical meter. Idempotent (unique meter_id + period_start).
+ */
+export async function runMonthlySnapshots(serviceClient: SupabaseClient, now: Date) {
+  const today = sastParts(now);
+  const { data: meters } = await serviceClient
+    .from('utility_meters')
+    .select(SMART_METER_COLUMNS)
+    .or(`active.eq.true,decommissioned_at.gte.${new Date(now.getTime() - 62 * 86_400_000).toISOString()}`);
+  const list = (meters ?? []) as SmartMeterRow[];
+  if (list.length === 0) return { created: 0 };
+  const propertyIds = [...new Set(list.map((m) => m.property_id))];
+  const { data: settings } = await serviceClient
+    .from('municipal_submission_settings')
+    .select('property_id, billing_day')
+    .in('property_id', propertyIds);
+  const billingDay = new Map((settings ?? []).map((s) => [s.property_id, s.billing_day as number]));
+  const due = list.filter((m) => today.day === (billingDay.get(m.property_id) ?? 1));
+  if (due.length === 0) return { created: 0 };
+  let created = 0;
+  const byProperty = new Map<string, SmartMeterRow[]>();
+  for (const m of due) byProperty.set(m.property_id, [...(byProperty.get(m.property_id) ?? []), m]);
+  for (const [propertyId, ms] of byProperty) {
+    const period = lastCompleteBillingPeriod(now, billingDay.get(propertyId) ?? 1);
+    const points = await loadPoints(serviceClient, ms.map((m) => m.id), new Date(period.start.getTime() - 3 * 86_400_000), new Date(period.end.getTime() + 3 * 86_400_000));
+    const rows = ms.map((m) => {
+      const c = consumptionForPeriod(points.get(m.id) ?? [], period.start, period.end, { registerDigits: m.register_digits });
+      return {
+        org_id: m.org_id,
+        property_id: m.property_id,
+        meter_id: m.id,
+        period_start: period.start.toISOString(),
+        period_end: period.end.toISOString(),
+        opening_value: c.startValue,
+        closing_value: c.endValue,
+        consumption: c.consumption,
+        quality: c.quality,
+        reset_in_period: c.resetInPeriod,
+      };
+    });
+    const { data, error } = await serviceClient
+      .from('meter_period_snapshots')
+      .upsert(rows, { onConflict: 'meter_id,period_start', ignoreDuplicates: true })
+      .select('id');
+    if (error) throw new Error(`snapshot insert failed: ${error.message}`);
+    created += data?.length ?? 0;
+  }
+  return { created };
+}
+
+/** Daily reminder for packs still awaiting approval (at most once per day per pack). */
+export async function runApprovalReminders(serviceClient: SupabaseClient, now: Date) {
+  const cutoff = new Date(now.getTime() - 20 * 3_600_000).toISOString();
+  const { data } = await serviceClient
+    .from('municipal_submissions')
+    .select('id, org_id, property_id, period_start, period_end, reminder_sent_at, created_at')
+    .eq('status', 'pending_approval')
+    .lte('created_at', cutoff)
+    .or(`reminder_sent_at.is.null,reminder_sent_at.lte.${cutoff}`)
+    .limit(200);
+  let sent = 0;
+  for (const sub of data ?? []) {
+    await notifyPropertyStaff(serviceClient, {
+      orgId: sub.org_id,
+      propertyId: sub.property_id,
+      type: 'municipal_submission_reminder',
+      title: 'Meter readings still awaiting your approval',
+      body: `The ${sub.period_start} to ${sub.period_end} reading pack has not been approved yet. Municipal submission windows are short.`,
+      relatedEntityType: 'municipal_submissions',
+      relatedEntityId: sub.id,
+      minRole: 'accountant',
+    });
+    await serviceClient.from('municipal_submissions').update({ reminder_sent_at: now.toISOString() }).eq('id', sub.id);
+    sent += 1;
+  }
+  return { sent };
+}
+
 export async function runDueSubmissions(serviceClient: SupabaseClient, now: Date) {
   const { data: settings, error } = await serviceClient
     .from('municipal_submission_settings')
@@ -354,6 +436,8 @@ export async function runSmartUtilityJob(
     health: await step(() => runHealthSweep(serviceClient, now)),
     anomalies: await step(() => runDailyAnomalies(serviceClient, now)),
     reconciliation: await step(() => runMonthlyReconciliation(serviceClient, now)),
+    snapshots: await step(() => runMonthlySnapshots(serviceClient, now)),
+    reminders: await step(() => runApprovalReminders(serviceClient, now)),
     submissions: await step(() => runDueSubmissions(serviceClient, now)),
     deliveries: await step(() => sendDueDeliveries(serviceClient, { now })),
     statusSync: await step(async () => ({ changed: await syncDeliveryStatuses(serviceClient, now) })),

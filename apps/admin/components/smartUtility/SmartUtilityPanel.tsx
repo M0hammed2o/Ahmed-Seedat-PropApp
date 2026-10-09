@@ -15,6 +15,7 @@ import { api, Badge, errorClass, errorMessage, fmtDateTime, fmtNumber, fmtRand, 
 export function SmartUtilityPanel({ propertyId, canManage }: { propertyId: string; canManage: boolean }) {
   const [data, setData] = useState<Overview | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [granularity, setGranularity] = useState<'daily' | 'weekly' | 'monthly'>('daily');
 
   const load = useCallback(async () => {
     const res = await api(`/api/v1/properties/${propertyId}/smart-utility`, 'GET');
@@ -74,19 +75,49 @@ export function SmartUtilityPanel({ propertyId, canManage }: { propertyId: strin
             hint={latest ? `${latest.periodStart} → ${latest.periodEnd}` : 'Set up below'}
           />
         </div>
-        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <div className="mt-4 flex items-center gap-2 text-xs" role="tablist" aria-label="Chart period">
+          {(['daily', 'weekly', 'monthly'] as const).map((g) => (
+            <button
+              key={g}
+              role="tab"
+              aria-selected={granularity === g}
+              className={`rounded-full border px-3 py-1 ${granularity === g ? 'border-foreground text-foreground' : 'border-light-border text-muted-foreground dark:border-dark-border'}`}
+              onClick={() => setGranularity(g)}
+            >
+              {g === 'daily' ? 'Daily (30 days)' : g === 'weekly' ? 'Weekly (12 weeks)' : 'Monthly (billing periods)'}
+            </button>
+          ))}
+        </div>
+        <div className="mt-3 grid gap-4 lg:grid-cols-2">
           {data.totals.filter((t) => t.meterCount > 0).map((t) => {
-            const pts = t.daily.filter((d) => d.consumption !== null).map((d) => ({ label: d.date.slice(5), value: d.consumption as number }));
+            const series =
+              granularity === 'monthly'
+                ? t.monthly.map((m) => ({ label: m.periodStart.slice(0, 7), value: m.consumption, partial: m.quality !== 'complete' }))
+                : (granularity === 'weekly' ? t.weekly : t.daily).map((d) => ({ label: d.date.slice(5), value: d.consumption, partial: false }));
+            const pts = series.filter((d) => d.value !== null).map((d) => ({ label: d.label, value: d.value as number }));
+            const gaps = series.length - pts.length;
             return (
               <div key={t.utilityType}>
                 <div className="mb-1 text-xs text-muted-foreground">
-                  Daily {t.utilityType} use, last 30 days ({t.displayUnit})
+                  {t.utilityType === 'water' ? 'Water' : 'Electricity'} use ({t.displayUnit})
+                  {gaps > 0 ? ` · ${gaps} period${gaps === 1 ? '' : 's'} without enough readings` : ''}
+                  {series.some((d) => d.partial) ? ' · some months are partial' : ''}
                 </div>
-                {pts.length >= 2 ? <MiniLineChart points={pts} /> : <p className="text-xs text-muted-foreground">Not enough readings yet.</p>}
+                {pts.length >= 2 ? (
+                  <MiniLineChart points={pts} />
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Not enough readings yet{granularity === 'monthly' ? ' (monthly history starts after the first billing day)' : ''}.
+                  </p>
+                )}
               </div>
             );
           })}
         </div>
+        <p className="mt-3 text-[11px] text-muted-foreground">
+          Figures are calculated from cumulative meter readings. “Partial” means some readings were missing or a meter was reset or
+          replaced; costs are estimates from the tariff you entered.
+        </p>
       </Panel>
 
       <Panel title="Alerts" description="Rule-based checks. They flag possibilities to look into — not confirmed faults.">
@@ -147,9 +178,110 @@ export function SmartUtilityPanel({ propertyId, canManage }: { propertyId: strin
         )}
       </Panel>
 
+      {data.unitComparison.length > 0 ? (
+        <Panel title="Units compared" description="This billing period, from each unit's own meters">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="text-xs text-muted-foreground">
+                <tr>
+                  <th className="py-2 pr-3 font-medium">Unit</th>
+                  <th className="py-2 pr-3 font-medium">Water (kL)</th>
+                  <th className="py-2 pr-3 font-medium">Electricity (kWh)</th>
+                  <th className="py-2 pr-3 font-medium">Estimated cost</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.unitComparison.map((u) => (
+                  <tr key={u.unitId} className="border-t border-light-border dark:border-dark-border">
+                    <td className="py-2 pr-3">
+                      {u.unitLabel}
+                      {u.status === 'vacant' ? <span className="ml-1 text-xs text-muted-foreground">(vacant)</span> : null}
+                    </td>
+                    {(['water', 'electricity'] as const).map((k) => {
+                      const v = u[k];
+                      return (
+                        <td key={k} className="py-2 pr-3">
+                          {v ? `${fmtNumber(v.consumption, 3)}${v.partial ? ' (partial)' : ''}` : <span className="text-xs text-muted-foreground">no meter</span>}
+                        </td>
+                      );
+                    })}
+                    <td className="py-2 pr-3">
+                      {u.water?.estimatedCost != null || u.electricity?.estimatedCost != null
+                        ? fmtRand((u.water?.estimatedCost ?? 0) + (u.electricity?.estimatedCost ?? 0))
+                        : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+      ) : null}
+
+      {canManage ? <AlertSettings data={data} onSaved={() => void load()} /> : null}
+
       <MetersSection data={data} canManage={canManage} onChanged={() => void load()} />
       <IntegrationsSection data={data} canManage={canManage} onChanged={() => void load()} />
       <SubmissionsSection data={data} canManage={canManage} onChanged={() => void load()} />
     </div>
+  );
+}
+
+function AlertSettings({ data, onSaved }: { data: Overview; onSaved: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState(data.alertSettings);
+  const [msg, setMsg] = useState<string | null>(null);
+  const fields: [keyof typeof form, string, string][] = [
+    ['discrepancyThresholdPct', 'Unallocated main-meter use alert above (%)', '15'],
+    ['spikeMultiple', 'Spike: day use above × typical day', '3'],
+    ['nightFlowLitresPerHour', 'Possible leak: water every night hour above (L/h)', '5'],
+    ['nightBaseLoadRatio', 'High night electricity: night/day ratio above', '0.6'],
+    ['vacantWaterLitresPerDay', 'Vacant unit water above (L/day)', '50'],
+    ['vacantElectricityKwhPerDay', 'Vacant unit electricity above (kWh/day)', '2'],
+  ];
+  async function save() {
+    const res = await api(`/api/v1/properties/${data.property.id}/utility-alert-settings`, 'PUT', form);
+    setMsg(res.ok ? 'Saved.' : errorMessage(res.data));
+    if (res.ok) onSaved();
+  }
+  return (
+    <Panel
+      title="Alert sensitivity"
+      description="Higher values mean fewer alerts. Spikes are only judged after several days of history."
+      actions={
+        <Button size="sm" variant="secondary" onClick={() => setOpen((v) => !v)}>
+          {open ? 'Close' : 'Adjust'}
+        </Button>
+      }
+    >
+      {open ? (
+        <div className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-3">
+            {fields.map(([k, label, def]) => (
+              <label key={k} className="block text-xs text-muted-foreground">
+                {label} <span className="text-[10px]">(default {def})</span>
+                <input
+                  className="mt-1 block w-full rounded-md border border-light-border bg-transparent px-3 py-2 text-sm dark:border-dark-border"
+                  type="number"
+                  step="any"
+                  min="0"
+                  value={form[k]}
+                  onChange={(e) => setForm({ ...form, [k]: Number(e.target.value) })}
+                />
+              </label>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button size="sm" onClick={save}>Save</Button>
+            {msg ? <span className="text-xs text-muted-foreground">{msg}</span> : null}
+          </div>
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          Leak alert above {data.alertSettings.nightFlowLitresPerHour} L/h overnight · spike above {data.alertSettings.spikeMultiple}× typical ·
+          unallocated above {data.alertSettings.discrepancyThresholdPct}%.
+        </p>
+      )}
+    </Panel>
   );
 }

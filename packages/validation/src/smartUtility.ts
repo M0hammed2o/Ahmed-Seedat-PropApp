@@ -12,6 +12,7 @@ export const smartMeterCreateSchema = z.object({
   ownership: z.enum(['municipal', 'private']),
   parentMeterId: z.string().uuid().optional().nullable(),
   meterNumber: optionalText(100),
+  location: optionalText(200),
   manufacturer: optionalText(100),
   model: optionalText(100),
   serialNumber: optionalText(100),
@@ -48,6 +49,8 @@ export type SmartMeterCreateInput = z.infer<typeof smartMeterCreateSchema>;
 
 export const smartMeterUpdateSchema = z.object({
   meterNumber: optionalText(100),
+  location: optionalText(200),
+  installedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
   serialNumber: optionalText(100),
   manufacturer: optionalText(100),
   model: optionalText(100),

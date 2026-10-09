@@ -25,6 +25,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   const update: Record<string, unknown> = {};
   const map: [keyof typeof d, string][] = [
     ['meterNumber', 'meter_number'],
+    ['location', 'location'],
+    ['installedDate', 'installed_date'],
     ['serialNumber', 'serial_number'],
     ['manufacturer', 'manufacturer'],
     ['model', 'model'],

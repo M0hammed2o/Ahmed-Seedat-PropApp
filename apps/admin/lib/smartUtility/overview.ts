@@ -64,8 +64,43 @@ export async function loadSmartUtilityOverview(client: SupabaseClient, propertyI
   const today = sastParts(now);
   const seriesEnd = sastInstant(today.year, today.month, today.day);
   const seriesStart = new Date(seriesEnd.getTime() - 30 * 86_400_000);
-  const loadFrom = new Date(Math.min(seriesStart.getTime(), lastComplete.start.getTime()) - 3 * 86_400_000);
+  // Weekly view covers 12 weeks; monthly history comes from meter_period_snapshots (job-written).
+  const weeklyStart = new Date(seriesEnd.getTime() - 84 * 86_400_000);
+  const loadFrom = new Date(Math.min(weeklyStart.getTime(), lastComplete.start.getTime()) - 3 * 86_400_000);
   const points = await loadPoints(client, meters.map((m) => m.id), loadFrom, now);
+  const { data: snapshotRows } = await client
+    .from('meter_period_snapshots')
+    .select('meter_id, period_start, period_end, consumption, quality')
+    .eq('property_id', propertyId)
+    .order('period_start', { ascending: false })
+    .limit(500);
+  const sumSeries = (series: { date: string; consumption: number | null }[][]) =>
+    (series[0] ?? []).map((d, i) => ({
+      date: d.date,
+      consumption: series.every((s) => s[i]?.consumption !== null && s[i] !== undefined)
+        ? Math.round(series.reduce((a, s) => a + (s[i]?.consumption ?? 0), 0) * 1000) / 1000
+        : null,
+    }));
+  const monthlyFor = (meterIds: string[], utilityType: 'water' | 'electricity') => {
+    const byPeriod = new Map<string, { total: number; complete: boolean; count: number }>();
+    for (const row of snapshotRows ?? []) {
+      if (!meterIds.includes(row.meter_id)) continue;
+      const key = String(row.period_start).slice(0, 10);
+      const cur = byPeriod.get(key) ?? { total: 0, complete: true, count: 0 };
+      cur.total += row.consumption === null ? 0 : Number(row.consumption);
+      cur.complete = cur.complete && row.quality === 'complete' && row.consumption !== null;
+      cur.count += 1;
+      byPeriod.set(key, cur);
+    }
+    return [...byPeriod.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-12)
+      .map(([periodStart, v]) => ({
+        periodStart,
+        consumption: toDisplay(utilityType, v.total),
+        quality: v.complete && v.count === meterIds.length ? 'complete' : 'partial',
+      }));
+  };
 
   const meterSummaries = meters.map((m) => {
     const chain = replacementChain(m, meters).map((c) => ({
@@ -74,6 +109,16 @@ export async function loadSmartUtilityOverview(client: SupabaseClient, propertyI
     }));
     const periodToDate = consumptionForChain(chain, current.start, now);
     const daily = bucketConsumption(points.get(m.id) ?? [], seriesStart, seriesEnd, 1440, { registerDigits: m.register_digits }, 30);
+    const weekly = bucketConsumption(points.get(m.id) ?? [], weeklyStart, seriesEnd, 7 * 1440, { registerDigits: m.register_digits }, 7 * 24);
+    // Missing readings: expected vs received in the last 24 h (connected meters with an interval).
+    const dayAgo = now.getTime() - 86_400_000;
+    const received = (points.get(m.id) ?? []).filter((p) => new Date(p.readAt).getTime() >= dayAgo).length;
+    const expected =
+      m.connectivity !== 'manual' && m.expected_interval_minutes && m.expected_interval_minutes <= 1440
+        ? Math.floor(1440 / m.expected_interval_minutes)
+        : null;
+    const pts = points.get(m.id) ?? [];
+    const latestPoint = pts[pts.length - 1];
     const consumption = toDisplay(m.utility_type, periodToDate.consumption);
     const tariff = m.tariff_per_unit === null ? null : Number(m.tariff_per_unit);
     return {
@@ -88,6 +133,8 @@ export async function loadSmartUtilityOverview(client: SupabaseClient, propertyI
       manufacturer: m.manufacturer,
       model: m.model,
       serialNumber: m.serial_number,
+      location: m.location,
+      installedDate: m.installed_date,
       connectivity: m.connectivity,
       integrationId: m.integration_id,
       externalDeviceId: m.external_device_id,
@@ -108,6 +155,9 @@ export async function loadSmartUtilityOverview(client: SupabaseClient, propertyI
       periodToDate: { consumption, quality: periodToDate.quality },
       estimatedCostToDate: consumption !== null && tariff !== null ? Math.round(consumption * tariff * 100) / 100 : null,
       daily: daily.map((d) => ({ date: sastDateString(d.start), consumption: toDisplay(m.utility_type, d.consumption) })),
+      weekly: weekly.map((d) => ({ date: sastDateString(d.start), consumption: toDisplay(m.utility_type, d.consumption) })),
+      readingsLast24h: { expected, received, missing: expected === null ? null : Math.max(0, expected - received) },
+      latestReadingStatus: latestPoint?.status ?? null,
     };
   });
 
@@ -126,13 +176,29 @@ export async function loadSmartUtilityOverview(client: SupabaseClient, propertyI
         ? Math.round(known.reduce((s, m) => s + (m.estimatedCostToDate ?? 0), 0) * 100) / 100
         : null,
       meterCount: active.length,
-      daily: (basis[0]?.daily ?? []).map((d, i) => ({
-        date: d.date,
-        consumption: basis.every((m) => m.daily[i]?.consumption !== null)
-          ? Math.round(basis.reduce((s, m) => s + (m.daily[i]?.consumption ?? 0), 0) * 1000) / 1000
-          : null,
-      })),
+      daily: sumSeries(basis.map((m) => m.daily)),
+      weekly: sumSeries(basis.map((m) => m.weekly)),
+      monthly: monthlyFor(basis.map((m) => m.id), utilityType),
     };
+  });
+
+  // Unit comparison for the current period: each unit's own meters, per utility.
+  const unitComparison = (unitsRes.data ?? []).map((u) => {
+    const own = meterSummaries.filter((m) => m.active && m.unitId === u.id);
+    const pick = (t: 'water' | 'electricity') => {
+      const ms = own.filter((m) => m.utilityType === t);
+      const known = ms.filter((m) => m.periodToDate.consumption !== null);
+      return ms.length === 0
+        ? null
+        : {
+            consumption: known.length ? Math.round(known.reduce((a, m) => a + (m.periodToDate.consumption ?? 0), 0) * 1000) / 1000 : null,
+            partial: ms.some((m) => m.periodToDate.quality !== 'complete'),
+            estimatedCost: known.some((m) => m.estimatedCostToDate !== null)
+              ? Math.round(known.reduce((a, m) => a + (m.estimatedCostToDate ?? 0), 0) * 100) / 100
+              : null,
+          };
+    };
+    return { unitId: u.id, unitLabel: u.unit_label, status: u.status, water: pick('water'), electricity: pick('electricity') };
   });
 
   const alertSettings = alertSettingsRes.data;
@@ -164,6 +230,7 @@ export async function loadSmartUtilityOverview(client: SupabaseClient, propertyI
     totals,
     meters: meterSummaries,
     units: unitsRes.data ?? [],
+    unitComparison,
     buildings: buildingsRes.data ?? [],
     integrations: integrationsRes.data ?? [],
     alerts: alertsRes.data ?? [],
