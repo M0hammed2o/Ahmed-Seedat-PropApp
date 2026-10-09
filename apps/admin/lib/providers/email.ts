@@ -27,6 +27,7 @@ export class MockEmailProvider implements EmailProvider {
       templateName: input.templateName,
       attachmentCount: input.attachments?.length ?? 0,
       fileCount: input.files?.length ?? 0,
+      ccCount: input.cc?.length ?? 0,
       hasHtml: Boolean(input.bodyHtml),
     });
     return { providerMessageId: `mock-email-${crypto.randomUUID()}`, status: 'queued' };
@@ -226,6 +227,7 @@ export class ResendEmailProvider implements EmailProvider {
             })),
           }
         : {}),
+      ...(input.cc && input.cc.length > 0 ? { cc: input.cc } : {}),
       replyTo: input.replyTo,
     });
 

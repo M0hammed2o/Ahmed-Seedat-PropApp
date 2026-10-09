@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { submissionRecipientUpdateSchema } from '@propvault/validation';
+import { getServiceRoleClient } from '@/lib/supabase/server';
+import { invalidateTemplateApproval } from '@/lib/smartUtility/reporting';
 import { canWriteUtilities, forbidden, notFound, parseJson, requireUser, serverError } from '@/lib/smartUtility/http';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -28,5 +30,14 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   }
   const { error } = await auth.supabase.from('municipal_submission_recipients').update(update).eq('id', id);
   if (error) return serverError('recipient_update_failed', 'Could not update the recipient.', 'submission_recipients.update', error);
-  return NextResponse.json({ updated: true });
+  const approvalWithdrawn =
+    parsed.data.active !== undefined || parsed.data.authorise !== undefined
+      ? await invalidateTemplateApproval(getServiceRoleClient(), {
+          propertyId: recipient.property_id,
+          orgId: recipient.org_id,
+          actorUserId: auth.user.id,
+          reason: 'recipients changed',
+        })
+      : false;
+  return NextResponse.json({ updated: true, approvalWithdrawn });
 }

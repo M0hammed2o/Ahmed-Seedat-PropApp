@@ -30,6 +30,8 @@ export interface SendEmailInput {
   /** Inline file attachments already loaded by the caller (base64 content). Unlike `attachments`
    * (document ids, unimplemented), these need no DB access inside the provider. */
   files?: { filename: string; contentBase64: string; contentType?: string }[];
+  /** Carbon-copy recipients (owner-approved municipal packs only). */
+  cc?: string[];
   replyTo?: string;
 }
 

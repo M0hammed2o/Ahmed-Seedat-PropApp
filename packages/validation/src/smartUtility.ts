@@ -129,6 +129,24 @@ export const municipalSubmissionSettingsSchema = z.object({
   leadDays: z.number().int().min(0).max(20),
   includePhotos: z.boolean(),
   enabled: z.boolean(),
+  ccEmails: z.array(z.string().trim().toLowerCase().email().max(254)).max(5).optional(),
+  accountHolderName: optionalText(200),
+  customMessage: optionalText(2000),
+  subjectTemplate: optionalText(300),
+  bodyTemplate: optionalText(5000),
+  includeFields: z
+    .object({
+      propertyAddress: z.boolean(),
+      accountNumber: z.boolean(),
+      accountHolder: z.boolean(),
+      serialNumber: z.boolean(),
+      previousReading: z.boolean(),
+      consumption: z.boolean(),
+      readingDate: z.boolean(),
+      photos: z.boolean(),
+    })
+    .optional(),
+  scheduleEnabled: z.boolean().optional(),
 });
 export type MunicipalSubmissionSettingsInput = z.infer<typeof municipalSubmissionSettingsSchema>;
 
@@ -172,4 +190,18 @@ export const utilityAlertSettingsSchema = z.object({
   nightBaseLoadRatio: z.number().min(0).max(5),
   vacantWaterLitresPerDay: z.number().min(0).max(100_000),
   vacantElectricityKwhPerDay: z.number().min(0).max(10_000),
+});
+
+/** Live preview: unsaved template edits override the saved ones for rendering only. */
+export const municipalPreviewSchema = z.object({
+  subjectTemplate: optionalText(300),
+  bodyTemplate: optionalText(5000),
+  customMessage: optionalText(2000),
+  accountHolderName: optionalText(200),
+  includeFields: municipalSubmissionSettingsSchema.shape.includeFields,
+});
+
+export const municipalTemplateApprovalSchema = z.object({
+  /** The hash shown with the preview the owner approved; must match the server's current hash. */
+  templateHash: z.string().regex(/^[0-9a-f]{64}$/),
 });

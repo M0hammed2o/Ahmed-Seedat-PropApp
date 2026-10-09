@@ -184,6 +184,14 @@ function fmtNum(n: number | null): string {
   return n === null ? '—' : n.toLocaleString('en-ZA', { maximumFractionDigits: 3 });
 }
 
+export function reportPdfFilename(r: MunicipalReport): string {
+  return `meter-readings-${r.period.end}.pdf`;
+}
+
+export function reportCsvFilename(r: MunicipalReport): string {
+  return `meter-readings-${r.period.end}.csv`;
+}
+
 export function reportSubject(r: MunicipalReport): string {
   const acct = r.municipalAccountNumber ? ` — account ${r.municipalAccountNumber}` : '';
   return `Meter readings for ${r.property.address}${acct} (${r.period.end})`;

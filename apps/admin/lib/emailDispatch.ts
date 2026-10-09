@@ -532,6 +532,7 @@ export interface DispatchEmailInput {
   actorUserId: string | null;
   /** Inline file attachments (base64), e.g. the municipal reading pack's CSV/PDF. */
   files?: { filename: string; contentBase64: string; contentType?: string }[];
+  cc?: string[];
 }
 
 export interface DispatchEmailResult {
@@ -631,6 +632,7 @@ export async function dispatchEmail(
     relatedEntityType: input.relatedEntityType,
     relatedEntityId: input.relatedEntityId,
     files: input.files,
+    cc: input.cc,
   });
 
   const { data: message, error: insertError } = await serviceClient

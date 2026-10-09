@@ -46,7 +46,7 @@ export async function loadSmartUtilityOverview(client: SupabaseClient, propertyI
       client.from('municipal_submission_recipients').select('*').eq('property_id', propertyId).order('created_at'),
       client
         .from('municipal_submissions')
-        .select('id, period_start, period_end, status, mode, approved_at, sent_at, acceptance_status, submission_reference, acceptance_notes, created_at, report, municipal_submission_deliveries(id, recipient_email, recipient_type, status, attempts, last_attempt_at, next_attempt_at, last_error)')
+        .select('id, period_start, period_end, status, mode, approved_at, sent_at, scheduled_for, acceptance_status, submission_reference, acceptance_notes, created_at, report, municipal_submission_deliveries(id, recipient_email, recipient_type, status, attempts, last_attempt_at, next_attempt_at, last_error)')
         .eq('property_id', propertyId)
         .order('period_start', { ascending: false })
         .limit(12),
@@ -255,6 +255,14 @@ export async function loadSmartUtilityOverview(client: SupabaseClient, propertyI
             leadDays: subSettings.lead_days,
             includePhotos: subSettings.include_photos,
             enabled: subSettings.enabled,
+            ccEmails: (subSettings.cc_emails as string[] | null) ?? [],
+            accountHolderName: subSettings.account_holder_name as string | null,
+            customMessage: subSettings.custom_message as string | null,
+            subjectTemplate: subSettings.subject_template as string | null,
+            bodyTemplate: subSettings.body_template as string | null,
+            includeFields: (subSettings.include_fields as Record<string, boolean> | null) ?? {},
+            scheduleEnabled: subSettings.schedule_enabled === true,
+            templateApprovedAt: subSettings.template_approved_at as string | null,
           }
         : null,
       municipality,

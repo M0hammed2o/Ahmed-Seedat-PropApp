@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { submissionRecipientCreateSchema } from '@propvault/validation';
+import { getServiceRoleClient } from '@/lib/supabase/server';
+import { invalidateTemplateApproval } from '@/lib/smartUtility/reporting';
 import { canWriteUtilities, forbidden, jsonError, loadReadableProperty, notFound, parseJson, requireUser, serverError } from '@/lib/smartUtility/http';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -37,5 +39,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     if (error.code === '23505') return jsonError(409, 'duplicate_recipient', 'That address is already a recipient.');
     return serverError('recipient_create_failed', 'Could not add the recipient.', 'submission_recipients.insert', error);
   }
-  return NextResponse.json({ recipientId: data.id }, { status: 201 });
+  // A new authorised recipient changes who receives the pack: approval must be given again.
+  const approvalWithdrawn = parsed.data.authorise
+    ? await invalidateTemplateApproval(getServiceRoleClient(), {
+        propertyId: property.id,
+        orgId: property.org_id,
+        actorUserId: auth.user.id,
+        reason: 'recipient added',
+      })
+    : false;
+  return NextResponse.json({ recipientId: data.id, approvalWithdrawn }, { status: 201 });
 }
