@@ -27,6 +27,9 @@ export interface SendEmailInput {
   relatedEntityType?: string;
   relatedEntityId?: string;
   attachments?: { documentId: string }[];
+  /** Inline file attachments already loaded by the caller (base64 content). Unlike `attachments`
+   * (document ids, unimplemented), these need no DB access inside the provider. */
+  files?: { filename: string; contentBase64: string; contentType?: string }[];
   replyTo?: string;
 }
 

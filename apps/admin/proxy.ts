@@ -160,6 +160,8 @@ const CSRF_EXEMPT_PATHS = new Set([
   '/api/v1/billing/webhook',
   '/api/v1/webhooks/resend',
   '/api/v1/webhooks/whatsapp',
+  // Smart Utility meter gateways (bearer-token authenticated device pushes, never cookie-bearing).
+  '/api/v1/integrations/meters/ingest',
 ]);
 
 /**

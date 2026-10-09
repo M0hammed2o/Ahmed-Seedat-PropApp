@@ -26,6 +26,7 @@ export class MockEmailProvider implements EmailProvider {
       toAddress: input.toAddress,
       templateName: input.templateName,
       attachmentCount: input.attachments?.length ?? 0,
+      fileCount: input.files?.length ?? 0,
       hasHtml: Boolean(input.bodyHtml),
     });
     return { providerMessageId: `mock-email-${crypto.randomUUID()}`, status: 'queued' };
@@ -216,6 +217,15 @@ export class ResendEmailProvider implements EmailProvider {
       // otherwise (the plain-text fallback this task requires, provided by the provider's own
       // MIME multipart/alternative behavior, not something this code needs to construct itself).
       ...(input.bodyHtml ? { html: input.bodyHtml } : {}),
+      ...(input.files && input.files.length > 0
+        ? {
+            attachments: input.files.map((f) => ({
+              filename: f.filename,
+              content: Buffer.from(f.contentBase64, 'base64'),
+              ...(f.contentType ? { contentType: f.contentType } : {}),
+            })),
+          }
+        : {}),
       replyTo: input.replyTo,
     });
 

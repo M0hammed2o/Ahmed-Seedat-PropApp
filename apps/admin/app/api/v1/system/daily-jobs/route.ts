@@ -11,6 +11,7 @@ import {
   runOwnerMonthlySummaryJob,
   runPortfolioIntelligenceJob,
 } from '@/lib/systemJobs';
+import { jobFailed, runSmartUtilityJob } from '@/lib/smartUtility/jobs';
 
 /**
  * POST /api/v1/system/daily-jobs (daily-job consolidation pass, WORKLOG.md this date). Single
@@ -72,7 +73,8 @@ export async function POST(request: NextRequest) {
     | 'compliance'
     | 'paymentAndLeaseReminders'
     | 'ownerMonthlySummary'
-    | 'portfolioIntelligence',
+    | 'portfolioIntelligence'
+    | 'smartUtility',
     { success: boolean; durationMs: number; result?: unknown; error?: string }
   > = {
     subscriptions: { success: false, durationMs: 0 },
@@ -82,6 +84,7 @@ export async function POST(request: NextRequest) {
     paymentAndLeaseReminders: { success: false, durationMs: 0 },
     ownerMonthlySummary: { success: false, durationMs: 0 },
     portfolioIntelligence: { success: false, durationMs: 0 },
+    smartUtility: { success: false, durationMs: 0 },
   };
 
   // 1. Subscription lifecycle + scheduled plan-change application.
@@ -224,6 +227,26 @@ export async function POST(request: NextRequest) {
     durationMs: jobs.portfolioIntelligence.durationMs,
   });
 
+  // 7. Smart Utility Monitoring (docs/SMART_UTILITY_ARCHITECTURE.md §9): meter health, anomaly
+  //    rules, monthly reconciliation, due municipal reading packs, deliveries/retries. Independent of
+  //    every job above (writes only to utility_* / municipal_* tables, notifications and email);
+  //    its own steps are individually caught, and any failed step marks this job failed.
+  const smartStart = Date.now();
+  try {
+    const result = await runSmartUtilityJob(serviceClient);
+    jobs.smartUtility = { success: !jobFailed(result), durationMs: Date.now() - smartStart, result };
+  } catch (err) {
+    jobs.smartUtility = {
+      success: false,
+      durationMs: Date.now() - smartStart,
+      error: err instanceof Error ? err.message : 'Unknown error',
+    };
+  }
+  console.warn('[daily-jobs] smartUtility job complete', {
+    success: jobs.smartUtility.success,
+    durationMs: jobs.smartUtility.durationMs,
+  });
+
   const overallSuccess =
     jobs.subscriptions.success &&
     jobs.staleCheckouts.success &&
@@ -231,7 +254,8 @@ export async function POST(request: NextRequest) {
     jobs.compliance.success &&
     jobs.paymentAndLeaseReminders.success &&
     jobs.ownerMonthlySummary.success &&
-    jobs.portfolioIntelligence.success;
+    jobs.portfolioIntelligence.success &&
+    jobs.smartUtility.success;
   const totalDurationMs = Date.now() - runStartedAt;
 
   console.warn('[daily-jobs] run complete', {

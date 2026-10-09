@@ -102,6 +102,9 @@ export function mfaRuleForApiRequest(input: {
   if (pathname.startsWith('/api/v1/admin/') || pathname === '/api/v1/admin')
     return 'route_enforces_aal2';
   if (pathname.startsWith('/api/v1/auth/')) return 'route_manages_own_aal';
+  // Smart Utility meter gateways authenticate with a per-integration device token (pmi_…), not a
+  // user session -- there is no user, so no assurance level to step up (2026-10-08).
+  if (pathname === '/api/v1/integrations/meters/ingest') return 'route_manages_own_aal';
   if (channel === 'mobile_bearer' && isMobileV1ApiRoute(method, pathname))
     return 'mobile_v1_no_step_up';
   return 'step_up_if_enrolled';

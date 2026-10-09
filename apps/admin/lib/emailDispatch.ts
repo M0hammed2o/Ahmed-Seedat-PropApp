@@ -63,7 +63,11 @@ export type EmailTemplateName =
   | 'application_documents_requested'
   | 'application_approved'
   | 'application_declined'
-  | 'lease_ready';
+  | 'lease_ready'
+  // Smart Utility Monitoring (docs/SMART_UTILITY_ARCHITECTURE.md §8, 2026-10-08): the monthly
+  // municipal meter-reading pack, sent to an owner-authorised recipient. Transactional (ungated):
+  // the owner explicitly configured and approved this send. The pack's CSV/PDF travel as `files`.
+  | 'municipal_meter_reading_report';
 
 // Only categories with an existing notification_preferences row can be preference-gated
 // (DATABASE.md §7's closed enum has no 'billing'/'accounting' category) -- invoice/payment/
@@ -140,6 +144,7 @@ const TEMPLATE_SUBJECTS: Record<EmailTemplateName, (vars: Record<string, unknown
   application_declined: (v) =>
     `An update on your application for ${v.propertyLabel ?? 'your rental'}`,
   lease_ready: (v) => `Your lease for ${v.propertyLabel ?? 'your rental'} is ready`,
+  municipal_meter_reading_report: (v) => String(v.subject ?? 'Meter readings'),
 };
 
 // Plain-text bodies -- the required MIME text/plain fallback for every real send (never removed
@@ -205,6 +210,16 @@ const TEMPLATE_BODY: Record<EmailTemplateName, (vars: Record<string, unknown>) =
     `${v.orgName ?? 'The landlord'} has let us know your application for ${v.propertyLabel ?? 'your rental'} was not successful this time. ${v.reason ? `Reason given: ${v.reason}.` : ''}`,
   lease_ready: (v) =>
     `Your lease for ${v.propertyLabel ?? 'your rental'} is ready to review. ${v.leaseUrl ? `View it securely here: ${v.leaseUrl}.` : ''} Sign in to review the terms and confirm receipt.`,
+  municipal_meter_reading_report: (v) =>
+    [
+      'Good day,',
+      '',
+      'Please find the meter readings below for the property and period stated. The same readings are attached as CSV and PDF.',
+      '',
+      ...(Array.isArray(v.textLines) ? (v.textLines as string[]) : []),
+      '',
+      `Sent on behalf of ${v.preparedFor ?? 'the property owner'} via ${branding.productName}.`,
+    ].join('\n'),
 };
 
 /**
@@ -463,6 +478,19 @@ const TEMPLATE_HTML_CONTENT: Record<
     // itself, a raw storage path, or a permanent signed URL embedded in the email.
     cta: v.leaseUrl ? { label: 'Review your lease', url: String(v.leaseUrl) } : undefined,
   }),
+  municipal_meter_reading_report: (v, _appUrl) => ({
+    eyebrow: 'Meter readings',
+    heading: String(v.heading ?? 'Meter reading submission'),
+    intro:
+      'Please find the meter readings for the property and period below. The same readings are attached as CSV and PDF.',
+    paragraphs: Array.isArray(v.textLines)
+      ? (v.textLines as string[]).filter((l) => l.trim().length > 0)
+      : undefined,
+    infoBox: {
+      label: 'Sent on behalf of',
+      text: `${v.preparedFor ?? 'the property owner'} via ${branding.productName}`,
+    },
+  }),
 };
 
 /** Renders a template's subject + plain-text body + HTML body ahead of dispatch -- exported (not
@@ -490,6 +518,8 @@ export interface DispatchEmailInput {
   relatedEntityType: string;
   relatedEntityId: string;
   actorUserId: string | null;
+  /** Inline file attachments (base64), e.g. the municipal reading pack's CSV/PDF. */
+  files?: { filename: string; contentBase64: string; contentType?: string }[];
 }
 
 export interface DispatchEmailResult {
@@ -588,6 +618,7 @@ export async function dispatchEmail(
     bodyHtml,
     relatedEntityType: input.relatedEntityType,
     relatedEntityId: input.relatedEntityId,
+    files: input.files,
   });
 
   const { data: message, error: insertError } = await serviceClient
