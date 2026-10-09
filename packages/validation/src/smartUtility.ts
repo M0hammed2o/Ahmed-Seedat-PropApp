@@ -181,6 +181,11 @@ export const submissionGenerateSchema = z.object({
   periodStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
+export const meterReadingReviewSchema = z.object({
+  decision: z.enum(['verified', 'rejected']),
+  note: optionalText(500),
+});
+
 export const utilityAlertUpdateSchema = z.object({ status: z.enum(['acknowledged', 'resolved', 'open']) });
 
 export const utilityAlertSettingsSchema = z.object({

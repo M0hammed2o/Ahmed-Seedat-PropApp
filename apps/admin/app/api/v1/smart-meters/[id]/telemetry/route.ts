@@ -18,7 +18,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   const to = request.nextUrl.searchParams.get('to');
   let query = auth.supabase
     .from('meter_telemetry_readings')
-    .select('id, read_at, raw_value, value, source, status, status_reason, document_id, notes, ingested_at')
+    .select('id, read_at, raw_value, value, source, status, status_reason, document_id, notes, ingested_at, verification_status, verified_at, verification_note, recorded_by')
     .eq('meter_id', id)
     .order('read_at', { ascending: false })
     .limit(500);
@@ -38,6 +38,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       statusReason: r.status_reason,
       documentId: r.document_id,
       notes: r.notes,
+      verificationStatus: r.verification_status,
+      verifiedAt: r.verified_at,
+      verificationNote: r.verification_note,
+      recordedBy: r.recorded_by,
     })),
   });
 }
@@ -100,6 +104,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       value: Math.round(base * 10_000) / 10_000,
       source: 'manual',
       status: 'valid',
+      // A person-entered reading is unverified until a reviewer checks it (photo or dial).
+      verification_status: 'unverified',
       document_id: parsed.data.documentId ?? null,
       recorded_by: auth.user.id,
       notes: parsed.data.notes || null,

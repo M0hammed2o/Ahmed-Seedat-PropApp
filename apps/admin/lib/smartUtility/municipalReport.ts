@@ -43,6 +43,8 @@ export interface MunicipalReport {
 export interface ReportPoint extends MeterReadingPoint {
   source: 'device' | 'manual' | 'simulator' | 'estimated';
   documentId: string | null;
+  /** not_required (device) · unverified · verified (reviewed by a person). */
+  verificationStatus?: 'not_required' | 'unverified' | 'verified' | 'rejected';
 }
 
 export interface ReportMeterInput {
@@ -118,6 +120,15 @@ export function buildMeterLine(input: ReportMeterInput, periodStart: Date, perio
       ? 'device_derived'
       : 'manual_unverified';
 
+  const reviewed = current.verificationStatus === 'verified';
+  const note =
+    verification === 'photo_verified'
+      ? reviewed
+        ? 'Read from the municipal meter; photo evidence on file and reviewed.'
+        : 'Read from the municipal meter; photo evidence on file (not yet reviewed).'
+      : verification === 'manual_unverified' && reviewed
+        ? 'Entered by hand and reviewed (no photo).'
+        : VERIFICATION_NOTE[verification];
   return {
     meterId: input.meterId,
     utilityType: input.utilityType,
@@ -130,7 +141,7 @@ export function buildMeterLine(input: ReportMeterInput, periodStart: Date, perio
     currentReadingAt: current.at.toISOString(),
     consumption,
     verification,
-    verificationNote: VERIFICATION_NOTE[verification],
+    verificationNote: note,
     evidenceDocumentIds: current.documentId ? [current.documentId] : [],
   };
 }
@@ -279,8 +290,11 @@ export function renderReportPdf(
       for (const img of imgs) {
         try {
           doc.moveDown(0.3);
-          doc.image(img.buffer, { fit: [240, 180] });
-          doc.fontSize(8).fillColor('#555555').text(img.caption).fontSize(10).fillColor('#111111');
+          if (doc.y + 200 > doc.page.height - doc.page.margins.bottom) doc.addPage();
+          const imgTop = doc.y;
+          doc.image(img.buffer, doc.page.margins.left, imgTop, { fit: [240, 180] });
+          doc.y = imgTop + 186; // below the fitted image box, so the caption never overlaps it
+          doc.fontSize(8).fillColor('#555555').text(img.caption, doc.page.margins.left).fontSize(10).fillColor('#111111');
         } catch {
           doc.fontSize(8).fillColor('#555555').text('(photo could not be embedded)').fontSize(10).fillColor('#111111');
         }
@@ -355,7 +369,8 @@ export function renderEvidencePdf(e: EvidenceReportInput): Promise<Buffer> {
     for (const [k, v] of rows) {
       doc.fontSize(9).fillColor('#555555').text(k, 320, y, { width: 90 });
       doc.fontSize(10).fillColor('#111111').text(v, 410, y, { width: 135 });
-      y += 22;
+      // Measure the wrapped value so a long value never overlaps the next row.
+      y += Math.max(22, doc.heightOfString(v, { width: 135 }) + 8);
     }
     doc.fontSize(8).fillColor('#555555').text(
       'Readings entered by a person are shown as unverified until reviewed. Proplyst does not treat photo-based or automated readings as verified without a reviewer.',

@@ -4,6 +4,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Panel } from '@/components/ui/Panel';
 import { AddMeterWizard } from './AddMeterWizard';
+import { ReadingHistory } from './ReadingHistory';
 import { DEVICE_MODELS, INTERVALS_BY_CONNECTIVITY, intervalLabel } from '@/lib/smartUtility/catalog';
 import {
   api,
@@ -39,6 +40,7 @@ export function MetersSection({
   const [adding, setAdding] = useState(false);
   const [replacing, setReplacing] = useState<MeterSummary | null>(null);
   const [readingFor, setReadingFor] = useState<MeterSummary | null>(null);
+  const [historyFor, setHistoryFor] = useState<MeterSummary | null>(null);
 
   const active = data.meters.filter((m) => m.active);
   const ordered = [
@@ -65,6 +67,7 @@ export function MetersSection({
       {replacing ? (
         <MeterForm data={data} replacing={replacing} onDone={() => { setReplacing(null); onChanged(); }} />
       ) : null}
+      {historyFor ? <ReadingHistory data={data} meter={historyFor} canManage={canManage} onClose={() => { setHistoryFor(null); onChanged(); }} /> : null}
       {readingFor ? (
         <ManualReadingForm data={data} meter={readingFor} onDone={() => { setReadingFor(null); onChanged(); }} />
       ) : null}
@@ -84,7 +87,7 @@ export function MetersSection({
                 <th className="py-2 pr-3 font-medium">Latest reading</th>
                 <th className="py-2 pr-3 font-medium">This period</th>
                 <th className="py-2 pr-3 font-medium">Status</th>
-                {canManage ? <th className="py-2 font-medium" /> : null}
+                <th className="py-2 font-medium" />
               </tr>
             </thead>
             <tbody>
@@ -122,12 +125,17 @@ export function MetersSection({
                   {canManage ? (
                     <td className="py-2">
                       <div className="flex flex-wrap gap-1">
+                        <Button size="sm" variant="secondary" onClick={() => setHistoryFor(m)}>History</Button>
                         <Button size="sm" variant="secondary" onClick={() => setReadingFor(m)}>Reading</Button>
                         <Button size="sm" variant="secondary" onClick={() => setReplacing(m)}>Replace</Button>
                         <Button size="sm" variant="secondary" onClick={() => decommission(m)}>Retire</Button>
                       </div>
                     </td>
-                  ) : null}
+                  ) : (
+                    <td className="py-2">
+                      <Button size="sm" variant="secondary" onClick={() => setHistoryFor(m)}>History</Button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

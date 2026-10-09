@@ -94,7 +94,7 @@ async function loadReportMeters(
     const [{ data: telemetry }, { data: monthly }] = await Promise.all([
       serviceClient
         .from('meter_telemetry_readings')
-        .select('read_at, raw_value, value, multiplier, status, source, document_id')
+        .select('read_at, raw_value, value, multiplier, status, source, document_id, verification_status')
         .eq('meter_id', m.id)
         .gte('read_at', lookback)
         .lte('read_at', periodEnd.toISOString())
@@ -115,6 +115,7 @@ async function loadReportMeters(
         status: t.status,
         source: t.source,
         documentId: t.document_id,
+        verificationStatus: t.verification_status,
       })),
       // Migration-163 monthly manual readings (web panel / Android capture): litres or kWh as entered.
       ...(monthly ?? []).map((r) => {

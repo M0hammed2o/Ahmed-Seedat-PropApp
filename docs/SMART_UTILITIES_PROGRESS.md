@@ -30,15 +30,18 @@ municipal packs (email/CSV/PDF, authorised recipients, retries), property → Ut
 | # | Milestone | Status |
 | --- | --- | --- |
 | M0 | Commit Phase 1; continuity docs | Completed |
-| M1 | Migration 176 (credentials, sync state, integration requests, evidence verification, template/approval, scheduled status, snapshots, tariffs, charges) + pgTAP | In progress |
-| M2 | Provider engine + new adapters + credential encryption + sync job | Pending |
-| M3 | Catalogue + Add Smart Meter wizard + integration requests | Pending |
-| M4 | Dashboard extensions | Pending |
-| M5 | Municipal template editor, preview, test send, approval, scheduling | Pending |
+| M1 | Migration 176 (credentials, sync state, integration requests, evidence verification, template/approval, scheduled status, snapshots, tariffs, charges) + pgTAP; 177 (meter location) | Completed (`3badd96`, `751524f`) |
+| M2 | Provider engine + new adapters + credential encryption + sync job | Completed (`3badd96`) |
+| M3 | Catalogue + Add Smart Meter wizard + integration requests | Completed (`751524f`) |
+| M4 | Dashboard extensions | Completed (`751524f`) |
+| M5 | Municipal template editor, preview, test send, approval, scheduling | Completed (`b03d436`) |
 | M6 | Evidence verification + evidence report + example | Pending |
 | M7 | Billing: tariffs, charges, invoice drafts | Pending |
 | M8 | Jobs: snapshots, reminders; regression; docs; commits | Pending |
 
-## Checkpoint
+## Checkpoint (2026-10-10, after M5)
 
-_Updated after each milestone — see bottom of file._
+- Test database: throwaway stack `propvault_su` (scratch copy of `supabase/`, migrations through 177). The MAIN local
+  stack `propvault` is stopped with data kept; restore with `npx supabase stop` in the scratch copy (`--no-backup`)
+  then `npx supabase start` in the repo.
+- Next: M6 evidence verification + evidence PDF + example report; M7 billing; M8 regression + docs.
