@@ -493,6 +493,31 @@ notifications, deep links, biometric auth, tablet behaviour) — specification o
   responsibility, meter management, monthly+annual budgets) are all built and tested. The four
   remaining items above are genuinely narrow, disclosed V1 scope trims, not blockers.
 
+## M22b — Smart Utility Monitoring (Phase 1, 2026-10-08)
+
+- [x] **Research + audit**: `docs/SMART_UTILITY_HARDWARE_RESEARCH.md` (SA water/electricity hardware with
+  prices and sources, integration-type vocabulary, municipal submission channels per metro, POPIA/NERSA/
+  by-law constraints), `docs/SMART_UTILITY_ARCHITECTURE.md`, `docs/SMART_UTILITY_IMPLEMENTATION_PLAN.md`
+  (codebase reuse audit, estimates, costs, risks).
+- [x] **Schema** — migration `20260101000175`: optional buildings, smart columns on `utility_meters`
+  (role, ownership, hierarchy, device binding, multiplier/offset/rollover, health, replacement chain),
+  hashed-token push integrations, append-only interval telemetry + ingest log, alerts + thresholds,
+  municipal submission settings/recipients/packs/deliveries; **plus a fix for migration 163's org-only
+  RLS on `utility_meters`/`utility_readings`** (now property-access + owner-portal aware).
+- [x] **Ingestion**: one bearer-token endpoint, adapters for Milesight EM300-DI (LoRaWAN), Shelly Gen2+,
+  generic JSON (Modbus gateways) and a simulator; idempotent, spoof-resistant, rotation/revocation.
+- [x] **Engines**: rollover/reset/replacement-aware consumption, billing-day periods (SAST), main-vs-
+  submeter reconciliation, rule-based alerts (night flow, base load, spike, vacant unit, offline, reset).
+- [x] **Municipal packs**: HTML/text email + CSV + PDF (+ photos), manual / approval / automatic (flag-gated)
+  modes, authorised recipients only, per-recipient delivery with 1 h/6 h/24 h retries, acceptance recorded
+  by a person only.
+- [x] **Web UI**: property → Utilities tab. **Jobs**: `runSmartUtilityJob` in daily-jobs + standalone route.
+- [ ] **Phase 2**: TD-52 (vendor-credential encryption), TD-53 (ingestion batching/retention), TD-54 (single
+  reading store), TD-55 (enable automatic sending — owner decision), TD-56 (block tariffs, tenant recharge),
+  TD-57 (native screens + MOBILE_V1_API_ROUTES), more adapters (Kamstrup OMS-LoRaWAN, SDM230-LoRaWAN).
+- [ ] **Blocked on the physical world**: first test property survey + install (`docs/SMART_UTILITY_ARCHITECTURE.md`
+  §13), pulse-head compatibility confirmation, 2–4 weeks burn-in data.
+
 ## M23 — Automated testing
 
 - [ ] Full `TESTING.md` suite: unit, RLS/policy (highest priority), accounting invariants, integration, API contract, native (iOS/Android), E2E against seeded multi-org staging.

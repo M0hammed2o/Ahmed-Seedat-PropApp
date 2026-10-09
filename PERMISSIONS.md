@@ -38,12 +38,21 @@ Exactly one `principal` per org minimum (the account creator; org creation is at
 
 **Tenant invitations** (`tenant_invitations`, added 2026-08-03, PRODUCT DECISION 2 — full design `AUTHENTICATION.md` §5, `DATABASE.md` §4): generate/resend/revoke are gated at `agent`+ (`tenant_invitations_select_staff`/`_insert_staff`/`_update_staff`, all `has_org_role(org_id, 'agent')`) — this is not a new permission level, it matches the existing "Properties/Units/Leases/Tenants" row's write threshold above, since an invitation is staff-managed metadata about a tenant record, not a separate module. The tenant being invited has **no** general visibility into `tenant_invitations` at all — RLS grants staff `select`/`insert`/`update` only, with zero policy for the invitee before acceptance; a tenant's only interaction with their own invitation is through the public `/activate` flow and `accept_tenant_invitation()` (`security definer`, generic error codes, `SECURITY.md`), never a direct read of the row.
 
+**Utilities & Smart Utility Monitoring** (2026-10-08, migration `20260101000175`, `docs/SMART_UTILITY_ARCHITECTURE.md` §2.1): every utility table — migration 163's `utility_meters`/`utility_readings` and all the new smart-meter, telemetry, alert and municipal-submission tables (`DATABASE.md`) — is gated by two `security definer` helpers combining org role **and** per-property access:
+
+- **Read** — `can_read_property_utilities(org, property)` = (`has_org_role(org, 'viewer')` **and** `has_property_access(property, 'read_only')`) **or** `has_property_access(property, 'owner')`. So a `selected`-mode staff member sees only the properties they are granted, and a portal owner (§3) can read their own property's utilities.
+- **Write** — `can_write_property_utilities(org, property)` = `has_org_role(org, 'accountant')` **and** a property grant of `accountant`, `property_manager` or `owner` (an `administrator` grant satisfies each level — `has_property_access()` admits administrators for accountant/property_manager/owner; org role `agent` does not pass, being a sibling of `accountant`). `viewer`s never write. API routes call the same function by RPC before any service-role write (`API_SPEC.md` §6b).
+- **Hardware credentials** — creating, rotating or revoking a meter integration token (`/properties/:id/meter-integrations`, `/meter-integrations/:id`) additionally requires org role **`manager`+** (`requireOrgRole(…, 'manager')`).
+- **Gap closed by this migration:** `utility_meters`/`utility_readings` were previously org-role-only (`viewer` read / `accountant` write), letting a `selected`-mode member read every property's meters in the org and giving portal owners none. `'all'`-mode members are unaffected (migration 084 auto-grants them `administrator` property access). `record_utility_reading()` now checks `can_write_property_utilities` too.
+- Tenants have no policy on any of these tables.
+
 ## 3. Owner permissions (not org staff)
 
 An `owners` record with `user_id` set can log in (web or native) and see, for properties they're linked to via `property_owners`:
 
 - Their own Owner Statements (view, never edit — statements are system-generated per `ACCOUNTING.md`).
 - Read-only property/unit/lease summaries for properties they own.
+- Read-only utility data for their own properties (meters, readings, telemetry, alerts, municipal submissions) via the `has_property_access(property, 'owner')` branch of `can_read_property_utilities` (§2, 2026-10-08). A portal owner who is not an org member cannot write any of it — the write gate also requires an org role (pgTAP-asserted for submission recipients).
 - Maintenance tickets requiring their approval (evidenced: "Pending Approval" kanban stage) — approve/reject only, not general maintenance-board access.
 - Never: other owners' statements, org staff/team data, org-wide accounting (Trial Balance, Tax Pack), tenant PII beyond what's needed for their own property's occupancy status.
 

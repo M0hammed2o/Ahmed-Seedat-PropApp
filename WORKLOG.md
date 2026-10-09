@@ -1,5 +1,67 @@
 # Worklog
 
+## 2026-10-08/09 — Smart Utility Monitoring, Phase 1 (research, design, schema, ingestion, analytics, municipal packs, web UI)
+
+Brief: connect physical water/electricity meters (main + unit submeters) to Proplyst, vendor-neutral; consumption,
+leak/waste detection, main-vs-submeter reconciliation, configurable monthly municipal reading submissions. Research and
+design are in `docs/SMART_UTILITY_HARDWARE_RESEARCH.md`, `docs/SMART_UTILITY_ARCHITECTURE.md`,
+`docs/SMART_UTILITY_IMPLEMENTATION_PLAN.md`; the shaping decisions are in `DECISIONS.md` (2026-10-08).
+
+**Research (live, 2026-10-08).** SA hardware with on-page ZAR prices and source URLs (MiRO, FirstShop, tech.co.za,
+Lite-Glo, UtilityPal, Haultron, Enway, ComX …); several retailer pages were unreadable (403/429) and are recorded as
+Unknown, not zero. Every SA prepaid/submetering vendor checked is portal- or partner-only. Municipal channels verified
+on official pages for eThekwini, CoJ/City Power, Cape Town, Tshwane, Ekurhuleni, Mangaung, Msunduzi, Stellenbosch,
+NMB; none offers an API; all that accept emailed readings say they *may* use them.
+
+**Codebase audit found a real access-control gap**: migration 163 gave `utility_meters`/`utility_readings` org-role-only
+RLS, justified as matching the financial tables — but expenses moved to property-access RLS in 068. A selected-mode
+staff member could read every property's meters; portal owners none. Fixed in migration 175 and proven by pgTAP
+(the selected-mode assertions fail against the old policies).
+
+**Built.** Migration `20260101000175` (buildings, smart meter columns incl. multiplier/value_offset/rollover/health/
+replacement chain, hashed-token integrations, append-only telemetry + ingest log, alerts + thresholds, municipal
+settings/recipients/packs/deliveries, access helpers). `apps/admin/lib/smartUtility/*` (adapters for Milesight EM300-DI —
+byte layout checked against Milesight's published decoder via the GitHub API — Shelly Gen2+, generic JSON, simulator;
+token auth/rotation; ingestion; consumption engine; reconciliation; anomaly rules; report HTML/text/CSV/PDF; submissions
+with retries; daily job). 18 API route files, the property **Utilities** tab, `scripts/simulate-meter-feed.mjs`. Email
+provider: inline `files` attachments are now actually sent by Resend (previously the only attachment path was a logged
+no-op). Ingest path added to `CSRF_EXEMPT_PATHS` and explicitly exempted in `mfaPolicy.ts` (device token, no user).
+
+**Bugs found by testing, fixed (named, not silently absorbed):**
+1. Generic `log_audit_event_trigger()` requires an `id` column — the two settings tables keyed by `property_id` made
+   inserts fail (`entity_id` not-null). Added `id` columns.
+2. Pulse counters start at 0 while the dial does not — device-derived municipal readings would have shown the counter,
+   not the dial. Added `utility_meters.value_offset`.
+3. Attaching `log_audit_event_trigger()` to `meter_integrations` would have copied token hashes into `audit_events`;
+   deliberately not attached. The `utility_meters` audit trigger fires on config columns only (otherwise one audit row
+   per ingested reading).
+4. `approveSubmission()` set status before checking for authorised recipients — a refused approval left a pack "approved"
+   with nothing queued. Reordered; regression test added.
+5. The repo-wide guard `storagePathOwnershipGuards.test.ts` caught the photo-attachment loader downloading from Storage
+   directly, bypassing the migration-172 org-ownership check. Now uses `downloadProtectedObject()` keyed to the
+   submission's org.
+
+**Verification (local dev only; nothing deployed).**
+- pgTAP: `smart_utility_metering.test.sql` 34/34; migration 163's own suite 23/23 with 175 applied (both run inside a
+  rolled-back transaction on the main local DB). Full pgTAP suite on a throwaway stack migrated from zero through 175:
+  **99 files / 1,560 tests, PASS**.
+- Vitest: smart-utility unit + real-Supabase integration files + the mfaPolicy test, 74/74 (incl. tenant isolation, meter ownership, ingestion,
+  duplicates/replays, spoofing, reset handling, rotation/revocation, manual readings, replacement, reconciliation
+  840 vs 560 L → 280 L / 33.33 %, anomaly dedupe + notifications, pack generation/approval/email via the mock provider,
+  retry back-off 1 h/6 h/24 h then stop + notify, acceptance).
+- Regression: the first full run crashed (`Worker exited unexpectedly`) with 0.5–0.6 GB free of 15.8 GB (Docker + other
+  projects' dev servers); its pre-crash timeouts were in the known contention-prone photos/lifecycle files. A second,
+  effectively full run (189 files): **1,429 passed, 1 failed (bug 5 above, since fixed and re-run green), 3 skipped**;
+  components 45 files / 178 passed. `tsc --noEmit`, eslint on all changed code, and `next build` clean.
+- Environment note: the MAIN local stack (head 171, cannot take 172 — see memory/WORKLOG 2026-09-14) was stopped with
+  its volumes kept; testing ran on a throwaway stack (`project_id = propvault_su`, scratch copy of `supabase/`).
+
+**Not done / not verified:** no browser walk-through of the Utilities tab (chrome-devtools MCP did not connect; a
+Playwright pass was not run on this memory-starved machine); no real hardware, gateway or vendor payload tested — the
+Milesight/Shelly contracts are pinned by unit tests against the published formats; email only via the mock provider;
+photo attachments not exercised end-to-end; nothing applied to production; automatic sending platform-disabled
+(TD-55). Follow-ups TD-52…TD-57.
+
 ## 2026-09-17 — Android V1 cleanup: payment confirmation, Google sign-in, alert/activity clearing, screen styling
 
 Real-device testing on a Samsung found six things. Each one traced to a root cause before anything

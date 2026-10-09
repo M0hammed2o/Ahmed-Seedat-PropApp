@@ -86,6 +86,36 @@ Both inbound channels are external, unauthenticated-by-default surfaces (anyone 
 - Both webhook paths are idempotent by provider message id, so a redelivered valid request is a no-op rather than a duplicate send/write.
 - Full protocol-level detail (exact header names, retry/backoff behavior, template-message constraints) lives in `WHATSAPP.md` and `EMAIL.md` — this section states the requirement those documents must satisfy, not a substitute for them.
 
+## Smart Utility meter ingestion & municipal reading packs (2026-10-08 — migration 20260101000175, `docs/SMART_UTILITY_ARCHITECTURE.md`)
+
+`POST /api/v1/integrations/meters/ingest` (`API_SPEC.md` §6b) is a public endpoint that meter gateways push to with no user session — the third external inbound surface after the WhatsApp/email webhooks.
+
+**Ingestion auth model** (`apps/admin/lib/smartUtility/tokens.ts`, `ingest.ts`):
+
+- Per-integration bearer tokens of the form `pmi_<prefix>_<secret>`: 12-character lowercase-alphanumeric prefix (indexed lookup) + 32 random bytes base64url. Only `SHA-256(full token)` is stored (`meter_integrations.token_hash`); the plaintext is returned once by the create/rotate routes and never stored or logged. Malformed tokens are rejected by regex before any lookup.
+- Comparison is constant-time (`crypto.timingSafeEqual` over the two SHA-256 digests).
+- Rotation keeps the previous token valid for a 24 h grace window (`previous_token_hash` / `previous_token_expires_at`) so a gateway can be reconfigured without data loss. Revocation sets `status='revoked'` and clears the previous-token grace immediately; a revoked token gets `403 integration_revoked`, an unknown/invalid one `401`.
+- Issuing, rotating and revoking a hardware credential requires org role **manager+** in addition to `can_write_property_utilities` (`PERMISSIONS.md`), and each action writes an explicit `audit_events` row (`meter_integration.create|rotate|revoke`) that records the token prefix only.
+- **Token hashes are unreadable by API clients**: `meter_integrations` has a column-level grant — `select` is revoked from `anon`/`authenticated` and re-granted on every column except `token_hash`, `previous_token_hash`, `previous_token_prefix`. It also deliberately has **no** generic `log_audit_event_trigger()`, which would copy the hashes into `audit_events` (`DATABASE.md`).
+- The ingest path is in `proxy.ts`'s `CSRF_EXEMPT_PATHS` (bearer-token device pushes, never cookie-bearing) and `mfaPolicy.ts` returns `route_manages_own_aal` for that **exact** pathname only (there is no user, so no assurance level to step up) — covered by a `mfaPolicy.test.ts` case asserting a sub-path is not exempt.
+
+**Spoofing / replay controls:**
+
+- The token — never the payload — determines org and property. Device ids are matched only against **active** meters bound to that integration (`integration_id`, same `org_id` and `property_id`), so a device id belonging to another org or integration can never match (`unknown_device`). One device/channel can feed only one active meter (unique partial index).
+- Timestamp window: readings more than 5 min in the future (`future_timestamp`) or older than 400 days (`too_old`) are rejected; non-finite, negative or >1e13 values are `invalid_value`.
+- Monotonic check: a register decrease that is not a plausible rollover (given `register_digits`) is stored with `status='suspect'` and raises one `meter_reset_detected` alert per meter per day; suspect readings are excluded from consumption.
+- Idempotency: unique `(meter_id, read_at)` and `(integration_id, external_event_id)` — replays/retries are counted as `duplicates`, never double-stored, which is what makes the `503` retry path safe.
+- Rate limits via `rateLimitOrRespond`: 600/min per source IP (`resolveTrustedClientIp`) and 300/min per token prefix. Body capped at 256 KB (`413`).
+- Telemetry has no client write policy at all; the source IP is logged in `meter_ingest_events` only as a truncated SHA-256 hash (POPIA data minimisation).
+
+**Municipal reading packs (POPIA):**
+
+- A pack contains the municipal account number, so sending one to the wrong address is an unauthorised disclosure. Recipients carry an explicit owner authorisation (`municipal_submission_recipients.authorised_at`/`authorised_by`); deliveries are created only for **active, authorised** recipients, and approval is refused (`409`, pack unchanged) when none exist.
+- Packs contain no tenant data: the report snapshot (`MunicipalReport` in `lib/smartUtility/municipalReport.ts`) holds property name/address, preparer, municipality, account number, period and per-meter readings only, and only `ownership='municipal'` meters — private submeter readings are never submitted. A unit test asserts the rendered email carries no tenant data.
+- Audit: recipient and settings changes via `log_audit_event_trigger()`; pack generate/approve/cancel/acceptance via explicit `audit_events` rows; every send is an `email_messages` row linked from its `municipal_submission_deliveries` row. CSV export uses formula-injection protection (unit-tested); export downloads are `Cache-Control: private, no-store`.
+- **Automatic sending is behind a platform flag, default off:** `SMART_UTILITY_AUTO_SUBMISSION_ENABLED` must equal `'true'`; otherwise a property set to `automatic` behaves as `approval_required`. Automatic mode is refused (`400 automatic_not_supported`) for municipalities without a verified email submission channel.
+- **No municipal portal automation:** for app/portal-only municipalities the only path is manual — the owner downloads the CSV/PDF and submits it through the municipality's own app or portal. The module has no code path that submits through a municipal portal, and Phase 1 stores no vendor credential (migration 175 header).
+
 ## OWASP-relevant controls
 
 - **Injection**: all database access goes through the Supabase client library or parameterized queries inside Postgres functions/Edge Functions — no string-concatenated SQL anywhere. All external input (mobile forms, web forms, webhook payloads) is parsed through a `packages/validation` Zod schema before touching the database, client-side for UX and **again server-side**, since client-side validation is a UX affordance, not a security control (retained from the existing pattern).

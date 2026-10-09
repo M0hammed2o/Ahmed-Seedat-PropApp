@@ -138,6 +138,118 @@ GET      /api/v1/organizations/:orgId/financial-summary?month=YYYY-MM-01   (cont
 GET      /api/v1/properties/:id/tenant-payment-status?month=YYYY-MM-01   (paid/unpaid list, reuses rent_schedules.status directly)
 ```
 
+### 6b. Smart Utility Monitoring (2026-10-08 — migration 20260101000175, design `docs/SMART_UTILITY_ARCHITECTURE.md` §11)
+
+Shared plumbing (`apps/admin/lib/smartUtility/http.ts`): order is auth → JSON → zod → permission. `401 unauthenticated` (no session), `400 invalid_json`, `400 validation_failed` (`field_errors` + `form_errors`), `404 not_found` when the property/meter/integration/etc. is not readable under RLS (`can_read_property_utilities`), `403 forbidden` when the write gate fails. **Write gate** on every mutating session route = `can_write_property_utilities(org_id, property_id)` RPC (the same predicate the RLS write policies use, evaluated as the caller). Zod schemas live in `packages/validation/src/smartUtility.ts`. Writes that bypass RLS (telemetry, integrations, submissions) use the service-role client only after the gate passes; audited actions call `writeAuditEvent` explicitly.
+
+**Session-authenticated (staff / portal owner)**
+
+```
+GET    /api/v1/properties/:id/smart-utility
+         Dashboard payload (meters + health, period-to-date consumption/cost, 30-day daily series,
+         reconciliation, alerts, submission settings/recipients/history). Read-only, every query on the
+         caller's session (RLS-scoped). 200 { property, ...overview } | 404 | 500 smart_utility_overview_failed
+
+POST   /api/v1/properties/:id/smart-meters                    body: smartMeterCreateSchema
+         utilityType water|electricity; meterRole main|submeter|check; ownership municipal|private;
+         connectivity manual|lorawan|wifi|modbus_gateway|http_push|simulator; optional unitId, buildingId,
+         parentMeterId, meterNumber, manufacturer, model, serialNumber, integrationId, externalDeviceId,
+         externalChannel (default ''), multiplier (>0, default 1), valueOffset (≥0, default 0),
+         registerDigits 3–12, expectedIntervalMinutes 15|60|1440|43200, tariffPerUnit, municipalAccountNumber,
+         responsibilityMode (default owner_paid), isPrepaid, installedDate YYYY-MM-DD, notes.
+         Refinements: a submeter needs unitId or buildingId; a non-manual meter needs integrationId + externalDeviceId.
+         201 { meterId } | 409 device_already_bound | 400 invalid_meter_link   (audit smart_meter.create)
+
+PATCH  /api/v1/smart-meters/:id                               body: smartMeterUpdateSchema
+         Config edits (number, serial, manufacturer, model, ownership, parent, building, multiplier, valueOffset,
+         registerDigits, expectedIntervalMinutes, tariffPerUnit, municipalAccountNumber, notes) or
+         { decommission: true } → active=false + decommissioned_at; history is never deleted.
+         200 { meterId, changed: false } when nothing to change | 409 device_already_bound | 400 invalid_meter_link
+         (audit smart_meter.update / smart_meter.decommission)
+
+POST   /api/v1/smart-meters/:id/replace                       body: smartMeterCreateSchema
+         Physical swap: old meter decommissioned, new meter inserted with replaced_meter_id → old; active
+         submeters re-parented to the new meter; old meter restored if the insert fails.
+         201 { meterId, replacedMeterId } | 409 meter_inactive | 400 utility_type_mismatch   (audit smart_meter.replace)
+
+GET    /api/v1/smart-meters/:id/telemetry?from=&to=
+         Up to 500 readings, newest first, in display units. 200 { displayUnit: 'kL'|'kWh', readings[] }
+POST   /api/v1/smart-meters/:id/telemetry                     body: manualMeterReadingSchema
+         { readAt (ISO datetime with offset), reading (kL for water / kWh, ≥0), documentId?, notes? }
+         201 { readingId } | 409 meter_inactive | 400 future_timestamp (> now + 5 min)
+         | 400 invalid_document (photo must be a live document of the same property)
+         | 400 below_offset | 409 duplicate_reading (same meter + read_at)   (audit meter_reading.manual)
+
+POST   /api/v1/properties/:id/buildings                       body: { name 1–100 }
+         201 { building } | 409 duplicate_building
+
+POST   /api/v1/properties/:id/meter-integrations              body: { provider milesight_lorawan|shelly_gen2|generic_json|simulator, name 1–100 }
+         Gate: org role manager+ (requireOrgRole 'manager') AND can_write_property_utilities.
+         201 { integration, token, ingestUrl } — the plaintext token is returned ONCE and never stored or logged.
+         403 forbidden ("Only an organisation manager or principal can connect meter hardware.")   (audit meter_integration.create)
+GET    /api/v1/meter-integrations/:id
+         200 { integration (non-secret columns), events: last 20 meter_ingest_events } | 404
+POST   /api/v1/meter-integrations/:id                         body: { action: 'rotate' | 'revoke' }
+         Gate: manager+ AND can_write_property_utilities. 409 integration_revoked if already revoked.
+         rotate → 200 { token, previousTokenValidUntil } (old token valid 24 h)   (audit meter_integration.rotate)
+         revoke → 200 { status: 'revoked' }, previous-token grace cleared immediately   (audit meter_integration.revoke)
+
+PUT    /api/v1/properties/:id/utility-alert-settings          body: utilityAlertSettingsSchema
+         { discrepancyThresholdPct 0–100, spikeMultiple 1–50, nightFlowLitresPerHour, nightBaseLoadRatio 0–5,
+           vacantWaterLitresPerDay, vacantElectricityKwhPerDay } → upsert on property_id. 200 { saved: true }
+PATCH  /api/v1/utility-alerts/:id                             body: { status: 'acknowledged'|'resolved'|'open' }
+         200 { status } — written with the session client under the utility_alerts_update_status policy.
+
+PUT    /api/v1/properties/:id/municipal-submissions/settings  body: municipalSubmissionSettingsSchema
+         { municipalityCode?, municipalAccountNumber?, mode manual|approval_required|automatic, billingDay 1–28,
+           leadDays 0–20, includePhotos, enabled } → 200 { saved: true }
+         | 400 unknown_municipality | 400 automatic_not_supported (municipality has no verified email channel)
+POST   /api/v1/properties/:id/municipal-submissions/recipients   body: { email, label?, recipientType
+           municipality|managing_agent|utility_company|accountant|custom, authorise: boolean }
+         201 { recipientId } | 409 duplicate_recipient
+PATCH  /api/v1/municipal-submission-recipients/:id            body: { active?, authorise?, label? } → 200 { updated: true }
+POST   /api/v1/properties/:id/municipal-submissions           body: { periodStart? YYYY-MM-DD }
+         Prepares (does NOT send) the pack for the last complete billing period or the period containing
+         periodStart. Idempotent per (property, period_start): 201 when created, 200 when it already existed.
+POST   /api/v1/municipal-submissions/:id                      body: discriminated on action
+         approve    → approve + create deliveries for authorised recipients + send now; 200 { status:'approved', deliveries, send }
+         send       → make failed deliveries due now and send; 409 not_approved unless approved|sending|partially_failed|failed
+         cancel     → only draft|pending_approval|approved, else 409 cannot_cancel; pending deliveries deleted (audit municipal_submission.cancelled)
+         acceptance → { acceptanceStatus unknown|accepted|rejected|not_applicable, reference?, notes? } (audit municipal_submission.acceptance_recorded)
+         409 invalid_state on an illegal transition (SubmissionStateError) — including approve with no active
+         authorised recipient, which is checked BEFORE any status change, so a refused approval leaves the pack unchanged.
+GET    /api/v1/municipal-submissions/:id/export?format=csv|pdf   (default pdf)
+         Stored report snapshot as an attachment download, Cache-Control: private, no-store. 400 invalid_format.
+```
+
+**Device-token authenticated (meter gateways)**
+
+```
+POST   /api/v1/integrations/meters/ingest
+         Authorization: Bearer pmi_<prefix>_<secret> (per-integration token; no user session; CSRF-exempt and
+         MFA step-up-exempt). The token resolves org + property; nothing in the payload can name them.
+         Body: provider-specific JSON (Milesight network-server uplink, Shelly Gen2, generic JSON, simulator),
+         normalised by lib/smartUtility/adapters.ts. Max 256 KB.
+         Rate limits: 600/min per source IP, 300/min per token prefix (rateLimitOrRespond).
+         200 { accepted, duplicates, suspect, rejected: [{ deviceId, channel, readAt, reason, detail? }] }
+             reason ∈ unknown_device | future_timestamp | too_old | invalid_value | payload_invalid
+             (partial success is still 200 so a gateway never retries a whole batch for one bad device)
+         401 unauthorized (missing/malformed/unknown token) | 403 integration_revoked
+         400 invalid_json | 413 payload_too_large | 422 when the payload itself is unparseable (payload_invalid)
+         503 ingest_failed (transient; safe to retry — idempotency keys prevent double storage)
+```
+
+**System jobs**
+
+```
+POST   /api/v1/system/smart-utility-jobs
+         Authorization: Bearer <CRON_JOB_SECRET>, or a signed-in super_admin. Runs runSmartUtilityJob():
+         health sweep → daily anomalies → monthly reconciliation → due submissions → deliveries/retries →
+         email status sync. 200 { result } | 500 { result } when any step failed.
+POST   /api/v1/system/daily-jobs    (existing) — now runs the same job as step 7 `smartUtility`; it is
+         independent of steps 1–6 and its failure marks the overall run unsuccessful.
+```
+
 ## 7. Documents & OCR
 
 ```
