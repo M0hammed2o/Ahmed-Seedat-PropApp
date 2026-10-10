@@ -671,3 +671,13 @@ Mohammed asked for automated water and electricity readings from physical smart 
 **Municipal submissions: only the official municipal meter is ever reported; approval-required is the default; automatic sending is built but platform-disabled.** No municipality researched offers an API; every one that accepts emailed readings says it *may* use them; two portal terms forbid robots or require written mandates. So Proplyst never automates a municipal portal, never pre-fills an email address that was not verified on an official page (eThekwini's ambiguous address and Polokwane's contractor domain are deliberately left out), only emails recipients the owner has explicitly authorised (POPIA: a misaddressed pack containing an account number is an unauthorised disclosure), records "sent" separately from "accepted", and lets only a person set acceptance. Turning automatic sending on in production is Mohammed's call (TD-55).
 
 **Hardware credentials are Proplyst-issued, hashed, rotatable and manager-only.** The plaintext token is shown once; the hash is hidden from API clients by a column-level grant and is deliberately excluded from the generic audit trigger (which would otherwise have copied it into `audit_events`). The token — never the payload — determines org and property.
+
+## 2026-10-10 — Smart Utilities initial release: decisions made autonomously
+
+Recorded in full, with reasons, in `docs/SMART_UTILITIES_DECISIONS.md`. In short: extend Phase 1 rather than add a module;
+reserve "verified and ready" for hardware-free paths until a real device has reported; application-level AES-256-GCM
+for vendor credentials (fail closed without `SMART_UTILITY_CREDENTIALS_KEY`); ThingsBoard as the documented poll
+adapter, ChirpStack/TTS as documented push adapters; automatic municipal sending requires an approved content hash,
+an authorised recipient, an enabled schedule and the platform flag, and any content change withdraws approval; test
+sends only to the signed-in user's own address; "acknowledged" only when a person records it; billing produces draft
+charges → approval → **draft** invoices only; the municipal preview always shows the period the next send covers.

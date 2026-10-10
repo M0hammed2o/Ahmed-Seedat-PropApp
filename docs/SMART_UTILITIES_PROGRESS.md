@@ -35,13 +35,19 @@ municipal packs (email/CSV/PDF, authorised recipients, retries), property → Ut
 | M3 | Catalogue + Add Smart Meter wizard + integration requests | Completed (`751524f`) |
 | M4 | Dashboard extensions | Completed (`751524f`) |
 | M5 | Municipal template editor, preview, test send, approval, scheduling | Completed (`b03d436`) |
-| M6 | Evidence verification + evidence report + example | Pending |
-| M7 | Billing: tariffs, charges, invoice drafts | Pending |
-| M8 | Jobs: snapshots, reminders; regression; docs; commits | Pending |
+| M6 | Evidence verification + evidence report + example | Completed (`d2b8b3e`) |
+| M7 | Billing: tariffs, charges, invoice drafts | Completed (`81f2db8`) |
+| M8 | Jobs tests, browser walk-through, regression, review fixes, docs | Completed (`9143f7c`, `6b40f66`) |
 
-## Checkpoint (2026-10-10, after M5)
+## Checkpoint (2026-10-10, end of session)
 
-- Test database: throwaway stack `propvault_su` (scratch copy of `supabase/`, migrations through 177). The MAIN local
-  stack `propvault` is stopped with data kept; restore with `npx supabase stop` in the scratch copy (`--no-backup`)
-  then `npx supabase start` in the repo.
-- Next: M6 evidence verification + evidence PDF + example report; M7 billing; M8 regression + docs.
+- **All milestones complete in code**; results in `SMART_UTILITIES_TEST_RESULTS.md`; external blockers in
+  `SMART_UTILITIES_BLOCKERS.md`; ranked follow-ups and the exact next code step in `SMART_UTILITIES_NEXT_STEPS.md`.
+- Commits `bb63746`…`6b40f66` on local `main` (not pushed). Migrations 175–177 exist only locally.
+- Definition of done (brief §13): manage main/unit meters ✔ · catalogue ✔ · documented integration path implemented and
+  tested ✔ (Proplyst JSON end-to-end; Milesight/ChirpStack/TTS/Shelly/ThingsBoard against published formats) · other
+  integrations labelled ✔ · consumption/history ✔ · manual readings + photos ✔ (photo upload reuses the existing
+  documents route; not browser-tested) · monthly reports ✔ · municipality + custom email config ✔ · preview/approve ✔ ·
+  scheduling/delivery tested ✔ · existing functionality: regression clean except one pre-existing slow-job timeout ·
+  hardware limitations documented ✔.
+- Local environment: the main `propvault` stack was restored at the end of the session (see WORKLOG).

@@ -1,5 +1,42 @@
 # Worklog
 
+## 2026-10-10 — Smart Utilities initial release (autonomous session): engine, catalogue, reporting, evidence, billing
+
+Second brief: complete the Smart Utilities module for initial release, autonomously, committing after tested milestones.
+Continuity files: `docs/SMART_UTILITIES_{PROGRESS,DECISIONS,BLOCKERS,TEST_RESULTS,NEXT_STEPS}.md`; catalogue
+`docs/SA_SMART_METER_CATALOGUE.md`. Built on Phase 1 (2026-10-08, committed first as four commits).
+
+**Built (commits `3badd96`…`6b40f66`, migrations 176–177):** provider registry with push (Milesight, ChirpStack v4,
+The Things Stack, Shelly, Proplyst JSON, simulator) and poll (ThingsBoard REST) adapters; AES-256-GCM credential
+storage bound to the row (TD-52 paid down) with fail-closed key handling; poll sync with back-off, failure alerting and
+reconnection; customer catalogue with honest statuses (only hardware-free paths are "verified and ready") and dated
+SA prices; Add Smart Meter wizard with live connection test; integration requests; daily/weekly/monthly dashboard,
+unit comparison, missing readings, threshold settings; monthly snapshots and approval reminders; municipal template
+editor (CC, account holder, custom message, field toggles), preview, test send to self, hash-bound approval and
+scheduling with a rendered-email audit snapshot; reading verification and evidence PDFs (examples in `docs/examples`);
+tariffs, draft→approved charges and **draft-only** invoices via `create_manual_invoice()`.
+
+**Research (2026-10-10):** ChirpStack/TTS field names from proto sources; ThingsBoard 4.4+ is BSL-licensed (commercial
+use free ≤100 devices) and prefers API keys; TTN Sandbox is non-commercial; Dragino/Milesight SA listings added.
+
+**Bugs found and fixed (named):** catalogue entries missing accuracy caveats (catalogue test); PDF row/caption overlaps
+(visual review); municipal preview showed the last complete period while its scheduled send covers the current one
+(browser walk-through — owners would have approved a different period); scheduled packs not cancellable/resendable,
+SSRF guard missing CGNAT/benchmark ranges and following redirects, photo toggle not withdrawing approval, N+1 status
+sync (reference-doc review); approve endpoint reporting `approved` instead of `scheduled`; daily-jobs orchestration test
+running the smart-utility step unmocked.
+
+**Verification:** pgTAP 100 files / 1,580 pass; module unit 76/76; module real-DB integration 49/49; Playwright
+walk-through 1/1 with screenshots (`docs/qa/smart-utilities-2026-10-10/`); regression batches clean except the
+real-DB daily-jobs idempotency test, which still times out in isolation because the pre-existing
+`portfolioIntelligence` job takes 23–27 s per run on this ~618-org test DB (smart-utility step measured 0.23–0.56 s);
+two other timeouts pass in isolation (contention). `tsc`, eslint, `next build` clean. Full table:
+`docs/SMART_UTILITIES_TEST_RESULTS.md`.
+
+**Safety notes:** `apps/admin/.env.local` holds live third-party credentials and the Playwright config only blanks
+Supabase/demo vars (TD-59); this session's browser run blanked every external-service variable from the shell and
+neither uploaded files nor sent email. Nothing pushed, deployed, purchased or sent externally.
+
 ## 2026-10-08/09 — Smart Utility Monitoring, Phase 1 (research, design, schema, ingestion, analytics, municipal packs, web UI)
 
 Brief: connect physical water/electricity meters (main + unit submeters) to Proplyst, vendor-neutral; consumption,

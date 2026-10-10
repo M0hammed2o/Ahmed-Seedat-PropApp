@@ -22,3 +22,11 @@ autonomously in the 2026-10-10 session, each with its reason, so they can be rev
 8. **Billing creates draft charges → landlord approval → draft invoices only.** Nothing is issued or charged
    automatically; electricity recharge shows the NERSA resale caveat.
 9. **Status `scheduled`** means approved and waiting for its send time (`scheduled_for`).
+10. **The municipal preview shows the period the next send will cover** (the billing period containing the scheduled
+    send date), not the last complete period — found by the browser walk-through; otherwise an owner would approve a
+    preview of a different period than the one later sent.
+11. **Timing settings (mode, billing day, lead days, monthly preparation) do not withdraw approval**; content does
+    (template, fields, CC, account number, municipality, recipients, photo attachments). Automatic sending still needs
+    the separate `schedule_enabled` switch, which any withdrawal turns off.
+12. **Test budgets were not raised to hide slow pre-existing jobs** (daily-jobs idempotency test); the cause was
+    measured and recorded instead.
