@@ -57,6 +57,7 @@ describeIfSupabase('Utility billing (real local Supabase integration)', () => {
   let orgId: string;
   let tenantId: string;
   let leaseId: string;
+  let lease2Id: string;
   let chargeA: string;
   let chargeB: string;
 
@@ -75,21 +76,33 @@ describeIfSupabase('Utility billing (real local Supabase integration)', () => {
       .from('units')
       .insert([
         { org_id: orgId, property_id: propertyId, unit_label: 'Flat 1', status: 'occupied' },
-        { org_id: orgId, property_id: propertyId, unit_label: 'Flat 2', status: 'vacant' },
+        { org_id: orgId, property_id: propertyId, unit_label: 'Flat 2', status: 'occupied' },
+        { org_id: orgId, property_id: propertyId, unit_label: 'Flat 3', status: 'vacant' },
       ])
       .select('id, unit_label');
     const flat1 = units!.find((u) => u.unit_label === 'Flat 1')!.id;
     const flat2 = units!.find((u) => u.unit_label === 'Flat 2')!.id;
+    const flat3 = units!.find((u) => u.unit_label === 'Flat 3')!.id;
     const { data: tenant } = await service.from('tenants').insert({ org_id: orgId, full_name: 'T Tenant', status: 'active' }).select('id').single();
     tenantId = tenant!.id;
     const { data: lease } = await service.from('leases').insert({ org_id: orgId, unit_id: flat1, start_date: '2026-01-01', rent_amount: 8000, status: 'active' }).select('id').single();
     leaseId = lease!.id;
     await service.from('lease_tenants').insert({ lease_id: leaseId, tenant_id: tenantId, is_primary: true });
+    // Flat 2 is let too (its meter has insufficient readings); Flat 3 is vacant.
+    const { data: tenant2 } = await service.from('tenants').insert({ org_id: orgId, full_name: 'T Two', status: 'active' }).select('id').single();
+    const { data: lease2 } = await service.from('leases').insert({ org_id: orgId, unit_id: flat2, start_date: '2026-01-01', rent_amount: 7000, status: 'active' }).select('id').single();
+    await service.from('lease_tenants').insert({ lease_id: lease2!.id, tenant_id: tenant2!.id, is_primary: true });
+    lease2Id = lease2!.id;
 
     const mk = async (unitId: string, label: string) =>
       (await service.from('utility_meters').insert({ org_id: orgId, property_id: propertyId, unit_id: unitId, utility_type: 'water', responsibility_mode: 'owner_paid', meter_role: 'submeter', ownership: 'private', meter_number: label }).select('id').single()).data!.id;
     const m1 = await mk(flat1, 'F1-W');
     const m2 = await mk(flat2, 'F2-W');
+    await mk(flat3, 'F3-W');
+    // Since migration 178 nothing is charged without an explicit per-unit billing arrangement.
+    await service.from('utility_billing_arrangements').insert(
+      [flat1, flat2, flat3].map((unit_id) => ({ org_id: orgId, property_id: propertyId, unit_id, utility_type: 'water', arrangement: 'metered_recharge', effective_from: '2026-01-01' })),
+    );
     const s = sastInstant(2026, 8, 25).getTime();
     const e = sastInstant(2026, 9, 25).getTime();
     // Flat 1: 12,000 L (12 kL) across the period; Flat 2: one reading only (insufficient).
@@ -122,7 +135,9 @@ describeIfSupabase('Utility billing (real local Supabase integration)', () => {
   it('generates DRAFT charges from actual consumption with the effective tariff, idempotently', async () => {
     const res = await charges(req(PERIOD), p(propertyId));
     expect(res.status).toBe(201);
-    expect(await res.json()).toMatchObject({ created: 2, existing: 0 });
+    const body = await res.json();
+    expect(body).toMatchObject({ created: 2, existing: 0 });
+    expect(body.skipped).toEqual(expect.arrayContaining([expect.objectContaining({ reason: expect.stringMatching(/vacant/) })]));
     const again = await (await charges(req(PERIOD), p(propertyId))).json();
     expect(again).toMatchObject({ created: 0, existing: 2 });
     const { data } = await service.from('utility_charges').select('id, consumption, consumption_quality, usage_amount, fixed_amount, total_amount, status, lease_id, tenant_id, units(unit_label)').eq('property_id', propertyId);
@@ -136,7 +151,9 @@ describeIfSupabase('Utility billing (real local Supabase integration)', () => {
     expect(Number(f1.total_amount)).toBe(415);
     expect(f1).toMatchObject({ status: 'draft', lease_id: leaseId, tenant_id: tenantId, consumption_quality: 'complete' });
     expect(f2.consumption).toBeNull();
-    expect(f2.lease_id).toBeNull();
+    expect(f2.lease_id).toBe(lease2Id);
+    // The vacant flat is reported, never charged.
+    expect(data!.some((c) => (c.units as unknown as { unit_label: string }).unit_label === 'Flat 3')).toBe(false);
   });
 
   it('refuses to approve a charge whose consumption could not be calculated', async () => {

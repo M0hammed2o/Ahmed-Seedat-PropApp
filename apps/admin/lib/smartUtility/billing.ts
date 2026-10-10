@@ -670,7 +670,7 @@ export async function invoiceCharges(
 ) {
   const { data: rows } = await serviceClient
     .from('utility_charges')
-    .select('id, org_id, lease_id, tenant_id, utility_type, charge_type, period_start, period_end, segment_start, segment_end, consumption, total_amount, vat_amount, tariff_snapshot, calculation, status, dispute_status, credit_applied, arrangement_id, utility_billing_arrangements(invoice_mode), units(unit_label)')
+    .select('id, org_id, lease_id, tenant_id, utility_type, charge_type, period_start, period_end, segment_start, segment_end, consumption, total_amount, vat_amount, tariff_snapshot, calculation, status, dispute_status, credit_applied, adjustment_total, arrangement_id, utility_billing_arrangements(invoice_mode), units(unit_label)')
     .in('id', args.chargeIds)
     .eq('property_id', args.propertyId)
     .eq('status', 'approved');
@@ -692,8 +692,20 @@ export async function invoiceCharges(
       const qty = c.consumption !== null && c.charge_type !== 'allowance_fee' ? ` ${fmt(Number(c.consumption))} ${UNIT[c.utility_type as 'water' | 'electricity']}` : '';
       const vat = Number(c.vat_amount ?? 0) > 0 ? `, incl. VAT ${rand(Number(c.vat_amount))}` : '';
       const credit = Number(c.credit_applied) > 0 ? `, after credit ${rand(Number(c.credit_applied))}` : '';
-      return { description: `${label} ${kind}${qty} (${period}${vat}${credit})`.slice(0, 500), quantity: 1, unitPrice: Number(c.total_amount) };
-    });
+      // Metered charges untouched by a credit or adjustment show usage and fixed charge as separate lines (as the
+      // municipal account does); otherwise one line carrying the final amount, with the detail on the statement.
+      const calcLines = ((c.calculation as { lines?: { kind: string; inclCents: number }[] } | null)?.lines ?? []);
+      const usageCents = calcLines.filter((l) => l.kind === 'usage').reduce((a, l) => a + l.inclCents, 0);
+      const fixedCents = calcLines.filter((l) => l.kind === 'fixed').reduce((a, l) => a + l.inclCents, 0);
+      const untouched = Number(c.credit_applied) === 0 && Number(c.adjustment_total) === 0;
+      if ((c.charge_type === 'consumption' || c.charge_type === 'excess') && untouched && fixedCents > 0 && usageCents + fixedCents === Math.round(Number(c.total_amount) * 100)) {
+        return [
+          { description: `${label} ${kind}${qty} (${period})`.slice(0, 500), quantity: 1, unitPrice: usageCents / 100 },
+          { description: `${label} fixed charge (${period}${vat})`.slice(0, 500), quantity: 1, unitPrice: fixedCents / 100 },
+        ].filter((l) => l.unitPrice > 0);
+      }
+      return [{ description: `${label} ${kind}${qty} (${period}${vat}${credit})`.slice(0, 500), quantity: 1, unitPrice: Number(c.total_amount) }];
+    }).flat();
     const wantsAppend = charges.some((c) => (c.utility_billing_arrangements as { invoice_mode?: string } | null)?.invoice_mode === 'with_draft_invoice');
     let invoiceId: string | null = null;
     let mode: 'separate' | 'appended' = 'separate';
