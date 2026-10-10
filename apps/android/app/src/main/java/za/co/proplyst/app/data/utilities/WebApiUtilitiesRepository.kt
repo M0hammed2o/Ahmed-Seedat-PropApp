@@ -127,6 +127,7 @@ class WebApiUtilitiesRepository @Inject constructor(
         responsibilityMode = responsibilityMode,
         isPrepaid = isPrepaid,
         active = active,
+        measurementKind = measurementKind,
     )
 
     private fun UtilityHistoryPointDto.toDomain() = UtilityHistoryPoint(

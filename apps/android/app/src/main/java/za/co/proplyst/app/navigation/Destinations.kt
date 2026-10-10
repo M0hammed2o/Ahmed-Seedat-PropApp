@@ -140,4 +140,7 @@ object Destinations {
     // AccountScreen (never a bottom-nav tab -- the Tenant NavHost already carries 6 tabs after
     // adding Invoices; see OwnerRootScreen.kt's own disclosed tab-count P2 note).
     const val MY_LEASE = "my_lease"
+
+    // Tenant utility statements (hybrid utilities, migration 178) -- reached from the tenant profile list.
+    const val UTILITY_STATEMENTS = "utility_statements"
 }

@@ -76,6 +76,8 @@ export const MOBILE_V1_API_ROUTES: ReadonlyArray<{ method: string; path: string 
   { method: 'POST', path: '/api/v1/tenant-portal/maintenance-tickets' },
   { method: 'POST', path: '/api/v1/tenant-portal/maintenance-tickets/{id}/documents' },
   { method: 'POST', path: '/api/v1/tenant-portal/payment-reports' },
+  // Tenant's approved utility statements (hybrid utilities): read-only, tenant resolved server-side + RLS.
+  { method: 'GET', path: '/api/v1/tenant-portal/utility-statements' },
   { method: 'GET', path: '/api/v1/utility-meters/{id}/readings' },
   { method: 'POST', path: '/api/v1/utility-meters/{id}/readings' },
   // Google Play requires in-app account deletion, and the app has no MFA screen: an account with a

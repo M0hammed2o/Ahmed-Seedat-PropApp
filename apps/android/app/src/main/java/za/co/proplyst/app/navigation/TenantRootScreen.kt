@@ -145,6 +145,7 @@ fun TenantRootScreen(pendingRoute: String? = null) {
                     onNoticesClick = { navController.navigate(Destinations.ANNOUNCEMENTS_LIST) },
                     onAccountClick = { navController.navigate(Destinations.ACCOUNT) },
                     onAppearanceClick = { navController.navigate(Destinations.APPEARANCE_SETTINGS) },
+                    onUtilityStatementsClick = { navController.navigate(Destinations.UTILITY_STATEMENTS) },
                 )
             }
             composable(Destinations.APPEARANCE_SETTINGS) {
@@ -155,6 +156,9 @@ fun TenantRootScreen(pendingRoute: String? = null) {
                     onBack = { navController.popBackStack() },
                     onMyLeaseClick = { navController.navigate(Destinations.MY_LEASE) },
                 )
+            }
+            composable(Destinations.UTILITY_STATEMENTS) {
+                za.co.proplyst.app.ui.utilitystatements.UtilityStatementsScreen()
             }
             composable(Destinations.MY_LEASE) {
                 MyLeaseScreen(onBack = { navController.popBackStack() })

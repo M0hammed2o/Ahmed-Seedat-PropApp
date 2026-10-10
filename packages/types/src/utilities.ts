@@ -53,6 +53,9 @@ export interface UtilityMeter {
   notes: string | null;
   createdAt: string;
   updatedAt: string;
+  /** What the register measures (migration 178): 'consumption' for ordinary meters; hybrid registers such as
+   * 'generation' (solar), 'grid_import', 'battery_discharge' or 'source_supply' (borehole) are never billed. */
+  measurementKind?: string;
 }
 
 export type UtilityReadingSource = 'actual' | 'estimated' | 'manual';

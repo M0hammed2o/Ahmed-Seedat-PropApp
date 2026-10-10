@@ -203,7 +203,12 @@ private fun MeterCardRow(
             Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                 Column {
                     Text(meter.meterNumber ?: "Meter", style = type.cardTitle.copy(fontWeight = FontWeight.SemiBold), color = colors.textPrimary)
-                    Text(responsibilityLabel(meter.responsibilityMode), style = type.caption, color = colors.textSecondary, modifier = Modifier.padding(top = 2.dp))
+                    Text(
+                        if (meter.measurementKind == "consumption") responsibilityLabel(meter.responsibilityMode) else "${measurementKindLabel(meter.measurementKind)} · monitoring only",
+                        style = type.caption,
+                        color = colors.textSecondary,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
                 }
                 StatusChip(card, isTenantResponsibility, utilityLabel)
             }
@@ -266,6 +271,22 @@ private fun MetricColumn(label: String, value: String, alignEnd: Boolean = false
         Text(label, style = type.microLabel, color = colors.textTertiary)
         Text(value, style = type.captionEmphasis.copy(fontWeight = FontWeight.Bold), color = valueColor ?: colors.textPrimary, modifier = Modifier.padding(top = 2.dp))
     }
+}
+
+/** Hybrid registers (migration 178) are never billed; labelled so a solar or borehole meter isn't read as usage. */
+internal fun measurementKindLabel(kind: String): String = when (kind) {
+    "grid_import" -> "Grid import"
+    "grid_export" -> "Grid export"
+    "generation" -> "Solar generation"
+    "battery_charge" -> "Battery charging"
+    "battery_discharge" -> "Battery discharging"
+    "generator_output" -> "Generator output"
+    "pump_energy" -> "Borehole pump"
+    "source_supply" -> "Source supply"
+    "tank_inflow" -> "Tank inflow"
+    "tank_outflow" -> "Tank outflow"
+    "transfer" -> "Internal transfer"
+    else -> "Consumption"
 }
 
 private fun responsibilityLabel(mode: String): String = when (mode) {

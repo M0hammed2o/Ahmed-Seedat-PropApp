@@ -11,6 +11,7 @@ data class UtilityMeter(
     val responsibilityMode: String,
     val isPrepaid: Boolean,
     val active: Boolean,
+    val measurementKind: String = "consumption",
 )
 
 data class UtilityHistoryPoint(

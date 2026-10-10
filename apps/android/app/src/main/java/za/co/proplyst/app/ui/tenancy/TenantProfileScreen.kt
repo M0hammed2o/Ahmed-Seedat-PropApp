@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.Home
@@ -65,6 +66,7 @@ fun TenantProfileScreen(
     onNoticesClick: () -> Unit,
     onAccountClick: () -> Unit,
     onAppearanceClick: () -> Unit,
+    onUtilityStatementsClick: () -> Unit = {},
     viewModel: TenantProfileViewModel = hiltViewModel(),
 ) {
     val leaseState by viewModel.leaseUiState.collectAsState()
@@ -77,6 +79,7 @@ fun TenantProfileScreen(
         LazyColumn(contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 96.dp)) {
             item { ProfileRow("My lease", "Property, unit, and lease status", Icons.Filled.Home, onMyLeaseClick) }
             item { ProfileRow("Documents", "Leases and other shared files", Icons.Filled.Description, onDocumentsClick) }
+            item { ProfileRow("Utility statements", "Water and electricity readings and charges", Icons.Filled.Bolt, onUtilityStatementsClick) }
             item { ProfileRow("Notices", "Announcements from management", Icons.Filled.Notifications, onNoticesClick) }
             item { Spacer(modifier = Modifier.height(16.dp)) }
             item { ProfileRow("Account & security", "Sign out, biometric app lock", Icons.Filled.Security, onAccountClick) }

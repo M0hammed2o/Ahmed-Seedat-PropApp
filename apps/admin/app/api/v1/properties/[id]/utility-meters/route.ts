@@ -22,6 +22,7 @@ interface UtilityMeterRow {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  measurement_kind?: string | null;
 }
 
 function mapRow(row: UtilityMeterRow): UtilityMeter {
@@ -39,6 +40,7 @@ function mapRow(row: UtilityMeterRow): UtilityMeter {
     notes: row.notes,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    measurementKind: row.measurement_kind ?? 'consumption',
   };
 }
 

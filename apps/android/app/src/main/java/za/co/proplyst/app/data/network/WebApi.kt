@@ -98,6 +98,11 @@ interface WebApi {
     @GET("api/v1/documents")
     suspend fun getMyDocuments(): Response<DocumentListResponse>
 
+    /** The caller's APPROVED utility statements (hybrid utilities). The tenant is resolved server-side and RLS
+     * (`utility_statements_select_tenant_self`) only returns approved/sent statements of the caller's own leases. */
+    @GET("api/v1/tenant-portal/utility-statements")
+    suspend fun getMyUtilityStatements(): Response<za.co.proplyst.app.data.network.dto.UtilityStatementListResponse>
+
     /** Tenant-submitted maintenance ticket (Phase 4). org/property/unit/lease/tenant context is
      * derived server-side from the caller's own active lease -- this app never sends it. */
     @POST("api/v1/tenant-portal/maintenance-tickets")

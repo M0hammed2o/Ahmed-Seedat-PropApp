@@ -100,6 +100,9 @@ data class UtilityMeterDto(
     val responsibilityMode: String,
     val isPrepaid: Boolean,
     val active: Boolean,
+    /** Migration 178: "consumption" for ordinary meters; hybrid registers (solar generation, grid import,
+     * battery, borehole supply ...) are monitoring-only. Defaulted so older servers still parse. */
+    val measurementKind: String = "consumption",
 )
 
 @Serializable
