@@ -115,18 +115,27 @@ export function HybridSection({ data, canManage, onChanged }: { data: Overview; 
             </div>
           </section>
 
-          {[...dash.electricity.gaps, ...dash.water.gaps].length ? (
-            <div className={noteClass}>
-              <p className="font-medium">Data gaps</p>
-              <ul className="list-disc pl-4">
-                {[...dash.electricity.gaps, ...dash.water.gaps].map((g, i) => (
-                  <li key={i}>
-                    {g.label}: {g.kind === 'source_not_metered' ? 'no meter measures this source' : g.kind === 'tank_level_unknown' ? 'no tank level at the start or end of the range' : g.kind === 'meter_missing_data' ? 'no readings in this range' : g.kind === 'meter_incomplete' ? 'readings incomplete' : 'no consumption meter'}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
+          {(() => {
+            // A utility with no meters and no sources at all is simply not monitored here: no "gap" to report.
+            const unused = (u: 'water' | 'electricity') =>
+              !dash.sources.some((x) => x.utilityType === u) && !dash.series.find((x) => x.utilityType === u)?.kinds.length;
+            const gaps = [
+              ...(unused('electricity') ? [] : dash.electricity.gaps.map((g) => ({ ...g, utility: 'Electricity' }))),
+              ...(unused('water') ? [] : dash.water.gaps.map((g) => ({ ...g, utility: 'Water' }))),
+            ];
+            return gaps.length ? (
+              <div className={noteClass}>
+                <p className="font-medium">Data gaps</p>
+                <ul className="list-disc pl-4">
+                  {gaps.map((g, i) => (
+                    <li key={i}>
+                      {g.utility} · {g.kind === 'no_consumption_meters' ? 'no consumption meter' : `${g.label}: ${g.kind === 'source_not_metered' ? 'no meter measures this source' : g.kind === 'tank_level_unknown' ? 'no tank level at the start or end of the range' : g.kind === 'meter_missing_data' ? 'no readings in this range' : 'readings incomplete'}`}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null;
+          })()}
 
           <section aria-label="Source mix">
             <h3 className="mb-2 text-sm font-semibold text-foreground">Per {dash.series[0]?.bucket ?? 'day'}</h3>
