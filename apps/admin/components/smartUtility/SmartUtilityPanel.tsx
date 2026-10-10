@@ -5,8 +5,10 @@ import { Button } from '@/components/ui/Button';
 import { Panel } from '@/components/ui/Panel';
 import { MiniLineChart } from '@/components/ui/MiniLineChart';
 import { BillingSection } from './BillingSection';
+import { HybridSection } from './HybridSection';
 import { IntegrationsSection } from './IntegrationsSection';
 import { MetersSection } from './MetersSection';
+import { StatementsSection } from './StatementsSection';
 import { SubmissionsSection } from './SubmissionsSection';
 import { api, Badge, errorClass, errorMessage, fmtDateTime, fmtNumber, fmtRand, noteClass, Stat, type Overview } from './shared';
 
@@ -219,12 +221,15 @@ export function SmartUtilityPanel({ propertyId, canManage }: { propertyId: strin
         </Panel>
       ) : null}
 
+      <HybridSection data={data} canManage={canManage} onChanged={() => void load()} />
+
       {canManage ? <AlertSettings data={data} onSaved={() => void load()} /> : null}
 
       <MetersSection data={data} canManage={canManage} onChanged={() => void load()} />
       <IntegrationsSection data={data} canManage={canManage} onChanged={() => void load()} />
       <SubmissionsSection data={data} canManage={canManage} onChanged={() => void load()} />
       <BillingSection data={data} canManage={canManage} />
+      <StatementsSection data={data} canManage={canManage} />
     </div>
   );
 }

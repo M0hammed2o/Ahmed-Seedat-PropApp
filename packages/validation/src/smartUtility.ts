@@ -33,6 +33,9 @@ export const smartMeterCreateSchema = z.object({
   isPrepaid: z.boolean().default(false),
   installedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
   notes: optionalText(500),
+  /** What the register measures (migration 178). Billing and leak rules only use 'consumption'. */
+  measurementKind: z.enum(['consumption', 'grid_import', 'grid_export', 'generation', 'battery_charge', 'battery_discharge', 'generator_output', 'pump_energy', 'transfer', 'source_supply', 'tank_inflow', 'tank_outflow']).default('consumption'),
+  supplySourceId: z.string().uuid().optional().nullable(),
 }).superRefine((v, ctx) => {
   if (v.meterRole === 'submeter' && !v.unitId && !v.buildingId) {
     ctx.addIssue({ code: 'custom', path: ['unitId'], message: 'A submeter must belong to a unit or building.' });
@@ -64,6 +67,8 @@ export const smartMeterUpdateSchema = z.object({
   tariffPerUnit: z.number().min(0).max(100_000).optional().nullable(),
   municipalAccountNumber: optionalText(60),
   notes: optionalText(500),
+  measurementKind: z.enum(['consumption', 'grid_import', 'grid_export', 'generation', 'battery_charge', 'battery_discharge', 'generator_output', 'pump_energy', 'transfer', 'source_supply', 'tank_inflow', 'tank_outflow']).optional(),
+  supplySourceId: z.string().uuid().optional().nullable(),
   decommission: z.boolean().optional(),
 });
 export type SmartMeterUpdateInput = z.infer<typeof smartMeterUpdateSchema>;

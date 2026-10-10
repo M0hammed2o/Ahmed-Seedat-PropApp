@@ -25,7 +25,7 @@ function toDisplay(utilityType: 'water' | 'electricity', base: number | null): n
 }
 
 export async function loadSmartUtilityOverview(client: SupabaseClient, propertyId: string, now = new Date()) {
-  const [metersRes, unitsRes, buildingsRes, integrationsRes, alertsRes, subSettingsRes, alertSettingsRes, recipientsRes, submissionsRes] =
+  const [metersRes, unitsRes, buildingsRes, integrationsRes, alertsRes, subSettingsRes, alertSettingsRes, recipientsRes, submissionsRes, sourcesRes] =
     await Promise.all([
       client.from('utility_meters').select(SMART_METER_COLUMNS).eq('property_id', propertyId).order('created_at'),
       client.from('units').select('id, unit_label, status, building_id').eq('property_id', propertyId).order('unit_label'),
@@ -50,6 +50,11 @@ export async function loadSmartUtilityOverview(client: SupabaseClient, propertyI
         .eq('property_id', propertyId)
         .order('period_start', { ascending: false })
         .limit(12),
+      client
+        .from('utility_supply_sources')
+        .select('id, utility_type, source_type, name, active')
+        .eq('property_id', propertyId)
+        .order('name'),
     ]);
   for (const r of [metersRes, unitsRes, buildingsRes, integrationsRes, alertsRes, recipientsRes, submissionsRes]) {
     if (r.error) throw new Error(r.error.message);
@@ -235,6 +240,7 @@ export async function loadSmartUtilityOverview(client: SupabaseClient, propertyI
     units: unitsRes.data ?? [],
     unitComparison,
     buildings: buildingsRes.data ?? [],
+    sources: (sourcesRes.data ?? []) as { id: string; utility_type: 'water' | 'electricity'; source_type: string; name: string; active: boolean }[],
     integrations: integrationsRes.data ?? [],
     alerts: alertsRes.data ?? [],
     reconciliation,

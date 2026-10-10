@@ -40,6 +40,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     ['tariffPerUnit', 'tariff_per_unit'],
     ['municipalAccountNumber', 'municipal_account_number'],
     ['notes', 'notes'],
+    ['measurementKind', 'measurement_kind'],
+    ['supplySourceId', 'supply_source_id'],
   ];
   for (const [key, column] of map) {
     if (d[key] !== undefined) update[column] = d[key] === '' ? null : d[key];

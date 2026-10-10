@@ -105,5 +105,51 @@ export function meterLabel(m: MeterSummary, units: Overview['units']): string {
   const unit = m.unitId ? units.find((u) => u.id === m.unitId)?.unit_label : null;
   const who = unit ?? (m.meterRole === 'main' ? 'Main' : m.meterRole === 'check' ? 'Check' : 'Common');
   const id = m.meterNumber ?? m.serialNumber ?? m.externalDeviceId ?? m.id.slice(0, 8);
-  return `${who} · ${m.utilityType === 'water' ? 'Water' : 'Electricity'} · ${id}`;
+  const kind = m.measurementKind && m.measurementKind !== 'consumption' ? ` (${KIND_LABEL[m.measurementKind] ?? m.measurementKind})` : '';
+  return `${who} · ${m.utilityType === 'water' ? 'Water' : 'Electricity'}${kind} · ${id}`;
+}
+
+export const KIND_LABEL: Record<string, string> = {
+  consumption: 'consumption',
+  grid_import: 'grid import',
+  grid_export: 'grid export',
+  generation: 'solar generation',
+  battery_charge: 'battery charge',
+  battery_discharge: 'battery discharge',
+  generator_output: 'generator',
+  pump_energy: 'pump energy',
+  transfer: 'transfer',
+  source_supply: 'source supply',
+  tank_inflow: 'tank inflow',
+  tank_outflow: 'tank outflow',
+};
+
+export const SOURCE_LABEL: Record<string, string> = {
+  municipal_grid: 'Municipal grid',
+  eskom_direct: 'Eskom direct',
+  prepaid: 'Prepaid',
+  solar_pv: 'Solar PV',
+  battery: 'Battery',
+  generator: 'Generator',
+  municipal: 'Municipal water',
+  borehole: 'Borehole',
+  rainwater: 'Rainwater',
+  storage_tank: 'Storage tank',
+  tanker: 'Water tanker',
+  other: 'Other',
+};
+
+export const BASIS_TONE: Record<string, 'good' | 'warn' | 'neutral' | 'bad'> = { measured: 'good', derived: 'neutral', logged: 'warn', estimated: 'warn', missing: 'bad' };
+
+export function Figure({ label, value, unit, basis, hint }: { label: string; value: number | null; unit: string; basis: string; hint?: string }) {
+  return (
+    <div className="rounded-md border border-light-border p-3 dark:border-dark-border">
+      <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+        <span>{label}</span>
+        <Badge tone={BASIS_TONE[basis] ?? 'neutral'}>{basis}</Badge>
+      </div>
+      <div className="mt-1 text-lg font-semibold text-foreground">{value === null ? '—' : `${fmtNumber(value, 2)} ${unit}`}</div>
+      {hint ? <div className="mt-0.5 text-[11px] text-muted-foreground">{hint}</div> : null}
+    </div>
+  );
 }

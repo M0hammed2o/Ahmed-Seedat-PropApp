@@ -255,7 +255,7 @@ export default async function PropertyDetailPage({ params, searchParams }: Route
           hasDocuments: true,
           hasFinancialSetup: true,
         }}
-        defaultTab={tab === 'Finances' ? 'Finances' : undefined}
+        defaultTab={tab === 'Finances' || tab === 'Utilities' ? tab : undefined}
       />
     );
   }
@@ -357,7 +357,7 @@ export default async function PropertyDetailPage({ params, searchParams }: Route
       isPrincipal={isPrincipal}
       coverPhotoUrl={coverPhotoUrl}
       setupProgress={setupProgress}
-      defaultTab={tab === 'Finances' ? 'Finances' : undefined}
+      defaultTab={tab === 'Finances' || tab === 'Utilities' ? tab : undefined}
     />
   );
 }

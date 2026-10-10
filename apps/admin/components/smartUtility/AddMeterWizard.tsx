@@ -27,6 +27,28 @@ const STATUS_TONE: Record<CatalogueStatus, 'good' | 'warn' | 'bad' | 'neutral'> 
 
 type Step = 'where' | 'catalogue' | 'configure' | 'connect' | 'request';
 
+// What a register measures (migration 178). Only 'consumption' is ever billed or used by leak rules.
+export const MEASUREMENT_KINDS: Record<'water' | 'electricity', { value: string; label: string; sourceTypes?: string[]; sourceUtility?: 'water' }[]> = {
+  electricity: [
+    { value: 'consumption', label: 'Consumption (what is used)' },
+    { value: 'grid_import', label: 'Grid import (bought from municipality/Eskom)', sourceTypes: ['municipal_grid', 'eskom_direct', 'prepaid'] },
+    { value: 'grid_export', label: 'Grid export (fed back)', sourceTypes: ['municipal_grid', 'eskom_direct'] },
+    { value: 'generation', label: 'Solar generation (inverter PV output)', sourceTypes: ['solar_pv'] },
+    { value: 'battery_charge', label: 'Battery charging', sourceTypes: ['battery'] },
+    { value: 'battery_discharge', label: 'Battery discharging', sourceTypes: ['battery'] },
+    { value: 'generator_output', label: 'Generator output', sourceTypes: ['generator'] },
+    { value: 'pump_energy', label: 'Borehole pump energy', sourceTypes: ['borehole'], sourceUtility: 'water' },
+    { value: 'transfer', label: 'Internal transfer (not supply)' },
+  ],
+  water: [
+    { value: 'consumption', label: 'Consumption (what is used)' },
+    { value: 'source_supply', label: 'Supply from a source (municipal, borehole, rainwater, tanker)', sourceTypes: ['municipal', 'borehole', 'rainwater', 'tanker', 'other'] },
+    { value: 'tank_inflow', label: 'Tank inflow (internal)', sourceTypes: ['storage_tank'] },
+    { value: 'tank_outflow', label: 'Tank outflow (internal)', sourceTypes: ['storage_tank'] },
+    { value: 'transfer', label: 'Internal transfer (not supply)' },
+  ],
+};
+
 function rand(n: number) {
   return `R ${n.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
@@ -38,6 +60,12 @@ export function AddMeterWizard({ data, onDone }: { data: Overview; onDone: () =>
   const [unitId, setUnitId] = useState('');
   const [buildingId, setBuildingId] = useState('');
   const [parentMeterId, setParentMeterId] = useState('');
+  const [measurementKind, setMeasurementKind] = useState('consumption');
+  const [supplySourceId, setSupplySourceId] = useState('');
+  const kindDef = MEASUREMENT_KINDS[utilityType].find((k) => k.value === measurementKind) ?? MEASUREMENT_KINDS[utilityType][0]!;
+  const kindSources = (data.sources ?? []).filter(
+    (s) => s.active && kindDef.sourceTypes?.includes(s.source_type) && s.utility_type === (kindDef.sourceUtility ?? utilityType),
+  );
   const [entry, setEntry] = useState<CatalogueEntry | null>(null);
   const [createdMeterId, setCreatedMeterId] = useState<string | null>(null);
 
@@ -58,7 +86,15 @@ export function AddMeterWizard({ data, onDone }: { data: Overview; onDone: () =>
           <div className="grid gap-3 sm:grid-cols-3">
             <label className={labelClass}>
               Utility
-              <select className={inputClass} value={utilityType} onChange={(e) => setUtilityType(e.target.value as 'water' | 'electricity')}>
+              <select
+                className={inputClass}
+                value={utilityType}
+                onChange={(e) => {
+                  setUtilityType(e.target.value as 'water' | 'electricity');
+                  setMeasurementKind('consumption');
+                  setSupplySourceId('');
+                }}
+              >
                 <option value="water">Water</option>
                 <option value="electricity">Electricity</option>
               </select>
@@ -86,6 +122,28 @@ export function AddMeterWizard({ data, onDone }: { data: Overview; onDone: () =>
                 <select className={inputClass} value={buildingId} onChange={(e) => setBuildingId(e.target.value)}>
                   <option value="">—</option>
                   {data.buildings.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              </label>
+            ) : null}
+            <label className={labelClass}>
+              It measures
+              <select
+                className={inputClass}
+                value={measurementKind}
+                onChange={(e) => {
+                  setMeasurementKind(e.target.value);
+                  setSupplySourceId('');
+                }}
+              >
+                {MEASUREMENT_KINDS[utilityType].map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
+              </select>
+            </label>
+            {kindDef.sourceTypes ? (
+              <label className={labelClass}>
+                Supply source
+                <select className={inputClass} value={supplySourceId} onChange={(e) => setSupplySourceId(e.target.value)}>
+                  <option value="">{kindSources.length ? 'Choose a source' : 'None yet — add it under Supply & sources'}</option>
+                  {kindSources.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </label>
             ) : null}
@@ -135,6 +193,8 @@ export function AddMeterWizard({ data, onDone }: { data: Overview; onDone: () =>
           unitId={unitId || null}
           buildingId={buildingId || null}
           parentMeterId={parentMeterId || null}
+          measurementKind={measurementKind}
+          supplySourceId={supplySourceId || null}
           onBack={() => setStep('catalogue')}
           onCreated={(id) => {
             setCreatedMeterId(id);
@@ -321,6 +381,8 @@ function ConfigureMeter({
   unitId,
   buildingId,
   parentMeterId,
+  measurementKind,
+  supplySourceId,
   onBack,
   onCreated,
 }: {
@@ -331,6 +393,8 @@ function ConfigureMeter({
   unitId: string | null;
   buildingId: string | null;
   parentMeterId: string | null;
+  measurementKind: string;
+  supplySourceId: string | null;
   onBack: () => void;
   onCreated: (meterId: string) => void;
 }) {
@@ -387,6 +451,8 @@ function ConfigureMeter({
       unitId,
       buildingId,
       parentMeterId: meterRole === 'main' ? null : parentMeterId,
+      measurementKind,
+      supplySourceId,
       meterNumber: form.meterNumber || null,
       serialNumber: form.serialNumber || null,
       location: form.location || null,

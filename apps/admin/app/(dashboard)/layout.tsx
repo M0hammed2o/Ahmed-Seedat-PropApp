@@ -24,6 +24,7 @@ import {
   Bell,
   Megaphone,
   PiggyBank,
+  Gauge,
 } from 'lucide-react';
 import { branding } from '@propvault/config';
 import { resolvePortalSession } from '@/lib/orgSession';
@@ -77,6 +78,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { href: '/maintenance', label: 'Maintenance', icon: navIcon(Wrench) },
       { href: '/inspections', label: 'Inspections', icon: navIcon(ClipboardCheck) },
+      { href: '/utilities', label: 'Utilities', icon: navIcon(Gauge) },
     ],
   },
   {

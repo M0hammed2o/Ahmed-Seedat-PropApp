@@ -32,6 +32,8 @@ export function meterInsertRow(orgId: string, propertyId: string, d: SmartMeterC
     is_prepaid: d.isPrepaid,
     installed_date: d.installedDate ?? null,
     notes: d.notes || null,
+    measurement_kind: d.measurementKind,
+    supply_source_id: d.supplySourceId ?? null,
   };
 }
 
@@ -46,8 +48,12 @@ export function meterWriteError(error: { code?: string; message: string }) {
     'Integration does not belong to this property',
     'Replaced meter must be on the same property with the same utility type',
     'A meter cannot be its own parent',
+    'Supply source must belong to this property and match the meter utility',
   ]) {
     if (error.message.includes(known)) return jsonError(400, 'invalid_meter_link', known + '.');
+  }
+  if (error.message.includes('utility_meters_measurement_kind_utility')) {
+    return jsonError(400, 'invalid_measurement_kind', 'That measurement does not apply to this utility (e.g. grid import is electricity only).');
   }
   if (error.message.includes('unit_id does not belong to property_id')) {
     return jsonError(400, 'invalid_meter_link', 'The unit does not belong to this property.');
