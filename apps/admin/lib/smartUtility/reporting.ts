@@ -3,7 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { renderEmailTemplate } from '../emailDispatch';
 import { writeAuditEvent } from '../audit';
 import { getMunicipality } from './catalog';
-import { billingPeriodContaining, lastCompleteBillingPeriod } from './consumption';
+import { billingPeriodContaining } from './consumption';
 import { reportCsvFilename, reportPdfFilename, type MunicipalReport } from './municipalReport';
 import {
   normaliseFields,
@@ -149,7 +149,3 @@ export function previewWarnings(report: MunicipalReport, ctx: TemplateContext): 
   };
 }
 
-/** The period a preview should show: the last complete billing period. */
-export function previewPeriod(now: Date, billingDay: number) {
-  return lastCompleteBillingPeriod(now, billingDay);
-}

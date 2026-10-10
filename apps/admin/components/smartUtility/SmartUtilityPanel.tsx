@@ -72,8 +72,8 @@ export function SmartUtilityPanel({ propertyId, canManage }: { propertyId: strin
           <Stat label="Open alerts" value={String(openAlerts.length)} hint={openAlerts.some((a) => a.rule === 'water_continuous_night_flow') ? 'Includes a possible leak' : undefined} />
           <Stat
             label="Municipal readings"
-            value={latest ? latest.status.replace('_', ' ') : 'Not set up'}
-            hint={latest ? `${latest.periodStart} → ${latest.periodEnd}` : 'Set up below'}
+            value={latest ? latest.status.replace(/_/g, ' ') : data.submission.settings ? 'No packs yet' : 'Not set up'}
+            hint={latest ? `${latest.periodStart} → ${latest.periodEnd}` : data.submission.settings ? 'First pack is prepared before the billing day' : 'Set up below'}
           />
         </div>
         <div className="mt-4 flex items-center gap-2 text-xs" role="tablist" aria-label="Chart period">

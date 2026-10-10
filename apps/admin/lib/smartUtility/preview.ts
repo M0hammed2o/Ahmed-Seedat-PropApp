@@ -2,7 +2,8 @@ import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { PdfImage } from './municipalReport';
 import { renderReportPdf } from './municipalReport';
-import { loadTemplateContext, nextSendDate, previewPeriod, previewWarnings, renderPack, type TemplateContext } from './reporting';
+import { billingPeriodContaining } from './consumption';
+import { loadTemplateContext, nextSendDate, previewWarnings, renderPack, type TemplateContext } from './reporting';
 import { buildReportForProperty, loadPhotoFiles, loadPropertyForReport } from './submissions';
 import { normaliseFields, templateHash, type TemplateSettings } from './templates';
 
@@ -39,7 +40,10 @@ export async function buildPreview(
         ...(draft.includeFields ? { includeFields: normaliseFields(draft.includeFields) } : {}),
       }
     : ctx.template;
-  const period = previewPeriod(now, billingDay);
+  // Preview the period the NEXT send will cover (the one containing its scheduled date), so the
+  // owner approves the same period that is later sent -- not the last complete one.
+  const scheduledFor = nextSendDate(now, billingDay, leadDays);
+  const period = billingPeriodContaining(scheduledFor, billingDay);
   const report = await buildReportForProperty(
     serviceClient,
     property,
@@ -65,7 +69,7 @@ export async function buildPreview(
     approvedHash: ctx.approvedHash,
     approved: !draft && !!ctx.approvedHash && ctx.approvedHash === hash,
     scheduleEnabled: ctx.scheduleEnabled,
-    scheduledFor: nextSendDate(now, billingDay, leadDays).toISOString(),
+    scheduledFor: scheduledFor.toISOString(),
     warnings: previewWarnings(report, { ...ctx, template }),
   };
 }

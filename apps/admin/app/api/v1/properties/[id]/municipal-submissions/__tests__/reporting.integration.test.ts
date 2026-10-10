@@ -104,7 +104,9 @@ describeIfSupabase('Municipal reporting (real local Supabase integration)', () =
     const period = lastCompleteBillingPeriod(new Date(), 25);
     await service.from('meter_telemetry_readings').insert([
       { org_id: orgId, property_id: propertyId, meter_id: meter!.id, read_at: new Date(period.start.getTime() - 86_400_000).toISOString(), raw_value: 1_000_000, multiplier: 1, value: 1_000_000, source: 'manual', verification_status: 'verified' },
-      { org_id: orgId, property_id: propertyId, meter_id: meter!.id, read_at: new Date(period.end.getTime() - 3 * 86_400_000).toISOString(), raw_value: 1_012_500, multiplier: 1, value: 1_012_500, source: 'manual', verification_status: 'verified' },
+      { org_id: orgId, property_id: propertyId, meter_id: meter!.id, read_at: new Date(period.end.getTime() - 3 * 86_400_000).toISOString(), raw_value: 1_006_000, multiplier: 1, value: 1_006_000, source: 'manual', verification_status: 'verified' },
+      // Today's reading: the preview covers the period the NEXT send will cover (current period).
+      { org_id: orgId, property_id: propertyId, meter_id: meter!.id, read_at: new Date(Date.now() - 3_600_000).toISOString(), raw_value: 1_018_500, multiplier: 1, value: 1_018_500, source: 'manual', verification_status: 'verified' },
     ]);
     as(manager.token);
   });
@@ -129,7 +131,9 @@ describeIfSupabase('Municipal reporting (real local Supabase integration)', () =
     expect(body.to).toEqual([`agent-${suffix}@example.com`]);
     expect(body.cc).toEqual(['accountant@example.com']);
     expect(body.subject).toMatch(/^Readings 5001234567 — \d{4}-\d{2}-\d{2}$/);
-    expect(body.bodyText).toContain('Consumption: 12');
+    // previous = last reading at/before the current period start (1 006 kL), current = today's (1 018,5 kL)
+    expect(body.bodyText).toMatch(/Consumption: 12[.,]5 kL/);
+    expect(body.warnings.missingReadings).toBe(0);
     expect(body.bodyText).toContain('Gate code 1234');
     expect(body.attachments.map((a: { contentType: string }) => a.contentType)).toEqual(['application/pdf', 'text/csv']);
     expect(body.approved).toBe(false);
