@@ -51,3 +51,12 @@ municipal packs (email/CSV/PDF, authorised recipients, retries), property → Ut
   scheduling/delivery tested ✔ · existing functionality: regression clean except one pre-existing slow-job timeout ·
   hardware limitations documented ✔.
 - Local environment: the main `propvault` stack was restored at the end of the session (see WORKLOG).
+
+## Checkpoint — Hybrid Phase 2 complete in code (2026-10-10, end of session)
+
+Commits `b728445`, `e76da3c`, `95b37bc`, `dccc21d`, `8b04c15`, `63dbb6b`, `cfcf7dd` (local, not pushed). Migration 178
+(throwaway stack only). Owner summary: `HYBRID_UTILITIES_DELIVERY_REPORT.md`; design: `HYBRID_UTILITIES_ARCHITECTURE.md`.
+Built: supply sources + levels + logs, measurement kinds, hybrid balance, tariff engine v2 (+ preview, CSV import),
+billing arrangements, shared meters, billing v2 (segments, VAT, credits, disputes, adjustments, draft-only invoices),
+dashboard (any range), statements (tenant/owner, approve-before-visible, PDF, e-mail behind flag), hybrid alerts,
+portfolio page, web UI, Android tenant statements. Results: `SMART_UTILITIES_TEST_RESULTS.md`.

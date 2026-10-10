@@ -681,3 +681,23 @@ adapter, ChirpStack/TTS as documented push adapters; automatic municipal sending
 an authorised recipient, an enabled schedule and the platform flag, and any content change withdraws approval; test
 sends only to the signed-in user's own address; "acknowledged" only when a person records it; billing produces draft
 charges → approval → **draft** invoices only; the municipal preview always shows the period the next send covers.
+
+## 2026-10-10 — Hybrid water & electricity (Phase 2): decisions made autonomously
+
+Full design in `docs/HYBRID_UTILITIES_ARCHITECTURE.md`. In short:
+- **No charge without an explicit per-unit billing arrangement.** Metered units with no arrangement are reported
+  ("never charged"), not billed; landlord-paid, included-in-rent and tenant-direct are recorded and skipped. The system
+  never assumes a tenant may be charged.
+- **Every charge carries regulatory review flags** (NERSA electricity resale, water-services intermediary, shared-split
+  lease clause, cost-recovery tariffs) — shown, never auto-resolved. These are reminders, not legal advice.
+- **Money is decimal-safe** (scaled BigInt, half-up per line, VAT per line, exact rational proration, largest-remainder
+  allocation). No tariff is built in; every rate comes from what the owner enters or imports.
+- **Corrections never use negative invoice lines** (they are not allowed): drafts are adjusted (audited) or voided;
+  invoiced charges get a credit applied to the lease's next charge; a voided charge gives its credit back.
+- **Invoicing stays draft-only** — appended to an existing draft manual invoice for the month when the arrangement asks
+  for it, otherwise a separate draft. Issued rent invoices are never touched.
+- **Hybrid supply is balanced, not billed.** Solar/battery/generator/borehole/tank figures are labelled measured /
+  derived / logged / missing; only `consumption` registers feed billing, totals, reconciliation and leak rules.
+- **Statements are reviewed before anyone sees them**; tenant e-mail is off unless
+  `SMART_UTILITY_TENANT_STATEMENTS_ENABLED=true` and staff press Send.
+- **No inverter vendor adapter without verification** (Victron VRM researched, not built; TD-64).

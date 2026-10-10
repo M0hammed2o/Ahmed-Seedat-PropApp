@@ -1,5 +1,25 @@
 # Worklog
 
+## 2026-10-10 — Hybrid water & electricity (Phase 2), autonomous session
+
+Third brief: hybrid supply, tariffs, tenant billing, dashboards, statements, alerts, Android, testing. Owner summary
+`docs/HYBRID_UTILITIES_DELIVERY_REPORT.md`; design `docs/HYBRID_UTILITIES_ARCHITECTURE.md`.
+
+**Built (commits `b728445`…`cfcf7dd`, migration 178, local only):** supply sources/levels/logs and meter measurement
+kinds; hybrid balance; tariff engine v2 with preview and CSV import; per-unit billing arrangements, shared meters,
+billing v2 (segments, VAT, adjustments, disputes, credits, draft-only invoices, regulatory flags); any-range dashboard
+with recovery; tenant/owner statements (approve before visible; e-mail behind a default-off flag); hybrid alert rules;
+`/utilities` portfolio; web UI; Android tenant statements and hybrid-meter labels.
+
+**Bugs found and fixed (named):** Phase 1 totals/reconciliation/leak rules counting solar/export/battery meters as
+consumption; tanker deliveries logged on the tank ignored; credits lost when the consuming charge was voided; empty
+block tariffs insertable after the relaxed check; cross-property links not enforced in the DB; v2 collapsing usage and
+fixed charge into one invoice line; data gaps reported for an unmonitored utility; float drift in prorated blocks.
+
+**Verification:** pgTAP 101/1 608 on a fresh throwaway stack; whole web vitest 1 533 pass / 1 known pre-existing
+timeout (`daily-jobs`, measured) / 3 skipped; `next build` OK; Playwright 2/2; Android 359/359 + lint. Main local DB
+restored (2 725 orgs, head 171). Nothing deployed, sent or purchased. Self-verified; no independent verifier.
+
 ## 2026-10-10 — Smart Utilities initial release (autonomous session): engine, catalogue, reporting, evidence, billing
 
 Second brief: complete the Smart Utilities module for initial release, autonomously, committing after tested milestones.

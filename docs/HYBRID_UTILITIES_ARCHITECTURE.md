@@ -96,9 +96,32 @@ intermediary (Water Services Act s25) — shown, never auto-resolved.
 
 - `utility_statements` (tenant | owner, per lease/property and period): immutable snapshot + PDF; draft → approved →
   sent (email only behind `SMART_UTILITY_TENANT_STATEMENTS_ENABLED`, default off).
-- New alert rules: tank low/overflow, generator abnormal (run hours or fuel per kWh), pump abnormal (energy without
-  flow), solar issue (no generation on a day with data), battery issue (SoC stuck/out of range), reconciliation gap,
-  charges awaiting approval, unpaid utility invoices, missing readings. Deduped, acknowledgeable, in-app only
-  (WhatsApp templates are not approved for these events).
-- Portfolio page `/utilities`; property Utilities tab gains sources, balance, tariffs v2, arrangements, billing v2,
-  statements; unit page gains a utilities panel. Custom date range everywhere via `from`/`to`.
+- Alert rules as built (`lib/smartUtility/hybridAlerts.ts`, daily job step `hybridAlerts`): tank low (critical at
+  half the threshold) / near overflow from the latest level in 24 h; battery SoC below its threshold; generator fuel
+  below threshold or logged run hours > 1.5× expected; solar generation < 25 % of its own 14-day median (needs ≥ 5 days;
+  missing data is never treated as zero output); borehole pump energy > 2.5× its median; missing readings (< half the
+  expected count but not zero — zero is the existing offline rule); draft charges older than 3 days (once per property
+  per ISO week); utility invoices issued, unpaid and > 7 days past due (once per invoice); supply-vs-use gap above the
+  property's discrepancy threshold for the previous calendar month (evaluated on the 1st–3rd, once per month). All
+  deduped by `dedupe_key`, acknowledgeable, in-app notification once per new alert. Not built: "battery stuck" and
+  "generator fuel per kWh" (need inverter/fuel-sensor data we cannot verify without hardware).
+- Portfolio page `/utilities` (monthly snapshots, alerts, drafts, unpaid utility invoices). Property Utilities tab gains
+  Supply & sources (any range), billing v2 and statements. Per-unit consumption and charges are a table inside the
+  property dashboard — there is no separate unit-page panel (deferred, see NEXT_STEPS).
+
+## G. As built (2026-10-10)
+
+| Area | Code | API |
+| --- | --- | --- |
+| Supply sources, levels, logs | migration 178; `ingest.ts` (bound level sensors) | `GET/POST /properties/:id/utility-sources`, `GET/PATCH/POST /properties/:id/utility-sources/:sourceId` |
+| Tariffs v2 | `tariffEngine.ts`, `tariffAdmin.ts`, `money.ts` | `GET/POST/PATCH /properties/:id/utility-tariffs`, `POST …/utility-tariffs/preview`, `POST …/utility-tariffs/import` |
+| Arrangements, shared meters | `billing.ts` | `GET/POST/PATCH /properties/:id/utility-arrangements`, `GET/POST/PATCH /properties/:id/utility-allocation-groups` |
+| Charges v2 | `billing.ts` | `GET/POST /properties/:id/utility-charges` (generate; approve/void/invoice; adjust; dispute; credit) |
+| Balance & dashboard | `hybridBalance.ts`, `hybridDashboard.ts` | `GET /properties/:id/utility-dashboard?from&to` |
+| Portfolio | `portfolio.ts` | `GET /utilities/portfolio?months` |
+| Statements | `statements.ts` | `GET/POST /properties/:id/utility-statements`, `GET (PDF)/POST /properties/:id/utility-statements/:id`, `GET /tenant-portal/utility-statements` |
+| Alerts | `hybridAlerts.ts` | daily job (`/system/smart-utility-jobs`, `/system/daily-jobs`) |
+
+Cross-row integrity added to 178: a shared group's meter, a member's group and an arrangement's group must be on the
+same property; a source's sensor integration must belong to the same organisation; rate-based tariff kinds must have
+rates. Logged tanker deliveries count as tanker supply whichever source they were logged on.

@@ -10,3 +10,6 @@
 | B6 | Pulse-head compatibility of SA pulse-ready water meters | Supplier confirmation | Water hardware choice per property |
 | B7 | Legal check: SABS approval of private submeters for tenant recharge; NERSA resale rules | Owner/legal | Electricity recharge must stay landlord-reviewed drafts |
 | B8 | Municipal acceptance of emailed readings | Municipality | "Sent" never implies "accepted" |
+| B9 | Per-site legal position on recharging electricity/water and on shared-meter splits | Owner/legal (NERSA, by-laws, Water Services Act, lease clauses) | Charges carry review flags; nothing is issued automatically |
+| B10 | Inverter/battery/generator vendor access | Pilot site hardware + vendor account (Victron VRM public; others partner-only) | Solar/battery/generator figures only from meters the existing adapters read, or manual entry |
+| B11 | VAT treatment of recharges for VAT-registered landlords | Owner/accountant | VAT shown per charge/statement; ledger split not automatic (TD-61) |

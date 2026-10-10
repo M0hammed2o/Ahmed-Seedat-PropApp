@@ -528,6 +528,16 @@ notifications, deep links, biometric auth, tablet behaviour) — specification o
 - [x] Billing: tariffs, draft → approved charges, draft invoices via `create_manual_invoice()`.
 - [ ] Blocked externally: hardware, production deployment, credentials key per environment, enabling automatic sends (`docs/SMART_UTILITIES_BLOCKERS.md`). Follow-ups TD-53/54/56/57/58/59/60.
 
+## M22d — Hybrid water & electricity (Phase 2, 2026-10-10)
+
+- [x] Supply sources (grid/Eskom/prepaid/solar/battery/generator; municipal/borehole/rainwater/tank/tanker), levels, logs; meter measurement kinds (migration 178).
+- [x] Hybrid balance without double counting; any-range property dashboard; recovery vs estimated supply cost.
+- [x] Tariff engine v2 (block/flat/TOU/seasonal/fixed/cost-recovery/prepaid; VAT incl/excl; versions; preview; CSV import); decimal-safe money.
+- [x] Billing v2: per-unit arrangements, shared meters, move-in/out segments, VAT, adjustments, disputes, credits, draft-only invoices, regulatory flags.
+- [x] Tenant/owner statements (approve before visible, PDF, e-mail behind flag); hybrid alerts; `/utilities` portfolio page.
+- [x] Android: tenant utility statements; hybrid meters labelled monitoring-only.
+- [ ] Owner: production migrations 175–178, per-site legal decision, VAT/GL (TD-61), inverter brand (TD-64). Follow-ups TD-61–65. Report: `docs/HYBRID_UTILITIES_DELIVERY_REPORT.md`.
+
 ## M23 — Automated testing
 
 - [ ] Full `TESTING.md` suite: unit, RLS/policy (highest priority), accounting invariants, integration, API contract, native (iOS/Android), E2E against seeded multi-org staging.

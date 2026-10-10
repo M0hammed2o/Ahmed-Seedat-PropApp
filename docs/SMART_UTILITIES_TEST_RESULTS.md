@@ -1,5 +1,25 @@
 # Smart Utilities — Test Results
 
+## Hybrid Phase 2 results (2026-10-10, migration 178) — supersedes the table below where they overlap
+
+Environment as below; throwaway stack rebuilt from migration zero through 178. Mock e-mail; no hardware; no production.
+
+| Suite | Result |
+| --- | --- |
+| pgTAP full suite, fresh stack | **101 files / 1,608 tests — PASS** (`hybrid_utilities` 28) |
+| Module batch (`lib/smartUtility`, ingest + engine route tests, mfaPolicy) | 18 files / 195 — PASS |
+| Hybrid real-DB: billing v2 (5), hybrid site (5), source ingest (1), Phase 1 billing route updated to v2 rules (4+) | all PASS |
+| Unit: tariff engine 15, balance 7, tariff CSV 5, hybrid alerts 7 | PASS |
+| Full web vitest (whole `apps/admin`) | **202 files pass, 1 fails, 1 skipped; 1,533 tests pass, 1 fails, 3 skipped.** The failure is the known `daily-jobs` real-DB 20 s budget: measured on this DB (671 orgs) `portfolioIntelligence` 18.9 s, whole smart-utility job 1.05 s of which the new `hybridAlerts` step ≈ 0.9 s. Pre-existing; budget not raised. |
+| `packages/validation` | 3 files / 14 — PASS |
+| `tsc --noEmit`, ESLint on changed paths | clean |
+| `next build` (3 GB heap) | succeeds |
+| Playwright `smart-utilities.spec.ts` + new `hybrid-utilities.spec.ts` | 2/2 (screenshots `docs/qa/hybrid-utilities-2026-10-10/`) |
+| Android `testDebugUnitTest` full suite | **62 suites / 359 tests, 0 failures** (includes 3 new statement tests); `lintDebug` ran and wrote its report with no error output |
+
+Not run: physical meters/inverters, iOS (no app), production DB, independent verifier (self-verified).
+
+
 **Environment:** Windows 10 dev machine, local Supabase throwaway stack (`project_id = propvault_su`, migrations applied
 from zero through 177), mock email provider (no `RESEND_*`), Node 24, vitest 2.1.9, Playwright 1.62 (Chromium).
 Machine had 0.5–1.7 GB free RAM throughout. **Nothing ran against production or real hardware.**
