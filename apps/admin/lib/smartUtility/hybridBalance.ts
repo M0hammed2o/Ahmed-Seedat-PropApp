@@ -192,8 +192,9 @@ export function waterBalance(
     const fig = sumKind(m, 'source_supply', gaps, (x) => (x.sourceType ?? 'other') === st);
     let figure = fig;
     if (fig.basis === 'missing' && st === 'tanker') {
-      const ids = sources.filter((s) => s.sourceType === 'tanker').map((s) => s.id);
-      const kl = loggedDeliveriesKl.filter((d) => ids.includes(d.sourceId)).reduce((a, d) => a + d.kl, 0);
+      // Every logged tanker delivery is tanker supply, whichever source it was logged on (usually the tank it
+      // filled). Not added when a tanker inlet is metered, so a delivery is never counted twice.
+      const kl = loggedDeliveriesKl.reduce((a, d) => a + d.kl, 0);
       if (kl > 0) figure = { value: r3(kl), basis: 'logged' };
     }
     if (figure.basis !== 'missing') bySource.push({ sourceType: st, label: st, volume: figure });

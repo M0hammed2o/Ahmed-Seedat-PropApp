@@ -151,6 +151,8 @@ export async function loadSmartUtilityOverview(client: SupabaseClient, propertyI
       replacedMeterId: m.replaced_meter_id,
       decommissionedAt: m.decommissioned_at,
       active: m.active,
+      measurementKind: m.measurement_kind ?? 'consumption',
+      supplySourceId: m.supply_source_id,
       displayUnit: m.utility_type === 'water' ? 'kL' : 'kWh',
       periodToDate: { consumption, quality: periodToDate.quality },
       estimatedCostToDate: consumption !== null && tariff !== null ? Math.round(consumption * tariff * 100) / 100 : null,
@@ -163,7 +165,8 @@ export async function loadSmartUtilityOverview(client: SupabaseClient, propertyI
 
   // Property totals: main meters when present (avoids double counting), else the sum of submeters.
   const totals = (['water', 'electricity'] as const).map((utilityType) => {
-    const active = meterSummaries.filter((m) => m.active && m.utilityType === utilityType);
+    // Consumption registers only: generation / export / battery / generator meters are in the hybrid balance.
+    const active = meterSummaries.filter((m) => m.active && m.utilityType === utilityType && m.measurementKind === 'consumption');
     const mains = active.filter((m) => m.meterRole === 'main');
     const basis = mains.length > 0 ? mains : active.filter((m) => m.meterRole === 'submeter');
     const known = basis.filter((m) => m.periodToDate.consumption !== null);
@@ -184,7 +187,7 @@ export async function loadSmartUtilityOverview(client: SupabaseClient, propertyI
 
   // Unit comparison for the current period: each unit's own meters, per utility.
   const unitComparison = (unitsRes.data ?? []).map((u) => {
-    const own = meterSummaries.filter((m) => m.active && m.unitId === u.id);
+    const own = meterSummaries.filter((m) => m.active && m.unitId === u.id && m.measurementKind === 'consumption');
     const pick = (t: 'water' | 'electricity') => {
       const ms = own.filter((m) => m.utilityType === t);
       const known = ms.filter((m) => m.periodToDate.consumption !== null);

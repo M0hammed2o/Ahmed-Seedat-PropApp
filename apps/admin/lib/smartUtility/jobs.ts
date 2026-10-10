@@ -12,6 +12,7 @@ import {
   sastParts,
 } from './consumption';
 import { loadPoints, replacementChain, SMART_METER_COLUMNS, type SmartMeterRow } from './data';
+import { runHybridAlerts } from './hybridAlerts';
 import { reconcile } from './reconciliation';
 import { duePeriod, generateSubmission, sendDueDeliveries, syncDeliveryStatuses } from './submissions';
 import { runPollSync } from './sync';
@@ -24,6 +25,7 @@ export interface SmartUtilityJobResult {
   pollSync: { attempted: number; succeeded: number; failed: number } | { error: string };
   health: { stale: number; offline: number; alerts: number } | { error: string };
   anomalies: { metersAnalysed: number; alertsCreated: number } | { error: string };
+  hybridAlerts: { evaluated: number; alertsCreated: number } | { error: string };
   reconciliation: { scopes: number; alertsCreated: number } | { error: string };
   snapshots: { created: number } | { error: string };
   reminders: { sent: number } | { error: string };
@@ -56,6 +58,7 @@ interface AlertInsert {
   details: Record<string, unknown>;
   estimated_cost: number | null;
   dedupe_key: string;
+  supply_source_id?: string | null;
 }
 
 /** Inserts alerts that don't exist yet (dedupe_key) and notifies staff once per new alert. */
@@ -159,7 +162,9 @@ export async function runDailyAnomalies(serviceClient: SupabaseClient, now: Date
     .from('utility_meters')
     .select(SMART_METER_COLUMNS)
     .eq('active', true)
-    .neq('connectivity', 'manual');
+    .neq('connectivity', 'manual')
+    // Leak / night-flow / spike rules describe consumption; generation, export and battery registers differ.
+    .eq('measurement_kind', 'consumption');
   if (error) throw new Error(error.message);
   const list = (meters ?? []) as SmartMeterRow[];
   if (list.length === 0) return { metersAnalysed: 0, alertsCreated: 0 };
@@ -226,7 +231,10 @@ export async function reconcileProperty(
   const all =
     meters ??
     (((await client.from('utility_meters').select(SMART_METER_COLUMNS).eq('property_id', propertyId)).data ?? []) as SmartMeterRow[]);
-  const mains = all.filter((m) => m.active && (m.meter_role === 'main' || m.meter_role === 'check'));
+  // Main-vs-submeter reconciliation compares consumption registers only; hybrid supply (grid, solar, battery,
+  // generator, borehole) is balanced separately in hybridBalance.ts.
+  const isConsumption = (m: SmartMeterRow) => (m.measurement_kind ?? 'consumption') === 'consumption';
+  const mains = all.filter((m) => m.active && isConsumption(m) && (m.meter_role === 'main' || m.meter_role === 'check'));
   const points = await loadPoints(
     client,
     all.map((m) => m.id),
@@ -244,12 +252,13 @@ export async function reconcileProperty(
   const unitLabel = new Map((units ?? []).map((u) => [u.id, u.unit_label]));
 
   return mains.map((main) => {
-    let subs = all.filter((m) => m.active && m.parent_meter_id === main.id);
+    let subs = all.filter((m) => m.active && isConsumption(m) && m.parent_meter_id === main.id);
     if (subs.length === 0 && main.meter_role === 'main') {
       // No explicit hierarchy: every active unit submeter of the same utility (and building, if set).
       subs = all.filter(
         (m) =>
           m.active &&
+          isConsumption(m) &&
           m.meter_role === 'submeter' &&
           m.utility_type === main.utility_type &&
           (main.building_id === null || m.building_id === main.building_id),
@@ -435,6 +444,7 @@ export async function runSmartUtilityJob(
     pollSync: await step(() => runPollSync(serviceClient, { now })),
     health: await step(() => runHealthSweep(serviceClient, now)),
     anomalies: await step(() => runDailyAnomalies(serviceClient, now)),
+    hybridAlerts: await step(() => runHybridAlerts(serviceClient, now, (alerts) => insertAlerts(serviceClient, alerts))),
     reconciliation: await step(() => runMonthlyReconciliation(serviceClient, now)),
     snapshots: await step(() => runMonthlySnapshots(serviceClient, now)),
     reminders: await step(() => runApprovalReminders(serviceClient, now)),

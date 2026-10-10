@@ -67,7 +67,10 @@ export type EmailTemplateName =
   // Smart Utility Monitoring (docs/SMART_UTILITY_ARCHITECTURE.md §8, 2026-10-08): the monthly
   // municipal meter-reading pack, sent to an owner-authorised recipient. Transactional (ungated):
   // the owner explicitly configured and approved this send. The pack's CSV/PDF travel as `files`.
-  | 'municipal_meter_reading_report';
+  | 'municipal_meter_reading_report'
+  // Hybrid utilities (docs/HYBRID_UTILITIES_ARCHITECTURE.md §F): an APPROVED tenant utility statement, sent only
+  // when SMART_UTILITY_TENANT_STATEMENTS_ENABLED=true and a staff member presses Send. PDF travels as `files`.
+  | 'utility_statement_ready';
 
 // Only categories with an existing notification_preferences row can be preference-gated
 // (DATABASE.md §7's closed enum has no 'billing'/'accounting' category) -- invoice/payment/
@@ -145,6 +148,7 @@ const TEMPLATE_SUBJECTS: Record<EmailTemplateName, (vars: Record<string, unknown
     `An update on your application for ${v.propertyLabel ?? 'your rental'}`,
   lease_ready: (v) => `Your lease for ${v.propertyLabel ?? 'your rental'} is ready`,
   municipal_meter_reading_report: (v) => String(v.subject ?? 'Meter readings'),
+  utility_statement_ready: (v) => `Your utility statement for ${v.period ?? 'this period'} — ${v.propertyLabel ?? 'your rental'}`,
 };
 
 // Plain-text bodies -- the required MIME text/plain fallback for every real send (never removed
@@ -225,6 +229,15 @@ Sent on behalf of ${v.preparedFor ?? 'the property owner'} via ${branding.produc
       '',
       `Sent on behalf of ${v.preparedFor ?? 'the property owner'} via ${branding.productName}.`,
     ].join('\n'),
+  utility_statement_ready: (v) =>
+    [
+      `Your utility statement for ${v.propertyLabel ?? 'your rental'} (${v.period ?? 'this period'}) is attached as a PDF.`,
+      v.totalLabel ? `Total for the period: ${v.totalLabel}.` : '',
+      'It shows the meter readings, consumption and tariff used for each charge. If something looks wrong, reply to your landlord or agent so it can be checked before payment.',
+      `Sent on behalf of ${v.orgName ?? 'your landlord'} via ${branding.productName}.`,
+    ]
+      .filter(Boolean)
+      .join('\n\n'),
 };
 
 /**
@@ -502,6 +515,16 @@ const TEMPLATE_HTML_CONTENT: Record<
       label: 'Sent on behalf of',
       text: `${v.preparedFor ?? 'the property owner'} via ${branding.productName}`,
     },
+  }),
+  utility_statement_ready: (v, _appUrl) => ({
+    eyebrow: 'Utility statement',
+    heading: `Your utility statement for ${v.period ?? 'this period'}`,
+    intro: `Your utility statement for ${v.propertyLabel ?? 'your rental'} is attached as a PDF. It shows the readings, consumption and tariff behind each charge.`,
+    paragraphs: [
+      ...(v.totalLabel ? [`Total for the period: ${v.totalLabel}.`] : []),
+      'If something looks wrong, contact your landlord or agent so it can be checked before payment.',
+    ],
+    infoBox: { label: 'Sent on behalf of', text: `${v.orgName ?? 'your landlord'} via ${branding.productName}` },
   }),
 };
 
