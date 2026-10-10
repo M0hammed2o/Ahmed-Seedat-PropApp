@@ -80,6 +80,15 @@ interface MeterRow {
   last_reading_at: string | null;
 }
 
+interface SourceSensorRow {
+  id: string;
+  org_id: string;
+  property_id: string;
+  external_device_id: string;
+  external_channel: string;
+  level_metric: string;
+}
+
 export interface IngestRejection {
   deviceId: string;
   channel: string;
@@ -167,12 +176,33 @@ export async function storeReadings(
     boundDevices.add(m.external_device_id);
   }
 
+  // Level sensors (tank level, battery SoC, fuel level) bound to supply sources on the same integration.
+  const sourceByKey = new Map<string, SourceSensorRow>();
+  if (readings.some((r) => !meterByKey.has(`${r.externalDeviceId}\u0000${r.channel}`))) {
+    const { data: sourceRows, error: sourceError } = await serviceClient
+      .from('utility_supply_sources')
+      .select('id, org_id, property_id, external_device_id, external_channel, level_metric')
+      .eq('integration_id', integration.id)
+      .eq('org_id', integration.org_id)
+      .eq('property_id', integration.property_id)
+      .eq('active', true)
+      .not('level_metric', 'is', null)
+      .in('external_device_id', deviceIds.length ? deviceIds : ['__none__']);
+    if (sourceError) throw new Error(`source lookup failed: ${sourceError.message}`);
+    for (const s of (sourceRows ?? []) as SourceSensorRow[]) {
+      sourceByKey.set(`${s.external_device_id}\u0000${s.external_channel}`, s);
+      boundDevices.add(s.external_device_id);
+    }
+  }
+
   // Validate and group per meter.
   const perMeter = new Map<string, { meter: MeterRow; items: NormalisedReading[] }>();
+  const levelRows: Record<string, unknown>[] = [];
   for (const r of readings) {
     const meter = meterByKey.get(`${r.externalDeviceId}\u0000${r.channel}`);
     const base = { deviceId: r.externalDeviceId, channel: r.channel, readAt: r.readAt.toISOString() };
-    if (!meter) {
+    const sensor = meter ? undefined : sourceByKey.get(`${r.externalDeviceId}\u0000${r.channel}`);
+    if (!meter && !sensor) {
       // A known device reporting an unbound field (battery, temperature …) is normal, not an attack.
       if (boundDevices.has(r.externalDeviceId)) result.ignored += 1;
       else result.rejected.push({ ...base, reason: 'unknown_device' });
@@ -190,6 +220,26 @@ export async function storeReadings(
       result.rejected.push({ ...base, reason: 'invalid_value' });
       continue;
     }
+    if (sensor) {
+      // Instant level, not a cumulative register: no monotonicity rules; percentages are capped at 100.
+      if (sensor.level_metric.endsWith('_pct') && r.rawValue > 100) {
+        result.rejected.push({ ...base, reason: 'invalid_value', detail: 'percentage above 100' });
+        continue;
+      }
+      levelRows.push({
+        org_id: sensor.org_id,
+        property_id: sensor.property_id,
+        source_id: sensor.id,
+        metric: sensor.level_metric,
+        read_at: r.readAt.toISOString(),
+        value: Math.round(r.rawValue * 1000) / 1000,
+        source: opts.source ?? (integration.provider === 'simulator' ? 'simulator' : 'device'),
+        integration_id: integration.id,
+        external_event_id: r.eventId,
+      });
+      continue;
+    }
+    if (!meter) continue;
     const group = perMeter.get(meter.id) ?? { meter, items: [] };
     group.items.push(r);
     perMeter.set(meter.id, group);
@@ -273,6 +323,18 @@ export async function storeReadings(
       }
       await serviceClient.from('utility_meters').update(update).eq('id', meter.id);
     }
+  }
+
+  for (const row of levelRows) {
+    const { error } = await serviceClient.from('utility_source_readings').insert(row);
+    if (error) {
+      if (error.code === '23505') {
+        result.duplicates += 1;
+        continue;
+      }
+      throw new Error(`source reading insert failed: ${error.message}`);
+    }
+    result.accepted += 1;
   }
 
   await serviceClient

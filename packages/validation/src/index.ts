@@ -13,3 +13,4 @@ export * from './superAdmin';
 export * from './compliance';
 export * from './whatsappCompletion';
 export * from './smartUtility';
+export * from './hybridUtility';

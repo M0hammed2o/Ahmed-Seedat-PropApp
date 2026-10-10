@@ -1,9 +1,13 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { utilityTariffCreateSchema } from '@propvault/validation';
+import { utilityTariffV2Schema } from '@propvault/validation';
+import { z } from 'zod';
 import { canWriteUtilities, forbidden, jsonError, loadReadableProperty, notFound, parseJson, requireUser, serverError } from '@/lib/smartUtility/http';
-import { validateBlocks } from '@/lib/smartUtility/tariffs';
+import { createTariff, tariffProblem } from '@/lib/smartUtility/tariffAdmin';
 
 type RouteParams = { params: Promise<{ id: string }> };
+
+const TARIFF_LIST_COLUMNS =
+  'id, utility_type, name, tariff_kind, fixed_charge, blocks, tou_periods, seasons, vat_inclusive, vat_rate, prorate_blocks, unit_id, supply_source_type, customer_class, municipality_code, source_reference, requires_review, review_reason, reviewed_at, effective_from, effective_to, notes, created_at, units(unit_label)';
 
 /** GET — the property's tariffs (history kept; newest first). */
 export async function GET(_request: NextRequest, { params }: RouteParams) {
@@ -12,7 +16,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
   if ('response' in auth) return auth.response;
   const { data, error } = await auth.supabase
     .from('utility_tariffs')
-    .select('id, utility_type, name, fixed_charge, blocks, vat_inclusive, effective_from, effective_to, notes, created_at')
+    .select(TARIFF_LIST_COLUMNS)
     .eq('property_id', id)
     .order('effective_from', { ascending: false });
   if (error) return serverError('tariffs_failed', 'Could not load tariffs.', 'utility_tariffs.list', error);
@@ -20,46 +24,58 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 }
 
 /**
- * POST — a new tariff (fixed charge per period + ascending rate blocks per kL/kWh), effective
- * from a date. The previous open-ended tariff for the same utility is closed the day before, so
- * history is never overwritten.
+ * POST — a new tariff version (block / TOU / seasonal / flat / fixed-only / cost-recovery / prepaid pass-through),
+ * property-wide or for one unit, effective from a date. The previous open-ended tariff of the same scope is closed
+ * the day before; tariffs already used by a charge are immutable (DB trigger), so history is never rewritten.
  */
 export async function POST(request: NextRequest, { params }: RouteParams) {
   const { id } = await params;
   const auth = await requireUser();
   if ('response' in auth) return auth.response;
-  const parsed = await parseJson(request, utilityTariffCreateSchema);
+  const parsed = await parseJson(request, utilityTariffV2Schema);
   if ('response' in parsed) return parsed.response;
   const property = await loadReadableProperty(auth.supabase, id);
   if (!property) return notFound();
   if (!(await canWriteUtilities(auth.supabase, property.org_id, property.id))) return forbidden();
-  const blockError = validateBlocks(parsed.data.blocks);
-  if (blockError) return jsonError(400, 'invalid_blocks', blockError);
-  const d = parsed.data;
-  const dayBefore = new Date(Date.parse(`${d.effectiveFrom}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
-  await auth.supabase
-    .from('utility_tariffs')
-    .update({ effective_to: dayBefore })
-    .eq('property_id', property.id)
-    .eq('utility_type', d.utilityType)
-    .is('effective_to', null)
-    .lt('effective_from', d.effectiveFrom);
+  const problem = tariffProblem(parsed.data);
+  if (problem) return jsonError(400, 'invalid_tariff', problem);
+  try {
+    const tariffId = await createTariff(auth.supabase, parsed.data, property.org_id, property.id, auth.user.id);
+    return NextResponse.json({ tariffId }, { status: 201 });
+  } catch (error) {
+    return serverError('tariff_create_failed', 'Could not save the tariff.', 'utility_tariffs.insert', error);
+  }
+}
+
+const patchSchema = z.object({
+  tariffId: z.string().uuid(),
+  action: z.enum(['mark_reviewed', 'end']),
+  effectiveTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
+
+/** PATCH — mark a tariff reviewed, or end it on a date. Rates themselves are never edited: add a new version. */
+export async function PATCH(request: NextRequest, { params }: RouteParams) {
+  const { id } = await params;
+  const auth = await requireUser();
+  if ('response' in auth) return auth.response;
+  const parsed = await parseJson(request, patchSchema);
+  if ('response' in parsed) return parsed.response;
+  const property = await loadReadableProperty(auth.supabase, id);
+  if (!property) return notFound();
+  if (!(await canWriteUtilities(auth.supabase, property.org_id, property.id))) return forbidden();
+  if (parsed.data.action === 'end' && !parsed.data.effectiveTo) return jsonError(400, 'validation_failed', 'Provide effectiveTo.');
+  const patch =
+    parsed.data.action === 'mark_reviewed'
+      ? { requires_review: false, reviewed_by: auth.user.id, reviewed_at: new Date().toISOString() }
+      : { effective_to: parsed.data.effectiveTo };
   const { data, error } = await auth.supabase
     .from('utility_tariffs')
-    .insert({
-      org_id: property.org_id,
-      property_id: property.id,
-      utility_type: d.utilityType,
-      name: d.name,
-      fixed_charge: d.fixedCharge,
-      blocks: d.blocks,
-      vat_inclusive: d.vatInclusive,
-      effective_from: d.effectiveFrom,
-      notes: d.notes || null,
-      created_by: auth.user.id,
-    })
+    .update(patch)
+    .eq('id', parsed.data.tariffId)
+    .eq('property_id', property.id)
     .select('id')
-    .single();
-  if (error) return serverError('tariff_create_failed', 'Could not save the tariff.', 'utility_tariffs.insert', error);
-  return NextResponse.json({ tariffId: data.id }, { status: 201 });
+    .maybeSingle();
+  if (error) return serverError('tariff_update_failed', 'Could not update the tariff.', 'utility_tariffs.update', error);
+  if (!data) return notFound('Tariff');
+  return NextResponse.json({ ok: true });
 }

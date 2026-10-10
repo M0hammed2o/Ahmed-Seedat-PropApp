@@ -208,6 +208,13 @@ alter table public.utility_tariffs
   add column reviewed_at timestamptz,
   add column source_reference text check (source_reference is null or char_length(source_reference) <= 300);
 
+-- Rate-based kinds still need rates: blocks, or seasonal definitions (validated in the engine); TOU needs periods.
+alter table public.utility_tariffs
+  add constraint utility_tariffs_rates_present check (
+    (tariff_kind not in ('block', 'flat', 'cost_recovery') or jsonb_array_length(blocks) >= 1 or jsonb_array_length(seasons) >= 1)
+    and (tariff_kind <> 'tou' or jsonb_array_length(tou_periods) >= 1 or jsonb_array_length(seasons) >= 1)
+  );
+
 create index utility_tariffs_unit_idx on public.utility_tariffs (unit_id, utility_type, effective_from desc) where unit_id is not null;
 
 -- Append-only once used: a tariff referenced by any charge cannot change its rates; only effective_to and review
@@ -305,6 +312,47 @@ create trigger validate_allocation_member_scope before insert or update on publi
   for each row execute function public.validate_utility_scope_links();
 create trigger validate_billing_arrangement_scope before insert or update on public.utility_billing_arrangements
   for each row execute function public.validate_utility_scope_links();
+
+-- Cross-row links must stay inside one property (RLS checks only the row's own org/property columns).
+create or replace function public.validate_utility_allocation_links()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if tg_table_name = 'utility_allocation_groups' then
+    if not exists (select 1 from public.utility_meters m where m.id = new.meter_id and m.property_id = new.property_id) then
+      raise exception 'Meter does not belong to this property';
+    end if;
+  elsif tg_table_name = 'utility_allocation_members' then
+    if not exists (select 1 from public.utility_allocation_groups g where g.id = new.group_id and g.property_id = new.property_id) then
+      raise exception 'Group does not belong to this property';
+    end if;
+  elsif tg_table_name = 'utility_supply_sources' then
+    if new.integration_id is not null and not exists (
+      select 1 from public.meter_integrations i where i.id = new.integration_id and i.org_id = new.org_id
+    ) then
+      raise exception 'Integration does not belong to this organisation';
+    end if;
+  elsif tg_table_name = 'utility_billing_arrangements' then
+    if new.allocation_group_id is not null and not exists (
+      select 1 from public.utility_allocation_groups g where g.id = new.allocation_group_id and g.property_id = new.property_id
+    ) then
+      raise exception 'Group does not belong to this property';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+create trigger validate_allocation_group_links before insert or update on public.utility_allocation_groups
+  for each row execute function public.validate_utility_allocation_links();
+create trigger validate_allocation_member_links before insert or update on public.utility_allocation_members
+  for each row execute function public.validate_utility_allocation_links();
+create trigger validate_billing_arrangement_links before insert or update on public.utility_billing_arrangements
+  for each row execute function public.validate_utility_allocation_links();
+create trigger validate_supply_source_links before insert or update on public.utility_supply_sources
+  for each row execute function public.validate_utility_allocation_links();
 
 -- Charges v2
 drop index public.utility_charges_meter_period_idx;

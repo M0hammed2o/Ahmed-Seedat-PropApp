@@ -41,11 +41,13 @@ export interface SmartMeterRow {
   notes: string | null;
   responsibility_mode: string;
   is_prepaid: boolean;
+  measurement_kind: string;
+  supply_source_id: string | null;
   created_at: string;
 }
 
 export const SMART_METER_COLUMNS =
-  'id, org_id, property_id, unit_id, building_id, utility_type, meter_number, meter_role, ownership, parent_meter_id, manufacturer, model, serial_number, connectivity, integration_id, external_device_id, external_channel, multiplier, value_offset, register_digits, expected_interval_minutes, tariff_per_unit, municipal_account_number, last_reading_at, last_reading_value, last_sync_at, health_status, replaced_meter_id, decommissioned_at, active, installed_date, location, notes, responsibility_mode, is_prepaid, created_at';
+  'id, org_id, property_id, unit_id, building_id, utility_type, meter_number, meter_role, ownership, parent_meter_id, manufacturer, model, serial_number, connectivity, integration_id, external_device_id, external_channel, multiplier, value_offset, register_digits, expected_interval_minutes, tariff_per_unit, municipal_account_number, last_reading_at, last_reading_value, last_sync_at, health_status, replaced_meter_id, decommissioned_at, active, installed_date, location, notes, responsibility_mode, is_prepaid, measurement_kind, supply_source_id, created_at';
 
 /** Telemetry points per meter in [from, to], paged so a long window never truncates silently. */
 export async function loadPoints(

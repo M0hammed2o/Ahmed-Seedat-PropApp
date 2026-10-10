@@ -1,7 +1,7 @@
 -- Tests for migration 20260101000178 (hybrid utilities: sources, tariffs v2, billing v2, statements).
 
 begin;
-select plan(26);
+select plan(28);
 
 insert into auth.users (id, email) values
   ('f9000000-0000-0000-0000-00000000000a', 'hy-accountant@test.propertyvault.example'),
@@ -74,6 +74,16 @@ select lives_ok($$insert into public.utility_meters (org_id, property_id, utilit
 select throws_ok($$insert into public.utility_meters (org_id, property_id, utility_type, responsibility_mode, meter_role, measurement_kind, supply_source_id)
   values ('f9111111-0000-0000-0000-000000000001', 'f9222222-0000-0000-0000-000000000001', 'electricity', 'owner_paid', 'check', 'consumption', 'f9666666-0000-0000-0000-000000000002')$$,
   'P0001', 'Supply source must belong to this property and match the meter utility', 'a consumption meter cannot attach to a source of the other utility');
+insert into public.utility_meters (id, org_id, property_id, utility_type, responsibility_mode, meter_role) values
+  ('f9777777-0000-0000-0000-000000000009', 'f9111111-0000-0000-0000-000000000002', 'f9222222-0000-0000-0000-000000000002', 'electricity', 'owner_paid', 'main');
+insert into public.meter_integrations (id, org_id, property_id, provider, name, token_prefix, token_hash) values
+  ('f9aaaaaa-0000-0000-0000-000000000009', 'f9111111-0000-0000-0000-000000000002', 'f9222222-0000-0000-0000-000000000002', 'simulator', 'Other sim', 'hyother00001', repeat('a', 64));
+select throws_ok($$insert into public.utility_allocation_groups (org_id, property_id, meter_id, name, method)
+  values ('f9111111-0000-0000-0000-000000000001', 'f9222222-0000-0000-0000-000000000001', 'f9777777-0000-0000-0000-000000000009', 'x', 'equal')$$,
+  'P0001', 'Meter does not belong to this property', 'a shared meter group cannot use another property''s meter');
+select throws_ok($$insert into public.utility_supply_sources (org_id, property_id, utility_type, source_type, name, integration_id, external_device_id, level_metric)
+  values ('f9111111-0000-0000-0000-000000000001', 'f9222222-0000-0000-0000-000000000001', 'water', 'storage_tank', 'x', 'f9aaaaaa-0000-0000-0000-000000000009', 'dev', 'tank_level_pct')$$,
+  'P0001', 'Integration does not belong to this organisation', 'a level sensor cannot bind to another org''s integration');
 select throws_ok($$update public.utility_tariffs set blocks = '[{"upTo":null,"rate":4}]' where id = 'f9888888-0000-0000-0000-000000000001'$$,
   'P0001', null, 'a tariff used by charges cannot have its rates edited');
 select lives_ok($$update public.utility_tariffs set effective_to = '2027-06-30' where id = 'f9888888-0000-0000-0000-000000000001'$$,

@@ -1,15 +1,16 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { writeAuditEvent } from '../audit';
-import { consumptionForChain, sastDateString, sastInstant } from './consumption';
-import { replacementChain, SMART_METER_COLUMNS, loadPoints, type SmartMeterRow } from './data';
-import { computeCharge, type TariffBlock } from './tariffs';
+import { bucketConsumption, consumptionForChain, sastDateString, sastInstant, type MeterReadingPoint } from './consumption';
+import { loadPoints, replacementChain, SMART_METER_COLUMNS, type SmartMeterRow } from './data';
+import { allocateCents, centsToNumber, toScaled } from './money';
+import { computeTariffCharge, type Block, type ChargeResult, type Season, type TariffV2, type TouPeriod } from './tariffEngine';
 
-// Utility billing (docs/SMART_UTILITIES_DECISIONS.md #8): draft charges computed from actual
-// consumption and the property's tariff → landlord approval → added to DRAFT invoices via the
-// existing create_manual_invoice() (accountant-gated, lease/tenant-checked). Nothing is issued,
-// posted to the ledger or charged automatically; estimates, drafts and approved charges stay
-// separate statuses.
+// Utility billing v2 (docs/HYBRID_UTILITIES_ARCHITECTURE.md §E). Charges come ONLY from an explicit billing
+// arrangement per unit and utility — the system never assumes a tenant may be charged. Charges are draft
+// estimates → landlord approval → added to DRAFT invoices (never issued here). Every charge stores an immutable
+// calculation snapshot; approved charges cannot change (DB trigger). Regulatory review flags are attached,
+// never auto-resolved.
 
 export class BillingError extends Error {
   constructor(message: string) {
@@ -18,132 +19,528 @@ export class BillingError extends Error {
   }
 }
 
+const DAY_MS = 86_400_000;
+
 function dateToSast(d: string): Date {
   const [y, m, day] = d.split('-').map(Number);
   return sastInstant(y!, m!, day!);
+}
+function addDays(d: string, n: number): string {
+  return new Date(Date.parse(`${d}T00:00:00Z`) + n * DAY_MS).toISOString().slice(0, 10);
+}
+function daysBetween(a: string, b: string): number {
+  return Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / DAY_MS);
+}
+
+export interface TariffRow {
+  id: string;
+  name: string;
+  utility_type: 'water' | 'electricity';
+  tariff_kind: TariffV2['kind'];
+  fixed_charge: number | string;
+  blocks: Block[];
+  tou_periods: TouPeriod[];
+  seasons: Season[];
+  vat_inclusive: boolean;
+  vat_rate: number | string;
+  prorate_blocks: boolean;
+  unit_id: string | null;
+  supply_source_type: string | null;
+  effective_from: string;
+  effective_to: string | null;
+  requires_review: boolean;
+}
+
+export const TARIFF_COLUMNS =
+  'id, name, utility_type, tariff_kind, fixed_charge, blocks, tou_periods, seasons, vat_inclusive, vat_rate, prorate_blocks, unit_id, supply_source_type, effective_from, effective_to, requires_review';
+
+export function toTariffV2(t: TariffRow): TariffV2 {
+  return {
+    id: t.id,
+    name: t.name,
+    kind: t.tariff_kind,
+    utilityType: t.utility_type,
+    fixedCharge: t.fixed_charge,
+    blocks: t.blocks ?? [],
+    touPeriods: t.tou_periods ?? [],
+    seasons: t.seasons ?? [],
+    vatInclusive: t.vat_inclusive,
+    vatRate: t.vat_rate,
+    prorateBlocks: t.prorate_blocks,
+  };
+}
+
+/** Unit-specific tariff first, then property tariff; effective on the period start. */
+export function pickTariff(tariffs: TariffRow[], utilityType: string, unitId: string | null, onDate: string): TariffRow | null {
+  const effective = tariffs.filter(
+    (t) => t.utility_type === utilityType && t.effective_from <= onDate && (!t.effective_to || t.effective_to >= onDate) && !t.supply_source_type,
+  );
+  const byDate = (a: TariffRow, b: TariffRow) => b.effective_from.localeCompare(a.effective_from);
+  return effective.filter((t) => unitId && t.unit_id === unitId).sort(byDate)[0] ?? effective.filter((t) => !t.unit_id).sort(byDate)[0] ?? null;
+}
+
+export interface Segment {
+  leaseId: string;
+  tenantId: string | null;
+  start: string;
+  end: string;
+}
+
+/** Lease segments of a unit inside [periodStart, periodEnd) (dates; end exclusive). */
+export async function leaseSegments(serviceClient: SupabaseClient, unitId: string, periodStart: string, periodEnd: string): Promise<Segment[]> {
+  const { data: leases } = await serviceClient
+    .from('leases')
+    .select('id, start_date, end_date, status, lease_tenants(tenant_id, is_primary)')
+    .eq('unit_id', unitId)
+    .lt('start_date', periodEnd)
+    .in('status', ['active', 'expired', 'terminated'])
+    .order('start_date');
+  const out: Segment[] = [];
+  for (const l of leases ?? []) {
+    const leaseEndExclusive = l.end_date ? addDays(l.end_date, 1) : null;
+    if (leaseEndExclusive && leaseEndExclusive <= periodStart) continue;
+    const start = l.start_date > periodStart ? l.start_date : periodStart;
+    const end = leaseEndExclusive && leaseEndExclusive < periodEnd ? leaseEndExclusive : periodEnd;
+    if (end <= start) continue;
+    const tenants = (l.lease_tenants ?? []) as { tenant_id: string; is_primary: boolean }[];
+    out.push({ leaseId: l.id, tenantId: tenants.find((t) => t.is_primary)?.tenant_id ?? tenants[0]?.tenant_id ?? null, start, end });
+  }
+  return out;
+}
+
+export function reviewFlags(utilityType: string, tariff: TariffRow | null, result: ChargeResult | null): string[] {
+  const flags = new Set<string>(result?.flags ?? []);
+  if (utilityType === 'electricity') flags.add('electricity_resale_nersa_review');
+  if (utilityType === 'water') flags.add('water_services_intermediary_review');
+  if (tariff?.requires_review) flags.add('tariff_marked_for_review');
+  return [...flags];
 }
 
 export interface GenerateChargesResult {
   created: number;
   existing: number;
-  skipped: { meterId: string; label: string; reason: string }[];
+  skipped: { unitId: string; label: string; reason: string }[];
 }
 
-/** Draft charges for every active unit meter on the property for [periodStart, periodEnd). */
+interface Ctx {
+  service: SupabaseClient;
+  propertyId: string;
+  orgId: string;
+  periodStart: string;
+  periodEnd: string;
+  periodDays: number;
+  actorUserId: string | null;
+  meters: SmartMeterRow[];
+  tariffs: TariffRow[];
+  unitLabels: Map<string, string>;
+  unitSize: Map<string, number | null>;
+  points: Map<string, MeterReadingPoint[]>;
+}
+
+async function insertCharge(ctx: Ctx, row: Record<string, unknown>): Promise<'created' | 'existing'> {
+  const { data, error } = await ctx.service.from('utility_charges').insert(row).select('id, lease_id, total_amount, calculation').single();
+  if (error) {
+    if (error.code === '23505') return 'existing';
+    throw new Error(`charge insert failed: ${error.message}`);
+  }
+  await applyOpenCredits(ctx.service, data.id as string, data.lease_id as string | null, Number(data.total_amount), data.calculation as Record<string, unknown> | null);
+  return 'created';
+}
+
+/** Consumption of one meter chain over [start, end) in display units. */
+function chainConsumption(ctx: Ctx, meter: SmartMeterRow, start: string, end: string) {
+  const c = consumptionForChain(
+    replacementChain(meter, ctx.meters).map((x) => ({ points: ctx.points.get(x.id) ?? [], config: { registerDigits: x.register_digits } })),
+    dateToSast(start),
+    dateToSast(end),
+  );
+  const factor = meter.utility_type === 'water' ? 1000 : 1;
+  return {
+    consumption: c.consumption === null ? null : c.consumption / factor,
+    quality: c.quality,
+    opening: c.startValue === null ? null : c.startValue / factor,
+    closing: c.endValue === null ? null : c.endValue / factor,
+  };
+}
+
+function hourlyFor(ctx: Ctx, meter: SmartMeterRow, start: string, end: string) {
+  const factor = meter.utility_type === 'water' ? 1000 : 1;
+  return bucketConsumption(ctx.points.get(meter.id) ?? [], dateToSast(start), dateToSast(end), 60, { registerDigits: meter.register_digits }, 3).map(
+    (b) => ({ start: b.start, value: b.consumption === null ? null : b.consumption / factor }),
+  );
+}
+
+function dailyFor(ctx: Ctx, meter: SmartMeterRow, start: string, end: string) {
+  const factor = meter.utility_type === 'water' ? 1000 : 1;
+  return bucketConsumption(ctx.points.get(meter.id) ?? [], dateToSast(start), dateToSast(end), 1440, { registerDigits: meter.register_digits }, 30).map(
+    (b) => ({ date: sastDateString(b.start), value: b.consumption === null ? null : b.consumption / factor }),
+  );
+}
+
+function money(result: ChargeResult) {
+  const usage = result.lines.filter((l) => l.kind === 'usage').reduce((a, l) => a + l.inclCents, 0);
+  const fixed = result.lines.filter((l) => l.kind === 'fixed').reduce((a, l) => a + l.inclCents, 0);
+  return {
+    usage_amount: usage / 100,
+    fixed_amount: fixed / 100,
+    total_amount: result.totals.inclCents / 100,
+    amount_excl_vat: result.totals.exclCents / 100,
+    vat_amount: result.totals.vatCents / 100,
+  };
+}
+
 export async function generateCharges(
   serviceClient: SupabaseClient,
-  args: { propertyId: string; periodStart: string; periodEnd: string; actorUserId: string },
+  args: { propertyId: string; periodStart: string; periodEnd: string; actorUserId: string | null },
 ): Promise<GenerateChargesResult> {
   if (args.periodEnd <= args.periodStart) throw new BillingError('The period end must be after its start.');
+  const periodDays = daysBetween(args.periodStart, args.periodEnd);
+  const { data: property } = await serviceClient.from('properties').select('id, org_id').eq('id', args.propertyId).single();
+  if (!property) throw new BillingError('Property not found.');
+
+  const [{ data: meterRows }, { data: tariffs }, { data: units }, { data: arrangements }] = await Promise.all([
+    serviceClient.from('utility_meters').select(SMART_METER_COLUMNS).eq('property_id', args.propertyId),
+    serviceClient.from('utility_tariffs').select(TARIFF_COLUMNS).eq('property_id', args.propertyId),
+    serviceClient.from('units').select('id, unit_label, size_sqm').eq('property_id', args.propertyId),
+    serviceClient
+      .from('utility_billing_arrangements')
+      .select('id, unit_id, utility_type, arrangement, invoice_mode, allocation_group_id, fixed_amount, allowance_quantity, effective_from, effective_to')
+      .eq('property_id', args.propertyId)
+      .lt('effective_from', args.periodEnd),
+  ]);
+  const meters = (meterRows ?? []) as SmartMeterRow[];
   const start = dateToSast(args.periodStart);
   const end = dateToSast(args.periodEnd);
-
-  const { data: meterRows } = await serviceClient.from('utility_meters').select(SMART_METER_COLUMNS).eq('property_id', args.propertyId);
-  const all = (meterRows ?? []) as SmartMeterRow[];
-  const unitMeters = all.filter((m) => m.active && m.unit_id && m.meter_role === 'submeter');
+  const points = await loadPoints(serviceClient, meters.map((m) => m.id), new Date(start.getTime() - 3 * DAY_MS), new Date(end.getTime() + 3 * DAY_MS));
+  const ctx: Ctx = {
+    service: serviceClient,
+    propertyId: args.propertyId,
+    orgId: property.org_id,
+    periodStart: args.periodStart,
+    periodEnd: args.periodEnd,
+    periodDays,
+    actorUserId: args.actorUserId,
+    meters,
+    tariffs: (tariffs ?? []) as TariffRow[],
+    unitLabels: new Map((units ?? []).map((u) => [u.id, u.unit_label as string])),
+    unitSize: new Map((units ?? []).map((u) => [u.id, u.size_sqm === null ? null : Number(u.size_sqm)])),
+    points,
+  };
   const result: GenerateChargesResult = { created: 0, existing: 0, skipped: [] };
-  if (unitMeters.length === 0) return result;
+  const active = (arrangements ?? []).filter((a) => !a.effective_to || a.effective_to >= args.periodStart);
+  const count = (r: 'created' | 'existing') => (r === 'created' ? (result.created += 1) : (result.existing += 1));
 
-  const [{ data: tariffs }, { data: units }] = await Promise.all([
-    serviceClient
-      .from('utility_tariffs')
-      .select('id, utility_type, name, fixed_charge, blocks, vat_inclusive, effective_from, effective_to')
-      .eq('property_id', args.propertyId)
-      .lte('effective_from', args.periodStart)
-      .order('effective_from', { ascending: false }),
-    serviceClient.from('units').select('id, unit_label').eq('property_id', args.propertyId),
-  ]);
-  const unitLabel = new Map((units ?? []).map((u) => [u.id, u.unit_label as string]));
-  const chainIds = new Set(unitMeters.flatMap((m) => replacementChain(m, all).map((c) => c.id)));
-  const points = await loadPoints(serviceClient, [...chainIds], new Date(start.getTime() - 3 * 86_400_000), new Date(end.getTime() + 3 * 86_400_000));
+  // Units with meters but no arrangement are reported, never charged.
+  for (const m of meters.filter((x) => x.active && x.unit_id && x.meter_role === 'submeter' && x.measurement_kind === 'consumption')) {
+    if (!active.some((a) => a.unit_id === m.unit_id && a.utility_type === m.utility_type)) {
+      result.skipped.push({ unitId: m.unit_id!, label: `${ctx.unitLabels.get(m.unit_id!) ?? 'Unit'} ${m.utility_type}`, reason: 'No billing arrangement — set one before any charge is calculated.' });
+    }
+  }
 
-  for (const m of unitMeters) {
-    const label = `${unitLabel.get(m.unit_id!) ?? 'Unit'} ${m.utility_type}`;
-    const tariff = (tariffs ?? []).find(
-      (t) => t.utility_type === m.utility_type && (!t.effective_to || t.effective_to >= args.periodStart),
-    );
-    if (!tariff) {
-      result.skipped.push({ meterId: m.id, label, reason: `No ${m.utility_type} tariff effective on ${args.periodStart}.` });
+  const sharedDone = new Set<string>();
+  for (const a of active) {
+    const label = `${ctx.unitLabels.get(a.unit_id) ?? 'Unit'} ${a.utility_type}`;
+    if (['landlord_paid', 'included_in_rent', 'tenant_direct'].includes(a.arrangement)) {
+      result.skipped.push({ unitId: a.unit_id, label, reason: `Arrangement "${a.arrangement.replace(/_/g, ' ')}": nothing to recharge.` });
       continue;
     }
-    const c = consumptionForChain(
-      replacementChain(m, all).map((x) => ({ points: points.get(x.id) ?? [], config: { registerDigits: x.register_digits } })),
-      start,
-      end,
-    );
-    const consumption = c.consumption === null ? null : m.utility_type === 'water' ? c.consumption / 1000 : c.consumption;
-    let charge = { fixedAmount: Number(tariff.fixed_charge), usageAmount: 0, total: Number(tariff.fixed_charge), breakdown: [] as unknown[] };
-    if (consumption !== null) {
-      charge = computeCharge(Math.round(consumption * 10_000) / 10_000, {
-        fixedCharge: Number(tariff.fixed_charge),
-        blocks: tariff.blocks as TariffBlock[],
-      });
-    }
-
-    // The tenant on the unit's lease during the period (if any); recharge needs one to invoice.
-    const { data: leases } = await serviceClient
-      .from('leases')
-      .select('id, start_date, end_date, status, lease_tenants(tenant_id, is_primary)')
-      .eq('unit_id', m.unit_id!)
-      .lte('start_date', args.periodEnd)
-      .order('start_date', { ascending: false });
-    const lease = (leases ?? []).find(
-      (l) => (!l.end_date || l.end_date >= args.periodStart) && ['active', 'expired', 'terminated'].includes(String(l.status)),
-    );
-    const tenants = (lease?.lease_tenants ?? []) as { tenant_id: string; is_primary: boolean }[];
-    const tenantId = tenants.find((t) => t.is_primary)?.tenant_id ?? tenants[0]?.tenant_id ?? null;
-
-    const { error } = await serviceClient.from('utility_charges').insert({
-      org_id: m.org_id,
-      property_id: m.property_id,
-      unit_id: m.unit_id,
-      meter_id: m.id,
-      lease_id: lease?.id ?? null,
-      tenant_id: tenantId,
-      utility_type: m.utility_type,
-      period_start: args.periodStart,
-      period_end: args.periodEnd,
-      opening_reading: c.startValue === null ? null : m.utility_type === 'water' ? c.startValue / 1000 : c.startValue,
-      closing_reading: c.endValue === null ? null : m.utility_type === 'water' ? c.endValue / 1000 : c.endValue,
-      consumption,
-      consumption_quality: c.quality,
-      tariff_id: tariff.id,
-      tariff_snapshot: {
-        name: tariff.name,
-        fixedCharge: Number(tariff.fixed_charge),
-        blocks: tariff.blocks,
-        vatInclusive: tariff.vat_inclusive,
-        effectiveFrom: tariff.effective_from,
-        breakdown: charge.breakdown,
-      },
-      fixed_amount: charge.fixedAmount,
-      usage_amount: charge.usageAmount,
-      total_amount: charge.total,
-      status: 'draft',
-      created_by: args.actorUserId,
-      notes: consumption === null ? 'Consumption could not be calculated for this period (missing readings or a reset).' : null,
-    });
-    if (error) {
-      if (error.code === '23505') {
-        result.existing += 1;
-        continue;
+    if (a.arrangement === 'shared_allocation') {
+      if (!sharedDone.has(a.allocation_group_id)) {
+        sharedDone.add(a.allocation_group_id);
+        await allocateSharedMeter(ctx, a.allocation_group_id, active, result);
       }
-      throw new Error(`charge insert failed: ${error.message}`);
+      continue;
     }
-    result.created += 1;
+    const segments = await leaseSegments(serviceClient, a.unit_id, args.periodStart, args.periodEnd);
+    if (segments.length === 0) {
+      result.skipped.push({ unitId: a.unit_id, label, reason: 'No lease during this period (vacant): nothing to recharge.' });
+      continue;
+    }
+    const tariff = pickTariff(ctx.tariffs, a.utility_type, a.unit_id, args.periodStart);
+    if (a.arrangement === 'fixed_allowance') {
+      for (const seg of segments) {
+        const segDays = daysBetween(seg.start, seg.end);
+        const cents = allocateCents(BigInt(Math.round(Number(a.fixed_amount) * 100)), [BigInt(segDays), BigInt(periodDays - segDays)])[0]!;
+        const total = centsToNumber(cents);
+        count(
+          await insertCharge(ctx, {
+            org_id: ctx.orgId,
+            property_id: ctx.propertyId,
+            unit_id: a.unit_id,
+            meter_id: null,
+            arrangement_id: a.id,
+            lease_id: seg.leaseId,
+            tenant_id: seg.tenantId,
+            utility_type: a.utility_type,
+            charge_type: 'allowance_fee',
+            period_start: args.periodStart,
+            period_end: args.periodEnd,
+            segment_start: seg.start,
+            segment_end: seg.end,
+            proration_factor: segDays / periodDays,
+            consumption: null,
+            consumption_quality: 'complete',
+            fixed_amount: total,
+            usage_amount: 0,
+            total_amount: total,
+            amount_excl_vat: null,
+            vat_amount: null,
+            calculation: { kind: 'fixed_allowance', fixedAmount: Number(a.fixed_amount), segmentDays: segDays, periodDays, note: 'Agreed fixed monthly utility amount (VAT treatment per lease).' },
+            review_flags: reviewFlags(a.utility_type, null, null),
+            created_by: args.actorUserId,
+          }),
+        );
+      }
+      if (!a.allowance_quantity) continue; // pure fixed fee: no metered excess
+    }
+    if (!tariff) {
+      result.skipped.push({ unitId: a.unit_id, label, reason: `No ${a.utility_type} tariff effective on ${args.periodStart}.` });
+      continue;
+    }
+    const unitMeters = meters.filter(
+      (m) => m.active && m.unit_id === a.unit_id && m.utility_type === a.utility_type && m.measurement_kind === 'consumption',
+    );
+    if (unitMeters.length === 0) {
+      result.skipped.push({ unitId: a.unit_id, label, reason: 'No meter for this unit.' });
+      continue;
+    }
+    for (const m of unitMeters) {
+      for (const seg of segments) {
+        const c = chainConsumption(ctx, m, seg.start, seg.end);
+        const calc = computeTariffCharge(
+          a.arrangement === 'fixed_allowance' ? { ...toTariffV2(tariff), fixedCharge: 0 } : toTariffV2(tariff),
+          {
+            consumption: c.consumption,
+            segmentStart: dateToSast(seg.start),
+            segmentEnd: dateToSast(seg.end),
+            periodDays,
+            daily: dailyFor(ctx, m, seg.start, seg.end),
+            hourly: tariff.tariff_kind === 'tou' ? hourlyFor(ctx, m, seg.start, seg.end) : undefined,
+            allowanceQuantity: a.arrangement === 'fixed_allowance' ? Number(a.allowance_quantity) : null,
+          },
+        );
+        const amounts = calc.ok ? money(calc) : { usage_amount: 0, fixed_amount: 0, total_amount: 0, amount_excl_vat: null, vat_amount: null };
+        count(
+          await insertCharge(ctx, {
+            org_id: ctx.orgId,
+            property_id: ctx.propertyId,
+            unit_id: a.unit_id,
+            meter_id: m.id,
+            arrangement_id: a.id,
+            lease_id: seg.leaseId,
+            tenant_id: seg.tenantId,
+            utility_type: a.utility_type,
+            charge_type: a.arrangement === 'fixed_allowance' ? 'excess' : 'consumption',
+            period_start: args.periodStart,
+            period_end: args.periodEnd,
+            segment_start: seg.start,
+            segment_end: seg.end,
+            proration_factor: calc.prorationFactor,
+            opening_reading: c.opening,
+            closing_reading: c.closing,
+            consumption: c.consumption,
+            consumption_quality: c.quality,
+            tariff_id: tariff.id,
+            tariff_snapshot: { ...tariff },
+            calculation: calc,
+            ...amounts,
+            review_flags: reviewFlags(a.utility_type, tariff, calc),
+            notes: calc.ok ? null : calc.refusal,
+            created_by: args.actorUserId,
+          }),
+        );
+      }
+    }
   }
   return result;
 }
 
-/** Draft → approved. A charge without a calculated consumption cannot be approved. */
-export async function approveCharges(serviceClient: SupabaseClient, args: { chargeIds: string[]; propertyId: string; actorUserId: string }) {
-  const { data: rows } = await serviceClient
+/** Shared meter: price the meter's full-period use once, then split the rand amount exactly by weights. */
+async function allocateSharedMeter(
+  ctx: Ctx,
+  groupId: string,
+  arrangements: { id: string; unit_id: string; utility_type: string; arrangement: string; allocation_group_id: string | null }[],
+  result: GenerateChargesResult,
+) {
+  const { data: group } = await ctx.service
+    .from('utility_allocation_groups')
+    .select('id, meter_id, name, method, landlord_share_pct, active, utility_allocation_members(unit_id, percentage, occupants)')
+    .eq('id', groupId)
+    .single();
+  if (!group || !group.active) return;
+  const meter = ctx.meters.find((m) => m.id === group.meter_id);
+  if (!meter) return;
+  const tariff = pickTariff(ctx.tariffs, meter.utility_type, null, ctx.periodStart);
+  const members = (group.utility_allocation_members ?? []) as { unit_id: string; percentage: number | null; occupants: number | null }[];
+  if (!tariff) {
+    for (const mem of members) result.skipped.push({ unitId: mem.unit_id, label: group.name, reason: `No ${meter.utility_type} tariff effective on ${ctx.periodStart}.` });
+    return;
+  }
+  const c = chainConsumption(ctx, meter, ctx.periodStart, ctx.periodEnd);
+  const calc = computeTariffCharge(toTariffV2(tariff), {
+    consumption: c.consumption,
+    segmentStart: dateToSast(ctx.periodStart),
+    segmentEnd: dateToSast(ctx.periodEnd),
+    periodDays: ctx.periodDays,
+    daily: dailyFor(ctx, meter, ctx.periodStart, ctx.periodEnd),
+    hourly: tariff.tariff_kind === 'tou' ? hourlyFor(ctx, meter, ctx.periodStart, ctx.periodEnd) : undefined,
+  });
+  if (!calc.ok) {
+    for (const mem of members) result.skipped.push({ unitId: mem.unit_id, label: group.name, reason: calc.refusal ?? 'Could not price the shared meter.' });
+    return;
+  }
+  // Weights per member (scaled): the landlord share is carved out first.
+  const weight = (mem: (typeof members)[number]): bigint => {
+    if (group.method === 'percentage') return toScaled(mem.percentage ?? 0);
+    if (group.method === 'floor_area') return toScaled(ctx.unitSize.get(mem.unit_id) ?? 0);
+    if (group.method === 'occupancy') return BigInt(mem.occupants ?? 0) * 1_000_000n;
+    return 1_000_000n;
+  };
+  const recoverableShare = (100 - Number(group.landlord_share_pct)) / 100;
+  const memberWeights = members.map(weight);
+  const memberWeightSum = memberWeights.reduce((x, y) => x + y, 0n);
+  if (memberWeightSum === 0n) {
+    for (const mem of members) result.skipped.push({ unitId: mem.unit_id, label: group.name, reason: `Allocation weights are all zero (${group.method}).` });
+    return;
+  }
+  // percentage method: member percentages already exclude the landlord share; others scale by recoverable share
+  const totalIncl = BigInt(calc.totals.inclCents);
+  const totalExcl = BigInt(calc.totals.exclCents);
+  const recoverIncl = group.method === 'percentage' ? totalIncl : (totalIncl * BigInt(Math.round(recoverableShare * 1_000_000))) / 1_000_000n;
+  const recoverExcl = group.method === 'percentage' ? totalExcl : (totalExcl * BigInt(Math.round(recoverableShare * 1_000_000))) / 1_000_000n;
+  const weightsWithLandlord = group.method === 'percentage' ? [...memberWeights, toScaled(group.landlord_share_pct)] : memberWeights;
+  const inclParts = allocateCents(recoverIncl, weightsWithLandlord);
+  const exclParts = allocateCents(recoverExcl, weightsWithLandlord);
+
+  for (let i = 0; i < members.length; i++) {
+    const mem = members[i]!;
+    const arrangement = arrangements.find((a) => a.unit_id === mem.unit_id && a.allocation_group_id === groupId && a.arrangement === 'shared_allocation');
+    const label = `${ctx.unitLabels.get(mem.unit_id) ?? 'Unit'} (${group.name})`;
+    if (!arrangement) {
+      result.skipped.push({ unitId: mem.unit_id, label, reason: 'Unit is in the shared group but has no shared-allocation arrangement: not charged.' });
+      continue;
+    }
+    const segments = await leaseSegments(ctx.service, mem.unit_id, ctx.periodStart, ctx.periodEnd);
+    if (segments.length === 0) {
+      result.skipped.push({ unitId: mem.unit_id, label, reason: 'Vacant during this period: its share stays with the landlord.' });
+      continue;
+    }
+    // Split the unit's share across its lease segments by days; uncovered days stay with the landlord.
+    const segDays = segments.map((s) => BigInt(daysBetween(s.start, s.end)));
+    const vacantDays = BigInt(ctx.periodDays) - segDays.reduce((x, y) => x + y, 0n);
+    const segIncl = allocateCents(inclParts[i]!, [...segDays, vacantDays > 0n ? vacantDays : 0n]);
+    const segExcl = allocateCents(exclParts[i]!, [...segDays, vacantDays > 0n ? vacantDays : 0n]);
+    const share = Number(memberWeights[i]!) / Number(memberWeightSum);
+    for (let s = 0; s < segments.length; s++) {
+      const seg = segments[s]!;
+      const incl = segIncl[s]!;
+      const excl = segExcl[s]!;
+      const r = await insertCharge(ctx, {
+        org_id: ctx.orgId,
+        property_id: ctx.propertyId,
+        unit_id: mem.unit_id,
+        meter_id: meter.id,
+        arrangement_id: arrangement.id,
+        allocation_group_id: groupId,
+        allocation_share: Math.round(share * recoverableShare * 1_000_000) / 1_000_000,
+        lease_id: seg.leaseId,
+        tenant_id: seg.tenantId,
+        utility_type: meter.utility_type,
+        charge_type: 'allocation',
+        period_start: ctx.periodStart,
+        period_end: ctx.periodEnd,
+        segment_start: seg.start,
+        segment_end: seg.end,
+        proration_factor: Number(segDays[s]!) / ctx.periodDays,
+        consumption: c.consumption === null ? null : Math.round(c.consumption * share * recoverableShare * Number(segDays[s]!) / ctx.periodDays * 1000) / 1000,
+        consumption_quality: c.quality,
+        tariff_id: tariff.id,
+        tariff_snapshot: { ...tariff },
+        calculation: {
+          kind: 'shared_allocation',
+          group: group.name,
+          method: group.method,
+          landlordSharePct: Number(group.landlord_share_pct),
+          meterConsumption: c.consumption,
+          meterCost: calc.totals,
+          unitShare: share,
+          segmentDays: Number(segDays[s]!),
+          periodDays: ctx.periodDays,
+          meterCalculation: calc,
+        },
+        usage_amount: centsToNumber(incl),
+        fixed_amount: 0,
+        total_amount: centsToNumber(incl),
+        amount_excl_vat: centsToNumber(excl),
+        vat_amount: centsToNumber(incl - excl),
+        review_flags: [...reviewFlags(meter.utility_type, tariff, calc), 'shared_meter_allocation_requires_lease_clause'],
+        created_by: ctx.actorUserId,
+      });
+      if (r === 'created') result.created += 1;
+      else result.existing += 1;
+    }
+  }
+}
+
+/**
+ * Applies open utility credits of the same lease to a new charge (never below zero). Which credits were used is
+ * recorded on the charge (calculation.creditsApplied) so voiding the charge gives them back.
+ */
+async function applyOpenCredits(
+  serviceClient: SupabaseClient,
+  chargeId: string,
+  leaseId: string | null,
+  total: number,
+  calculation: Record<string, unknown> | null,
+) {
+  if (!leaseId || total <= 0) return;
+  const { data: credits } = await serviceClient
+    .from('utility_credits')
+    .select('id, remaining')
+    .eq('lease_id', leaseId)
+    .eq('status', 'open')
+    .order('created_at');
+  let left = Math.round(total * 100);
+  let applied = 0;
+  const used: { creditId: string; amount: number }[] = [];
+  for (const c of credits ?? []) {
+    if (left <= 0) break;
+    const rem = Math.round(Number(c.remaining) * 100);
+    const use = Math.min(rem, left);
+    left -= use;
+    applied += use;
+    used.push({ creditId: c.id, amount: use / 100 });
+    await serviceClient
+      .from('utility_credits')
+      .update({ remaining: (rem - use) / 100, status: rem - use === 0 ? 'applied' : 'open' })
+      .eq('id', c.id);
+  }
+  if (applied > 0) {
+    await serviceClient
+      .from('utility_charges')
+      .update({ credit_applied: applied / 100, total_amount: left / 100, calculation: { ...(calculation ?? {}), creditsApplied: used } })
+      .eq('id', chargeId);
+  }
+}
+
+async function chargesFor(serviceClient: SupabaseClient, ids: string[], propertyId: string) {
+  const { data } = await serviceClient
     .from('utility_charges')
-    .select('id, org_id, status, consumption')
-    .in('id', args.chargeIds)
-    .eq('property_id', args.propertyId);
-  const eligible = (rows ?? []).filter((r) => r.status === 'draft' && r.consumption !== null);
-  if (eligible.length === 0) throw new BillingError('No draft charges with a calculated consumption were selected.');
+    .select('id, org_id, status, consumption, charge_type, dispute_status, total_amount, calculation, lease_id, tenant_id, arrangement_id')
+    .in('id', ids)
+    .eq('property_id', propertyId);
+  return data ?? [];
+}
+
+export async function approveCharges(serviceClient: SupabaseClient, args: { chargeIds: string[]; propertyId: string; actorUserId: string }) {
+  const rows = await chargesFor(serviceClient, args.chargeIds, args.propertyId);
+  const eligible = rows.filter(
+    (r) =>
+      r.status === 'draft' &&
+      r.dispute_status !== 'open' &&
+      !(r.charge_type === 'consumption' || r.charge_type === 'excess' ? r.consumption === null || (r.calculation as { ok?: boolean } | null)?.ok === false : false),
+  );
+  if (eligible.length === 0) throw new BillingError('No approvable charges selected (drafts only; not disputed; consumption calculated).');
   const now = new Date().toISOString();
   await serviceClient
     .from('utility_charges')
@@ -169,7 +566,19 @@ export async function voidCharges(serviceClient: SupabaseClient, args: { chargeI
     .in('id', args.chargeIds)
     .eq('property_id', args.propertyId)
     .in('status', ['draft', 'approved'])
-    .select('id, org_id');
+    .select('id, org_id, calculation');
+  // Give back any credits the voided charges consumed.
+  for (const row of data ?? []) {
+    const used = ((row.calculation as { creditsApplied?: { creditId: string; amount: number }[] } | null)?.creditsApplied ?? []);
+    for (const u of used) {
+      const { data: credit } = await serviceClient.from('utility_credits').select('id, remaining, status').eq('id', u.creditId).maybeSingle();
+      if (!credit || credit.status === 'cancelled') continue;
+      await serviceClient
+        .from('utility_credits')
+        .update({ remaining: Math.round((Number(credit.remaining) + u.amount) * 100) / 100, status: 'open' })
+        .eq('id', credit.id);
+    }
+  }
   if (data && data.length) {
     await writeAuditEvent(serviceClient, {
       orgId: data[0]!.org_id,
@@ -184,13 +593,75 @@ export async function voidCharges(serviceClient: SupabaseClient, args: { chargeI
   return { voided: data?.length ?? 0 };
 }
 
+/** Manual adjustment on a DRAFT charge (audited); approved charges are immutable. */
+export async function adjustCharge(serviceClient: SupabaseClient, args: { chargeId: string; propertyId: string; amount: number; reason: string; actorUserId: string }) {
+  const { data: c } = await serviceClient
+    .from('utility_charges')
+    .select('id, org_id, status, total_amount, adjustment_total')
+    .eq('id', args.chargeId)
+    .eq('property_id', args.propertyId)
+    .single();
+  if (!c) throw new BillingError('Charge not found.');
+  if (c.status !== 'draft') throw new BillingError('Only draft charges can be adjusted; void and recalculate, or record a credit after invoicing.');
+  const newTotal = Math.round((Number(c.total_amount) + args.amount) * 100) / 100;
+  if (newTotal < 0) throw new BillingError('An adjustment cannot make the charge negative.');
+  await serviceClient.from('utility_charge_adjustments').insert({ org_id: c.org_id, property_id: args.propertyId, charge_id: c.id, amount: args.amount, reason: args.reason, created_by: args.actorUserId });
+  await serviceClient
+    .from('utility_charges')
+    .update({ total_amount: newTotal, adjustment_total: Math.round((Number(c.adjustment_total) + args.amount) * 100) / 100 })
+    .eq('id', c.id);
+  return { total: newTotal };
+}
+
+export async function disputeCharge(serviceClient: SupabaseClient, args: { chargeId: string; propertyId: string; action: 'open' | 'resolve'; text: string; actorUserId: string }) {
+  const now = new Date().toISOString();
+  const patch =
+    args.action === 'open'
+      ? { dispute_status: 'open', dispute_reason: args.text, disputed_at: now, dispute_resolution: null, dispute_resolved_at: null }
+      : { dispute_status: 'resolved', dispute_resolution: args.text, dispute_resolved_at: now };
+  const { data } = await serviceClient.from('utility_charges').update(patch).eq('id', args.chargeId).eq('property_id', args.propertyId).neq('status', 'void').select('id, org_id').single();
+  if (!data) throw new BillingError('Charge not found.');
+  await writeAuditEvent(serviceClient, {
+    orgId: data.org_id,
+    actorUserId: args.actorUserId,
+    actorType: 'user',
+    action: `utility_charge.dispute_${args.action === 'open' ? 'opened' : 'resolved'}`,
+    entityType: 'utility_charges',
+    entityId: data.id,
+    after: { text: args.text },
+  });
+  return { disputeStatus: patch.dispute_status };
+}
+
+/** A credit against an INVOICED charge (the invoice may already be issued/paid); applied to the next charge. */
+export async function creditCharge(serviceClient: SupabaseClient, args: { chargeId: string; propertyId: string; amount: number; reason: string; actorUserId: string }) {
+  const { data: c } = await serviceClient
+    .from('utility_charges')
+    .select('id, org_id, status, total_amount, lease_id, tenant_id, unit_id')
+    .eq('id', args.chargeId)
+    .eq('property_id', args.propertyId)
+    .single();
+  if (!c) throw new BillingError('Charge not found.');
+  if (c.status !== 'invoiced' || !c.lease_id) throw new BillingError('Credits are for invoiced charges; void or adjust drafts instead.');
+  const { data: prior } = await serviceClient.from('utility_credits').select('amount').eq('source_charge_id', c.id).neq('status', 'cancelled');
+  const already = (prior ?? []).reduce((a, p) => a + Number(p.amount), 0);
+  if (args.amount + already > Number(c.total_amount) + 0.0001) throw new BillingError('Credits cannot exceed the charged amount.');
+  const { data } = await serviceClient
+    .from('utility_credits')
+    .insert({ org_id: c.org_id, property_id: args.propertyId, lease_id: c.lease_id, tenant_id: c.tenant_id, unit_id: c.unit_id, source_charge_id: c.id, amount: args.amount, remaining: args.amount, reason: args.reason, created_by: args.actorUserId })
+    .select('id')
+    .single();
+  return { creditId: data!.id };
+}
+
 const UNIT = { water: 'kL', electricity: 'kWh' } as const;
 const fmt = (n: number) => n.toLocaleString('en-ZA', { maximumFractionDigits: 3 });
+const rand = (n: number) => `R${n.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 /**
- * Approved charges → one DRAFT invoice per lease via create_manual_invoice(), called with the
- * caller's SESSION client so the function's own accountant/lease/tenant checks apply to the real
- * user. Charges are marked invoiced only after the invoice exists. The invoice is never issued here.
+ * Approved charges → DRAFT invoices via create_manual_invoice()/update_manual_invoice() on the caller's SESSION
+ * (their accountant/lease/tenant checks apply). invoice_mode 'with_draft_invoice' appends to an existing DRAFT
+ * manual invoice of the lease due in the same month; otherwise a separate draft. Never issued here.
  */
 export async function invoiceCharges(
   sessionClient: SupabaseClient,
@@ -199,62 +670,110 @@ export async function invoiceCharges(
 ) {
   const { data: rows } = await serviceClient
     .from('utility_charges')
-    .select('id, org_id, lease_id, tenant_id, utility_type, period_start, period_end, consumption, fixed_amount, usage_amount, total_amount, tariff_snapshot, status')
+    .select('id, org_id, lease_id, tenant_id, utility_type, charge_type, period_start, period_end, segment_start, segment_end, consumption, total_amount, vat_amount, tariff_snapshot, calculation, status, dispute_status, credit_applied, arrangement_id, utility_billing_arrangements(invoice_mode), units(unit_label)')
     .in('id', args.chargeIds)
     .eq('property_id', args.propertyId)
     .eq('status', 'approved');
-  const ready = (rows ?? []).filter((r) => r.lease_id && r.tenant_id);
-  if (ready.length === 0) throw new BillingError('Select approved charges for units with a lease and tenant.');
+  const ready = (rows ?? []).filter((r) => r.lease_id && r.tenant_id && r.dispute_status !== 'open' && Number(r.total_amount) > 0);
+  if (ready.length === 0) throw new BillingError('Select approved, undisputed charges (above R0) for units with a lease and tenant.');
   const byLease = new Map<string, typeof ready>();
   for (const r of ready) byLease.set(`${r.lease_id}|${r.tenant_id}`, [...(byLease.get(`${r.lease_id}|${r.tenant_id}`) ?? []), r]);
 
   const today = sastDateString(new Date());
-  const due = sastDateString(new Date(Date.now() + (args.dueInDays ?? 14) * 86_400_000));
-  const invoices: string[] = [];
+  const due = sastDateString(new Date(Date.now() + (args.dueInDays ?? 14) * DAY_MS));
+  const invoices: { invoiceId: string; mode: 'separate' | 'appended' }[] = [];
   for (const [key, charges] of byLease) {
-    const [leaseId, tenantId] = key.split('|');
-    const lineItems = charges.flatMap((c) => {
+    const [leaseId, tenantId] = key.split('|') as [string, string];
+    const lines = charges.map((c) => {
       const label = c.utility_type === 'water' ? 'Water' : 'Electricity';
-      const period = `${c.period_start} to ${c.period_end}`;
-      const lines = [
-        {
-          description: `${label} usage ${fmt(Number(c.consumption))} ${UNIT[c.utility_type as 'water' | 'electricity']} (${period}, ${(c.tariff_snapshot as { name?: string })?.name ?? 'tariff'})`,
-          quantity: 1,
-          unitPrice: Number(c.usage_amount),
-        },
-      ];
-      if (Number(c.fixed_amount) > 0) {
-        lines.push({ description: `${label} fixed charge (${period})`, quantity: 1, unitPrice: Number(c.fixed_amount) });
+      const period = `${c.segment_start ?? c.period_start} to ${addDays(c.segment_end ?? c.period_end, -1)}`;
+      const kind =
+        c.charge_type === 'allocation' ? 'shared meter share' : c.charge_type === 'allowance_fee' ? 'fixed utility amount' : c.charge_type === 'excess' ? 'usage above allowance' : 'usage';
+      const qty = c.consumption !== null && c.charge_type !== 'allowance_fee' ? ` ${fmt(Number(c.consumption))} ${UNIT[c.utility_type as 'water' | 'electricity']}` : '';
+      const vat = Number(c.vat_amount ?? 0) > 0 ? `, incl. VAT ${rand(Number(c.vat_amount))}` : '';
+      const credit = Number(c.credit_applied) > 0 ? `, after credit ${rand(Number(c.credit_applied))}` : '';
+      return { description: `${label} ${kind}${qty} (${period}${vat}${credit})`.slice(0, 500), quantity: 1, unitPrice: Number(c.total_amount) };
+    });
+    const wantsAppend = charges.some((c) => (c.utility_billing_arrangements as { invoice_mode?: string } | null)?.invoice_mode === 'with_draft_invoice');
+    let invoiceId: string | null = null;
+    let mode: 'separate' | 'appended' = 'separate';
+    if (wantsAppend) {
+      const month = due.slice(0, 7);
+      const { data: draft } = await sessionClient
+        .from('invoices')
+        .select('id, period, reference, description, notes, invoice_line_items(description, quantity, unit_price, sort_order)')
+        .eq('lease_id', leaseId)
+        .eq('status', 'draft')
+        .eq('source', 'manual')
+        .gte('period', `${month}-01`)
+        .lte('period', `${month}-31`)
+        .order('created_at')
+        .limit(1)
+        .maybeSingle();
+      if (draft) {
+        const existing = ((draft.invoice_line_items ?? []) as { description: string; quantity: number; unit_price: number; sort_order: number }[])
+          .sort((a, b) => a.sort_order - b.sort_order)
+          .map((l) => ({ description: l.description, quantity: Number(l.quantity), unitPrice: Number(l.unit_price) }));
+        const { error } = await sessionClient.rpc('update_manual_invoice', {
+          p_invoice_id: draft.id,
+          p_invoice_date: today,
+          p_due_date: draft.period,
+          p_reference: draft.reference,
+          p_description: draft.description,
+          p_notes: draft.notes,
+          p_line_items: [...existing, ...lines],
+        });
+        if (error) throw new BillingError(`Could not add to the draft invoice: ${error.message}`);
+        invoiceId = draft.id as string;
+        mode = 'appended';
       }
-      return lines;
-    });
-    const { data: invoiceId, error } = await sessionClient.rpc('create_manual_invoice', {
-      p_org_id: charges[0]!.org_id,
-      p_lease_id: leaseId,
-      p_tenant_id: tenantId,
-      p_invoice_date: today,
-      p_due_date: due,
-      p_reference: `UTIL-${charges[0]!.period_start}`,
-      p_description: 'Utility recharge (metered)',
-      p_notes: 'Generated from approved meter-based utility charges in Proplyst. Review before issuing.',
-      p_line_items: lineItems,
-    });
-    if (error) throw new BillingError(`Could not create the draft invoice: ${error.message}`);
-    await serviceClient
-      .from('utility_charges')
-      .update({ status: 'invoiced', invoice_id: invoiceId })
-      .in('id', charges.map((c) => c.id))
-      .eq('status', 'approved');
-    invoices.push(invoiceId as string);
+    }
+    if (!invoiceId) {
+      const { data, error } = await sessionClient.rpc('create_manual_invoice', {
+        p_org_id: charges[0]!.org_id,
+        p_lease_id: leaseId,
+        p_tenant_id: tenantId,
+        p_invoice_date: today,
+        p_due_date: due,
+        p_reference: `UTIL-${charges[0]!.period_start}`,
+        p_description: 'Utility recharge (metered)',
+        p_notes: 'Generated from approved utility charges in Proplyst. Review before issuing. VAT is shown per line where applicable.',
+        p_line_items: lines,
+      });
+      if (error) throw new BillingError(`Could not create the draft invoice: ${error.message}`);
+      invoiceId = data as string;
+    }
+    await serviceClient.from('utility_charges').update({ status: 'invoiced', invoice_id: invoiceId }).in('id', charges.map((c) => c.id)).eq('status', 'approved');
+    invoices.push({ invoiceId, mode });
     await writeAuditEvent(serviceClient, {
       orgId: charges[0]!.org_id,
       actorUserId: args.actorUserId,
       actorType: 'user',
-      action: 'utility_charges.invoiced',
+      action: mode === 'appended' ? 'utility_charges.appended_to_draft_invoice' : 'utility_charges.invoiced',
       entityType: 'invoices',
-      entityId: invoiceId as string,
+      entityId: invoiceId,
       after: { chargeIds: charges.map((c) => c.id), draft: true },
     });
   }
-  return { invoices, skippedWithoutLease: (rows ?? []).length - ready.length };
+  return { invoices: invoices.map((i) => i.invoiceId), modes: invoices, skipped: (rows ?? []).length - ready.length };
+}
+
+/** One meter's usage over [start, end) dates — the same path billing uses (replacement chain, SAST days). */
+export async function meterUsage(client: SupabaseClient, meterId: string, start: string, end: string) {
+  const { data: meter } = await client.from('utility_meters').select(SMART_METER_COLUMNS).eq('id', meterId).maybeSingle();
+  if (!meter) return null;
+  const m = meter as SmartMeterRow;
+  const { data: siblings } = await client.from('utility_meters').select(SMART_METER_COLUMNS).eq('property_id', m.property_id);
+  const all = (siblings ?? []) as SmartMeterRow[];
+  const s = dateToSast(start);
+  const e = dateToSast(end);
+  const chain = replacementChain(m, all);
+  const points = await loadPoints(client, chain.map((x) => x.id), new Date(s.getTime() - 3 * DAY_MS), new Date(e.getTime() + 3 * DAY_MS));
+  const ctx = { meters: all, points } as unknown as Ctx;
+  return {
+    meter: m,
+    ...chainConsumption(ctx, m, start, end),
+    daily: dailyFor(ctx, m, start, end),
+    hourly: hourlyFor(ctx, m, start, end),
+  };
 }
