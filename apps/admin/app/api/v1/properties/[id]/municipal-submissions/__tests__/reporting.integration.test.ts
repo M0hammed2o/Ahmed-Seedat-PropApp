@@ -29,6 +29,7 @@ const { POST: addRecipient } = await import('../recipients/route');
 const { POST: preview, GET: previewPdf } = await import('../preview/route');
 const { POST: testSend } = await import('../test-send/route');
 const { POST: approveTemplate } = await import('../approve-template/route');
+const { POST: submissionAction } = await import('../../../../municipal-submissions/[id]/route');
 const { generateSubmission, sendDueDeliveries } = await import('@/lib/smartUtility/submissions');
 const { lastCompleteBillingPeriod } = await import('@/lib/smartUtility/consumption');
 
@@ -221,5 +222,17 @@ describeIfSupabase('Municipal reporting (real local Supabase integration)', () =
     expect(msgs!.every((m) => m.subject === rendered.subject)).toBe(true);
     const { data: done } = await service.from('municipal_submissions').select('status, acceptance_status').eq('id', res.submissionId).single();
     expect(done).toMatchObject({ status: 'sent', acceptance_status: 'unknown' });
+  });
+
+  it('a scheduled pack that has not been sent can still be cancelled', async () => {
+    const { data: sub } = await service
+      .from('municipal_submissions')
+      .insert({ org_id: orgId, property_id: propertyId, period_start: '2025-01-25', period_end: '2025-02-25', status: 'scheduled', mode: 'automatic', report: {}, scheduled_for: new Date(Date.now() + 86_400_000).toISOString() })
+      .select('id')
+      .single();
+    const res = await submissionAction(req('POST', { action: 'cancel' }), p(sub!.id));
+    expect(res.status).toBe(200);
+    const { data } = await service.from('municipal_submissions').select('status').eq('id', sub!.id).single();
+    expect(data!.status).toBe('cancelled');
   });
 });

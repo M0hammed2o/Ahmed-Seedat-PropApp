@@ -176,7 +176,16 @@ export function validateBaseUrl(raw: unknown, allowInsecureLocal = false): URL {
   const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
   if (v4) {
     const [a, b] = [Number(v4[1]), Number(v4[2])];
-    if (a === 10 || a === 127 || a === 0 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || a >= 224) {
+    if (
+      a === 10 || a === 127 || a === 0 ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      (a === 100 && b >= 64 && b <= 127) || // carrier-grade NAT
+      (a === 198 && (b === 18 || b === 19)) || // benchmarking
+      (a === 192 && b === 0) ||
+      a >= 224
+    ) {
       throw new AdapterError('Private or reserved IP addresses are not allowed.');
     }
   }
@@ -193,6 +202,7 @@ async function tbAuthHeader(ctx: PollContext, base: URL): Promise<string> {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: ctx.credentials.username, password: ctx.credentials.password }),
+      redirect: 'error', // never follow a redirect to an unvalidated host
       signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) throw new AdapterError(`ThingsBoard login failed (HTTP ${res.status})`);
@@ -213,6 +223,7 @@ export const thingsboardVerify = async (ctx: PollContext) => {
     const auth = await tbAuthHeader(ctx, base);
     const res = await ctx.fetchImpl(new URL('/api/auth/user', base), {
       headers: { 'X-Authorization': auth },
+      redirect: 'error', // never follow a redirect to an unvalidated host
       signal: AbortSignal.timeout(10_000),
     });
     if (res.status === 401 || res.status === 403) return { ok: false, message: 'ThingsBoard rejected the credentials.' };
@@ -246,7 +257,8 @@ export const thingsboardPoll = async (ctx: PollContext, devices: PollDevice[], s
     url.searchParams.set('endTs', String(until.getTime()));
     url.searchParams.set('limit', '1000');
     url.searchParams.set('orderBy', 'ASC');
-    const res = await ctx.fetchImpl(url, { headers: { 'X-Authorization': auth }, signal: AbortSignal.timeout(15_000) });
+    const res = await ctx.fetchImpl(url, { headers: { 'X-Authorization': auth }, redirect: 'error', // never follow a redirect to an unvalidated host
+      signal: AbortSignal.timeout(15_000) });
     if (!res.ok) throw new AdapterError(`ThingsBoard telemetry request failed for ${deviceId} (HTTP ${res.status})`);
     const body = (await res.json()) as Record<string, { ts: number; value: string | number }[]>;
     for (const key of keys) {

@@ -40,10 +40,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       case 'approve': {
         const { deliveries } = await approveSubmission(service, { submissionId: id, actorUserId: auth.user.id });
         const sent = await sendDueDeliveries(service, { submissionId: id });
-        return NextResponse.json({ status: 'approved', deliveries, send: sent });
+        return NextResponse.json({ status: 'scheduled', deliveries, send: sent });
       }
       case 'send': {
-        if (!['approved', 'sending', 'partially_failed', 'failed'].includes(sub.status)) {
+        if (!['approved', 'scheduled', 'sending', 'partially_failed', 'failed'].includes(sub.status)) {
           return jsonError(409, 'not_approved', 'Approve the reading pack before sending it.');
         }
         // A manual resend makes failed deliveries due immediately (attempt limit still applies).
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         return NextResponse.json({ send: sent });
       }
       case 'cancel': {
-        if (!['draft', 'pending_approval', 'approved'].includes(sub.status)) {
+        if (!['draft', 'pending_approval', 'approved', 'scheduled'].includes(sub.status)) {
           return jsonError(409, 'cannot_cancel', 'Only an unsent reading pack can be cancelled.');
         }
         await service.from('municipal_submissions').update({ status: 'cancelled' }).eq('id', id);

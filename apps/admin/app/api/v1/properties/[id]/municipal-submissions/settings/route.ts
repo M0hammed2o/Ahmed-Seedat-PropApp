@@ -70,7 +70,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   const contentChanged =
     after.currentHash !== before.currentHash ||
     (before.settings?.municipal_account_number ?? null) !== (row.municipal_account_number ?? null) ||
-    (before.settings?.municipality_code ?? null) !== (row.municipality_code ?? null);
+    (before.settings?.municipality_code ?? null) !== (row.municipality_code ?? null) ||
+    // Photos are attachments of the sent email, so switching them on/off is a content change too.
+    (before.settings ? before.settings.include_photos !== row.include_photos : false);
   let approvalWithdrawn = false;
   if (contentChanged) {
     approvalWithdrawn = await invalidateTemplateApproval(service, {

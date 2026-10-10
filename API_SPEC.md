@@ -250,6 +250,150 @@ POST   /api/v1/system/daily-jobs    (existing) — now runs the same job as step
          independent of steps 1–6 and its failure marks the overall run unsuccessful.
 ```
 
+#### 6b.1 2026-10-10 additions (migrations 20260101000176 / 177)
+
+Same plumbing as above unless stated (`401 unauthenticated`, `400 invalid_json`, `400 validation_failed`, `404` when not readable under RLS, `403 forbidden` when the write gate fails). Errors are `{ error: { code, message, ...extra } }` (`jsonError` in `lib/smartUtility/http.ts`). Rate-limited routes return `429` from `rateLimitOrRespond`. **Superseded lines above:** the `meter-integrations` action list, the ingest `200` body (now also has `ignored`), and the recipient responses (now also carry `approvalWithdrawn`) are restated here.
+
+**Meter hardware (provider engine)**
+
+```
+POST   /api/v1/properties/:id/meter-integrations              body: meterIntegrationCreateSchema
+         { provider milesight_lorawan|shelly_gen2|generic_json|simulator|chirpstack_v4|tts_v3|thingsboard,
+           name 1–100, config? { <key>: string ≤500 } (default {}), credentials? { <key>: string ≤2000 } (≤10 keys),
+           syncIntervalMinutes? 15|60|1440 }
+         Gate unchanged: manager+ (requireOrgRole 'manager') AND can_write_property_utilities.
+         Poll providers (thingsboard): config.baseUrl must pass validateBaseUrl (SECURITY.md) → else 400 invalid_config;
+         credential keys must be the provider's credentialFields and at least one non-empty → else 400 invalid_credentials;
+         503 credentials_key_missing when SMART_UTILITY_CREDENTIALS_KEY is not configured (fail closed).
+         Credentials are encrypted with the new row id as AAD; sync_interval_minutes defaults to 60; next_sync_at = now.
+         201 { integration { id, provider, name, token_prefix, status, sync_mode, created_at }, token, ingestUrl }
+             — token/ingestUrl are null for poll providers (Proplyst calls them; no inbound token is shown).
+POST   /api/v1/meter-integrations/:id                         body: meterIntegrationActionSchema (discriminated on action)
+         Gate for EVERY action: manager+ AND can_write_property_utilities → else 403; 409 integration_revoked if revoked.
+         rotate              → unchanged (200 { token, previousTokenValidUntil })
+         revoke              → 200 { status: 'revoked' }; now also sets credentials_ciphertext = null (stored vendor credentials destroyed)
+         verify              → 200 { ok, message }. Push (or no verifyConnection): reports the last meter_ingest_events row.
+                                Poll: 409 no_credentials | 503 credentials_key_missing | provider verifyConnection result.
+         sync_now            → poll only, else 409 not_polled. 200 { integrationId, ok, message, result? } when ok, 502 same body when not.
+         update_credentials  → { credentials }. Poll only, else 409 not_polled; 400 invalid_credentials (unexpected key);
+                                503 credentials_key_missing. Re-encrypts, resets consecutive_failures, clears last_sync_error,
+                                next_sync_at = now. 200 { updated: true }   (audit meter_integration.credentials_updated — field names only)
+GET    /api/v1/organizations/:orgId/meter-integration-requests
+         200 { requests[] } (≤50, newest first; RLS: org viewer+, so a non-member gets an empty list)
+POST   /api/v1/organizations/:orgId/meter-integration-requests   body: meterIntegrationRequestSchema
+         { propertyId? uuid, utilityType water|electricity, manufacturer 1–100, model 1–100, connectionMethod? ≤100,
+           supplier? ≤200, notes? ≤1000 }
+         403 forbidden (not an org member) | 429 (10 per hour per user) | 403 forbidden when RLS refuses the insert
+         (e.g. a property the caller cannot read). Inserted with the session client, requested_by = caller.
+         Notifies org staff at manager+ (meter_integration_requested), excluding the requester. 201 { requestId }
+```
+
+**Device ingest (changed)**
+
+```
+POST   /api/v1/integrations/meters/ingest
+         URL query parameters are now passed to the provider adapter. ChirpStack v4 sends the event type as ?event=…;
+         only `up` carries readings — any other event is acknowledged with zero readings (200). The Things Stack
+         non-uplink messages are likewise acknowledged and ignored.
+         200 { accepted, duplicates, suspect, ignored, rejected[] } — `ignored` counts readings from a BOUND device
+         on a channel no meter uses (e.g. a codec's battery field); an unbound device is still `unknown_device`.
+         A poll provider's integration cannot push: parsePush throws → payload_invalid → 422.
+```
+
+**Meters and readings**
+
+```
+POST   /api/v1/properties/:id/smart-meters  and  POST /api/v1/smart-meters/:id/replace
+         smartMeterCreateSchema now also accepts location (≤200); installedDate YYYY-MM-DD (both mapped by meterInsertRow).
+PATCH  /api/v1/smart-meters/:id
+         smartMeterUpdateSchema now also accepts location (≤200) and installedDate (YYYY-MM-DD, nullable); '' clears a field.
+GET    /api/v1/smart-meters/:id/telemetry
+         Each reading now also carries verificationStatus, verifiedAt, verificationNote, recordedBy.
+POST   /api/v1/smart-meters/:id/telemetry
+         Manual readings are stored with verification_status = 'unverified'.
+POST   /api/v1/meter-readings/:id                             body: meterReadingReviewSchema { decision verified|rejected, note? ≤500 }
+         404 not readable | 403 unless can_write_property_utilities | 409 not_reviewable for device readings
+         (verification_status 'not_required'). Sets verified_by/at/note; rejected → status 'rejected' (excluded from
+         consumption), verified → status 'valid'. 200 { verificationStatus, verifiedAt }   (audit meter_reading.verified|rejected)
+GET    /api/v1/meter-readings/:id/evidence
+         One-page PDF (photo beside the reading, meter identity/location, date, who recorded it, source, verification).
+         404 unless can_read_property_utilities. Photo only if the document is JPEG/PNG, same org, not deleted; read via
+         downloadProtectedObject keyed to the reading's org. Content-Disposition inline; filename
+         meter-evidence-<YYYY-MM-DD>.pdf; Cache-Control: private, no-store. 500 evidence_report_failed.
+```
+
+**Municipal reporting**
+
+```
+PUT    /api/v1/properties/:id/municipal-submissions/settings  body: municipalSubmissionSettingsSchema
+         New optional fields: ccEmails (≤5 emails, lower-cased, de-duplicated), accountHolderName ≤200, customMessage ≤2000,
+         subjectTemplate ≤300, bodyTemplate ≤5000, includeFields { propertyAddress, accountNumber, accountHolder,
+         serialNumber, previousReading, consumption, readingDate, photos } (all booleans), scheduleEnabled.
+         400 unknown_placeholders (subject/body placeholder outside the allowed list).
+         Upserted with the session client. If the template hash, municipal account number or municipality changed,
+         approval is withdrawn (and schedule_enabled set false).
+         scheduleEnabled: true → 409 template_not_approved or 409 no_authorised_recipients, each with saved: true in the
+         error body (the settings were saved; scheduling was not switched on).
+         200 { saved: true, approvalWithdrawn }
+POST   /api/v1/properties/:id/municipal-submissions/preview   body (optional): municipalPreviewSchema
+         { subjectTemplate?, bodyTemplate?, customMessage?, accountHolderName?, includeFields? } — unsaved edits, render only.
+         Gate: can_read_property_utilities (else 404). Previews the billing period containing the next scheduled send date.
+         200 { periodStart, periodEnd, to[], cc[], subject, bodyText, bodyHtml, attachments[], photos[{filename,
+               contentType, dataUrl}], templateHash, isDraft, approved, scheduleEnabled, scheduledFor, warnings, meters }
+         (a draft preview is never `approved`) | 400 invalid_json | 400 validation_failed | 500 preview_failed
+GET    /api/v1/properties/:id/municipal-submissions/preview?format=pdf
+         The PDF that would be attached (saved template). 400 invalid_format without format=pdf.
+         Content-Disposition inline; Cache-Control: private, no-store. 500 preview_pdf_failed.
+POST   /api/v1/properties/:id/municipal-submissions/test-send  (no body)
+         Gate: can_write_property_utilities. Sends the saved pack ONLY to the signed-in user's own account email,
+         subject prefixed "[TEST] ", no CC, body prefixed with who the real email would go to; PDF + CSV + photos attached.
+         409 no_email (account has no email) | 429 (5 per hour per user). 200 { sentTo, deliveryConfigured, message }
+         (audit municipal_template.test_sent with templateHash). Creates no deliveries (integration-tested).
+POST   /api/v1/properties/:id/municipal-submissions/approve-template   body: { templateHash: 64 hex }
+         Gate: can_write_property_utilities. The hash must equal the server's hash of the SAVED template now
+         → else 409 preview_outdated; 409 no_authorised_recipients; 500 approve_failed when no settings row exists.
+         Sets template_hash / template_approved_at / template_approved_by.
+         200 { approved: true, templateHash, approvedAt }   (audit municipal_template.approved with to, cc, subject,
+         bodyText and attachment filenames)
+DELETE /api/v1/properties/:id/municipal-submissions/approve-template
+         Withdraws approval and sets schedule_enabled = false. 200 { approved: false }   (audit municipal_template.approval_withdrawn)
+POST   /api/v1/properties/:id/municipal-submissions/recipients   — now 201 { recipientId, approvalWithdrawn };
+         adding a recipient with authorise: true withdraws the template approval.
+PATCH  /api/v1/municipal-submission-recipients/:id              — now 200 { updated: true, approvalWithdrawn };
+         any request that includes `active` or `authorise` withdraws the template approval.
+```
+
+Scheduled packs: when the job generates a pack and the effective mode is `automatic` (requires `SMART_UTILITY_AUTO_SUBMISSION_ENABLED='true'`), `schedule_enabled` is on, the approval hash is current and an authorised recipient exists, the pack is created as `scheduled` with deliveries; otherwise `pending_approval` (or `draft` in manual mode). Delivery sends the stored `rendered_email` subject/body, never a re-render. `POST /api/v1/municipal-submissions/:id` `approve` responds `{ status: 'scheduled' }`; `send` accepts approved|scheduled|sending|partially_failed|failed and `cancel` accepts draft|pending_approval|approved|scheduled (fixed 2026-10-10 after doc review; a scheduled pack can be cancelled — integration-tested).
+
+**Billing (tariffs and utility charges)**
+
+```
+GET    /api/v1/properties/:id/utility-tariffs
+         200 { tariffs[] } newest effective_from first (RLS-scoped session read; no explicit 404 for an unreadable property).
+POST   /api/v1/properties/:id/utility-tariffs                 body: utilityTariffCreateSchema
+         { utilityType water|electricity, name 1–100, fixedCharge 0–1,000,000 (default 0), blocks [{ upTo >0|null,
+           rate 0–100,000 }] 1–10, vatInclusive (default true), effectiveFrom YYYY-MM-DD, notes? ≤500 }
+         Gate: can_write_property_utilities. 400 invalid_blocks (validateBlocks: ascending upTo, last block open-ended).
+         The previous open-ended tariff for the same utility (effective_from earlier) is closed the day before.
+         201 { tariffId }   (audited by the table's log_audit_event_trigger)
+GET    /api/v1/properties/:id/utility-charges
+         200 { charges[] } (≤300, all statuses, newest period first, with units(unit_label)).
+POST   /api/v1/properties/:id/utility-charges                 Gate: can_write_property_utilities.
+         Generate: { periodStart, periodEnd } (YYYY-MM-DD) → DRAFT charges for every active unit submeter, idempotent
+           per meter + period. 201 when any were created, else 200: { created, existing, skipped[{ meterId, label, reason }] }
+           (skipped when no tariff is effective on periodStart).
+         Action: { action approve|void|invoice, chargeIds uuid[1–200], dueInDays? 0–90 }
+           approve → 200 { approved, ignored } (only drafts with a calculated consumption)   (audit utility_charges.approved)
+           void    → 200 { voided } (draft or approved only)                                 (audit utility_charges.voided)
+           invoice → 200 { invoices[], skippedWithoutLease } — one DRAFT invoice per lease/tenant via
+                     create_manual_invoice() on the caller's SESSION client (due in dueInDays, default 14; reference
+                     UTIL-<period_start>); charges marked invoiced only after the invoice exists; never issued.
+                     (audit utility_charges.invoiced)
+         409 billing_rejected (BillingError, e.g. nothing eligible) | 400 validation_failed | 500 charges_action_failed
+```
+
+**System job (changed):** `runSmartUtilityJob()` steps are now poll sync (`runPollSync`, due `poll` integrations, ≤100 per run) → health sweep → daily anomalies → monthly reconciliation → monthly snapshots (`meter_period_snapshots`, on each property's billing day) → approval reminders (packs `pending_approval` ≥20 h, at most once per ~20 h) → due submissions → deliveries/retries → email status sync. Each step is caught independently; any step error makes `jobFailed()` true.
+
 ## 7. Documents & OCR
 
 ```

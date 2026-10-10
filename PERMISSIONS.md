@@ -46,6 +46,15 @@ Exactly one `principal` per org minimum (the account creator; org creation is at
 - **Gap closed by this migration:** `utility_meters`/`utility_readings` were previously org-role-only (`viewer` read / `accountant` write), letting a `selected`-mode member read every property's meters in the org and giving portal owners none. `'all'`-mode members are unaffected (migration 084 auto-grants them `administrator` property access). `record_utility_reading()` now checks `can_write_property_utilities` too.
 - Tenants have no policy on any of these tables.
 
+**Smart Utilities additions** (2026-10-10, migrations `20260101000176`/`177`, routes in `API_SPEC.md` §6b.1):
+
+- **Hardware, including credentials** — every `POST /meter-integrations/:id` action (`rotate`, `revoke`, `verify`, `sync_now`, `update_credentials`) and creating a polled (credential-holding) integration require org role **`manager`+** **and** `can_write_property_utilities`. Nobody can read stored credentials through the API (column grant, `SECURITY.md`).
+- **Integration requests** (`meter_integration_requests`) — any org member (`has_org_role(org, 'viewer')`) can read the org's requests and file one, **only in their own name** (`requested_by = auth.uid()`, pgTAP-asserted) and, if a property is named, only for a property whose utilities they can read. No one can update or delete a request through the API. The route also checks viewer+ and rate-limits to 10 per hour per user; manager+ staff are notified.
+- **Tariffs and utility charges** — read via `can_read_property_utilities`. Tariff writes go through the `utility_tariffs_write` RLS policy (`can_write_property_utilities`); a viewer cannot add a tariff (pgTAP + integration test). `utility_charges` has **no client write policy** (a direct insert raises `42501`, pgTAP); generate/approve/void/invoice run in `POST /properties/:id/utility-charges` only after `can_write_property_utilities`, and the invoice step calls `create_manual_invoice()` with the caller's session so that function's own checks apply to the real user. Monthly snapshots (`meter_period_snapshots`) are read-only to clients.
+- **Reading review** — verifying/rejecting a person-entered reading (`POST /meter-readings/:id`) requires `can_write_property_utilities` (a viewer is refused, integration-tested). Device readings are not reviewable.
+- **Evidence PDF and municipal preview** — `GET /meter-readings/:id/evidence` and the municipal preview (JSON and PDF) require only `can_read_property_utilities`, so viewers and portal owners with access can open them (evidence PDF for a viewer is integration-tested).
+- **Municipal template settings, approval and test send** — saving settings, approving/withdrawing the template, adding/changing recipients and sending a test all require `can_write_property_utilities`. A test send goes only to the caller's own account email.
+
 ## 3. Owner permissions (not org staff)
 
 An `owners` record with `user_id` set can log in (web or native) and see, for properties they're linked to via `property_owners`:

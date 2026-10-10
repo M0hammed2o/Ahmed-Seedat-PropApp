@@ -67,6 +67,16 @@ vi.mock('@/lib/systemJobs', () => ({
   }),
 }));
 
+// Smart Utility job (job 7, 2026-10-08/10): mocked like every other job so this test checks only
+// orchestration -- previously it ran for real against the database.
+vi.mock('@/lib/smartUtility/jobs', () => ({
+  runSmartUtilityJob: vi.fn(async () => {
+    callOrder.push('smartUtility');
+    return { pollSync: { attempted: 0, succeeded: 0, failed: 0 } };
+  }),
+  jobFailed: vi.fn(() => false),
+}));
+
 vi.mock('@/lib/audit', () => ({
   writeAuditEvent: vi.fn(async () => {}),
 }));
@@ -103,6 +113,7 @@ describe('POST /api/v1/system/daily-jobs (orchestration, mocked systemJobs)', ()
       'paymentAndLeaseReminders',
       'ownerMonthlySummary',
       'portfolioIntelligence',
+      'smartUtility',
     ]);
   });
 
@@ -150,6 +161,7 @@ describe('POST /api/v1/system/daily-jobs (orchestration, mocked systemJobs)', ()
       'paymentAndLeaseReminders',
       'ownerMonthlySummary',
       'portfolioIntelligence',
+      'smartUtility',
     ]);
   });
 

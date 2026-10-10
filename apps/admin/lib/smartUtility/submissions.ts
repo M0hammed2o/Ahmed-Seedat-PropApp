@@ -630,12 +630,14 @@ export async function syncDeliveryStatuses(serviceClient: SupabaseClient, now: D
     .limit(500);
   let changed = 0;
   const touched = new Set<string>();
+  // One query for all messages (was one per delivery).
+  const ids = (rows ?? []).map((r) => r.email_message_id as string);
+  const { data: messages } = ids.length
+    ? await serviceClient.from('email_messages').select('id, status, failure_reason').in('id', ids).in('status', ['delivered', 'bounced'])
+    : { data: [] as { id: string; status: string; failure_reason: string | null }[] };
+  const byId = new Map((messages ?? []).map((m) => [m.id, m]));
   for (const r of rows ?? []) {
-    const { data: msg } = await serviceClient
-      .from('email_messages')
-      .select('status, failure_reason')
-      .eq('id', r.email_message_id)
-      .maybeSingle();
+    const msg = byId.get(r.email_message_id as string);
     const next = msg?.status === 'delivered' ? 'delivered' : msg?.status === 'bounced' ? 'bounced' : null;
     if (next) {
       await serviceClient

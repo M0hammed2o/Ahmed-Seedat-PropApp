@@ -11,7 +11,9 @@
 --   6. Billing: tariffs (fixed + block rates) and utility charges (draft → approved → invoiced).
 --
 -- Rollback (local/test only): drop tables utility_charges, utility_tariffs, meter_period_snapshots,
--- meter_integration_requests; drop the columns added below; restore the three check constraints.
+-- meter_integration_requests; drop the columns added below; restore the two changed check constraints
+-- (meter_integrations_provider_check, municipal_submissions_status_check) and drop
+-- municipal_schedule_requires_approval.
 
 -- ============================================================
 -- 1. Provider engine
@@ -121,7 +123,7 @@ alter table public.municipal_submissions add constraint municipal_submissions_st
 
 alter table public.municipal_submissions
   add column scheduled_for timestamptz,
-  -- {subject, text, html, to[], cc[], attachments:[{filename, contentType, sha256, bytes}], templateHash}
+  -- {subject, bodyText, bodyHtml, to[], cc[], attachments:[{filename, contentType}], templateHash, includeFields}
   add column rendered_email jsonb,
   add column template_hash text check (template_hash is null or char_length(template_hash) = 64),
   add column reminder_sent_at timestamptz;

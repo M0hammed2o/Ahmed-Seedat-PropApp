@@ -518,6 +518,16 @@ notifications, deep links, biometric auth, tablet behaviour) — specification o
 - [ ] **Blocked on the physical world**: first test property survey + install (`docs/SMART_UTILITY_ARCHITECTURE.md`
   §13), pulse-head compatibility confirmation, 2–4 weeks burn-in data.
 
+## M22c — Smart Utilities initial release (2026-10-10)
+
+- [x] Universal integration engine (push + poll), encrypted credentials, ChirpStack v4 / The Things Stack / ThingsBoard adapters, poll sync with back-off and alerting (migration 176).
+- [x] Customer meter catalogue with honest statuses and dated SA prices; Add Smart Meter wizard; integration requests; meter location (177).
+- [x] Dashboard: daily/weekly/monthly, unit comparison, missing readings, alert thresholds; monthly snapshots; approval reminders.
+- [x] Municipal: template editor, CC, account holder, custom message, field toggles, preview, test send to self, hash-bound approval, scheduling.
+- [x] Meter evidence: review (verify/reject), evidence PDF, example reports.
+- [x] Billing: tariffs, draft → approved charges, draft invoices via `create_manual_invoice()`.
+- [ ] Blocked externally: hardware, production deployment, credentials key per environment, enabling automatic sends (`docs/SMART_UTILITIES_BLOCKERS.md`). Follow-ups TD-53/54/56/57/58/59/60.
+
 ## M23 — Automated testing
 
 - [ ] Full `TESTING.md` suite: unit, RLS/policy (highest priority), accounting invariants, integration, API contract, native (iOS/Android), E2E against seeded multi-org staging.

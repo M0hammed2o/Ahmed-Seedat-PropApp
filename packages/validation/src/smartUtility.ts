@@ -223,8 +223,6 @@ export const utilityTariffCreateSchema = z.object({
   notes: optionalText(500),
 });
 
-export const utilityTariffEndSchema = z.object({ effectiveTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) });
-
 export const utilityChargesGenerateSchema = z.object({
   periodStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   periodEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),

@@ -75,7 +75,7 @@ describe('The Things Stack v3 adapter', () => {
 describe('base URL SSRF guard', () => {
   it('accepts public https URLs and rejects http, private IPs, localhost, credentials and IPv6 literals', () => {
     expect(validateBaseUrl('https://tb.example.com').hostname).toBe('tb.example.com');
-    for (const bad of ['http://tb.example.com', 'https://10.0.0.5', 'https://192.168.1.1', 'https://172.16.0.1', 'https://169.254.169.254', 'https://localhost', 'https://user:pw@tb.example.com', 'https://[::1]', 'not a url']) {
+    for (const bad of ['http://tb.example.com', 'https://10.0.0.5', 'https://192.168.1.1', 'https://172.16.0.1', 'https://169.254.169.254', 'https://100.64.0.1', 'https://198.18.0.1', 'https://localhost', 'https://user:pw@tb.example.com', 'https://[::1]', 'not a url']) {
       expect(() => validateBaseUrl(bad)).toThrow(AdapterError);
     }
     expect(validateBaseUrl('http://localhost:8080', true).port).toBe('8080');
@@ -90,7 +90,9 @@ describe('ThingsBoard poll adapter (mocked HTTP)', () => {
 
   it('reads time-series values with an API key header and converts string values', async () => {
     const seen: { url: URL; auth: string | null }[] = [];
+    const redirects: (RequestRedirect | undefined)[] = [];
     const fetchImpl = mockFetch((url, init) => {
+      redirects.push(init?.redirect);
       seen.push({ url, auth: new Headers(init?.headers).get('X-Authorization') });
       return Response.json({ energy: [{ ts: 1791000000000, value: '1234.5' }, { ts: 1791000900000, value: '1235.0' }], other: [] });
     });
@@ -103,6 +105,7 @@ describe('ThingsBoard poll adapter (mocked HTTP)', () => {
     expect(out.map((r) => r.rawValue)).toEqual([1234.5, 1235]);
     expect(out[0]!.eventId).toBe(`tb:${DEVICE}:energy:1791000000000`);
     expect(seen[0]!.auth).toBe('ApiKey k1');
+    expect(redirects.every((r) => r === 'error')).toBe(true); // never follows a redirect to an unvalidated host
     expect(seen[0]!.url.pathname).toBe(`/api/plugins/telemetry/DEVICE/${DEVICE}/values/timeseries`);
     expect(seen[0]!.url.searchParams.get('keys')).toBe('energy');
     expect(seen[0]!.url.searchParams.get('orderBy')).toBe('ASC');
