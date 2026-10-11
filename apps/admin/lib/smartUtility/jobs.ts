@@ -33,6 +33,7 @@ export interface SmartUtilityJobResult {
   submissions: { generated: number } | { error: string };
   deliveries: { attempted: number; sent: number; failed: number; exhausted: number } | { error: string };
   statusSync: { changed: number } | { error: string };
+  retention: { enabled: boolean; deleted: number } | { error: string };
 }
 
 async function step<T>(fn: () => Promise<T>): Promise<T | { error: string }> {
@@ -457,7 +458,24 @@ export async function runSmartUtilityJob(
     submissions: await step(() => runDueSubmissions(serviceClient, now)),
     deliveries: await step(() => sendDueDeliveries(serviceClient, { now })),
     statusSync: await step(async () => ({ changed: await syncDeliveryStatuses(serviceClient, now) })),
+    retention: await step(() => runTelemetryRetention(serviceClient, now)),
   };
+}
+
+/**
+ * Telemetry retention (TD-53, migration 181). OFF unless SMART_UTILITY_TELEMETRY_RETENTION_DAYS is set; the value is
+ * clamped to at least 400 days (the database refuses younger cutoffs too). Bounded per run; repeats daily.
+ */
+export async function runTelemetryRetention(serviceClient: SupabaseClient, now: Date) {
+  const raw = process.env.SMART_UTILITY_TELEMETRY_RETENTION_DAYS?.trim();
+  const days = raw ? Number(raw) : NaN;
+  if (!Number.isFinite(days) || days <= 0) return { enabled: false, deleted: 0 };
+  const keep = Math.max(400, Math.floor(days));
+  // One hour of margin: the database checks against ITS clock, which may lag this server's by a little.
+  const cutoff = new Date(now.getTime() - keep * 86_400_000 - 3_600_000);
+  const { data, error } = await serviceClient.rpc('downsample_meter_telemetry', { p_cutoff: cutoff.toISOString(), p_limit: 50_000 });
+  if (error) throw new Error(`telemetry retention failed: ${error.message}`);
+  return { enabled: true, deleted: Number(data ?? 0) };
 }
 
 export function jobFailed(result: SmartUtilityJobResult): boolean {

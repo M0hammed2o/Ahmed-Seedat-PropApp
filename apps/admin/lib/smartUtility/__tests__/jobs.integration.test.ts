@@ -78,7 +78,7 @@ describeIfSupabase('Smart Utility jobs (real local Supabase integration)', () =>
   it('runs every step of the daily job and reports each independently', async () => {
     const result = await runSmartUtilityJob(service);
     expect(Object.keys(result).sort()).toEqual(
-      ['anomalies', 'deliveries', 'health', 'hybridAlerts', 'pollSync', 'reconciliation', 'reminders', 'snapshots', 'statusSync', 'submissions'].sort(),
+      ['anomalies', 'deliveries', 'health', 'hybridAlerts', 'pollSync', 'reconciliation', 'reminders', 'retention', 'snapshots', 'statusSync', 'submissions'].sort(),
     );
     expect(jobFailed(result)).toBe(false);
   }, 120_000);

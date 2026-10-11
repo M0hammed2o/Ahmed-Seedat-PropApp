@@ -278,6 +278,11 @@ export async function storeReadings(
     let prevRaw: number | null = prevRow ? Number(prevRow.raw_value) : null;
     let latestAccepted: { at: Date; value: number } | null = null;
 
+    // Classify in order (rollover vs reset), then insert the whole meter batch in one call (TD-53). Rows already
+    // stored (same meter+time, or same integration event) are skipped by the database, never double-counted.
+    const source = opts.source ?? (integration.provider === 'simulator' ? 'simulator' : 'device');
+    const rows: Record<string, unknown>[] = [];
+    const prevFor = new Map<string, number | null>();
     for (const r of items) {
       let status: 'valid' | 'suspect' = 'valid';
       let statusReason: string | null = null;
@@ -290,8 +295,8 @@ export async function storeReadings(
           statusReason = 'register_rollover';
         }
       }
-
-      const { error } = await serviceClient.from('meter_telemetry_readings').insert({
+      prevFor.set(r.readAt.toISOString(), prevRaw);
+      rows.push({
         org_id: meter.org_id,
         property_id: meter.property_id,
         meter_id: meter.id,
@@ -299,30 +304,33 @@ export async function storeReadings(
         raw_value: r.rawValue,
         multiplier,
         value: toValue(r.rawValue),
-        source: opts.source ?? (integration.provider === 'simulator' ? 'simulator' : 'device'),
+        source,
         integration_id: integration.id,
         external_event_id: r.eventId,
         status,
         status_reason: statusReason,
       });
-      if (error) {
-        if (error.code === '23505') {
-          result.duplicates += 1;
-          continue;
-        }
-        throw new Error(`telemetry insert failed: ${error.message}`);
-      }
-
-      if (status === 'suspect') {
-        result.suspect += 1;
-        await raiseResetAlert(serviceClient, meter, r, prevRaw);
-        // A reset re-baselines the series: later readings compare against the new value.
-      } else {
-        result.accepted += 1;
-      }
+      // A reset re-baselines the series: later readings compare against the new value.
       prevRaw = r.rawValue;
-      if (!latestAccepted || r.readAt > latestAccepted.at) {
-        latestAccepted = { at: r.readAt, value: toValue(r.rawValue) };
+    }
+    const byTime = new Map(items.map((r) => [r.readAt.toISOString(), r]));
+    for (let i = 0; i < rows.length; i += 500) {
+      const chunk = rows.slice(i, i + 500);
+      const { data: inserted, error } = await serviceClient.rpc('ingest_telemetry_batch', { p_rows: chunk });
+      if (error) throw new Error(`telemetry insert failed: ${error.message}`);
+      const got = (inserted ?? []) as { read_at: string; status: string }[];
+      result.duplicates += chunk.length - got.length;
+      for (const row of got) {
+        const at = new Date(row.read_at);
+        const r = byTime.get(at.toISOString());
+        if (!r) continue;
+        if (row.status === 'suspect') {
+          result.suspect += 1;
+          await raiseResetAlert(serviceClient, meter, r, prevFor.get(at.toISOString()) ?? null);
+        } else {
+          result.accepted += 1;
+        }
+        if (!latestAccepted || at > latestAccepted.at) latestAccepted = { at, value: toValue(r.rawValue) };
       }
     }
 
