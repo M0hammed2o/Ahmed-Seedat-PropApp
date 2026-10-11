@@ -200,9 +200,16 @@ interface Ctx {
   unitLabels: Map<string, string>;
   unitSize: Map<string, number | null>;
   points: Map<string, MeterReadingPoint[]>;
+  /** The organisation has a VAT number (TD-61: the ledger does not yet split utility VAT). */
+  vatRegistered?: boolean;
 }
 
 async function insertCharge(ctx: Ctx, row: Record<string, unknown>): Promise<'created' | 'existing'> {
+  // TD-61 safe default: until the VAT/GL treatment is decided, VAT-registered landlords see that the VAT inside this
+  // charge will post to rent income on the invoice and must be split out manually for the VAT return.
+  if (ctx.vatRegistered && Number(row.vat_amount ?? 0) !== 0) {
+    row = { ...row, review_flags: [...new Set([...((row.review_flags as string[] | undefined) ?? []), 'vat_ledger_split_pending'])] };
+  }
   const { data, error } = await ctx.service.from('utility_charges').insert(row).select('id, lease_id, total_amount, amount_excl_vat, vat_amount, calculation').single();
   if (error) {
     // 23505: same live charge key; 23P01: overlaps a live charge of the same unit/utility/type (migration 179) —
@@ -284,6 +291,7 @@ export async function generateCharges(
       .lt('effective_from', args.periodEnd),
   ]);
   const meters = (meterRows ?? []) as SmartMeterRow[];
+  const { data: org } = await serviceClient.from('organizations').select('vat_no').eq('id', property.org_id).single();
   const start = dateToSast(args.periodStart);
   const end = dateToSast(args.periodEnd);
   const points = await loadPoints(serviceClient, meters.map((m) => m.id), new Date(start.getTime() - 3 * DAY_MS), new Date(end.getTime() + 3 * DAY_MS));
@@ -300,6 +308,7 @@ export async function generateCharges(
     unitLabels: new Map((units ?? []).map((u) => [u.id, u.unit_label as string])),
     unitSize: new Map((units ?? []).map((u) => [u.id, u.size_sqm === null ? null : Number(u.size_sqm)])),
     points,
+    vatRegistered: Boolean(org?.vat_no?.trim()),
   };
   const result: GenerateChargesResult = { created: 0, existing: 0, skipped: [] };
   const active = (arrangements ?? []).filter((a) => !a.effective_to || a.effective_to >= args.periodStart);

@@ -104,6 +104,9 @@ const FLAG_LABEL: Record<string, string> = {
   tariff_marked_for_review: 'Tariff needs review',
   shared_meter_allocation_requires_lease_clause: 'Shared split must be in the lease',
   cost_recovery_requires_contract_and_regulatory_review: 'Cost-recovery rate: contract & regulatory review',
+  estimated_consumption_true_up_pending: 'Estimated: trued up when readings arrive',
+  true_up_of_estimate: 'True-up of an earlier estimate',
+  vat_ledger_split_pending: 'VAT posts to rent income: split it manually for your VAT return',
 };
 const STATUS_TONE = { draft: 'warn', approved: 'neutral', invoiced: 'good', void: 'neutral' } as const;
 const STATUS_LABEL = { draft: 'Draft estimate', approved: 'Approved', invoiced: 'On draft invoice', void: 'Void' } as const;

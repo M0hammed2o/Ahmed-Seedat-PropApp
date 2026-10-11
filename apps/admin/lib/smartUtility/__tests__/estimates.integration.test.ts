@@ -165,4 +165,21 @@ d('estimates and true-up (real local Supabase)', () => {
     const a = (await sep('Unit A'))!;
     expect((await service.from('utility_credits').select('id').eq('source_charge_id', a.id)).data).toHaveLength(1);
   }, 120_000);
+
+  it('TD-61: a VAT-registered landlord sees that utility VAT is not yet split in the ledger', async () => {
+    await service.from('organizations').update({ vat_no: '4000000000' }).eq('id', orgId); // fictional
+    const unitE = await ins('units', { org_id: orgId, property_id: p, unit_label: 'Unit E' });
+    const tenantId = await ins('tenants', { org_id: orgId, full_name: 'Tenant E', status: 'active' });
+    const leaseId = await ins('leases', { org_id: orgId, unit_id: unitE, start_date: '2026-01-01', end_date: null, rent_amount: 5000, status: 'active' });
+    await service.from('lease_tenants').insert({ lease_id: leaseId, tenant_id: tenantId, is_primary: true });
+    const meterE = await ins('utility_meters', { org_id: orgId, property_id: p, unit_id: unitE, utility_type: 'electricity', meter_role: 'submeter', responsibility_mode: 'owner_paid' });
+    await read(meterE, 2026, 10, 1, 0);
+    await read(meterE, 2026, 11, 1, 100);
+    await ins('utility_billing_arrangements', { org_id: orgId, property_id: p, unit_id: unitE, utility_type: 'electricity', arrangement: 'metered_recharge', effective_from: '2026-01-01', invoice_mode: 'separate_invoice' });
+    await billing.generateCharges(service, { propertyId: p, periodStart: '2026-10-01', periodEnd: '2026-11-01', actorUserId: userId });
+    const e = (await charges()).find((c) => c.units?.unit_label === 'Unit E' && c.segment_start === '2026-10-01')!;
+    expect(Number(e.total_amount)).toBe(360); // 100 × 3 + 60
+    expect(e.review_flags).toContain('vat_ledger_split_pending');
+    await service.from('organizations').update({ vat_no: null }).eq('id', orgId);
+  }, 120_000);
 });
