@@ -36,6 +36,20 @@ export async function activateTrialForTests(orgId: string): Promise<void> {
   }
 }
 
+/** Smart Utilities is OFF for every organisation by default (migration 182) and is switched on per organisation by
+ * the owner (a direct, audited database update -- there is deliberately no in-app toggle). The utilities specs do the
+ * same for their synthetic org, via the service-role key, exactly like activateTrialForTests above. */
+export async function enableSmartUtilitiesForTests(orgId: string): Promise<void> {
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceRoleKey) throw new Error('SUPABASE_SERVICE_ROLE_KEY is not set -- cannot enable Smart Utilities for E2E setup.');
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/organizations?id=eq.${orgId}`, {
+    method: 'PATCH',
+    headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ utilities_enabled: true }),
+  });
+  if (!response.ok) throw new Error(`Failed to enable Smart Utilities for E2E org ${orgId} (${response.status}): ${await response.text()}`);
+}
+
 /** Creates an organization through the real API, then gives that synthetic E2E organization the
  * same commercially-ready state that the real PayFast completion webhook records in production. */
 export async function createCommerciallyReadyOrganization(
@@ -149,3 +163,11 @@ export async function getUnitStatus(request: APIRequestContext, unitId: string):
   const body = await response.json();
   return body.unit.status as string;
 }
+
+/**
+ * Wait for a step whose server route may be compiled for the FIRST time in this run. `next dev` (Turbopack)
+ * compiles each page/API route on first request; on the reference dev machine a single cold compile was observed to
+ * exceed 15-30 s (failure snapshots show the dev overlay's "Compiling..." badge, the button still "Saving...").
+ * Used ONLY for such steps -- it changes how long we wait, never what is asserted. A production build needs none of it.
+ */
+export const COLD_ROUTE_MS = 60_000;

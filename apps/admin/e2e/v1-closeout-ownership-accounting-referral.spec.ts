@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { BASE_URL } from '../playwright.config';
-import { setUpOrg, createProperty, createUnit, getUnitStatus } from './fixtures/orgWorkflow';
+import { setUpOrg, createProperty, createUnit, getUnitStatus, COLD_ROUTE_MS } from './fixtures/orgWorkflow';
 import { createConfirmedPlatformAdmin } from './fixtures/platformAdmin';
 import { generateTotpCode } from './fixtures/totp';
 
@@ -49,6 +49,7 @@ test.describe('Flow D: ownership', () => {
   test('self-owner, edit percentage, a second external owner, then removing them leaves the owner identity intact', async ({
     page,
   }) => {
+    test.setTimeout(240_000); // several first-time route compiles (COLD_ROUTE_MS)
     const { orgId } = await setUpOrg(page.request, 'closeout-ownership');
     const propertyId = await createProperty(page.request, orgId, 'Closeout Ownership Property');
 
@@ -64,7 +65,7 @@ test.describe('Flow D: ownership', () => {
     await page.getByRole('button', { name: 'Yes, I own this property' }).click();
     await expect(page.getByRole('button', { name: 'Add owner' })).toBeVisible();
     await page.getByRole('button', { name: 'Add owner' }).click();
-    await expect(page.getByText('100%', { exact: true })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('100%', { exact: true })).toBeVisible({ timeout: COLD_ROUTE_MS });
     await expect(page.getByText('Total: 100%')).toBeVisible();
 
     // === Edit percentage ===
@@ -145,6 +146,7 @@ test.describe('Flow E: expense with evidence, posted to the ledger, visible in b
   test('creating and recording an expense with evidence updates property and portfolio accounting', async ({
     page,
   }) => {
+    test.setTimeout(240_000); // several first-time route compiles (COLD_ROUTE_MS)
     const { orgId } = await setUpOrg(page.request, 'closeout-expense');
     const propertyId = await createProperty(page.request, orgId, 'Closeout Expense Property');
 
@@ -152,7 +154,10 @@ test.describe('Flow E: expense with evidence, posted to the ledger, visible in b
     await page.waitForLoadState('networkidle');
     await dismissWalkthroughIfPresent(page);
 
-    await page.getByLabel('Category').fill('Plumbing repair');
+    // Category is a fixed classification since 957d54b (expense_category_code); the specific
+    // description lives in Notes.
+    await page.getByLabel('Category').selectOption('maintenance');
+    await page.getByLabel('Notes — optional').fill('Plumbing repair');
     await page.getByLabel('Amount (ZAR)').fill('1850');
     await page.locator('input[type="file"]').setInputFiles({
       name: 'receipt.pdf',
@@ -161,7 +166,7 @@ test.describe('Flow E: expense with evidence, posted to the ledger, visible in b
     });
 
     await page.getByRole('button', { name: 'Add expense' }).click();
-    await page.waitForURL(/\/accounting\/expenses\/[0-9a-f-]{36}$/, { timeout: 30_000 });
+    await page.waitForURL(/\/accounting\/expenses\/[0-9a-f-]{36}$/, { timeout: COLD_ROUTE_MS });
     const expenseId = page.url().split('/expenses/')[1];
 
     await expect(page.getByText('View attached evidence →')).toBeVisible({ timeout: 15_000 });
@@ -171,7 +176,7 @@ test.describe('Flow E: expense with evidence, posted to the ledger, visible in b
       page.getByText('No evidence is attached', { exact: false }),
     ).not.toBeVisible();
     await page.getByRole('button', { name: 'Record expense' }).click();
-    await expect(page.getByText(/Posted to the ledger/)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/Posted to the ledger/)).toBeVisible({ timeout: COLD_ROUTE_MS });
 
     // No GET /api/v1/expenses/:id exists -- the list endpoint (with the same org filter the
     // expenses index page itself uses) is the only read route available.
@@ -239,8 +244,9 @@ test.describe('Flow F: property accounting reconciles with portfolio accounting'
     // Plus an expense, so Expenses/Net income are non-trivial too.
     const expenseResponse = await page.request.post('/api/v1/expenses', {
       headers: { Origin: BASE_URL },
-      data: { orgId, propertyId, category: 'Reconciliation test expense', amount: 500 },
+      data: { orgId, propertyId, category: 'Maintenance', categoryCode: 'maintenance', amount: 500, notes: 'Reconciliation test expense' },
     });
+    expect(expenseResponse.ok()).toBe(true);
     const expense = await expenseResponse.json();
     await page.request.post(`/api/v1/expenses/${expense.expense.id}/record`, {
       headers: { Origin: BASE_URL },

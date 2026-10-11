@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { BASE_URL } from '../playwright.config';
-import { setUpOrg, createProperty, createUnit } from './fixtures/orgWorkflow';
+import { setUpOrg, createProperty, createUnit, COLD_ROUTE_MS } from './fixtures/orgWorkflow';
 
 // Workflow-integration pass (WORKLOG.md this date). Browser-level coverage for the pieces of this
 // task that are genuinely UI behaviour, not just API contract -- the dashboard empty state, the
@@ -114,6 +114,7 @@ test.describe('property setup guidance', () => {
 
 test.describe('property photo upload', () => {
   test('uploads a photo, shows it as the cover, and removing it works', async ({ page }) => {
+    test.setTimeout(240_000);
     const { orgId } = await setUpOrg(page.request, 'ui-photos');
     const propertyId = await createProperty(page.request, orgId, 'Photo Property');
 
@@ -134,12 +135,12 @@ test.describe('property photo upload', () => {
       buffer: onePixelPng,
     });
 
-    await expect(page.getByText('Cover')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('Cover')).toBeVisible({ timeout: COLD_ROUTE_MS });
     await expect(page.getByRole('button', { name: 'Remove' })).toBeVisible();
 
     await page.getByRole('button', { name: 'Remove' }).click();
     await expect(page.getByText('No photos uploaded for this property yet.')).toBeVisible({
-      timeout: 10_000,
+      timeout: COLD_ROUTE_MS,
     });
   });
 });
@@ -161,7 +162,8 @@ test.describe('address autocomplete / manual fallback', () => {
     await page.getByLabel('City').fill('Johannesburg');
 
     await page.getByRole('button', { name: /create property/i }).click();
-    await page.waitForURL(/\/properties\/[a-f0-9-]+$/, { timeout: 15_000 });
-    await expect(page.getByText('Manual Entry Property')).toBeVisible();
+    // A new property opens on its Finances tab (1598c7b: create-only nudge to set up rates/utilities).
+    await page.waitForURL(/\/properties\/[0-9a-f-]{36}\?tab=Finances$/, { timeout: 15_000 });
+    await expect(page.getByRole('heading', { name: 'Manual Entry Property' })).toBeVisible();
   });
 });

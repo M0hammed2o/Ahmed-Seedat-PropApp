@@ -477,7 +477,7 @@ export function PropertyOwnersPanel({
                   >
                     {OWNER_TYPES.map((t) => (
                       <option key={t} value={t}>
-                        {t === 'individual' ? 'Individual' : 'Entity / Company'}
+                        {t === 'individual' ? 'Individual' : t === 'company' ? 'Company' : 'Trust'}
                       </option>
                     ))}
                   </select>

@@ -310,8 +310,13 @@ function buildColumns(canSend: boolean, onSent: () => void): ColumnDef<InvoiceRo
   columns.push({
     header: '',
     id: 'actions',
+    // "Sent" stays visible on the row once the invoice has been e-mailed: the menu hides Send after
+    // that, so without it staff could not tell "already e-mailed" from "nothing to send".
     cell: (info) => (
-      <InvoiceActionsMenu invoice={info.row.original} canWrite={canSend} onChanged={onSent} />
+      <span className="inline-flex items-center gap-2">
+        {info.row.original.emailedAt ? <span className="text-[12px] text-muted-foreground">Sent</span> : null}
+        <InvoiceActionsMenu invoice={info.row.original} canWrite={canSend} onChanged={onSent} />
+      </span>
     ),
   });
 

@@ -1,6 +1,6 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { BASE_URL } from '../playwright.config';
-import { setUpOrg, createProperty, createUnit } from './fixtures/orgWorkflow';
+import { setUpOrg, createProperty, createUnit, COLD_ROUTE_MS } from './fixtures/orgWorkflow';
 
 // Final local hardening pass (WORKLOG.md this date), Objective 2, workflows I-M: real
 // browser-driven QA for the landlord rent-invoicing page and its underlying issuance/payment/send
@@ -221,8 +221,10 @@ test.describe('K. Internal tenant invoice', () => {
     const row = page.locator('tr', { hasText: 'Internal Tenant No Email' });
     await expect(row).toBeVisible({ timeout: 30_000 });
 
+    // Row actions live in a per-row "Actions" menu (48f63bb).
+    await row.locator('summary', { hasText: 'Actions' }).click();
     await row.getByRole('button', { name: 'Send invoice' }).click();
-    await expect(row.getByText(/no email address on file/i)).toBeVisible({ timeout: 15_000 });
+    await expect(row.getByText(/no email address on file/i)).toBeVisible({ timeout: COLD_ROUTE_MS });
 
     // The invoice itself remains perfectly valid -- no fake "sent" state, no crash.
     await expect(row.getByText(currency(12000)).first()).toBeVisible();
@@ -246,12 +248,16 @@ test.describe('L. Portal tenant invoice (no auto-send, explicit send only)', () 
     await expect(row).toBeVisible({ timeout: 30_000 });
 
     // Immediately after issuance, "Send invoice" is still offered -- proving nothing was sent yet.
+    // Row actions live in a per-row "Actions" menu (48f63bb).
+    const actions = row.locator('summary', { hasText: 'Actions' });
+    await actions.click();
     await expect(row.getByRole('button', { name: 'Send invoice' })).toBeVisible();
-    await expect(row.getByText('Sent')).not.toBeVisible();
+    await expect(row.getByText('Sent', { exact: true })).not.toBeVisible();
 
     // Only the explicit click sends it.
     await row.getByRole('button', { name: 'Send invoice' }).click();
-    await expect(row.getByText('Sent')).toBeVisible({ timeout: 15_000 });
+    await expect(row.getByText('Sent', { exact: true })).toBeVisible({ timeout: COLD_ROUTE_MS });
+    await actions.click();
     await expect(row.getByRole('button', { name: 'Send invoice' })).not.toBeVisible();
 
     void invoiceId;

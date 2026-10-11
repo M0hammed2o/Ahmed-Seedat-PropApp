@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setUpOrg, createProperty, createUnit } from './fixtures/orgWorkflow';
+import { setUpOrg, createProperty, createUnit, COLD_ROUTE_MS } from './fixtures/orgWorkflow';
 
 // FINAL PRE-DEPLOYMENT CLOSEOUT (WORKLOG.md this date), Section 4: browser quality check across
 // the critical forms touched by the 7 launch flows -- console errors (desktop) and responsive
@@ -49,7 +49,7 @@ test.describe('Browser quality: responsive layout at mobile width', () => {
   test.use({ viewport: { width: 375, height: 812 } });
 
   test('critical forms render usably and submit correctly at mobile width', async ({ page }) => {
-    test.setTimeout(120_000);
+    test.setTimeout(240_000);
 
     const { orgId } = await setUpOrg(page.request, 'closeout-quality-mobile');
     const propertyId = await createProperty(page.request, orgId, 'Closeout Mobile Property');
@@ -74,12 +74,14 @@ test.describe('Browser quality: responsive layout at mobile width', () => {
     await page.goto('/accounting/expenses/new');
     await page.waitForLoadState('networkidle');
     await expect(page.getByLabel('Category')).toBeVisible();
-    await page.getByLabel('Category').fill('Mobile-width expense');
+    // Category is a fixed classification since 957d54b; the free-text description is Notes.
+    await page.getByLabel('Category').selectOption('cleaning');
+    await page.getByLabel('Notes — optional').fill('Mobile-width expense');
     await page.getByLabel('Amount (ZAR)').fill('250');
     const expenseBodyWidth = await page.evaluate(() => document.body.scrollWidth);
     expect(expenseBodyWidth).toBeLessThanOrEqual(390);
     await page.getByRole('button', { name: 'Add expense' }).click();
-    await page.waitForURL(/\/accounting\/expenses\/[0-9a-f-]{36}$/, { timeout: 30_000 });
+    await page.waitForURL(/\/accounting\/expenses\/[0-9a-f-]{36}$/, { timeout: COLD_ROUTE_MS });
     await expect(page.getByText('Mobile-width expense')).toBeVisible({ timeout: 15_000 });
 
     void orgId;

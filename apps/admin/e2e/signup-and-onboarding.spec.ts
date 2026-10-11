@@ -89,7 +89,8 @@ test('a new user can log in, create an organization, and create a property', asy
   // we're already on) trivially satisfies a bare [^/]+$ pattern, so a looser regex here resolved
   // immediately without ever actually waiting for navigation, a real bug in this test found live
   // this session (it masked as the *next* assertion failing instead, on the still-unnavigated page).
-  await page.waitForURL(/\/properties\/[0-9a-f-]{36}$/, { timeout: 15_000 });
+  // A new property opens on its Finances tab (1598c7b: create-only nudge to set up rates/utilities).
+  await page.waitForURL(/\/properties\/[0-9a-f-]{36}\?tab=Finances$/, { timeout: 15_000 });
   // A longer explicit timeout than the 5s default: the property detail page has its own
   // client-side data fetch behind a loading skeleton, and dev-mode Turbopack recompiles each
   // route on first visit (visible as repeated "[Fast Refresh] rebuilding" during this session's
