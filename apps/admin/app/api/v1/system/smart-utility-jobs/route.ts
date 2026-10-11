@@ -1,3 +1,4 @@
+import { cronSecretMatches } from '@/lib/cronSecret';
 import { NextResponse, type NextRequest } from 'next/server';
 import { getServiceRoleClient, getAdminServerEnv } from '@/lib/supabase/server';
 import { requireAdminRoleOrRespond } from '@/lib/adminApiAuth';
@@ -14,7 +15,7 @@ export async function POST(request: NextRequest) {
   const env = getAdminServerEnv();
   const authHeader = request.headers.get('authorization');
   const bearer = authHeader?.toLowerCase().startsWith('bearer ') ? authHeader.slice(7).trim() : null;
-  const secretAuthorized = !!env.CRON_JOB_SECRET && bearer === env.CRON_JOB_SECRET;
+  const secretAuthorized = cronSecretMatches(bearer, env.CRON_JOB_SECRET);
   if (!secretAuthorized) {
     const guard = await requireAdminRoleOrRespond('super_admin');
     if ('response' in guard) return guard.response;

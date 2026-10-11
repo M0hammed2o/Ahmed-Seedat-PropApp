@@ -1,3 +1,4 @@
+import { cronSecretMatches } from '@/lib/cronSecret';
 import { NextResponse, type NextRequest } from 'next/server';
 import { getServiceRoleClient, getAdminServerEnv } from '@/lib/supabase/server';
 import { requireAdminRoleOrRespond } from '@/lib/adminApiAuth';
@@ -21,7 +22,7 @@ export async function POST(request: NextRequest) {
   const bearerSecret = authHeader?.toLowerCase().startsWith('bearer ')
     ? authHeader.slice(7).trim()
     : null;
-  const secretAuthorized = !!env.CRON_JOB_SECRET && bearerSecret === env.CRON_JOB_SECRET;
+  const secretAuthorized = cronSecretMatches(bearerSecret, env.CRON_JOB_SECRET);
 
   let actorUserId: string | null = null;
   if (!secretAuthorized) {

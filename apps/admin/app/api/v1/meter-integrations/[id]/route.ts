@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { pinnedFetch } from '@/lib/smartUtility/pinnedFetch';
 import { meterIntegrationActionSchema } from '@propvault/validation';
 import { getServiceRoleClient } from '@/lib/supabase/server';
 import { writeAuditEvent } from '@/lib/audit';
@@ -84,7 +85,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const result = await provider.verifyConnection({
       config: row.provider_config ?? {},
       credentials: decryptCredentials(row.credentials_ciphertext, row.id),
-      fetchImpl: fetch,
+      fetchImpl: pinnedFetch(),
     });
     return NextResponse.json(result);
   }

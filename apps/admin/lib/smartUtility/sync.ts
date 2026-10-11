@@ -1,4 +1,5 @@
 import 'server-only';
+import { pinnedFetch } from './pinnedFetch';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { notifyPropertyStaff } from '../notify';
 import { writeAuditEvent } from '../audit';
@@ -49,7 +50,8 @@ export async function syncIntegration(
     const ctx: PollContext = {
       config: integration.provider_config ?? {},
       credentials: decryptCredentials(integration.credentials_ciphertext, integration.id),
-      fetchImpl: opts.fetchImpl ?? fetch,
+      // Pinned-address client by default (TD-66): the connection goes to the address that passed the check.
+      fetchImpl: opts.fetchImpl ?? pinnedFetch(),
       lookupImpl: opts.lookupImpl,
     };
     const { data: meters, error } = await serviceClient

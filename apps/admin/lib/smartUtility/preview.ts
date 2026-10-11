@@ -76,10 +76,12 @@ export async function buildPreview(
 
 export async function renderPreviewPdf(preview: Awaited<ReturnType<typeof buildPreview>>): Promise<Buffer> {
   const images: PdfImage[] = [];
-  let i = 0;
+  // Matched by document id (TD-60): a photo that could not be loaded no longer shifts later captions onto the
+  // wrong meter.
+  const byDocument = new Map(preview.files.map((f) => [f.documentId, f]));
   for (const m of preview.report.meters) {
-    for (const _docId of m.evidenceDocumentIds) {
-      const f = preview.files[i++];
+    for (const docId of m.evidenceDocumentIds) {
+      const f = byDocument.get(docId);
       if (f) images.push({ meterId: m.meterId, buffer: Buffer.from(f.contentBase64, 'base64'), caption: `Meter photo (${m.meterNumber ?? m.serialNumber ?? ''})` });
     }
   }

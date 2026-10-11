@@ -78,6 +78,23 @@ export default defineConfig({
       NEXT_PUBLIC_SUPABASE_ANON_KEY: LOCAL_SUPABASE_ANON_KEY,
       SUPABASE_SERVICE_ROLE_KEY: LOCAL_SUPABASE_SERVICE_ROLE_KEY,
       NEXT_PUBLIC_APP_URL: BASE_URL,
+      // TD-59: .env.local holds live third-party keys; the e2e server must never use them. Blank, not omitted (see
+      // above): e-mail falls back to the mock provider, payments/WhatsApp/OCR/scanning to their local stand-ins, and
+      // utility sending flags stay off. A local ClamAV is used for uploads only when CLAMAV_HOST is set in the shell.
+      RESEND_API_KEY: '',
+      RESEND_FROM_ADDRESS: '',
+      RESEND_WEBHOOK_SECRET: '',
+      WHATSAPP_ACCESS_TOKEN: '',
+      WHATSAPP_PHONE_NUMBER_ID: '',
+      CLOUDMERSIVE_API_KEY: '',
+      PAYFAST_MERCHANT_ID: '',
+      PAYFAST_MERCHANT_KEY: '',
+      PAYFAST_PASSPHRASE: '',
+      GOOGLE_DOCUMENT_AI_CREDENTIALS_JSON: '',
+      SUPABASE_ACCESS_TOKEN: '',
+      SMART_UTILITY_AUTO_SUBMISSION_ENABLED: '',
+      SMART_UTILITY_TENANT_STATEMENTS_ENABLED: '',
+      SMART_UTILITY_CREDENTIALS_KEY: '',
     },
   },
 });
