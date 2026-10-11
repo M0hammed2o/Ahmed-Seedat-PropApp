@@ -3,7 +3,7 @@ import { sourceLogSchema, sourceReadingSchema, supplySourceUpdateSchema } from '
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { getServiceRoleClient } from '@/lib/supabase/server';
-import { canWriteUtilities, forbidden, jsonError, loadReadableProperty, notFound, parseJson, requireUser, serverError } from '@/lib/smartUtility/http';
+import { canWriteUtilities, forbidden, jsonError, loadReadableProperty, notFound, parseJson, requireUser, serverError, utilitiesDisabled } from '@/lib/smartUtility/http';
 
 type RouteParams = { params: Promise<{ id: string; sourceId: string }> };
 
@@ -41,6 +41,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   if ('response' in parsed) return parsed.response;
   const property = await loadReadableProperty(auth.supabase, id);
   if (!property) return notFound();
+  if (!property.utilities_enabled) return utilitiesDisabled();
   if (!(await canWriteUtilities(auth.supabase, property.org_id, property.id))) return forbidden();
   const d = parsed.data;
   const patch: Record<string, unknown> = {};
@@ -72,6 +73,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   if ('response' in parsed) return parsed.response;
   const property = await loadReadableProperty(auth.supabase, id);
   if (!property) return notFound();
+  if (!property.utilities_enabled) return utilitiesDisabled();
   if (!(await canWriteUtilities(auth.supabase, property.org_id, property.id))) return forbidden();
   const source = await loadSource(auth.supabase, property.id, sourceId);
   if (!source) return notFound('Supply source');

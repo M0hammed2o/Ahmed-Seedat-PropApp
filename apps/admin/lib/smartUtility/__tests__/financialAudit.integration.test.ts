@@ -295,6 +295,55 @@ d('financial validation (real local Supabase)', () => {
     });
   });
 
+  describe('Scenario D — percentage and occupancy shared meters', () => {
+    const setup = async (name: string, utility: string, method: string, landlordPct: number, members: { pct?: number; occ?: number }[], meterRaw: number, rate: number) => {
+      const p = await ins('properties', { org_id: orgId, nickname: name, address_line1: '3 Split St', city: 'Gqeberha', province: 'Eastern Cape', postal_code: '6001' });
+      const units: string[] = [];
+      for (let i = 0; i < members.length; i++) {
+        const unit = await ins('units', { org_id: orgId, property_id: p, unit_label: `S${i + 1}` });
+        await tenantLease(unit, '2026-01-01', null, 'active', `${name} T${i + 1}`);
+        units.push(unit);
+      }
+      const meter = await ins('utility_meters', { org_id: orgId, property_id: p, utility_type: utility, responsibility_mode: 'owner_paid', meter_role: 'check' });
+      await service.from('meter_telemetry_readings').insert([reading(orgId, p, meter, 2026, 10, 1, 0), reading(orgId, p, meter, 2026, 11, 1, meterRaw)]);
+      await service.from('utility_tariffs').insert({ org_id: orgId, property_id: p, utility_type: utility, name: `FICTIONAL ${rate}`, tariff_kind: 'flat', fixed_charge: 0, blocks: [{ upTo: null, rate }], effective_from: '2026-01-01' });
+      const group = await ins('utility_allocation_groups', { org_id: orgId, property_id: p, meter_id: meter, name: `${name} group`, method, landlord_share_pct: landlordPct });
+      await service.from('utility_allocation_members').insert(members.map((m, i) => ({ group_id: group, org_id: orgId, property_id: p, unit_id: units[i], percentage: m.pct ?? null, occupants: m.occ ?? null })));
+      await service.from('utility_billing_arrangements').insert(units.map((unit) => ({ org_id: orgId, property_id: p, unit_id: unit, utility_type: utility, arrangement: 'shared_allocation', allocation_group_id: group, effective_from: '2026-01-01' })));
+      await billing.generateCharges(service, { propertyId: p, ...PERIOD, actorUserId: userId });
+      const c = await charges(p);
+      return units.map((unit) => c.filter((x) => x.unit_id === unit).map((x) => Number(x.total_amount)));
+    };
+
+    it('percentage: 30 % / 50 % / landlord 20 % of R200,00 → R60,00 and R100,00 (landlord R40,00 not charged)', async () => {
+      // 10 kL × R20 = R200,00
+      expect(await setup('Pct Court', 'water', 'percentage', 20, [{ pct: 30 }, { pct: 50 }], 10_000, 20)).toEqual([[60], [100]]);
+    }, 120_000);
+
+    it('occupancy: 2 / 3 / 5 occupants of R30,00 → R6,00 / R9,00 / R15,00', async () => {
+      // 10 kWh × R3 = R30,00, no landlord share
+      expect(await setup('Occ Court', 'electricity', 'occupancy', 0, [{ occ: 2 }, { occ: 3 }, { occ: 5 }], 10, 3)).toEqual([[6], [9], [15]]);
+    }, 120_000);
+
+    it('equal split with a vacant member: R100,00 three ways → R33,34 + R33,33 charged; the vacant third stays with the landlord', async () => {
+      const p = await ins('properties', { org_id: orgId, nickname: 'Equal Court', address_line1: '4 Split St', city: 'Gqeberha', province: 'Eastern Cape', postal_code: '6001' });
+      const units: string[] = [];
+      for (let i = 0; i < 3; i++) units.push(await ins('units', { org_id: orgId, property_id: p, unit_label: `E${i + 1}` }));
+      await tenantLease(units[0]!, '2026-01-01', null, 'active', 'E1');
+      await tenantLease(units[1]!, '2026-01-01', null, 'active', 'E2');
+      const meter = await ins('utility_meters', { org_id: orgId, property_id: p, utility_type: 'electricity', responsibility_mode: 'owner_paid', meter_role: 'check' });
+      await service.from('meter_telemetry_readings').insert([reading(orgId, p, meter, 2026, 10, 1, 0), reading(orgId, p, meter, 2026, 11, 1, 50)]);
+      await service.from('utility_tariffs').insert({ org_id: orgId, property_id: p, utility_type: 'electricity', name: 'FICTIONAL R2', tariff_kind: 'flat', fixed_charge: 0, blocks: [{ upTo: null, rate: 2 }], effective_from: '2026-01-01' });
+      const group = await ins('utility_allocation_groups', { org_id: orgId, property_id: p, meter_id: meter, name: 'Equal group', method: 'equal', landlord_share_pct: 0 });
+      await service.from('utility_allocation_members').insert(units.map((unit) => ({ group_id: group, org_id: orgId, property_id: p, unit_id: unit })));
+      await service.from('utility_billing_arrangements').insert(units.map((unit) => ({ org_id: orgId, property_id: p, unit_id: unit, utility_type: 'electricity', arrangement: 'shared_allocation', allocation_group_id: group, effective_from: '2026-01-01' })));
+      await billing.generateCharges(service, { propertyId: p, ...PERIOD, actorUserId: userId });
+      const c = await charges(p);
+      // 50 kWh × R2 = R100,00 = 10 000 c; thirds by largest remainder: 3 334 / 3 333 / 3 333
+      expect(units.map((unit) => c.filter((x) => x.unit_id === unit).map((x) => Number(x.total_amount)))).toEqual([[33.34], [33.33], []]);
+    }, 120_000);
+  });
+
   describe('Scenario C — tariff change inside the period; TOU with an allowance', () => {
     it('15 Jun – 15 Jul across the 1 July increase: 10 kL at R30 + 10 kL at R33 = R630,00 (not R600)', async () => {
       const p = await ins('properties', { org_id: orgId, nickname: 'Tariff Year', address_line1: '1 July St', city: 'Cape Town', province: 'Western Cape', postal_code: '8001' });

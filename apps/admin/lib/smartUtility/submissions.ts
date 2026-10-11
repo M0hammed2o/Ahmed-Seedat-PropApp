@@ -551,6 +551,9 @@ export async function sendDueDeliveries(
 
   const result: SendResult = { attempted: 0, sent: 0, failed: 0, exhausted: 0 };
   const touched = new Set<string>();
+  // Paused while Smart Utilities is switched off for the organisation; deliveries stay due and resume later.
+  const { data: disabledRows } = await serviceClient.from('organizations').select('id').eq('utilities_enabled', false).limit(10_000);
+  const disabledOrgs = new Set((disabledRows ?? []).map((o) => o.id as string));
   const cache = new Map<
     string,
     {
@@ -566,6 +569,7 @@ export async function sendDueDeliveries(
   >();
 
   for (const d of due ?? []) {
+    if (disabledOrgs.has(d.org_id as string)) continue;
     let entry = cache.get(d.submission_id);
     if (!entry) {
       const { data: sub } = await serviceClient

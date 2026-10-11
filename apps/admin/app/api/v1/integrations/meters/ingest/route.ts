@@ -31,6 +31,9 @@ export async function POST(request: NextRequest) {
   }
 
   const auth = await authenticateIntegration(service, token);
+  if (!auth.ok && auth.reason === 'utilities_disabled') {
+    return NextResponse.json({ error: { code: 'utilities_disabled', message: 'Smart Utilities is not enabled for this organisation.' } }, { status: 403 });
+  }
   if (!auth.ok) {
     return NextResponse.json(
       { error: { code: auth.reason === 'revoked' ? 'integration_revoked' : 'unauthorized', message: 'Invalid or revoked integration token.' } },

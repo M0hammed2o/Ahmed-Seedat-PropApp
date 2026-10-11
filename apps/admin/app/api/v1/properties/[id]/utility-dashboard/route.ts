@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { jsonError, loadReadableProperty, notFound, requireUser, serverError } from '@/lib/smartUtility/http';
+import { jsonError, loadReadableProperty, notFound, requireUser, serverError, utilitiesDisabled } from '@/lib/smartUtility/http';
 import { loadHybridDashboard, parseRange } from '@/lib/smartUtility/hybridDashboard';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -17,6 +17,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   if ('error' in range) return jsonError(400, 'invalid_range', range.error);
   const property = await loadReadableProperty(auth.supabase, id);
   if (!property) return notFound();
+  if (!property.utilities_enabled) return utilitiesDisabled();
   try {
     return NextResponse.json(await loadHybridDashboard(auth.supabase, property.id, range));
   } catch (error) {

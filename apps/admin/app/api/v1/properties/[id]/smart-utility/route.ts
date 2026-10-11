@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { loadReadableProperty, notFound, requireUser, serverError } from '@/lib/smartUtility/http';
+import { loadReadableProperty, notFound, requireUser, serverError, utilitiesDisabled } from '@/lib/smartUtility/http';
 import { loadSmartUtilityOverview } from '@/lib/smartUtility/overview';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -16,6 +16,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
   if ('response' in auth) return auth.response;
   const property = await loadReadableProperty(auth.supabase, id);
   if (!property) return notFound();
+  if (!property.utilities_enabled) return utilitiesDisabled();
   try {
     const overview = await loadSmartUtilityOverview(auth.supabase, id);
     return NextResponse.json({ property, ...overview });

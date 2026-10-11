@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { supplySourceCreateSchema } from '@propvault/validation';
-import { canWriteUtilities, forbidden, jsonError, loadReadableProperty, notFound, parseJson, requireUser, serverError } from '@/lib/smartUtility/http';
+import { canWriteUtilities, forbidden, jsonError, loadReadableProperty, notFound, parseJson, requireUser, serverError, utilitiesDisabled } from '@/lib/smartUtility/http';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -43,6 +43,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   if ('response' in parsed) return parsed.response;
   const property = await loadReadableProperty(auth.supabase, id);
   if (!property) return notFound();
+  if (!property.utilities_enabled) return utilitiesDisabled();
   if (!(await canWriteUtilities(auth.supabase, property.org_id, property.id))) return forbidden();
   const d = parsed.data;
   if (d.integrationId) {

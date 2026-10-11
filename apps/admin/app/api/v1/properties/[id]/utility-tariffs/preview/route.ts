@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { tariffPreviewSchema } from '@propvault/validation';
-import { jsonError, loadReadableProperty, notFound, parseJson, requireUser, serverError } from '@/lib/smartUtility/http';
+import { jsonError, loadReadableProperty, notFound, parseJson, requireUser, serverError, utilitiesDisabled } from '@/lib/smartUtility/http';
 import { meterUsage, TARIFF_COLUMNS, toTariffV2, type TariffRow } from '@/lib/smartUtility/billing';
 import { sastInstant } from '@/lib/smartUtility/consumption';
 import { computeTariffCharge, type TariffV2 } from '@/lib/smartUtility/tariffEngine';
@@ -27,6 +27,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   const d = parsed.data;
   const property = await loadReadableProperty(auth.supabase, id);
   if (!property) return notFound();
+  if (!property.utilities_enabled) return utilitiesDisabled();
   if (d.periodEnd <= d.periodStart) return jsonError(400, 'validation_failed', 'The period end must be after its start.');
   const segStart = d.segmentStart ?? d.periodStart;
   const segEnd = d.segmentEnd ?? d.periodEnd;

@@ -4,15 +4,7 @@ import { getServiceRoleClient } from '@/lib/supabase/server';
 import { writeAuditEvent } from '@/lib/audit';
 import { requireOrgRole } from '@/lib/portfolio';
 import { getAppUrl } from '@/lib/appUrl';
-import {
-  canWriteUtilities,
-  jsonError,
-  loadReadableProperty,
-  notFound,
-  parseJson,
-  requireUser,
-  serverError,
-} from '@/lib/smartUtility/http';
+import { canWriteUtilities, jsonError, loadReadableProperty, notFound, parseJson, requireUser, serverError, utilitiesDisabled } from '@/lib/smartUtility/http';
 import { issueToken } from '@/lib/smartUtility/tokens';
 import { AdapterError } from '@/lib/smartUtility/adapters';
 import { getProvider, validateBaseUrl } from '@/lib/smartUtility/providers';
@@ -36,6 +28,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   if ('response' in parsed) return parsed.response;
   const property = await loadReadableProperty(auth.supabase, id);
   if (!property) return notFound();
+  if (!property.utilities_enabled) return utilitiesDisabled();
   const allowed =
     (await requireOrgRole(auth.supabase, property.org_id, 'manager')) &&
     (await canWriteUtilities(auth.supabase, property.org_id, property.id));

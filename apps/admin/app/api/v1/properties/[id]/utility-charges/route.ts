@@ -8,7 +8,7 @@ import {
 } from '@propvault/validation';
 import { z } from 'zod';
 import { getServiceRoleClient } from '@/lib/supabase/server';
-import { canWriteUtilities, forbidden, jsonError, loadReadableProperty, notFound, requireUser, serverError } from '@/lib/smartUtility/http';
+import { canWriteUtilities, forbidden, jsonError, loadReadableProperty, notFound, requireUser, serverError, utilitiesDisabled } from '@/lib/smartUtility/http';
 import {
   adjustCharge,
   approveCharges,
@@ -59,6 +59,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
   const property = await loadReadableProperty(auth.supabase, id);
   if (!property) return notFound();
+  if (!property.utilities_enabled) return utilitiesDisabled();
   if (!(await canWriteUtilities(auth.supabase, property.org_id, property.id))) return forbidden();
   const service = getServiceRoleClient();
   try {

@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { municipalPreviewSchema } from '@propvault/validation';
 import { getServiceRoleClient } from '@/lib/supabase/server';
-import { canReadUtilities, jsonError, loadReadableProperty, notFound, requireUser, serverError } from '@/lib/smartUtility/http';
+import { canReadUtilities, jsonError, loadReadableProperty, notFound, requireUser, serverError, utilitiesDisabled } from '@/lib/smartUtility/http';
 import { buildPreview, renderPreviewPdf } from '@/lib/smartUtility/preview';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -15,6 +15,7 @@ async function authorise(id: string): Promise<Authorised> {
   if ('response' in auth) return { ok: false, response: auth.response };
   const property = await loadReadableProperty(auth.supabase, id);
   if (!property || !(await canReadUtilities(auth.supabase, property.org_id, property.id))) return { ok: false, response: notFound() };
+  if (!property.utilities_enabled) return { ok: false, response: utilitiesDisabled() };
   return { ok: true, property };
 }
 

@@ -3,7 +3,7 @@ import { getServiceRoleClient } from '@/lib/supabase/server';
 import { dispatchEmail } from '@/lib/emailDispatch';
 import { rateLimitOrRespond } from '@/lib/rateLimit';
 import { writeAuditEvent } from '@/lib/audit';
-import { canWriteUtilities, forbidden, jsonError, loadReadableProperty, notFound, requireUser, serverError } from '@/lib/smartUtility/http';
+import { canWriteUtilities, forbidden, jsonError, loadReadableProperty, notFound, requireUser, serverError, utilitiesDisabled } from '@/lib/smartUtility/http';
 import { renderReportCsv, reportCsvFilename, reportPdfFilename } from '@/lib/smartUtility/municipalReport';
 import { buildPreview, renderPreviewPdf } from '@/lib/smartUtility/preview';
 
@@ -20,6 +20,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
   if ('response' in auth) return auth.response;
   const property = await loadReadableProperty(auth.supabase, id);
   if (!property) return notFound();
+  if (!property.utilities_enabled) return utilitiesDisabled();
   if (!(await canWriteUtilities(auth.supabase, property.org_id, property.id))) return forbidden();
   if (!auth.user.email) return jsonError(409, 'no_email', 'Your account has no email address.');
   const service = getServiceRoleClient();

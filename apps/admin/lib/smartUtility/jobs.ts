@@ -13,6 +13,7 @@ import {
 } from './consumption';
 import { loadPoints, replacementChain, SMART_METER_COLUMNS, type SmartMeterRow } from './data';
 import { runHybridAlerts } from './hybridAlerts';
+import { disabledUtilityOrgs } from './ingest';
 import { reconcile } from './reconciliation';
 import { duePeriod, generateSubmission, sendDueDeliveries, syncDeliveryStatuses } from './submissions';
 import { runPollSync } from './sync';
@@ -64,7 +65,10 @@ interface AlertInsert {
 /** Inserts alerts that don't exist yet (dedupe_key) and notifies staff once per new alert. */
 async function insertAlerts(serviceClient: SupabaseClient, alerts: AlertInsert[]): Promise<number> {
   let created = 0;
+  // Organisations with Smart Utilities switched off get no utility alerts or notifications.
+  const disabled = alerts.length ? await disabledUtilityOrgs(serviceClient) : new Set<string>();
   for (const a of alerts) {
+    if (disabled.has(a.org_id)) continue;
     const { data, error } = await serviceClient
       .from('utility_alerts')
       .upsert(a, { onConflict: 'dedupe_key', ignoreDuplicates: true })
@@ -422,11 +426,13 @@ export async function runApprovalReminders(serviceClient: SupabaseClient, now: D
 export async function runDueSubmissions(serviceClient: SupabaseClient, now: Date) {
   const { data: settings, error } = await serviceClient
     .from('municipal_submission_settings')
-    .select('property_id, billing_day, lead_days')
+    .select('property_id, org_id, billing_day, lead_days')
     .eq('enabled', true);
   if (error) throw new Error(error.message);
+  const disabled = await disabledUtilityOrgs(serviceClient);
   let generated = 0;
   for (const s of settings ?? []) {
+    if (disabled.has(s.org_id as string)) continue;
     const period = duePeriod(now, s.billing_day, s.lead_days);
     if (!period) continue;
     const res = await generateSubmission(serviceClient, { propertyId: s.property_id, period, actorUserId: null, now });

@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { allocationGroupSchema } from '@propvault/validation';
 import { z } from 'zod';
-import { canWriteUtilities, forbidden, jsonError, loadReadableProperty, notFound, parseJson, requireUser, serverError } from '@/lib/smartUtility/http';
+import { canWriteUtilities, forbidden, jsonError, loadReadableProperty, notFound, parseJson, requireUser, serverError, utilitiesDisabled } from '@/lib/smartUtility/http';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -31,6 +31,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   if ('response' in parsed) return parsed.response;
   const property = await loadReadableProperty(auth.supabase, id);
   if (!property) return notFound();
+  if (!property.utilities_enabled) return utilitiesDisabled();
   if (!(await canWriteUtilities(auth.supabase, property.org_id, property.id))) return forbidden();
   const d = parsed.data;
   const { data: meter } = await auth.supabase.from('utility_meters').select('id, property_id, active, measurement_kind').eq('id', d.meterId).maybeSingle();
@@ -77,6 +78,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   if ('response' in parsed) return parsed.response;
   const property = await loadReadableProperty(auth.supabase, id);
   if (!property) return notFound();
+  if (!property.utilities_enabled) return utilitiesDisabled();
   if (!(await canWriteUtilities(auth.supabase, property.org_id, property.id))) return forbidden();
   const { data, error } = await auth.supabase
     .from('utility_allocation_groups')

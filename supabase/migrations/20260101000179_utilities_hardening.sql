@@ -238,3 +238,13 @@ $$;
 
 revoke all on function public.utility_reading_counts_since(timestamptz, uuid[]) from public, anon, authenticated;
 grant execute on function public.utility_reading_counts_since(timestamptz, uuid[]) to service_role;
+
+-- ============================================================
+-- OPS-01: per-organisation switch for Smart Utilities (meters, telemetry, hybrid sources, billing, statements,
+-- municipal sending). Default ON so existing behaviour is unchanged; the staging plan describes enabling it only for
+-- pilot organisations. Legacy monthly readings (migration 163, used by Android and Finances) are not gated.
+-- ============================================================
+
+alter table public.organizations add column if not exists utilities_enabled boolean not null default true;
+comment on column public.organizations.utilities_enabled is
+  'Smart Utilities module switch (API routes, device ingestion, alerts, municipal sending). Other features unaffected.';

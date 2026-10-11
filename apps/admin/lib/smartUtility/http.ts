@@ -50,15 +50,22 @@ export async function parseJson<T>(
 export async function loadReadableProperty(
   supabase: SupabaseClient,
   propertyId: string,
-): Promise<{ id: string; org_id: string; nickname: string | null; full_address: string | null } | null> {
+): Promise<{ id: string; org_id: string; nickname: string | null; full_address: string | null; utilities_enabled: boolean } | null> {
   if (!/^[0-9a-f-]{36}$/i.test(propertyId)) return null;
   const { data } = await supabase
     .from('properties')
-    .select('id, org_id, nickname, full_address')
+    .select('id, org_id, nickname, full_address, organizations(utilities_enabled)')
     .eq('id', propertyId)
     .maybeSingle();
-  return data ?? null;
+  if (!data) return null;
+  const { organizations, ...rest } = data as typeof data & { organizations: { utilities_enabled?: boolean } | null };
+  // Per-organisation switch (migration 179); a missing value means enabled (older databases).
+  return { ...rest, utilities_enabled: organizations?.utilities_enabled !== false };
 }
+
+/** 403 when Smart Utilities is switched off for the organisation (other Proplyst features are unaffected). */
+export const utilitiesDisabled = () =>
+  jsonError(403, 'utilities_disabled', 'Smart Utilities is not enabled for this organisation. Ask Proplyst support to enable it.');
 
 /** Same predicate the RLS write policies use (migration 175), evaluated as the caller. */
 export async function canWriteUtilities(supabase: SupabaseClient, orgId: string, propertyId: string) {

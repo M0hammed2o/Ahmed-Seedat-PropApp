@@ -26,7 +26,19 @@ export interface IntegrationRow {
 
 export type IntegrationAuthResult =
   | { ok: true; integration: IntegrationRow }
-  | { ok: false; reason: 'missing_token' | 'invalid_token' | 'revoked' };
+  | { ok: false; reason: 'missing_token' | 'invalid_token' | 'revoked' | 'utilities_disabled' };
+
+/** Organisations with Smart Utilities switched off (migration 179). Absent column / error → treated as enabled. */
+export async function disabledUtilityOrgs(serviceClient: SupabaseClient): Promise<Set<string>> {
+  const { data, error } = await serviceClient.from('organizations').select('id').eq('utilities_enabled', false).limit(10_000);
+  if (error) return new Set();
+  return new Set((data ?? []).map((o) => o.id as string));
+}
+
+async function orgUtilitiesEnabled(serviceClient: SupabaseClient, orgId: string): Promise<boolean> {
+  const { data } = await serviceClient.from('organizations').select('utilities_enabled').eq('id', orgId).maybeSingle();
+  return (data as { utilities_enabled?: boolean } | null)?.utilities_enabled !== false;
+}
 
 export async function authenticateIntegration(
   serviceClient: SupabaseClient,
@@ -46,6 +58,7 @@ export async function authenticateIntegration(
     .maybeSingle();
   if (current && tokenMatchesHash(token, current.token_hash)) {
     if (current.status !== 'active') return { ok: false, reason: 'revoked' };
+    if (!(await orgUtilitiesEnabled(serviceClient, current.org_id))) return { ok: false, reason: 'utilities_disabled' };
     return { ok: true, integration: current as IntegrationRow };
   }
 
@@ -62,6 +75,7 @@ export async function authenticateIntegration(
     tokenMatchesHash(token, previous.previous_token_hash)
   ) {
     if (previous.status !== 'active') return { ok: false, reason: 'revoked' };
+    if (!(await orgUtilitiesEnabled(serviceClient, previous.org_id))) return { ok: false, reason: 'utilities_disabled' };
     return { ok: true, integration: previous as IntegrationRow };
   }
   return { ok: false, reason: 'invalid_token' };

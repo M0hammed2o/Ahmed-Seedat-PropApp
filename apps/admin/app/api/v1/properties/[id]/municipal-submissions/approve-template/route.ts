@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { municipalTemplateApprovalSchema } from '@propvault/validation';
 import { getServiceRoleClient } from '@/lib/supabase/server';
 import { writeAuditEvent } from '@/lib/audit';
-import { canWriteUtilities, forbidden, jsonError, loadReadableProperty, notFound, parseJson, requireUser, serverError } from '@/lib/smartUtility/http';
+import { canWriteUtilities, forbidden, jsonError, loadReadableProperty, notFound, parseJson, requireUser, serverError, utilitiesDisabled } from '@/lib/smartUtility/http';
 import { buildPreview } from '@/lib/smartUtility/preview';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -22,6 +22,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   if ('response' in parsed) return parsed.response;
   const property = await loadReadableProperty(auth.supabase, id);
   if (!property) return notFound();
+  if (!property.utilities_enabled) return utilitiesDisabled();
   if (!(await canWriteUtilities(auth.supabase, property.org_id, property.id))) return forbidden();
   const service = getServiceRoleClient();
   try {
@@ -68,6 +69,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
   if ('response' in auth) return auth.response;
   const property = await loadReadableProperty(auth.supabase, id);
   if (!property) return notFound();
+  if (!property.utilities_enabled) return utilitiesDisabled();
   if (!(await canWriteUtilities(auth.supabase, property.org_id, property.id))) return forbidden();
   const service = getServiceRoleClient();
   await service
