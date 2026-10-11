@@ -1,5 +1,29 @@
 # Worklog
 
+## 2026-10-11 — Utilities Phase 3: production hardening, staging readiness, pilot validation (autonomous)
+
+Full report: `docs/UTILITIES_PHASE3_COMPLETION_REPORT.md`.
+- **Security:** pinned-address poll client (TD-66), constant-time cron secret (TD-68), Playwright never sees live keys
+  (TD-59); pgTAP proves tenants cannot touch tariffs, arrangements, charges or credits.
+- **Performance and consistency** (migration 181): batch telemetry insert; opt-in retention (≥ 400 days); Android and
+  monthly readings mirrored into telemetry (TD-53, TD-54).
+- **Accounting:** opt-in estimates for missing readings with an automatic, race-safe true-up; TD-61 VAT flag as the
+  safe default.
+- **Pilot validation:** a hybrid 7-flat property with every arrangement, plus private-only and municipal-only
+  properties; hand-computed on fictional tariffs (month total R3,640.00).
+- **Deployment:** rollback script for 175–181, rehearsed on representative data (schema identical to 174 after
+  rollback). Staging plan updated with the approvals needed. The South African hardware plan totals R32,867.31
+  (snapshot prices; nothing purchased).
+
+Regression on a fresh disposable stack:
+- pgTAP 1,645/1,645;
+- vitest 1,589 passed / 3 skipped;
+- build, tsc and Android (359 tests) pass;
+- Playwright 79/87 after a re-run. The 8 failures are pre-existing spec drift in non-utilities flows (expense category
+  `<select>`, invoices UI, post-create URL).
+
+The main local DB was never reset (2,725 orgs, head 171). Nothing was deployed or sent.
+
 ## 2026-10-11 — Utilities production-readiness audit and hardening (autonomous)
 
 Brief: independently audit, test, repair and harden Smart Utilities + Hybrid utilities for a controlled staging release.
