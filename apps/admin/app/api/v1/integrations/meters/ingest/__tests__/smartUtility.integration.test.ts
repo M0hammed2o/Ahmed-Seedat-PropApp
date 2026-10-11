@@ -459,6 +459,8 @@ describeIfSupabase('Smart Utility Monitoring (real local Supabase integration)',
         .insert({ org_id: orgId, property_id: propertyId, period_start: '2026-01-25', period_end: '2026-02-25', status: 'approved', mode: 'approval_required', report: { version: 1, generatedAt: now.toISOString(), property: { name: 'SU', address: 'x' }, preparedFor: null, municipality: null, municipalAccountNumber: null, period: { start: '2026-01-25', end: '2026-02-24' }, meters: [], notes: [] } })
         .select('id')
         .single();
+      // Sends only ever go to an owner-authorised recipient (re-checked at send time).
+      await service.from('municipal_submission_recipients').insert({ org_id: orgId, property_id: propertyId, email: `retry-${suffix}@example.com`, recipient_type: 'custom', authorised_at: now.toISOString() });
       await service.from('municipal_submission_deliveries').insert({ org_id: orgId, property_id: propertyId, submission_id: sub!.id, recipient_email: `retry-${suffix}@example.com`, recipient_type: 'custom', next_attempt_at: now.toISOString() });
       const failing = vi.fn(async () => {
         throw new Error('SMTP 451 temporary');

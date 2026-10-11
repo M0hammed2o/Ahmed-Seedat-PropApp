@@ -1,4 +1,5 @@
 import 'server-only';
+import { createHash } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { dispatchEmail } from '../emailDispatch';
 import { notifyPropertyStaff } from '../notify';
@@ -289,6 +290,7 @@ export async function generateSubmission(
   });
 
   if (status === 'scheduled') {
+    await freezePack(serviceClient, inserted.id, now);
     await createDeliveries(serviceClient, inserted.id, { authorisedOnly: true });
   } else if (status === 'pending_approval') {
     await notifyPropertyStaff(serviceClient, {
@@ -313,23 +315,28 @@ export async function createDeliveries(
 ): Promise<number> {
   const { data: sub } = await serviceClient
     .from('municipal_submissions')
-    .select('id, org_id, property_id')
+    .select('id, org_id, property_id, rendered_email')
     .eq('id', submissionId)
     .single();
   if (!sub) throw new Error('Submission not found');
-  const { data: recipients } = await serviceClient
+  const { data: authorisedRows } = await serviceClient
     .from('municipal_submission_recipients')
     .select('id, email, recipient_type')
     .eq('property_id', sub.property_id)
     .eq('active', true)
     .not('authorised_at', 'is', null);
-  if (!recipients || recipients.length === 0) return 0;
+  // Only addresses that were on the approved message AND are still authorised (MUN-B); a recipient added after
+  // approval is not sent the pack until it is approved again.
+  const frozen = (sub.rendered_email as { frozen?: FrozenPack } | null)?.frozen;
+  const approvedTo = frozen ? new Set(frozen.to.map((e) => e.toLowerCase())) : null;
+  const recipients = (authorisedRows ?? []).filter((r) => !approvedTo || approvedTo.has(String(r.email).toLowerCase()));
+  if (recipients.length === 0) return 0;
   const { data: cfg } = await serviceClient
     .from('municipal_submission_settings')
     .select('cc_emails')
     .eq('property_id', sub.property_id)
     .maybeSingle();
-  const cc = (cfg?.cc_emails as string[] | null) ?? [];
+  const cc = frozen ? frozen.cc : ((cfg?.cc_emails as string[] | null) ?? []);
   const { error } = await serviceClient.from('municipal_submission_deliveries').upsert(
     recipients.map((r, i) => ({
       org_id: sub.org_id,
@@ -379,6 +386,7 @@ export async function approveSubmission(
     .from('municipal_submissions')
     .update({ status: 'scheduled', approved_by: args.actorUserId, approved_at: now.toISOString(), scheduled_for: now.toISOString() })
     .eq('id', sub.id);
+  await freezePack(serviceClient, sub.id, now);
   const deliveries = await createDeliveries(serviceClient, sub.id, { authorisedOnly: true });
   await writeAuditEvent(serviceClient, {
     orgId: sub.org_id,
@@ -403,7 +411,7 @@ export async function loadPhotoFiles(
   serviceClient: SupabaseClient,
   orgId: string,
   report: MunicipalReport,
-): Promise<{ filename: string; contentBase64: string; contentType?: string }[]> {
+): Promise<{ documentId: string; filename: string; contentBase64: string; contentType?: string }[]> {
   const ids = report.meters.flatMap((m) => m.evidenceDocumentIds);
   if (ids.length === 0) return [];
   const { data: docs } = await serviceClient
@@ -412,9 +420,12 @@ export async function loadPhotoFiles(
     .in('id', ids)
     .eq('org_id', orgId)
     .is('deleted_at', null);
-  const files: { filename: string; contentBase64: string; contentType?: string }[] = [];
+  const files: { documentId: string; filename: string; contentBase64: string; contentType?: string }[] = [];
   let total = 0;
-  for (const d of docs ?? []) {
+  // Report order (meter by meter), so the same pack always attaches the same photos in the same order.
+  const order = new Map(ids.map((id, i) => [id, i]));
+  const sorted = [...(docs ?? [])].sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+  for (const d of sorted) {
     if (!d.mime_type?.startsWith('image/')) continue;
     if (total + (d.file_size_bytes ?? 0) > MAX_PHOTO_BYTES_TOTAL) break;
     // Through the protected-storage ownership check (migration 172): the path must sit inside the
@@ -424,10 +435,85 @@ export async function loadPhotoFiles(
     const buf = Buffer.from(await read.value.arrayBuffer());
     total += buf.length;
     files.push({
+      documentId: d.id,
       filename: `meter-photo-${d.id.slice(0, 8)}-${d.original_file_name ?? 'photo.jpg'}`,
       contentBase64: buf.toString('base64'),
       contentType: d.mime_type,
     });
+  }
+  return files;
+}
+
+/** What an approval covers, frozen so retries send exactly the same message (MUN-A/B). */
+export interface FrozenPack {
+  includePhotos: boolean;
+  photos: { id: string; sha256: string; filename: string; contentType: string }[];
+  to: string[];
+  cc: string[];
+  frozenAt: string;
+}
+
+function sha256(buf: Buffer): string {
+  return createHash('sha256').update(buf).digest('hex');
+}
+
+/**
+ * Freezes the attachments (exact photo documents + content hashes) and the recipient list of a pack at approval or
+ * scheduling time. Idempotent: an existing frozen snapshot is never replaced.
+ */
+export async function freezePack(serviceClient: SupabaseClient, submissionId: string, now: Date): Promise<FrozenPack> {
+  const { data: sub } = await serviceClient
+    .from('municipal_submissions')
+    .select('id, org_id, property_id, report, rendered_email')
+    .eq('id', submissionId)
+    .single();
+  if (!sub) throw new Error('Submission not found');
+  const rendered = (sub.rendered_email ?? {}) as Record<string, unknown> & { frozen?: FrozenPack; includeFields?: unknown; to?: string[]; cc?: string[] };
+  if (rendered.frozen) return rendered.frozen;
+  const { data: settings } = await serviceClient
+    .from('municipal_submission_settings')
+    .select('include_photos')
+    .eq('property_id', sub.property_id)
+    .maybeSingle();
+  const fields = rendered.includeFields ? normaliseFields(rendered.includeFields) : DEFAULT_INCLUDE_FIELDS;
+  const includePhotos = (settings?.include_photos ?? true) && fields.photos;
+  const photos: FrozenPack['photos'] = [];
+  if (includePhotos) {
+    const files = await loadPhotoFiles(serviceClient, sub.org_id, sub.report as MunicipalReport);
+    for (const f of files) {
+      photos.push({ id: f.documentId, sha256: sha256(Buffer.from(f.contentBase64, 'base64')), filename: f.filename, contentType: f.contentType ?? 'image/jpeg' });
+    }
+  }
+  const frozen: FrozenPack = {
+    includePhotos,
+    photos,
+    to: Array.isArray(rendered.to) ? rendered.to : [],
+    cc: Array.isArray(rendered.cc) ? rendered.cc : [],
+    frozenAt: now.toISOString(),
+  };
+  await serviceClient.from('municipal_submissions').update({ rendered_email: { ...rendered, frozen } }).eq('id', sub.id);
+  return frozen;
+}
+
+/** Loads exactly the frozen photos; refuses (throws) if any is missing or its content changed since approval. */
+async function loadFrozenPhotos(serviceClient: SupabaseClient, orgId: string, frozen: FrozenPack) {
+  if (!frozen.includePhotos || frozen.photos.length === 0) return [];
+  const { data: docs } = await serviceClient
+    .from('documents')
+    .select('id, storage_path')
+    .in('id', frozen.photos.map((p) => p.id))
+    .eq('org_id', orgId)
+    .is('deleted_at', null);
+  const byId = new Map((docs ?? []).map((d) => [d.id as string, d.storage_path as string]));
+  const files: { filename: string; contentBase64: string; contentType?: string }[] = [];
+  for (const p of frozen.photos) {
+    const path = byId.get(p.id);
+    if (!path) throw new Error(`An approved photo (${p.filename}) is no longer available; re-approve the pack.`);
+    const read = await downloadProtectedObject(serviceClient, { orgId, storagePath: path });
+    if (!read.ok) throw new Error(`An approved photo (${p.filename}) could not be read; re-approve the pack.`);
+    const buf = Buffer.from(await read.value.arrayBuffer());
+    if (sha256(buf) !== p.sha256) throw new Error(`An approved photo (${p.filename}) changed after approval; re-approve the pack.`);
+    files.push({ filename: p.filename, contentBase64: buf.toString('base64'), contentType: p.contentType });
   }
   return files;
 }
@@ -472,7 +558,10 @@ export async function sendDueDeliveries(
       status: string;
       scheduledFor: string | null;
       rendered: { subject?: string; bodyText?: string; includeFields?: unknown } | null;
-      files: Awaited<ReturnType<typeof loadPhotoFiles>>;
+      files: { filename: string; contentBase64: string; contentType?: string }[] | null;
+      filesError: string | null;
+      propertyId: string;
+      automaticUnapproved: boolean;
     }
   >();
 
@@ -481,35 +570,79 @@ export async function sendDueDeliveries(
     if (!entry) {
       const { data: sub } = await serviceClient
         .from('municipal_submissions')
-        .select('report, status, property_id, org_id, scheduled_for, rendered_email')
+        .select('report, status, property_id, org_id, scheduled_for, rendered_email, approved_by, mode')
         .eq('id', d.submission_id)
         .single();
       if (!sub) continue;
-      const { data: settings } = await serviceClient
-        .from('municipal_submission_settings')
-        .select('include_photos')
-        .eq('property_id', sub.property_id)
-        .maybeSingle();
-      const rendered = (sub.rendered_email as { subject?: string; bodyText?: string; includeFields?: unknown } | null) ?? null;
-      const fields = rendered?.includeFields ? normaliseFields(rendered.includeFields) : DEFAULT_INCLUDE_FIELDS;
-      const includePhotos = (settings?.include_photos ?? true) && fields.photos;
-      const report = sub.report as MunicipalReport;
+      const rendered = (sub.rendered_email as { subject?: string; bodyText?: string; includeFields?: unknown; frozen?: FrozenPack } | null) ?? null;
+      // Packs approved before freezing existed are frozen on first send, so every retry matches the first attempt.
+      const frozen = rendered?.frozen ?? (await freezePack(serviceClient, d.submission_id, now));
+      let files: { filename: string; contentBase64: string; contentType?: string }[] | null = null;
+      let filesError: string | null = null;
+      try {
+        files = await loadFrozenPhotos(serviceClient, sub.org_id, frozen);
+      } catch (err) {
+        filesError = err instanceof Error ? err.message : 'Approved attachments unavailable.';
+      }
+      // A pack scheduled automatically (nobody pressed Approve) only goes out while the platform flag is on and the
+      // owner-approved template still matches exactly (MUN-C).
+      let automaticUnapproved = false;
+      if (sub.mode === 'automatic' && !sub.approved_by) {
+        const ctx = await loadTemplateContext(serviceClient, sub.property_id);
+        automaticUnapproved = !isAutoSubmissionEnabled() || !ctx.scheduleEnabled || !approvalIsCurrent(ctx);
+      }
       entry = {
-        report,
+        report: sub.report as MunicipalReport,
         status: sub.status,
         scheduledFor: sub.scheduled_for as string | null,
         rendered,
-        files: includePhotos ? await loadPhotoFiles(serviceClient, sub.org_id, report) : [],
+        files,
+        filesError,
+        propertyId: sub.property_id,
+        automaticUnapproved,
       };
       cache.set(d.submission_id, entry);
     }
     if (!['approved', 'scheduled', 'sending', 'partially_failed', 'failed'].includes(entry.status)) continue;
     if (entry.scheduledFor && new Date(entry.scheduledFor).getTime() > now.getTime()) continue;
 
+    // Claim the delivery (compare-and-set on attempts) so two overlapping job runs never send it twice (MUN-D).
+    const attempts = d.attempts + 1;
+    const { data: claimed } = await serviceClient
+      .from('municipal_submission_deliveries')
+      .update({ attempts, last_attempt_at: now.toISOString() })
+      .eq('id', d.id)
+      .eq('attempts', d.attempts)
+      .in('status', ['pending', 'failed'])
+      .select('id');
+    if (!claimed || claimed.length === 0) continue;
     result.attempted += 1;
     touched.add(d.submission_id);
-    const attempts = d.attempts + 1;
+    // Stop conditions that must NOT be retried: recipient withdrawn, or an automatic send no longer allowed.
+    const { data: stillAuthorised } = await serviceClient
+      .from('municipal_submission_recipients')
+      .select('id')
+      .eq('property_id', entry.propertyId)
+      .ilike('email', d.recipient_email)
+      .eq('active', true)
+      .not('authorised_at', 'is', null)
+      .limit(1);
+    const stopReason = !stillAuthorised || stillAuthorised.length === 0
+      ? 'Not sent: this recipient is no longer authorised.'
+      : entry.automaticUnapproved
+        ? 'Not sent: automatic sending is off or the approved template changed. Approve the pack to send it.'
+        : null;
+    if (stopReason) {
+      await serviceClient
+        .from('municipal_submission_deliveries')
+        .update({ status: 'failed', next_attempt_at: null, last_error: stopReason })
+        .eq('id', d.id);
+      result.failed += 1;
+      result.exhausted += 1;
+      continue;
+    }
     try {
+      if (entry.filesError || !entry.files) throw new Error(entry.filesError ?? 'Approved attachments unavailable.');
       const csv = renderReportCsv(entry.report);
       const fields = entry.rendered?.includeFields ? normaliseFields(entry.rendered.includeFields) : DEFAULT_INCLUDE_FIELDS;
       const pdf = await renderReportPdf(entry.report, { fields });
@@ -550,7 +683,6 @@ export async function sendDueDeliveries(
         .from('municipal_submission_deliveries')
         .update({
           status: 'sent',
-          attempts,
           last_attempt_at: now.toISOString(),
           next_attempt_at: null,
           last_error: res.deliveryConfigured ? null : 'Email provider not configured (mock): nothing left the server.',
@@ -566,7 +698,6 @@ export async function sendDueDeliveries(
         .from('municipal_submission_deliveries')
         .update({
           status: 'failed',
-          attempts,
           last_attempt_at: now.toISOString(),
           next_attempt_at: retryAt ? retryAt.toISOString() : null,
           last_error: message,

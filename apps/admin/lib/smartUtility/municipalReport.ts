@@ -270,7 +270,10 @@ export function renderReportPdf(
   opts: { fields?: IncludeFields; images?: PdfImage[] } = {},
 ): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ size: 'A4', margin: 50 });
+    // Deterministic bytes: the creation date is the report's own generation time, so re-rendering an approved pack
+    // for a retry produces exactly the same file as the first attempt.
+    const created = Number.isFinite(Date.parse(r.generatedAt)) ? new Date(r.generatedAt) : new Date(0);
+    const doc = new PDFDocument({ size: 'A4', margin: 50, info: { CreationDate: created, ModDate: created } });
     const chunks: Buffer[] = [];
     doc.on('data', (chunk: Buffer) => chunks.push(chunk));
     doc.on('end', () => resolve(Buffer.concat(chunks)));
