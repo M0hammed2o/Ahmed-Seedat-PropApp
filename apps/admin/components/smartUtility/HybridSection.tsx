@@ -52,6 +52,10 @@ export function HybridSection({ data, canManage, onChanged }: { data: Overview; 
     onChanged();
   };
 
+  // A utility with no meters and no sources is not monitored here: say so once instead of ten "missing" figures.
+  const monitored = (u: 'water' | 'electricity') =>
+    !!dash && (dash.sources.some((x) => x.utilityType === u) || !!dash.series.find((x) => x.utilityType === u)?.kinds.length);
+
   return (
     <Panel
       title="Supply & sources"
@@ -80,40 +84,48 @@ export function HybridSection({ data, canManage, onChanged }: { data: Overview; 
       {!dash && !error ? <p className="text-sm text-muted-foreground">Loading…</p> : null}
       {dash ? (
         <div className="space-y-5">
-          <section aria-label="Electricity balance">
-            <h3 className="mb-2 text-sm font-semibold text-foreground">Electricity · {dash.range.from} to {dash.range.to} ({dash.range.days} days)</h3>
-            <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
-              <Figure label="Grid import" value={dash.electricity.gridImport.value} unit="kWh" basis={dash.electricity.gridImport.basis} />
-              <Figure label="Solar generated" value={dash.electricity.generation.value} unit="kWh" basis={dash.electricity.generation.basis} />
-              <Figure label="Solar used on site" value={dash.electricity.solarSelfConsumption.value} unit="kWh" basis={dash.electricity.solarSelfConsumption.basis} />
-              <Figure label="Battery out / in" value={dash.electricity.batteryDischarge.value} unit="kWh" basis={dash.electricity.batteryDischarge.basis} hint={`charged ${fmtNumber(dash.electricity.batteryCharge.value)} kWh`} />
-              <Figure label="Generator" value={dash.electricity.generatorOutput.value} unit="kWh" basis={dash.electricity.generatorOutput.basis} />
-              <Figure label="Exported" value={dash.electricity.gridExport.value} unit="kWh" basis={dash.electricity.gridExport.basis} />
-              <Figure label="Site supply" value={dash.electricity.siteSupply.value} unit="kWh" basis={dash.electricity.siteSupply.basis} />
-              <Figure label="Measured use" value={dash.electricity.measuredConsumption.value} unit="kWh" basis={dash.electricity.measuredConsumption.basis} />
-              <Figure label="Supply − use" value={dash.electricity.variance.value} unit="kWh" basis={dash.electricity.variance.basis} hint={dash.electricity.variancePct !== null ? `${dash.electricity.variancePct}% — losses or unmetered loads` : undefined} />
-              <Figure label="Borehole pump" value={dash.electricity.pumpEnergy.value} unit="kWh" basis={dash.electricity.pumpEnergy.basis} />
-            </div>
-            {dash.electricity.siteSupply.value ? (
-              <p className="mt-2 text-xs text-muted-foreground">
-                Where the energy came from: grid {dash.electricity.contribution.grid ?? 0}% · solar {dash.electricity.contribution.solar ?? 0}% · battery {dash.electricity.contribution.battery ?? 0}% · generator {dash.electricity.contribution.generator ?? 0}%
-              </p>
-            ) : null}
-          </section>
+          {monitored('electricity') ? (
+            <section aria-label="Electricity balance">
+              <h3 className="mb-2 text-sm font-semibold text-foreground">Electricity · {dash.range.from} to {dash.range.to} ({dash.range.days} days)</h3>
+              <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
+                <Figure label="Grid import" value={dash.electricity.gridImport.value} unit="kWh" basis={dash.electricity.gridImport.basis} />
+                <Figure label="Solar generated" value={dash.electricity.generation.value} unit="kWh" basis={dash.electricity.generation.basis} />
+                <Figure label="Solar used on site" value={dash.electricity.solarSelfConsumption.value} unit="kWh" basis={dash.electricity.solarSelfConsumption.basis} />
+                <Figure label="Battery out / in" value={dash.electricity.batteryDischarge.value} unit="kWh" basis={dash.electricity.batteryDischarge.basis} hint={`charged ${fmtNumber(dash.electricity.batteryCharge.value)} kWh`} />
+                <Figure label="Generator" value={dash.electricity.generatorOutput.value} unit="kWh" basis={dash.electricity.generatorOutput.basis} />
+                <Figure label="Exported" value={dash.electricity.gridExport.value} unit="kWh" basis={dash.electricity.gridExport.basis} />
+                <Figure label="Site supply" value={dash.electricity.siteSupply.value} unit="kWh" basis={dash.electricity.siteSupply.basis} />
+                <Figure label="Measured use" value={dash.electricity.measuredConsumption.value} unit="kWh" basis={dash.electricity.measuredConsumption.basis} />
+                <Figure label="Supply − use" value={dash.electricity.variance.value} unit="kWh" basis={dash.electricity.variance.basis} hint={dash.electricity.variancePct !== null ? `${dash.electricity.variancePct}% — losses or unmetered loads` : undefined} />
+                <Figure label="Borehole pump" value={dash.electricity.pumpEnergy.value} unit="kWh" basis={dash.electricity.pumpEnergy.basis} />
+              </div>
+              {dash.electricity.siteSupply.value ? (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Where the energy came from: grid {dash.electricity.contribution.grid ?? 0}% · solar {dash.electricity.contribution.solar ?? 0}% · battery {dash.electricity.contribution.battery ?? 0}% · generator {dash.electricity.contribution.generator ?? 0}%
+                </p>
+              ) : null}
+            </section>
+          ) : (
+            <p className="text-xs text-muted-foreground">Electricity: not monitored yet — add a meter (Meters) or a supply source to see figures here.</p>
+          )}
 
-          <section aria-label="Water balance">
-            <h3 className="mb-2 text-sm font-semibold text-foreground">Water</h3>
-            <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
-              {dash.water.bySource.map((s) => (
-                <Figure key={s.sourceType} label={SOURCE_LABEL[s.sourceType] ?? s.label} value={s.volume.value} unit="kL" basis={s.volume.basis} />
-              ))}
-              <Figure label="Total supply" value={dash.water.totalSupply.value} unit="kL" basis={dash.water.totalSupply.basis} />
-              <Figure label="Stored in tanks" value={dash.water.storageChange.value} unit="kL" basis={dash.water.storageChange.basis} hint="positive = tanks filled" />
-              <Figure label="Used on site" value={dash.water.siteUse.value} unit="kL" basis={dash.water.siteUse.basis} />
-              <Figure label="Measured use" value={dash.water.measuredConsumption.value} unit="kL" basis={dash.water.measuredConsumption.basis} />
-              <Figure label="Supply − use" value={dash.water.variance.value} unit="kL" basis={dash.water.variance.basis} hint={dash.water.variancePct !== null ? `${dash.water.variancePct}% — possible leak, losses or missing meters` : undefined} />
-            </div>
-          </section>
+          {monitored('water') ? (
+            <section aria-label="Water balance">
+              <h3 className="mb-2 text-sm font-semibold text-foreground">Water</h3>
+              <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
+                {dash.water.bySource.map((s) => (
+                  <Figure key={s.sourceType} label={SOURCE_LABEL[s.sourceType] ?? s.label} value={s.volume.value} unit="kL" basis={s.volume.basis} />
+                ))}
+                <Figure label="Total supply" value={dash.water.totalSupply.value} unit="kL" basis={dash.water.totalSupply.basis} />
+                <Figure label="Stored in tanks" value={dash.water.storageChange.value} unit="kL" basis={dash.water.storageChange.basis} hint="positive = tanks filled" />
+                <Figure label="Used on site" value={dash.water.siteUse.value} unit="kL" basis={dash.water.siteUse.basis} />
+                <Figure label="Measured use" value={dash.water.measuredConsumption.value} unit="kL" basis={dash.water.measuredConsumption.basis} />
+                <Figure label="Supply − use" value={dash.water.variance.value} unit="kL" basis={dash.water.variance.basis} hint={dash.water.variancePct !== null ? `${dash.water.variancePct}% — possible leak, losses or missing meters` : undefined} />
+              </div>
+            </section>
+          ) : (
+            <p className="text-xs text-muted-foreground">Water: not monitored yet — add a meter (Meters) or a supply source to see figures here.</p>
+          )}
 
           {(() => {
             // A utility with no meters and no sources at all is simply not monitored here: no "gap" to report.
