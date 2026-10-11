@@ -69,7 +69,7 @@ describeIfSupabase('Smart Utilities engine (real local Supabase integration)', (
 
   beforeAll(async () => {
     manager = await makeUser(`su2-manager-${suffix}@propertyvault.example`);
-    const { data: org } = await service.from('organizations').insert({ legal_name: `SU2 ${suffix}`, org_type: 'agency' }).select('id').single();
+    const { data: org } = await service.from('organizations').insert({ legal_name: `SU2 ${suffix}`, org_type: 'agency', utilities_enabled: true /* off by default since migration 182 */ }).select('id').single();
     await service.from('organization_members').insert({ org_id: org!.id, user_id: manager.id, role: 'manager', status: 'active', joined_at: new Date().toISOString() });
     const { data: prop } = await service
       .from('properties')

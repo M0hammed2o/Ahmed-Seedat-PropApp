@@ -1,6 +1,6 @@
--- ROLLBACK of utilities migrations 175–181 (docs/UTILITIES_STAGING_DEPLOYMENT_PLAN.md §2).
+-- ROLLBACK of utilities migrations 175–182 (docs/UTILITIES_STAGING_DEPLOYMENT_PLAN.md §2).
 -- NOT a migration: run by hand, as one transaction (psql -1 -v ON_ERROR_STOP=1 -f ...), only on a database where
--- 175–181 were applied and something forces going back. Rehearsed on a disposable copy of representative data:
+-- 175–182 were applied and something forces going back. Rehearsed on a disposable copy of representative data:
 -- schema after rollback = schema at 174 (pg_dump diff empty), data fingerprint of pre-existing tables unchanged.
 --
 -- It REFUSES to run when real utility data exists (charges, statements, municipal packs, device/manual telemetry
@@ -39,7 +39,7 @@ drop function if exists public.ingest_telemetry_batch(jsonb);
 -- ------------------------------------------------------------------ 180 (new function; nothing to restore)
 drop function if exists public.portfolio_intelligence_candidate_orgs();
 
--- ------------------------------------------------------------------ 179
+-- ------------------------------------------------------------------ 182 (default/value of the column below) + 179
 alter table public.organizations drop column if exists utilities_enabled;
 drop function if exists public.utility_reading_counts_since(timestamptz, uuid[]);
 drop trigger if exists release_utility_charges_on_invoice_void on public.invoices;
@@ -204,5 +204,5 @@ drop function if exists public.can_write_property_utilities(uuid, uuid);
 -- btree_gist was installed by 179 only for utility_charges_no_overlap (gone with the table).
 drop extension if exists btree_gist;
 
--- Forget 175–181 in the migration history so `supabase db push` applies them again after a fix.
-delete from supabase_migrations.schema_migrations where version between '20260101000175' and '20260101000181';
+-- Forget 175–182 in the migration history so `supabase db push` applies them again after a fix.
+delete from supabase_migrations.schema_migrations where version between '20260101000175' and '20260101000182';

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { test, expect, type Page } from '@playwright/test';
 import { BASE_URL } from '../playwright.config';
-import { setUpOrg, createProperty, createUnit } from './fixtures/orgWorkflow';
+import { setUpOrg, createProperty, createUnit, enableSmartUtilitiesForTests } from './fixtures/orgWorkflow';
 
 // Smart Utilities browser walk-through (docs/SMART_UTILITIES_PROGRESS.md): the Utilities tab, the
 // Add Smart Meter wizard + catalogue honesty labels, a manual reading and its review, the
@@ -26,6 +26,7 @@ async function openUtilities(page: Page, propertyId: string) {
 test('landlord adds a meter from the catalogue, records and reviews a reading, and approves the municipal email', async ({ page }) => {
   test.setTimeout(240_000);
   const { orgId } = await setUpOrg(page.request, 'smart-utilities');
+  await enableSmartUtilitiesForTests(orgId); // off by default since migration 182
   const propertyId = await createProperty(page.request, orgId, 'Utilities Walkthrough');
   await createUnit(page.request, propertyId, 'Flat 1');
 

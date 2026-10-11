@@ -3,7 +3,7 @@ import { pinnedFetch } from './pinnedFetch';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { notifyPropertyStaff } from '../notify';
 import { writeAuditEvent } from '../audit';
-import { storeReadings, type IngestResult, type IntegrationRow } from './ingest';
+import { enabledUtilityOrgs, storeReadings, type IngestResult, type IntegrationRow } from './ingest';
 import { getProvider, type PollContext } from './providers';
 import { decryptCredentials } from './secrets';
 
@@ -148,12 +148,14 @@ export async function runPollSync(
     .or(`next_sync_at.is.null,next_sync_at.lte.${now.toISOString()}`)
     .limit(100);
   if (error) throw new Error(error.message);
+  // Never contact a customer's server for an organisation with Smart Utilities switched off (migration 182).
+  const enabled = (data ?? []).length ? await enabledUtilityOrgs(serviceClient) : new Set<string>();
   let succeeded = 0;
   let failed = 0;
-  for (const row of (data ?? []) as PollIntegrationRow[]) {
+  for (const row of ((data ?? []) as PollIntegrationRow[]).filter((r) => enabled.has(r.org_id))) {
     const out = await syncIntegration(serviceClient, row, { now, fetchImpl: opts.fetchImpl });
     if (out.ok) succeeded += 1;
     else failed += 1;
   }
-  return { attempted: (data ?? []).length, succeeded, failed };
+  return { attempted: succeeded + failed, succeeded, failed };
 }

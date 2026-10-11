@@ -85,7 +85,7 @@ describeIfSupabase('Municipal reporting (real local Supabase integration)', () =
   beforeAll(async () => {
     manager = await makeUser(`su3-manager-${suffix}@propertyvault.example`);
     viewer = await makeUser(`su3-viewer-${suffix}@propertyvault.example`);
-    const { data: org } = await service.from('organizations').insert({ legal_name: `SU3 ${suffix}`, org_type: 'agency' }).select('id').single();
+    const { data: org } = await service.from('organizations').insert({ legal_name: `SU3 ${suffix}`, org_type: 'agency', utilities_enabled: true /* off by default since migration 182 */ }).select('id').single();
     orgId = org!.id;
     await service.from('organization_members').insert([
       { org_id: orgId, user_id: manager.id, role: 'manager', status: 'active', joined_at: new Date().toISOString() },

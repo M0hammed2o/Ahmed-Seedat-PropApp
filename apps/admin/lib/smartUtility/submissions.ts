@@ -552,8 +552,10 @@ export async function sendDueDeliveries(
   const result: SendResult = { attempted: 0, sent: 0, failed: 0, exhausted: 0 };
   const touched = new Set<string>();
   // Paused while Smart Utilities is switched off for the organisation; deliveries stay due and resume later.
-  const { data: disabledRows } = await serviceClient.from('organizations').select('id').eq('utilities_enabled', false).limit(10_000);
-  const disabledOrgs = new Set((disabledRows ?? []).map((o) => o.id as string));
+  // Fail closed: if the switch cannot be read, nothing is sent this run.
+  const { data: enabledRows, error: enabledError } = await serviceClient.from('organizations').select('id').eq('utilities_enabled', true).limit(10_000);
+  if (enabledError) throw new Error(`utilities switch lookup failed: ${enabledError.message}`);
+  const enabledOrgs = new Set((enabledRows ?? []).map((o) => o.id as string));
   const cache = new Map<
     string,
     {
@@ -569,7 +571,7 @@ export async function sendDueDeliveries(
   >();
 
   for (const d of due ?? []) {
-    if (disabledOrgs.has(d.org_id as string)) continue;
+    if (!enabledOrgs.has(d.org_id as string)) continue;
     let entry = cache.get(d.submission_id);
     if (!entry) {
       const { data: sub } = await serviceClient

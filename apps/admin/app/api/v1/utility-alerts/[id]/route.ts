@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { utilityAlertUpdateSchema } from '@propvault/validation';
-import { canWriteUtilities, forbidden, notFound, parseJson, requireUser, serverError } from '@/lib/smartUtility/http';
+import { canWriteUtilities, forbidden, notFound, parseJson, requireUser, serverError, utilitiesDisabled, utilitiesEnabledForOrg } from '@/lib/smartUtility/http';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -18,6 +18,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     .maybeSingle();
   if (!alert) return notFound('Alert');
   if (!(await canWriteUtilities(auth.supabase, alert.org_id, alert.property_id))) return forbidden();
+  if (!(await utilitiesEnabledForOrg(alert.org_id))) return utilitiesDisabled();
   const now = new Date().toISOString();
   const status = parsed.data.status;
   const { error } = await auth.supabase

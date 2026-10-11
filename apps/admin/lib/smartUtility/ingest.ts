@@ -28,16 +28,21 @@ export type IntegrationAuthResult =
   | { ok: true; integration: IntegrationRow }
   | { ok: false; reason: 'missing_token' | 'invalid_token' | 'revoked' | 'utilities_disabled' };
 
-/** Organisations with Smart Utilities switched off (migration 179). Absent column / error → treated as enabled. */
-export async function disabledUtilityOrgs(serviceClient: SupabaseClient): Promise<Set<string>> {
-  const { data, error } = await serviceClient.from('organizations').select('id').eq('utilities_enabled', false).limit(10_000);
-  if (error) return new Set();
+/**
+ * Organisations with Smart Utilities switched ON (migrations 179/182: off by default, switched on per organisation).
+ * FAIL CLOSED: a lookup error throws, so a job step fails and reports instead of treating everyone as enabled.
+ */
+export async function enabledUtilityOrgs(serviceClient: SupabaseClient): Promise<Set<string>> {
+  const { data, error } = await serviceClient.from('organizations').select('id').eq('utilities_enabled', true).limit(10_000);
+  if (error) throw new Error(`utilities switch lookup failed: ${error.message}`);
   return new Set((data ?? []).map((o) => o.id as string));
 }
 
+/** Fail closed: only an explicit `true` enables (missing row, missing value or error → disabled). */
 async function orgUtilitiesEnabled(serviceClient: SupabaseClient, orgId: string): Promise<boolean> {
-  const { data } = await serviceClient.from('organizations').select('utilities_enabled').eq('id', orgId).maybeSingle();
-  return (data as { utilities_enabled?: boolean } | null)?.utilities_enabled !== false;
+  const { data, error } = await serviceClient.from('organizations').select('utilities_enabled').eq('id', orgId).maybeSingle();
+  if (error) return false;
+  return (data as { utilities_enabled?: boolean } | null)?.utilities_enabled === true;
 }
 
 export async function authenticateIntegration(

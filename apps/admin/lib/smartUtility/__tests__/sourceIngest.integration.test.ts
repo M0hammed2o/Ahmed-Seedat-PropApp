@@ -27,7 +27,7 @@ describeIfSupabase('supply-source level ingestion (real local Supabase integrati
   let tankId: string;
 
   beforeAll(async () => {
-    const { data: org } = await service.from('organizations').insert({ legal_name: `SRC ${suffix}`, org_type: 'agency' }).select('id').single();
+    const { data: org } = await service.from('organizations').insert({ legal_name: `SRC ${suffix}`, org_type: 'agency', utilities_enabled: true /* off by default since migration 182 */ }).select('id').single();
     const { data: prop } = await service
       .from('properties')
       .insert({ org_id: org!.id, nickname: 'SRC', address_line1: '3', city: 'Polokwane', province: 'Limpopo', postal_code: '0700' })

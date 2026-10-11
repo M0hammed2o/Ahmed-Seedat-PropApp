@@ -45,7 +45,7 @@ d('municipal sending safety (real local Supabase)', () => {
 
   beforeAll(async () => {
     userId = (await service.auth.admin.createUser({ email: `ms-${sfx}@propertyvault.example`, password: 'TestPassw0rd!23', email_confirm: true })).data.user!.id;
-    orgId = (await service.from('organizations').insert({ legal_name: `MS ${sfx}`, org_type: 'agency' }).select('id').single()).data!.id;
+    orgId = (await service.from('organizations').insert({ legal_name: `MS ${sfx}`, org_type: 'agency', utilities_enabled: true /* off by default since migration 182 */ }).select('id').single()).data!.id;
     propertyId = (await service.from('properties').insert({ org_id: orgId, nickname: 'MS', address_line1: '1 Safe St', city: 'Durban', province: 'KwaZulu-Natal', postal_code: '4001' }).select('id').single()).data!.id;
     await recipient(`a-${sfx}@example.com`);
   }, 60_000);

@@ -32,7 +32,7 @@ describeIfSupabase('Smart Utility jobs (real local Supabase integration)', () =>
   beforeAll(async () => {
     const { data: user } = await service.auth.admin.createUser({ email: `su6-${suffix}@propertyvault.example`, password: 'TestPassw0rd!23', email_confirm: true });
     managerId = user.user!.id;
-    const { data: org } = await service.from('organizations').insert({ legal_name: `SU6 ${suffix}`, org_type: 'agency' }).select('id').single();
+    const { data: org } = await service.from('organizations').insert({ legal_name: `SU6 ${suffix}`, org_type: 'agency', utilities_enabled: true /* off by default since migration 182 */ }).select('id').single();
     orgId = org!.id;
     await service.from('organization_members').insert({ org_id: orgId, user_id: managerId, role: 'manager', status: 'active', joined_at: new Date().toISOString() });
     const { data: prop } = await service.from('properties').insert({ org_id: orgId, nickname: 'SU6', address_line1: '6', city: 'Durban', province: 'KwaZulu-Natal', postal_code: '4001' }).select('id').single();

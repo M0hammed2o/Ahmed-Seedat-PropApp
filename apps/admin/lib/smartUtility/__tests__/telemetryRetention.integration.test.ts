@@ -32,7 +32,7 @@ d('telemetry retention (real local Supabase)', () => {
 
   it('keeps day boundaries, manual and flagged readings; removes routine readings in between', async () => {
     const sfx = Date.now();
-    const orgId = (await service.from('organizations').insert({ legal_name: `RT ${sfx}`, org_type: 'agency' }).select('id').single()).data!.id;
+    const orgId = (await service.from('organizations').insert({ legal_name: `RT ${sfx}`, org_type: 'agency', utilities_enabled: true /* off by default since migration 182 */ }).select('id').single()).data!.id;
     const propertyId = (await service.from('properties').insert({ org_id: orgId, nickname: 'RT', address_line1: '1', city: 'Durban', province: 'KwaZulu-Natal', postal_code: '4001' }).select('id').single()).data!.id;
     const meterId = (await service.from('utility_meters').insert({ org_id: orgId, property_id: propertyId, utility_type: 'water', responsibility_mode: 'owner_paid', meter_role: 'main' }).select('id').single()).data!.id;
     // Two old SAST days (≈ 2 years ago), readings every 6 hours: 00:00, 06:00, 12:00, 18:00.

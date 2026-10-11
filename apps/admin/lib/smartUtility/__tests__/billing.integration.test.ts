@@ -56,7 +56,7 @@ describeIfSupabase('utility billing v2 (real local Supabase integration)', () =>
   beforeAll(async () => {
     const { data: user } = await service.auth.admin.createUser({ email: `hyb-${suffix}@propertyvault.example`, password: 'TestPassw0rd!23', email_confirm: true });
     userId = user.user!.id;
-    const { data: org } = await service.from('organizations').insert({ legal_name: `HYB ${suffix}`, org_type: 'agency' }).select('id').single();
+    const { data: org } = await service.from('organizations').insert({ legal_name: `HYB ${suffix}`, org_type: 'agency', utilities_enabled: true /* off by default since migration 182 */ }).select('id').single();
     orgId = org!.id;
     await service.from('organization_members').insert({ org_id: orgId, user_id: userId, role: 'accountant', status: 'active', joined_at: new Date().toISOString(), property_access_mode: 'all' });
     session = createClient(SUPABASE_URL, ANON_KEY, opts);

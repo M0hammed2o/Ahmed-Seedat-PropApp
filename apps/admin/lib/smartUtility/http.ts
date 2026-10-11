@@ -2,7 +2,7 @@ import 'server-only';
 import { NextResponse, type NextRequest } from 'next/server';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 import type { ZodType } from 'zod';
-import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { getServerSupabaseClient, getServiceRoleClient } from '@/lib/supabase/server';
 import { safeErrorMessage } from '@/lib/safeError';
 
 // Shared plumbing for the Smart Utility routes: same {error:{code,message}} envelope and
@@ -59,11 +59,21 @@ export async function loadReadableProperty(
     .maybeSingle();
   if (!data) return null;
   const { organizations, ...rest } = data as typeof data & { organizations: { utilities_enabled?: boolean } | null };
-  // Per-organisation switch (migration 179); a missing value means enabled (older databases).
-  return { ...rest, utilities_enabled: organizations?.utilities_enabled !== false };
+  // Fail closed (migration 182): only an explicit true enables Smart Utilities for the organisation.
+  return { ...rest, utilities_enabled: organizations?.utilities_enabled === true };
 }
 
 /** 403 when Smart Utilities is switched off for the organisation (other Proplyst features are unaffected). */
+/**
+ * Smart Utilities switch for one organisation (migrations 179/182), read with the service role so a caller's RLS view
+ * cannot affect it. FAIL CLOSED: only an explicit `true` enables; a missing row or a lookup error means disabled.
+ */
+export async function utilitiesEnabledForOrg(orgId: string): Promise<boolean> {
+  const { data, error } = await getServiceRoleClient().from('organizations').select('utilities_enabled').eq('id', orgId).maybeSingle();
+  if (error) return false;
+  return (data as { utilities_enabled?: boolean } | null)?.utilities_enabled === true;
+}
+
 export const utilitiesDisabled = () =>
   jsonError(403, 'utilities_disabled', 'Smart Utilities is not enabled for this organisation. Ask Proplyst support to enable it.');
 

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { BASE_URL } from '../playwright.config';
-import { setUpOrg, createProperty, createUnit } from './fixtures/orgWorkflow';
+import { setUpOrg, createProperty, createUnit, enableSmartUtilitiesForTests } from './fixtures/orgWorkflow';
 
 // Hybrid utilities browser walk-through (docs/HYBRID_UTILITIES_ARCHITECTURE.md): add a supply source, a flat
 // electricity tariff with a calculation preview, a per-unit billing arrangement, calculate → approve a charge,
@@ -36,6 +36,7 @@ const sastDate = (msAgo: number) => new Date(Date.now() + 2 * 3_600_000 - msAgo)
 test('landlord sets up a hybrid supply, a tariff and an arrangement, then approves a charge and a tenant statement', async ({ page }) => {
   test.setTimeout(300_000);
   const { orgId } = await setUpOrg(page.request, 'hybrid-utilities');
+  await enableSmartUtilitiesForTests(orgId); // off by default since migration 182
   const propertyId = await createProperty(page.request, orgId, 'Hybrid Walkthrough');
   const unitId = await createUnit(page.request, propertyId, 'Flat 1');
   const tenant = await post(page.request, '/api/v1/tenants', { orgId, fullName: 'Thandi Hybrid' });

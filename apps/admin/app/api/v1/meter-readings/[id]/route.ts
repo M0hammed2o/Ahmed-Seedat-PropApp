@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { meterReadingReviewSchema } from '@propvault/validation';
 import { getServiceRoleClient } from '@/lib/supabase/server';
 import { writeAuditEvent } from '@/lib/audit';
-import { canWriteUtilities, forbidden, jsonError, notFound, parseJson, requireUser, serverError } from '@/lib/smartUtility/http';
+import { canWriteUtilities, forbidden, jsonError, notFound, parseJson, requireUser, serverError, utilitiesDisabled, utilitiesEnabledForOrg } from '@/lib/smartUtility/http';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -24,6 +24,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     .maybeSingle();
   if (!reading) return notFound('Reading');
   if (!(await canWriteUtilities(auth.supabase, reading.org_id, reading.property_id))) return forbidden();
+  if (!(await utilitiesEnabledForOrg(reading.org_id))) return utilitiesDisabled();
   if (reading.verification_status === 'not_required') {
     return jsonError(409, 'not_reviewable', 'Device readings are not reviewed manually.');
   }

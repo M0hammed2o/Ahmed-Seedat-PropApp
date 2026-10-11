@@ -117,8 +117,9 @@ describeIfSupabase('Smart Utility Monitoring (real local Supabase integration)',
     const { data: orgs } = await service
       .from('organizations')
       .insert([
-        { legal_name: `SU Org ${suffix}`, org_type: 'agency' },
-        { legal_name: `SU Other ${suffix}`, org_type: 'agency' },
+        // Smart Utilities is off by default since migration 182; both test orgs are switched on.
+        { legal_name: `SU Org ${suffix}`, org_type: 'agency', utilities_enabled: true },
+        { legal_name: `SU Other ${suffix}`, org_type: 'agency', utilities_enabled: true },
       ])
       .select('id');
     orgId = orgs![0]!.id;

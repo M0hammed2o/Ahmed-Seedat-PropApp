@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { submissionActionSchema } from '@propvault/validation';
 import { getServiceRoleClient } from '@/lib/supabase/server';
 import { writeAuditEvent } from '@/lib/audit';
-import { canWriteUtilities, forbidden, jsonError, notFound, parseJson, requireUser, serverError } from '@/lib/smartUtility/http';
+import { canWriteUtilities, forbidden, jsonError, notFound, parseJson, requireUser, serverError, utilitiesDisabled, utilitiesEnabledForOrg } from '@/lib/smartUtility/http';
 import {
   approveSubmission,
   recordAcceptance,
@@ -33,6 +33,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     .maybeSingle();
   if (!sub) return notFound('Submission');
   if (!(await canWriteUtilities(auth.supabase, sub.org_id, sub.property_id))) return forbidden();
+  if (!(await utilitiesEnabledForOrg(sub.org_id))) return utilitiesDisabled();
 
   const service = getServiceRoleClient();
   try {

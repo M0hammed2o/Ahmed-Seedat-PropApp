@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { smartMeterCreateSchema } from '@propvault/validation';
 import { getServiceRoleClient } from '@/lib/supabase/server';
 import { writeAuditEvent } from '@/lib/audit';
-import { canWriteUtilities, forbidden, jsonError, notFound, parseJson, requireUser, serverError } from '@/lib/smartUtility/http';
+import { canWriteUtilities, forbidden, jsonError, notFound, parseJson, requireUser, serverError, utilitiesDisabled, utilitiesEnabledForOrg } from '@/lib/smartUtility/http';
 import { loadReadableMeter, meterInsertRow, meterWriteError } from '@/lib/smartUtility/meters';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -22,6 +22,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   const old = await loadReadableMeter(auth.supabase, id);
   if (!old) return notFound('Meter');
   if (!(await canWriteUtilities(auth.supabase, old.org_id, old.property_id))) return forbidden();
+  if (!(await utilitiesEnabledForOrg(old.org_id))) return utilitiesDisabled();
   if (!old.active) return jsonError(409, 'meter_inactive', 'This meter has already been replaced or decommissioned.');
   if (parsed.data.utilityType !== old.utility_type) {
     return jsonError(400, 'utility_type_mismatch', 'A replacement must measure the same utility.');

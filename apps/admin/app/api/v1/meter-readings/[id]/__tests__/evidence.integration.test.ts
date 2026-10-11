@@ -57,7 +57,7 @@ describeIfSupabase('Meter evidence (real local Supabase integration)', () => {
   beforeAll(async () => {
     manager = await makeUser(`su4-m-${suffix}@propertyvault.example`);
     viewer = await makeUser(`su4-v-${suffix}@propertyvault.example`);
-    const { data: org } = await service.from('organizations').insert({ legal_name: `SU4 ${suffix}`, org_type: 'agency' }).select('id').single();
+    const { data: org } = await service.from('organizations').insert({ legal_name: `SU4 ${suffix}`, org_type: 'agency', utilities_enabled: true /* off by default since migration 182 */ }).select('id').single();
     await service.from('organization_members').insert([
       { org_id: org!.id, user_id: manager.id, role: 'manager', status: 'active', joined_at: new Date().toISOString() },
       { org_id: org!.id, user_id: viewer.id, role: 'viewer', status: 'active', joined_at: new Date().toISOString() },
@@ -117,5 +117,22 @@ describeIfSupabase('Meter evidence (real local Supabase integration)', () => {
     expect(res.headers.get('content-type')).toBe('application/pdf');
     expect(Buffer.from(await res.arrayBuffer()).subarray(0, 5).toString()).toBe('%PDF-');
     as(manager.token);
+  });
+
+  it('switched off (migration 182): manual readings and reviews are refused with utilities_disabled; reads still work', async () => {
+    const orgId = (await service.from('utility_meters').select('org_id').eq('id', meterId).single()).data!.org_id as string;
+    await service.from('organizations').update({ utilities_enabled: false }).eq('id', orgId);
+    try {
+      as(manager.token);
+      const write = await manualReading(req('POST', { readAt: new Date(Date.now() - 10 * 60_000).toISOString(), reading: 104 }), p(meterId));
+      expect(write.status).toBe(403);
+      expect((await write.json()).error.code).toBe('utilities_disabled');
+      const reviewed = await review(req('POST', { decision: 'verified' }), p(ids[1]!));
+      expect(reviewed.status).toBe(403);
+      expect((await reviewed.json()).error.code).toBe('utilities_disabled');
+      expect((await evidence(req('GET'), p(ids[0]!))).status).toBe(200); // existing evidence stays readable
+    } finally {
+      await service.from('organizations').update({ utilities_enabled: true }).eq('id', orgId);
+    }
   });
 });

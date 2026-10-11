@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { test, expect, type Page } from '@playwright/test';
 import { BASE_URL } from '../playwright.config';
-import { setUpOrg, createProperty, createUnit } from './fixtures/orgWorkflow';
+import { setUpOrg, createProperty, createUnit, enableSmartUtilitiesForTests } from './fixtures/orgWorkflow';
 
 // Production-readiness browser checks (docs/UTILITIES_FINAL_TEST_RESULTS.md): a manual reading WITH a photo and its
 // review + evidence PDF, the consumption graph, municipal approval withdrawn by a content change, a refused invalid
@@ -32,6 +32,7 @@ async function noHorizontalScroll(page: Page) {
 test('readings with photo evidence, graphs, approval invalidation, error display and layouts', async ({ page }) => {
   test.setTimeout(360_000);
   const { orgId } = await setUpOrg(page.request, 'utilities-readiness');
+  await enableSmartUtilitiesForTests(orgId); // off by default since migration 182
   const propertyId = await createProperty(page.request, orgId, 'Readiness Court');
   await createUnit(page.request, propertyId, 'Flat 1');
 

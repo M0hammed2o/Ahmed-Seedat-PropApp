@@ -60,7 +60,7 @@ describeIfSupabase('hybrid utilities (real local Supabase integration)', () => {
     const tenantEmail = `hyd-tenant-${suffix}@propertyvault.example`;
     staffId = (await service.auth.admin.createUser({ email: staffEmail, password: 'TestPassw0rd!23', email_confirm: true })).data.user!.id;
     const tenantUserId = (await service.auth.admin.createUser({ email: tenantEmail, password: 'TestPassw0rd!23', email_confirm: true })).data.user!.id;
-    orgId = (await service.from('organizations').insert({ legal_name: `HYD ${suffix}`, org_type: 'agency' }).select('id').single()).data!.id;
+    orgId = (await service.from('organizations').insert({ legal_name: `HYD ${suffix}`, org_type: 'agency', utilities_enabled: true /* off by default since migration 182 */ }).select('id').single()).data!.id;
     await service.from('organization_members').insert({ org_id: orgId, user_id: staffId, role: 'accountant', status: 'active', joined_at: new Date().toISOString(), property_access_mode: 'all' });
     propertyId = (
       await service.from('properties').insert({ org_id: orgId, nickname: 'Hybrid House', address_line1: '12 Jacaranda St', city: 'Pretoria', province: 'Gauteng', postal_code: '0181' }).select('id').single()

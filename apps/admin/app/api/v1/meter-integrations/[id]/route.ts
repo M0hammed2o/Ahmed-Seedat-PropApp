@@ -4,7 +4,7 @@ import { meterIntegrationActionSchema } from '@propvault/validation';
 import { getServiceRoleClient } from '@/lib/supabase/server';
 import { writeAuditEvent } from '@/lib/audit';
 import { requireOrgRole } from '@/lib/portfolio';
-import { canWriteUtilities, jsonError, notFound, parseJson, requireUser, serverError } from '@/lib/smartUtility/http';
+import { canWriteUtilities, jsonError, notFound, parseJson, requireUser, serverError, utilitiesDisabled, utilitiesEnabledForOrg } from '@/lib/smartUtility/http';
 import { issueToken } from '@/lib/smartUtility/tokens';
 import { getProvider } from '@/lib/smartUtility/providers';
 import { decryptCredentials, encryptCredentials, isCredentialsKeyConfigured } from '@/lib/smartUtility/secrets';
@@ -56,6 +56,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     (await requireOrgRole(auth.supabase, integration.org_id, 'manager')) &&
     (await canWriteUtilities(auth.supabase, integration.org_id, integration.property_id));
   if (!allowed) return jsonError(403, 'forbidden', 'Only an organisation manager or principal can manage meter hardware.');
+  if (!(await utilitiesEnabledForOrg(integration.org_id))) return utilitiesDisabled();
   if (integration.status === 'revoked') return jsonError(409, 'integration_revoked', 'This integration has been revoked.');
 
   const service = getServiceRoleClient();
