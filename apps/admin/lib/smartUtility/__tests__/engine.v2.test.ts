@@ -4,6 +4,9 @@ import { decryptCredentials, encryptCredentials, isCredentialsKeyConfigured, Cre
 import { computeCharge, validateBlocks } from '../tariffs';
 import { DEFAULT_INCLUDE_FIELDS, normaliseFields, renderEmail, templateHash, unknownPlaceholders } from '../templates';
 import { backoffMinutes } from '../sync';
+
+/** Deterministic resolver for tests (tb.example.com does not resolve in real DNS). */
+const publicDns = async () => ['93.184.216.34'];
 import type { MunicipalReport } from '../municipalReport';
 import { AdapterError } from '../adapters';
 
@@ -97,7 +100,7 @@ describe('ThingsBoard poll adapter (mocked HTTP)', () => {
       return Response.json({ energy: [{ ts: 1791000000000, value: '1234.5' }, { ts: 1791000900000, value: '1235.0' }], other: [] });
     });
     const out = await thingsboardPoll(
-      { config: { baseUrl: 'https://tb.example.com' }, credentials: { apiKey: 'k1' }, fetchImpl },
+      { config: { baseUrl: 'https://tb.example.com' }, credentials: { apiKey: 'k1' }, fetchImpl, lookupImpl: publicDns },
       [{ deviceId: DEVICE, channel: 'energy' }],
       new Date(1790990000000),
       new Date(1791001000000),
@@ -117,21 +120,21 @@ describe('ThingsBoard poll adapter (mocked HTTP)', () => {
       expect(new Headers(init?.headers).get('X-Authorization')).toBe('Bearer jwt1');
       return Response.json({ energy: [] });
     });
-    await thingsboardPoll({ config: { baseUrl: 'https://tb.example.com' }, credentials: { username: 'u', password: 'p' }, fetchImpl }, [{ deviceId: DEVICE, channel: 'energy' }], new Date(0), new Date());
+    await thingsboardPoll({ config: { baseUrl: 'https://tb.example.com' }, credentials: { username: 'u', password: 'p' }, fetchImpl, lookupImpl: publicDns }, [{ deviceId: DEVICE, channel: 'energy' }], new Date(0), new Date());
   });
 
   it('surfaces HTTP failures as errors (so sync backs off) and verify reports bad credentials', async () => {
     const fail = mockFetch(() => new Response('nope', { status: 500 }));
-    await expect(thingsboardPoll({ config: { baseUrl: 'https://tb.example.com' }, credentials: { apiKey: 'k' }, fetchImpl: fail }, [{ deviceId: DEVICE, channel: 'energy' }], new Date(0), new Date())).rejects.toThrow(/HTTP 500/);
+    await expect(thingsboardPoll({ config: { baseUrl: 'https://tb.example.com' }, credentials: { apiKey: 'k' }, fetchImpl: fail, lookupImpl: publicDns }, [{ deviceId: DEVICE, channel: 'energy' }], new Date(0), new Date())).rejects.toThrow(/HTTP 500/);
     const denied = mockFetch(() => new Response('', { status: 401 }));
-    expect(await thingsboardVerify({ config: { baseUrl: 'https://tb.example.com' }, credentials: { apiKey: 'bad' }, fetchImpl: denied })).toEqual({ ok: false, message: 'ThingsBoard rejected the credentials.' });
+    expect(await thingsboardVerify({ config: { baseUrl: 'https://tb.example.com' }, credentials: { apiKey: 'bad' }, fetchImpl: denied, lookupImpl: publicDns })).toEqual({ ok: false, message: 'ThingsBoard rejected the credentials.' });
     const ok = mockFetch(() => Response.json({ id: { id: 'x' } }));
-    expect((await thingsboardVerify({ config: { baseUrl: 'https://tb.example.com' }, credentials: { apiKey: 'k' }, fetchImpl: ok })).ok).toBe(true);
+    expect((await thingsboardVerify({ config: { baseUrl: 'https://tb.example.com' }, credentials: { apiKey: 'k' }, fetchImpl: ok, lookupImpl: publicDns })).ok).toBe(true);
   });
 
   it('rejects a non-UUID device id instead of building a path from it', async () => {
     const fetchImpl = mockFetch(() => Response.json({}));
-    await expect(thingsboardPoll({ config: { baseUrl: 'https://tb.example.com' }, credentials: { apiKey: 'k' }, fetchImpl }, [{ deviceId: '../../admin', channel: 'energy' }], new Date(0), new Date())).rejects.toThrow(/not a UUID/);
+    await expect(thingsboardPoll({ config: { baseUrl: 'https://tb.example.com' }, credentials: { apiKey: 'k' }, fetchImpl, lookupImpl: publicDns }, [{ deviceId: '../../admin', channel: 'energy' }], new Date(0), new Date())).rejects.toThrow(/not a UUID/);
   });
 });
 

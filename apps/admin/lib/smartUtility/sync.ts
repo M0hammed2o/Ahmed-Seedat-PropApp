@@ -38,7 +38,7 @@ export interface SyncOutcome {
 export async function syncIntegration(
   serviceClient: SupabaseClient,
   integration: PollIntegrationRow,
-  opts: { now?: Date; fetchImpl?: typeof fetch; actorUserId?: string | null } = {},
+  opts: { now?: Date; fetchImpl?: typeof fetch; actorUserId?: string | null; lookupImpl?: (hostname: string) => Promise<string[]> } = {},
 ): Promise<SyncOutcome> {
   const now = opts.now ?? new Date();
   const interval = integration.sync_interval_minutes ?? 60;
@@ -50,6 +50,7 @@ export async function syncIntegration(
       config: integration.provider_config ?? {},
       credentials: decryptCredentials(integration.credentials_ciphertext, integration.id),
       fetchImpl: opts.fetchImpl ?? fetch,
+      lookupImpl: opts.lookupImpl,
     };
     const { data: meters, error } = await serviceClient
       .from('utility_meters')

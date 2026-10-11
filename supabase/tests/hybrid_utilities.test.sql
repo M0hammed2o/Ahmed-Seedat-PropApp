@@ -83,7 +83,7 @@ select throws_ok($$insert into public.utility_allocation_groups (org_id, propert
   'P0001', 'Meter does not belong to this property', 'a shared meter group cannot use another property''s meter');
 select throws_ok($$insert into public.utility_supply_sources (org_id, property_id, utility_type, source_type, name, integration_id, external_device_id, level_metric)
   values ('f9111111-0000-0000-0000-000000000001', 'f9222222-0000-0000-0000-000000000001', 'water', 'storage_tank', 'x', 'f9aaaaaa-0000-0000-0000-000000000009', 'dev', 'tank_level_pct')$$,
-  'P0001', 'Integration does not belong to this organisation', 'a level sensor cannot bind to another org''s integration');
+  'P0001', 'Integration does not belong to this property', 'a level sensor cannot bind to another org''s integration (nor another property''s, migration 179)');
 select throws_ok($$update public.utility_tariffs set blocks = '[{"upTo":null,"rate":4}]' where id = 'f9888888-0000-0000-0000-000000000001'$$,
   'P0001', null, 'a tariff used by charges cannot have its rates edited');
 select lives_ok($$update public.utility_tariffs set effective_to = '2027-06-30' where id = 'f9888888-0000-0000-0000-000000000001'$$,

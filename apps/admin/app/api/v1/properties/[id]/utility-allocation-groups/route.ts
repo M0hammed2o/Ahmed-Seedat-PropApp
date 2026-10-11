@@ -33,8 +33,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   if (!property) return notFound();
   if (!(await canWriteUtilities(auth.supabase, property.org_id, property.id))) return forbidden();
   const d = parsed.data;
-  const { data: meter } = await auth.supabase.from('utility_meters').select('id, property_id, active').eq('id', d.meterId).maybeSingle();
+  const { data: meter } = await auth.supabase.from('utility_meters').select('id, property_id, active, measurement_kind').eq('id', d.meterId).maybeSingle();
   if (!meter || meter.property_id !== property.id || !meter.active) return jsonError(400, 'invalid_meter', 'Meter not found on this property.');
+  if (meter.measurement_kind !== 'consumption') {
+    return jsonError(400, 'invalid_meter', 'Only a consumption meter can be shared between units (solar, battery, grid, pump and source meters are never billed).');
+  }
   const { data: units } = await auth.supabase.from('units').select('id, size_sqm').eq('property_id', property.id).in('id', d.members.map((m) => m.unitId));
   if ((units ?? []).length !== d.members.length) return jsonError(400, 'invalid_unit', 'Every member must be a unit of this property.');
   if (d.method === 'floor_area' && (units ?? []).some((u) => !u.size_sqm || Number(u.size_sqm) <= 0)) {

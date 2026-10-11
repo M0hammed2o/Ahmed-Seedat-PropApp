@@ -148,7 +148,7 @@ export const METER_CATALOGUE: CatalogueEntry[] = [
     defaultChannel: '',
     channels: [],
     setupSteps: [
-      'Create a "Modbus gateway / any device (Proplyst JSON)" connection.',
+      'Create a "Proplyst JSON (any device or gateway)" connection.',
       'Send POST requests with the token to the address shown.',
       'Add the meter with the deviceId your device sends.',
     ],
@@ -175,8 +175,11 @@ export const METER_CATALOGUE: CatalogueEntry[] = [
     multiplierNote: '1 if the device sends kWh; 0.001 if it sends Wh.',
     defaultChannel: 'kwh',
     channels: [{ value: 'kwh', label: 'kwh' }],
-    setupSteps: ['Create a "Modbus gateway / any device" connection.', 'POST cumulative kWh with the token.', 'Add the meter with the same deviceId/channel.'],
-    caveats: [],
+    setupSteps: ['Create a "Proplyst JSON (any device or gateway)" connection.', 'POST cumulative kWh with the token.', 'Add the meter with the same deviceId/channel.'],
+    caveats: [
+      "Verified against Proplyst's own contract (automated tests), not with a physical device; your device's accuracy is your responsibility.",
+      'Monitoring-grade unless the device is an approved billing meter.',
+    ],
   },
   // ------------------------------------------------------------------ water, needs hardware testing
   {

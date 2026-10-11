@@ -127,10 +127,10 @@ describeIfSupabase('Smart Utilities engine (real local Supabase integration)', (
     const pts = [3, 2, 1].map((h, i) => ({ ts: now.getTime() - h * 3_600_000, value: String(100 + i * 5) }));
     const fetchImpl = vi.fn(async () => Response.json({ energy: pts })) as unknown as typeof fetch;
     const row = (await loadPollIntegration(service, tbId))!;
-    const first = await syncIntegration(service, row, { now, fetchImpl });
+    const first = await syncIntegration(service, row, { now, fetchImpl , lookupImpl: async () => ['93.184.216.34'] });
     expect(first.ok).toBe(true);
     expect(first.result).toMatchObject({ accepted: 3, duplicates: 0 });
-    const again = await syncIntegration(service, (await loadPollIntegration(service, tbId))!, { now, fetchImpl });
+    const again = await syncIntegration(service, (await loadPollIntegration(service, tbId))!, { now, fetchImpl , lookupImpl: async () => ['93.184.216.34'] });
     expect(again.result).toMatchObject({ accepted: 0, duplicates: 3 });
     const { count } = await service.from('meter_telemetry_readings').select('id', { count: 'exact', head: true }).eq('meter_id', meterId);
     expect(count).toBe(3);
@@ -143,7 +143,7 @@ describeIfSupabase('Smart Utilities engine (real local Supabase integration)', (
     const failing = vi.fn(async () => new Response('down', { status: 503 })) as unknown as typeof fetch;
     let now = new Date();
     for (let i = 1; i <= FAILURES_BEFORE_ALERT; i++) {
-      const out = await syncIntegration(service, (await loadPollIntegration(service, tbId))!, { now, fetchImpl: failing });
+      const out = await syncIntegration(service, (await loadPollIntegration(service, tbId))!, { now, fetchImpl: failing , lookupImpl: async () => ['93.184.216.34'] });
       expect(out.ok).toBe(false);
       const { data } = await service.from('meter_integrations').select('consecutive_failures, next_sync_at, last_sync_error').eq('id', tbId).single();
       expect(data!.consecutive_failures).toBe(i);
@@ -157,7 +157,7 @@ describeIfSupabase('Smart Utilities engine (real local Supabase integration)', (
     expect(notes).toHaveLength(1);
 
     const ok = vi.fn(async () => Response.json({ energy: [{ ts: now.getTime() - 60_000, value: '130' }] })) as unknown as typeof fetch;
-    const back = await syncIntegration(service, (await loadPollIntegration(service, tbId))!, { now, fetchImpl: ok });
+    const back = await syncIntegration(service, (await loadPollIntegration(service, tbId))!, { now, fetchImpl: ok , lookupImpl: async () => ['93.184.216.34'] });
     expect(back.ok).toBe(true);
     const { data: after } = await service.from('meter_integrations').select('consecutive_failures, last_sync_status').eq('id', tbId).single();
     expect(after).toMatchObject({ consecutive_failures: 0, last_sync_status: 'ok' });

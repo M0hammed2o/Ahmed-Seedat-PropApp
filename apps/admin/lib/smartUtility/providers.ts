@@ -36,6 +36,8 @@ export interface PollContext {
   config: Record<string, unknown>;
   credentials: Record<string, string>;
   fetchImpl: typeof fetch;
+  /** DNS resolver (all addresses for a hostname); injectable for tests. Defaults to the system resolver. */
+  lookupImpl?: (hostname: string) => Promise<string[]>;
 }
 
 export interface PollDevice {
@@ -173,10 +175,20 @@ export function validateBaseUrl(raw: unknown, allowInsecureLocal = false): URL {
   if (isLocal && allowInsecureLocal) return url;
   if (url.protocol !== 'https:') throw new AdapterError('The server address must use https.');
   if (isLocal) throw new AdapterError('Local addresses are not allowed.');
-  const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
+  if (isPrivateAddress(host)) throw new AdapterError('Private or reserved IP addresses are not allowed.');
+  if (host.startsWith('[') || host.includes(':')) throw new AdapterError('IPv6 literal addresses are not allowed.');
+  if (url.username || url.password) throw new AdapterError('Put credentials in the credential fields, not the address.');
+  return url;
+}
+
+/** True for loopback, private, link-local, CGNAT, benchmarking, multicast/reserved IPv4 and the IPv6 equivalents. */
+export function isPrivateAddress(address: string): boolean {
+  const a6 = address.replace(/^\[|\]$/g, '').toLowerCase();
+  const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/.exec(a6);
+  const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(mapped ? mapped[1]! : a6);
   if (v4) {
     const [a, b] = [Number(v4[1]), Number(v4[2])];
-    if (
+    return (
       a === 10 || a === 127 || a === 0 ||
       (a === 169 && b === 254) ||
       (a === 172 && b >= 16 && b <= 31) ||
@@ -185,13 +197,35 @@ export function validateBaseUrl(raw: unknown, allowInsecureLocal = false): URL {
       (a === 198 && (b === 18 || b === 19)) || // benchmarking
       (a === 192 && b === 0) ||
       a >= 224
-    ) {
-      throw new AdapterError('Private or reserved IP addresses are not allowed.');
-    }
+    );
   }
-  if (host.startsWith('[') || host.includes(':')) throw new AdapterError('IPv6 literal addresses are not allowed.');
-  if (url.username || url.password) throw new AdapterError('Put credentials in the credential fields, not the address.');
-  return url;
+  if (a6.includes(':')) {
+    return a6 === '::' || a6 === '::1' || /^f[cd]/.test(a6) || /^fe[89ab]/.test(a6) || a6.startsWith('ff') || a6.startsWith('64:ff9b:');
+  }
+  return false;
+}
+
+async function systemLookup(hostname: string): Promise<string[]> {
+  const { lookup } = await import('node:dns/promises');
+  return (await lookup(hostname, { all: true })).map((r) => r.address);
+}
+
+/**
+ * SSRF guard, part 2 (TD-58): the hostname must resolve, and EVERY address it resolves to must be public. Checked
+ * before each request. Residual risk: DNS rebinding between this check and the connection (documented; pinning the
+ * address needs a custom agent or an egress proxy).
+ */
+export async function assertResolvesPublic(base: URL, lookupImpl?: (hostname: string) => Promise<string[]>): Promise<void> {
+  const host = base.hostname.replace(/^\[|\]$/g, '');
+  if (allowLocal() && (host === 'localhost' || host.endsWith('.localhost') || host === '127.0.0.1' || host === '::1')) return;
+  let addresses: string[];
+  try {
+    addresses = await (lookupImpl ?? systemLookup)(host);
+  } catch {
+    throw new AdapterError(`The server address ${host} could not be resolved.`);
+  }
+  if (addresses.length === 0) throw new AdapterError(`The server address ${host} could not be resolved.`);
+  if (addresses.some(isPrivateAddress)) throw new AdapterError('The server address resolves to a private or reserved network address.');
 }
 
 async function tbAuthHeader(ctx: PollContext, base: URL): Promise<string> {
@@ -220,6 +254,7 @@ function allowLocal(): boolean {
 export const thingsboardVerify = async (ctx: PollContext) => {
   try {
     const base = validateBaseUrl(ctx.config.baseUrl, allowLocal());
+    await assertResolvesPublic(base, ctx.lookupImpl);
     const auth = await tbAuthHeader(ctx, base);
     const res = await ctx.fetchImpl(new URL('/api/auth/user', base), {
       headers: { 'X-Authorization': auth },
@@ -238,8 +273,12 @@ export const thingsboardVerify = async (ctx: PollContext) => {
  * GET /api/plugins/telemetry/DEVICE/{deviceId}/values/timeseries?keys=…&startTs&endTs&limit&orderBy
  * → {"key":[{"ts":ms,"value":"string"}]}. One request per device, all bound keys at once.
  */
+const TB_PAGE_LIMIT = 1000;
+const TB_MAX_PAGES = 50;
+
 export const thingsboardPoll = async (ctx: PollContext, devices: PollDevice[], since: Date, until: Date) => {
   const base = validateBaseUrl(ctx.config.baseUrl, allowLocal());
+  await assertResolvesPublic(base, ctx.lookupImpl);
   const auth = await tbAuthHeader(ctx, base);
   const byDevice = new Map<string, Set<string>>();
   for (const d of devices) {
@@ -251,22 +290,43 @@ export const thingsboardPoll = async (ctx: PollContext, devices: PollDevice[], s
   const out: NormalisedReading[] = [];
   for (const [deviceId, keys] of byDevice) {
     if (!/^[0-9a-f-]{36}$/i.test(deviceId)) throw new AdapterError(`ThingsBoard device id ${deviceId} is not a UUID`);
-    const url = new URL(`/api/plugins/telemetry/DEVICE/${deviceId}/values/timeseries`, base);
-    url.searchParams.set('keys', [...keys].join(','));
-    url.searchParams.set('startTs', String(since.getTime()));
-    url.searchParams.set('endTs', String(until.getTime()));
-    url.searchParams.set('limit', '1000');
-    url.searchParams.set('orderBy', 'ASC');
-    const res = await ctx.fetchImpl(url, { headers: { 'X-Authorization': auth }, redirect: 'error', // never follow a redirect to an unvalidated host
-      signal: AbortSignal.timeout(15_000) });
-    if (!res.ok) throw new AdapterError(`ThingsBoard telemetry request failed for ${deviceId} (HTTP ${res.status})`);
-    const body = (await res.json()) as Record<string, { ts: number; value: string | number }[]>;
-    for (const key of keys) {
-      for (const p of body[key] ?? []) {
-        const v = finite(p.value);
-        if (v === null || typeof p.ts !== 'number') continue;
-        out.push({ externalDeviceId: deviceId, channel: key, readAt: new Date(p.ts), rawValue: v, eventId: `tb:${deviceId}:${key}:${p.ts}` });
+    // Page by timestamp: ThingsBoard returns at most `limit` points per key per request. Never skip a page — a
+    // backfill longer than one page used to drop the rest while the sync cursor still moved forward.
+    let startTs = since.getTime();
+    for (let page = 0; ; page += 1) {
+      if (page >= TB_MAX_PAGES) {
+        throw new AdapterError(`ThingsBoard returned more than ${TB_MAX_PAGES * TB_PAGE_LIMIT} points for ${deviceId}; sync stopped so no data is skipped. Shorten the backfill window.`);
       }
+      const url = new URL(`/api/plugins/telemetry/DEVICE/${deviceId}/values/timeseries`, base);
+      url.searchParams.set('keys', [...keys].join(','));
+      url.searchParams.set('startTs', String(startTs));
+      url.searchParams.set('endTs', String(until.getTime()));
+      url.searchParams.set('limit', String(TB_PAGE_LIMIT));
+      url.searchParams.set('orderBy', 'ASC');
+      const res = await ctx.fetchImpl(url, { headers: { 'X-Authorization': auth }, redirect: 'error', // never follow a redirect to an unvalidated host
+        signal: AbortSignal.timeout(15_000) });
+      if (!res.ok) throw new AdapterError(`ThingsBoard telemetry request failed for ${deviceId} (HTTP ${res.status})`);
+      const body = (await res.json()) as Record<string, { ts: number; value: string | number }[]>;
+      // Next page starts after the EARLIEST last point among keys that filled their page (a key that did not fill
+      // its page returned everything; re-fetching some of it is harmless — inserts are idempotent).
+      let nextStart: number | null = null;
+      for (const key of keys) {
+        const pts = body[key] ?? [];
+        if (pts.length >= TB_PAGE_LIMIT) {
+          const last = pts[pts.length - 1]?.ts;
+          if (typeof last === 'number' && (nextStart === null || last < nextStart)) nextStart = last;
+        }
+        for (const p of pts) {
+          const v = finite(p.value);
+          if (v === null || typeof p.ts !== 'number') continue;
+          out.push({ externalDeviceId: deviceId, channel: key, readAt: new Date(p.ts), rawValue: v, eventId: `tb:${deviceId}:${key}:${p.ts}` });
+        }
+      }
+      if (nextStart === null) break;
+      if (nextStart < startTs) throw new AdapterError(`ThingsBoard returned out-of-order points for ${deviceId}; sync stopped so no data is skipped.`);
+      // Same-millisecond points straddling a page boundary are re-requested from nextStart (not +1) so none are lost.
+      if (nextStart === startTs) throw new AdapterError(`More than ${TB_PAGE_LIMIT} points share one timestamp for ${deviceId}; cannot page safely.`);
+      startTs = nextStart;
     }
   }
   return out;
@@ -328,7 +388,9 @@ export const PROVIDERS: Record<ProviderId, ProviderDescriptor> = {
   },
   generic_json: {
     id: 'generic_json',
-    label: 'Modbus gateway / any device (Proplyst JSON)',
+    // 'verified' covers the Proplyst JSON contract only (automated tests). Modbus gateways that post it are
+    // documented but untested with real hardware — see meterCatalogue.ts entries marked needs_hardware_testing.
+    label: 'Proplyst JSON (any device or gateway)',
     mode: 'push',
     verification: 'verified',
     docsUrl: '/docs/SMART_UTILITY_ARCHITECTURE.md#123-modbus-gateways-teltonika-trb246-waveshare-esphome--proplyst',

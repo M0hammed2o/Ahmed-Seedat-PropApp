@@ -19,7 +19,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   if ('response' in parsed) return parsed.response;
   const { data: reading } = await auth.supabase
     .from('meter_telemetry_readings')
-    .select('id, org_id, property_id, meter_id, source, verification_status, read_at, value')
+    .select('id, org_id, property_id, meter_id, source, verification_status, read_at, value, recorded_by')
     .eq('id', id)
     .maybeSingle();
   if (!reading) return notFound('Reading');
@@ -27,15 +27,31 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   if (reading.verification_status === 'not_required') {
     return jsonError(409, 'not_reviewable', 'Device readings are not reviewed manually.');
   }
-  const now = new Date().toISOString();
   const service = getServiceRoleClient();
+  // Four-eyes on verification (SEC-05): the person who recorded a reading may reject (retract) it but not verify it,
+  // unless they are the organisation's only member able to review (a sole landlord) — then it is marked as such.
+  let selfReviewed = false;
+  if (parsed.data.decision === 'verified' && reading.recorded_by === auth.user.id) {
+    const { count } = await service
+      .from('organization_members')
+      .select('user_id', { count: 'exact', head: true })
+      .eq('org_id', reading.org_id)
+      .eq('status', 'active')
+      .in('role', ['accountant', 'manager', 'principal'])
+      .neq('user_id', auth.user.id);
+    if ((count ?? 0) > 0) {
+      return jsonError(409, 'self_review', 'Someone else in your organisation must verify a reading you recorded.');
+    }
+    selfReviewed = true;
+  }
+  const now = new Date().toISOString();
   const { error } = await service
     .from('meter_telemetry_readings')
     .update({
       verification_status: parsed.data.decision,
       verified_by: auth.user.id,
       verified_at: now,
-      verification_note: parsed.data.note || null,
+      verification_note: [selfReviewed ? 'Self-verified (only reviewer in the organisation)' : null, parsed.data.note || null].filter(Boolean).join(' — ') || null,
       status: parsed.data.decision === 'rejected' ? 'rejected' : 'valid',
       status_reason: parsed.data.decision === 'rejected' ? 'rejected on review' : null,
     })
@@ -49,7 +65,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     entityType: 'meter_telemetry_readings',
     entityId: id,
     before: { verificationStatus: reading.verification_status },
-    after: { verificationStatus: parsed.data.decision, note: parsed.data.note ?? null },
+    after: { verificationStatus: parsed.data.decision, note: parsed.data.note ?? null, selfReviewed },
   });
   return NextResponse.json({ verificationStatus: parsed.data.decision, verifiedAt: now });
 }
