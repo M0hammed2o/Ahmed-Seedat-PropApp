@@ -758,20 +758,25 @@ const PORTFOLIO_INTELLIGENCE_MAX_ORGS_PER_RUN = 500;
  */
 export async function runPortfolioIntelligenceJob(
   serviceClient: SupabaseClient,
+  now: Date = new Date(),
 ): Promise<PortfolioIntelligenceJobResult> {
-  const { data: orgs, error } = await serviceClient
-    .from('organizations')
-    .select('id')
-    .neq('status', 'archived')
-    .order('id', { ascending: true })
-    .limit(PORTFOLIO_INTELLIGENCE_MAX_ORGS_PER_RUN + 1);
+  // Only organisations with at least one rule input or an undismissed insight (migration 180): an empty
+  // organisation produces nothing and has nothing to auto-resolve, so skipping it changes no outcome.
+  const { data: candidates, error } = await serviceClient.rpc('portfolio_intelligence_candidate_orgs');
   if (error) throw new Error(error.message);
+  type Candidate = { org_id: string; has_rent_overdue: boolean; has_rent_pending: boolean; has_leases: boolean; has_tickets: boolean; has_invoices: boolean; has_budgets: boolean; has_meters: boolean; has_insights: boolean };
+  const allOrgs = (candidates ?? []) as Candidate[];
 
-  const allOrgs = orgs ?? [];
-  const orgsOverCap = allOrgs.length > PORTFOLIO_INTELLIGENCE_MAX_ORGS_PER_RUN;
-  const orgsToProcess = orgsOverCap
-    ? allOrgs.slice(0, PORTFOLIO_INTELLIGENCE_MAX_ORGS_PER_RUN)
-    : allOrgs;
+  // Over the cap, rotate by day so every candidate is reached within ceil(n / cap) days (the old cap always
+  // took the same first 500 by id, so the rest were never processed).
+  const cap = PORTFOLIO_INTELLIGENCE_MAX_ORGS_PER_RUN;
+  const orgsOverCap = allOrgs.length > cap;
+  let orgsToProcess = allOrgs;
+  if (orgsOverCap) {
+    const day = Math.floor(now.getTime() / 86_400_000);
+    const offset = (day * cap) % allOrgs.length;
+    orgsToProcess = [...allOrgs.slice(offset), ...allOrgs.slice(0, offset)].slice(0, cap);
+  }
 
   let orgsProcessed = 0;
   let orgsFailed = 0;
@@ -779,35 +784,39 @@ export async function runPortfolioIntelligenceJob(
   let totalUpdated = 0;
   let totalAutoResolved = 0;
 
-  for (let i = 0; i < orgsToProcess.length; i += PORTFOLIO_INTELLIGENCE_CONCURRENCY) {
-    const batch = orgsToProcess.slice(i, i + PORTFOLIO_INTELLIGENCE_CONCURRENCY);
-    const results = await Promise.allSettled(
-      batch.map((org) => reconcilePortfolioInsights(serviceClient, org.id as string)),
-    );
-    for (let j = 0; j < results.length; j += 1) {
-      const outcome = results[j]!;
-      if (outcome.status === 'fulfilled') {
+  // Sliding pool: a slow org no longer holds up a whole batch of ten.
+  let next = 0;
+  const worker = async () => {
+    while (next < orgsToProcess.length) {
+      const c = orgsToProcess[next++]!;
+      const orgId = c.org_id;
+      try {
+        const r = await reconcilePortfolioInsights(serviceClient, orgId, {
+          rentOverdue: c.has_rent_overdue,
+          rentPending: c.has_rent_pending,
+          leases: c.has_leases,
+          tickets: c.has_tickets,
+          invoices: c.has_invoices,
+          budgets: c.has_budgets,
+          meters: c.has_meters,
+          insights: c.has_insights,
+        });
         orgsProcessed += 1;
-        totalInserted += outcome.value.inserted;
-        totalUpdated += outcome.value.updated;
-        totalAutoResolved += outcome.value.autoResolved;
-      } else {
+        totalInserted += r.inserted;
+        totalUpdated += r.updated;
+        totalAutoResolved += r.autoResolved;
+      } catch (err) {
         orgsFailed += 1;
-        console.error(
-          '[portfolioIntelligence] reconcile failed for org',
-          batch[j]!.id,
-          outcome.reason,
-        );
+        console.error('[portfolioIntelligence] reconcile failed for org', orgId, err);
       }
     }
-  }
+  };
+  await Promise.all(Array.from({ length: Math.min(PORTFOLIO_INTELLIGENCE_CONCURRENCY, orgsToProcess.length) }, worker));
 
-  const orgsSkippedOverCap = orgsOverCap
-    ? allOrgs.length - PORTFOLIO_INTELLIGENCE_MAX_ORGS_PER_RUN
-    : 0;
+  const orgsSkippedOverCap = orgsOverCap ? allOrgs.length - cap : 0;
   if (orgsSkippedOverCap > 0) {
     console.warn(
-      `[portfolioIntelligence] ${orgsSkippedOverCap} org(s) exceeded PORTFOLIO_INTELLIGENCE_MAX_ORGS_PER_RUN (${PORTFOLIO_INTELLIGENCE_MAX_ORGS_PER_RUN}) and were deferred to the next run`,
+      `[portfolioIntelligence] ${allOrgs.length} candidate org(s) exceed PORTFOLIO_INTELLIGENCE_MAX_ORGS_PER_RUN (${cap}); ${orgsSkippedOverCap} rotate to the next run(s)`,
     );
   }
   return {

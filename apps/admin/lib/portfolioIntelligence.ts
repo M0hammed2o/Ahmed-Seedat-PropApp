@@ -3,6 +3,40 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { PortfolioInsightSeverity, PortfolioInsightType } from '@propvault/types';
 import { isUnusualUsage, percentChange } from './utilityAnomaly';
 
+const PAGE = 1000;
+
+/** Reads every row (PostgREST caps a response at 1,000 rows by default; a silently truncated read made large
+ * organisations' insights flip between "stale" and "new" on every run). The query must be ordered. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function allRows(page: (from: number, to: number) => PromiseLike<{ data: any[] | null; error: { message: string } | null }>) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rows: any[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await page(from, from + PAGE - 1);
+    if (error) return { data: null, error };
+    rows.push(...(data ?? []));
+    if (!data || data.length < PAGE) return { data: rows, error: null };
+  }
+}
+
+/** Which rule inputs an organisation has (from portfolio_intelligence_candidate_orgs()); absent = query everything. */
+export interface PortfolioInputHints {
+  rentOverdue: boolean;
+  rentPending: boolean;
+  leases: boolean;
+  tickets: boolean;
+  invoices: boolean;
+  budgets: boolean;
+  meters: boolean;
+  insights: boolean;
+}
+
+const EMPTY = Promise.resolve({ data: [] as never[], error: null });
+
+async function inChunks<T>(items: T[], size: number, fn: (chunk: T[]) => Promise<void>) {
+  for (let i = 0; i < items.length; i += size) await fn(items.slice(i, i + size));
+}
+
 // Portfolio Intelligence rules engine (AI_ARCHITECTURE.md §2) -- explicitly NOT an LLM. Every
 // insight is a fixed SQL predicate over live data (§2.2); severity is a deterministic function of
 // how far past its threshold the record is (§2.4), never a model's judgment. This module has no
@@ -80,6 +114,7 @@ async function evaluateRules(
   client: SupabaseClient,
   orgId: string,
   now: Date,
+  hints?: PortfolioInputHints,
 ): Promise<EvaluatedInsight[]> {
   const today = now.toISOString().slice(0, 10);
   const insights: EvaluatedInsight[] = [];
@@ -90,46 +125,61 @@ async function evaluateRules(
     expiringLeasesResult,
     openTicketsResult,
     unpaidInvoicesResult,
-    invoicePaymentsResult,
   ] = await Promise.all([
-    client
+    hints && !hints.rentOverdue ? EMPTY : allRows((f, t) => client
       .from('rent_schedules')
       .select('id, due_date, amount, lease_id')
       .eq('org_id', orgId)
-      .eq('status', 'overdue'),
-    client
+      .eq('status', 'overdue')
+      .order('id')
+      .range(f, t)),
+    hints && !hints.rentPending ? EMPTY : allRows((f, t) => client
       .from('rent_schedules')
       .select('id, due_date, amount, lease_id')
       .eq('org_id', orgId)
       .eq('status', 'pending')
-      .gte('due_date', today), // upper bound (due within the current week) filtered in JS below
-    client
+      .gte('due_date', today) // upper bound (due within the current week) filtered in JS below
+      .order('id')
+      .range(f, t)),
+    hints && !hints.leases ? EMPTY : allRows((f, t) => client
       .from('leases')
       .select('id, end_date')
       .eq('org_id', orgId)
       .eq('status', 'active')
-      .not('end_date', 'is', null),
-    client
+      .not('end_date', 'is', null)
+      .order('id')
+      .range(f, t)),
+    hints && !hints.tickets ? EMPTY : allRows((f, t) => client
       .from('maintenance_tickets')
       .select('id, summary, priority, status, created_at')
       .eq('org_id', orgId)
-      .in('status', ['to_do', 'in_progress', 'pending_approval']),
-    client
+      .in('status', ['to_do', 'in_progress', 'pending_approval'])
+      .order('id')
+      .range(f, t)),
+    hints && !hints.invoices ? EMPTY : allRows((f, t) => client
       .from('invoices')
       .select('id, period, amount, status, voided_at')
       .eq('org_id', orgId)
-      .neq('status', 'paid'),
-    // `invoices.status` is never set to 'paid' anywhere in this codebase -- paid/balance is derived
-    // from invoice_payments, exactly as loadInvoicesWithBalances() does it. Without these rows the
-    // rule below flagged every issued invoice as past due forever, including fully settled ones
-    // (found while preparing the demo portfolio, 2026-09-08: four paid invoices were all reported
-    // "8 days past due").
-    client
-      .from('invoice_payments')
-      .select('invoice_id, amount')
-      .eq('org_id', orgId)
-      .is('reversed_at', null),
+      .neq('status', 'paid')
+      .order('id')
+      .range(f, t)),
   ]);
+  // `invoices.status` is never set to 'paid' anywhere in this codebase -- paid/balance is derived
+  // from invoice_payments, exactly as loadInvoicesWithBalances() does it. Without these rows the
+  // rule below flagged every issued invoice as past due forever, including fully settled ones
+  // (found while preparing the demo portfolio, 2026-09-08: four paid invoices were all reported
+  // "8 days past due"). Payments are fetched for THESE invoices only, in chunks: an org-wide fetch was
+  // silently cut at the API's 1,000-row default, so a busy org's settled invoices looked unpaid.
+  const invoicePaymentsResult = await (async () => {
+    const ids = (unpaidInvoicesResult.data ?? []).map((i) => i.id as string);
+    const rows: { invoice_id: string; amount: number }[] = [];
+    for (let i = 0; i < ids.length; i += 150) {
+      const r = await client.from('invoice_payments').select('invoice_id, amount').in('invoice_id', ids.slice(i, i + 150)).is('reversed_at', null).limit(5000);
+      if (r.error) return { data: null, error: r.error };
+      rows.push(...((r.data ?? []) as { invoice_id: string; amount: number }[]));
+    }
+    return { data: rows, error: null };
+  })();
 
   for (const result of [
     overdueResult,
@@ -252,8 +302,11 @@ async function evaluateRules(
     });
   }
 
-  await evaluateBudgetRules(client, orgId, now, insights);
-  await evaluateUtilityAnomalyRules(client, orgId, insights);
+  // Independent rule groups: run concurrently (each pushes keyed insights; order does not matter).
+  await Promise.all([
+    hints && !hints.budgets ? Promise.resolve() : evaluateBudgetRules(client, orgId, now, insights),
+    hints && !hints.meters ? Promise.resolve() : evaluateUtilityAnomalyRules(client, orgId, insights),
+  ]);
 
   return insights;
 }
@@ -438,9 +491,10 @@ export interface ReconcileResult {
 export async function reconcilePortfolioInsights(
   client: SupabaseClient,
   orgId: string,
+  hints?: PortfolioInputHints,
 ): Promise<ReconcileResult> {
   const now = new Date();
-  const fresh = await evaluateRules(client, orgId, now);
+  const fresh = await evaluateRules(client, orgId, now, hints);
   const freshByKey = new Map(fresh.map((insight) => [insight.key, insight]));
 
   // acknowledged_at is deliberately NOT filtered out here (2026-09-17). An acknowledged alert is one
@@ -448,11 +502,15 @@ export async function reconcilePortfolioInsights(
   // or every run would treat it as new, insert a duplicate, and the alert the user just acknowledged
   // would reappear minutes later. dismissed_at stays filtered: that is this function's own
   // auto-resolve marker for conditions that stopped being true.
-  const { data: existingRows, error: existingError } = await client
+  // No undismissed insight (per the candidate query) and nothing fresh: nothing to insert, update or auto-resolve.
+  if (hints && !hints.insights && fresh.length === 0) return { inserted: 0, updated: 0, autoResolved: 0 };
+  const { data: existingRows, error: existingError } = await (hints && !hints.insights ? EMPTY : allRows((f, t) => client
     .from('portfolio_insights')
     .select('id, insight_type, data_source, severity, message, acknowledged_at')
     .eq('org_id', orgId)
-    .is('dismissed_at', null);
+    .is('dismissed_at', null)
+    .order('id')
+    .range(f, t)));
   if (existingError)
     throw new Error(`Failed to load existing portfolio_insights: ${existingError.message}`);
 
@@ -477,6 +535,7 @@ export async function reconcilePortfolioInsights(
   let autoResolved = 0;
 
   const toInsert = [];
+  const toUpdate: { id: string; insight: (typeof fresh)[number] }[] = [];
   for (const [key, insight] of freshByKey) {
     const existing = existingByKey.get(key);
     if (!existing) {
@@ -489,42 +548,51 @@ export async function reconcilePortfolioInsights(
         generated_at: now.toISOString(),
       });
     } else if (existing.severity !== insight.severity || existing.message !== insight.message) {
-      const { error } = await client
-        .from('portfolio_insights')
-        .update({
-          message: insight.message,
-          severity: insight.severity,
-          generated_at: now.toISOString(),
-          // The alert materially changed -- more rent overdue, a budget now over rather than near
-          // its limit -- so an earlier acknowledgement no longer covers what it now says, and it
-          // returns to the feed.
-          acknowledged_at: null,
-        })
-        .eq('id', existing.id);
-      if (error)
-        throw new Error(`Failed to update portfolio_insights row ${existing.id}: ${error.message}`);
-      updated += 1;
+      toUpdate.push({ id: existing.id, insight });
     }
   }
+  // Updates in small concurrent groups (one row each: message/severity differ per row).
+  await inChunks(toUpdate, 20, async (chunk) => {
+    const results = await Promise.all(
+      chunk.map(({ id, insight }) =>
+        client
+          .from('portfolio_insights')
+          .update({
+            message: insight.message,
+            severity: insight.severity,
+            generated_at: now.toISOString(),
+            // The alert materially changed -- more rent overdue, a budget now over rather than near
+            // its limit -- so an earlier acknowledgement no longer covers what it now says, and it
+            // returns to the feed.
+            acknowledged_at: null,
+          })
+          .eq('id', id),
+      ),
+    );
+    const failed = results.find((r) => r.error);
+    if (failed?.error) throw new Error(`Failed to update portfolio_insights rows: ${failed.error.message}`);
+    updated += chunk.length;
+  });
 
-  if (toInsert.length > 0) {
-    const { error } = await client.from('portfolio_insights').insert(toInsert);
+  await inChunks(toInsert, 500, async (chunk) => {
+    const { error } = await client.from('portfolio_insights').insert(chunk);
     if (error) throw new Error(`Failed to insert portfolio_insights rows: ${error.message}`);
-    inserted = toInsert.length;
-  }
+    inserted += chunk.length;
+  });
 
   const staleIds = [...existingByKey.entries()]
     .filter(([key]) => !freshByKey.has(key))
     .map(([, existing]) => existing.id);
-  if (staleIds.length > 0) {
+  // Chunked: one request with hundreds of ids exceeded the URL limit ("URI too long") for large organisations.
+  await inChunks(staleIds, 150, async (chunk) => {
     const { error } = await client
       .from('portfolio_insights')
       .update({ dismissed_at: now.toISOString() })
-      .in('id', staleIds);
+      .in('id', chunk);
     if (error)
       throw new Error(`Failed to auto-resolve stale portfolio_insights rows: ${error.message}`);
-    autoResolved = staleIds.length;
-  }
+    autoResolved += chunk.length;
+  });
 
   return { inserted, updated, autoResolved };
 }

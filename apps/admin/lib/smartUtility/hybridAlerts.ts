@@ -92,6 +92,22 @@ export function evaluateRunHours(hours: number, expected: number | null): boolea
   return expected !== null && expected > 0 ? hours > expected * 1.5 && hours - expected >= 1 : false;
 }
 
+const PAGE = 1000;
+
+/** Every row of an ordered query (responses are capped at 1,000 rows); a query error fails the job step instead of
+ * silently looking like "no alerts". */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function pageAll(label: string, page: (from: number, to: number) => PromiseLike<{ data: any[] | null; error: { message: string } | null }>) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rows: any[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await page(from, from + PAGE - 1);
+    if (error) throw new Error(`${label} failed: ${error.message}`);
+    rows.push(...(data ?? []));
+    if (!data || data.length < PAGE) return rows;
+  }
+}
+
 function isoWeekKey(d: Date): string {
   const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
   const day = t.getUTCDay() || 7;
@@ -113,24 +129,38 @@ export async function runHybridAlerts(
   let evaluated = 0;
 
   // 1. Levels: latest reading in the last 24 h per source.
-  const { data: sources } = await serviceClient
-    .from('utility_supply_sources')
-    .select('id, org_id, property_id, name, source_type, utility_type, low_level_pct, high_level_pct, capacity_value, capacity_unit, expected_daily_run_hours, unit_id')
-    .eq('active', true);
-  const sourceIds = (sources ?? []).map((s) => s.id);
+  const sources = await pageAll('supply sources', (f, t) =>
+    serviceClient
+      .from('utility_supply_sources')
+      .select('id, org_id, property_id, name, source_type, utility_type, low_level_pct, high_level_pct, capacity_value, capacity_unit, expected_daily_run_hours, unit_id')
+      .eq('active', true)
+      .order('id')
+      .range(f, t),
+  );
+  const sourceById = new Map(sources.map((x) => [x.id as string, x]));
+  const sourceIds = sources.map((s) => s.id as string);
   if (sourceIds.length) {
-    const { data: readings } = await serviceClient
-      .from('utility_source_readings')
-      .select('source_id, metric, value, read_at')
-      .in('source_id', sourceIds)
-      .gte('read_at', new Date(now.getTime() - 86_400_000).toISOString())
-      .order('read_at', { ascending: false })
-      .limit(20_000);
+    const readings: { source_id: string; metric: string; value: number; read_at: string }[] = [];
+    for (let i = 0; i < sourceIds.length; i += 150) {
+      readings.push(
+        ...(await pageAll('source readings', (f, t) =>
+          serviceClient
+            .from('utility_source_readings')
+            .select('source_id, metric, value, read_at')
+            .in('source_id', sourceIds.slice(i, i + 150))
+            .gte('read_at', new Date(now.getTime() - 86_400_000).toISOString())
+            .order('read_at', { ascending: false })
+            .order('id')
+            .range(f, t),
+        )),
+      );
+    }
+    readings.sort((a, b) => b.read_at.localeCompare(a.read_at));
     const seen = new Set<string>();
-    for (const r of readings ?? []) {
+    for (const r of readings) {
       if (r.metric === 'run_hours' || seen.has(`${r.source_id}:${r.metric}`)) continue;
       seen.add(`${r.source_id}:${r.metric}`);
-      const s = sources!.find((x) => x.id === r.source_id)!;
+      const s = sourceById.get(r.source_id)!;
       evaluated += 1;
       const hit = evaluateLevel(
         { ...s, low_level_pct: Number(s.low_level_pct), high_level_pct: Number(s.high_level_pct), capacity_value: s.capacity_value === null ? null : Number(s.capacity_value) },
@@ -154,15 +184,16 @@ export async function runHybridAlerts(
       });
     }
     // Generator run hours logged for yesterday vs expected.
-    const generators = (sources ?? []).filter((s) => s.source_type === 'generator' && s.expected_daily_run_hours !== null);
+    const generators = sources.filter((s) => s.source_type === 'generator' && s.expected_daily_run_hours !== null);
     if (generators.length) {
-      const { data: logs } = await serviceClient
+      const { data: logs, error: logsError } = await serviceClient
         .from('utility_source_logs')
         .select('source_id, quantity')
         .eq('log_type', 'run_hours')
         .in('source_id', generators.map((g) => g.id))
         .gte('occurred_at', dayStart.toISOString())
         .lt('occurred_at', dayEnd.toISOString());
+      if (logsError) throw new Error(`generator logs failed: ${logsError.message}`);
       for (const g of generators) {
         const hours = (logs ?? []).filter((l) => l.source_id === g.id).reduce((a, l) => a + Number(l.quantity ?? 0), 0);
         evaluated += 1;
@@ -189,12 +220,15 @@ export async function runHybridAlerts(
   }
 
   // 2. Solar generation and borehole pump energy vs their own 14-day median.
-  const { data: kindMeters } = await serviceClient
-    .from('utility_meters')
-    .select(SMART_METER_COLUMNS)
-    .eq('active', true)
-    .in('measurement_kind', ['generation', 'pump_energy']);
-  const km = (kindMeters ?? []) as SmartMeterRow[];
+  const km = (await pageAll('generation/pump meters', (f, t) =>
+    serviceClient
+      .from('utility_meters')
+      .select(SMART_METER_COLUMNS)
+      .eq('active', true)
+      .in('measurement_kind', ['generation', 'pump_energy'])
+      .order('id')
+      .range(f, t),
+  )) as SmartMeterRow[];
   if (km.length) {
     const histStart = new Date(dayStart.getTime() - 14 * 86_400_000);
     const points = await loadPoints(serviceClient, km.map((m) => m.id), new Date(histStart.getTime() - 86_400_000), new Date(dayEnd.getTime() + 3_600_000));
@@ -228,26 +262,30 @@ export async function runHybridAlerts(
   }
 
   // 3. Missing readings: a connected meter that still reports, but fewer than half of the expected readings.
-  const { data: connected } = await serviceClient
-    .from('utility_meters')
-    .select('id, org_id, property_id, unit_id, utility_type, expected_interval_minutes, meter_number, location, health_status')
-    .eq('active', true)
-    .neq('connectivity', 'manual')
-    .not('expected_interval_minutes', 'is', null)
-    .lte('expected_interval_minutes', 720);
-  if ((connected ?? []).length) {
+  const connected = await pageAll('connected meters', (f, t) =>
+    serviceClient
+      .from('utility_meters')
+      .select('id, org_id, property_id, unit_id, utility_type, expected_interval_minutes, meter_number, location, health_status')
+      .eq('active', true)
+      .neq('connectivity', 'manual')
+      .not('expected_interval_minutes', 'is', null)
+      .lte('expected_interval_minutes', 720)
+      .order('id')
+      .range(f, t),
+  );
+  if (connected.length) {
+    // Counted in SQL (migration 179): row counts through the API were capped at 1,000 per response.
     const counts = new Map<string, number>();
-    const ids = connected!.map((m) => m.id);
-    for (let i = 0; i < ids.length; i += 200) {
-      const { data: rows } = await serviceClient
-        .from('meter_telemetry_readings')
-        .select('meter_id')
-        .in('meter_id', ids.slice(i, i + 200))
-        .gte('read_at', new Date(now.getTime() - 86_400_000).toISOString())
-        .limit(50_000);
-      for (const r of rows ?? []) counts.set(r.meter_id, (counts.get(r.meter_id) ?? 0) + 1);
+    const ids = connected.map((m) => m.id as string);
+    for (let i = 0; i < ids.length; i += 500) {
+      const { data: rows, error: countError } = await serviceClient.rpc('utility_reading_counts_since', {
+        p_since: new Date(now.getTime() - 86_400_000).toISOString(),
+        p_meter_ids: ids.slice(i, i + 500),
+      });
+      if (countError) throw new Error(`reading counts failed: ${countError.message}`);
+      for (const r of (rows ?? []) as { meter_id: string; readings: number }[]) counts.set(r.meter_id, Number(r.readings));
     }
-    for (const m of connected!) {
+    for (const m of connected) {
       const expected = Math.floor(1440 / Number(m.expected_interval_minutes));
       const received = counts.get(m.id) ?? 0;
       evaluated += 1;
@@ -272,14 +310,17 @@ export async function runHybridAlerts(
   }
 
   // 4. Charges awaiting approval for more than 3 days: one alert per property per week.
-  const { data: drafts } = await serviceClient
-    .from('utility_charges')
-    .select('org_id, property_id, utility_type, total_amount, created_at')
-    .eq('status', 'draft')
-    .lt('created_at', new Date(now.getTime() - 3 * 86_400_000).toISOString())
-    .limit(20_000);
+  const drafts = await pageAll('draft charges', (f, t) =>
+    serviceClient
+      .from('utility_charges')
+      .select('org_id, property_id, utility_type, total_amount, created_at')
+      .eq('status', 'draft')
+      .lt('created_at', new Date(now.getTime() - 3 * 86_400_000).toISOString())
+      .order('id')
+      .range(f, t),
+  );
   const draftByProp = new Map<string, { org: string; count: number; amount: number; utility: 'water' | 'electricity' }>();
-  for (const d of drafts ?? []) {
+  for (const d of drafts) {
     const cur = draftByProp.get(d.property_id) ?? { org: d.org_id, count: 0, amount: 0, utility: d.utility_type };
     cur.count += 1;
     cur.amount += Number(d.total_amount);
@@ -307,28 +348,33 @@ export async function runHybridAlerts(
   }
 
   // 5. Utility invoices issued and unpaid more than 7 days after the due date.
-  const { data: invoiced } = await serviceClient
-    .from('utility_charges')
-    .select('org_id, property_id, unit_id, utility_type, invoice_id')
-    .eq('status', 'invoiced')
-    .not('invoice_id', 'is', null)
-    .limit(20_000);
-  const invoiceIds = [...new Set((invoiced ?? []).map((c) => c.invoice_id as string))];
+  const invoiced = await pageAll('invoiced charges', (f, t) =>
+    serviceClient
+      .from('utility_charges')
+      .select('org_id, property_id, unit_id, utility_type, invoice_id')
+      .eq('status', 'invoiced')
+      .not('invoice_id', 'is', null)
+      .order('id')
+      .range(f, t),
+  );
+  const chargeByInvoice = new Map(invoiced.map((c) => [c.invoice_id as string, c]));
+  const invoiceIds = [...chargeByInvoice.keys()];
   const overdueBefore = sastDateString(new Date(now.getTime() - 7 * 86_400_000));
   for (let i = 0; i < invoiceIds.length; i += 150) {
-    const { data: invs } = await serviceClient
+    const { data: invs, error: invError } = await serviceClient
       .from('invoices')
       .select('id, amount, period, status, voided_at, invoice_payments(amount, reversed_at)')
       .in('id', invoiceIds.slice(i, i + 150))
       .eq('status', 'issued')
       .is('voided_at', null)
       .lt('period', overdueBefore);
+    if (invError) throw new Error(`utility invoices failed: ${invError.message}`);
     for (const inv of invs ?? []) {
       const paid = ((inv.invoice_payments ?? []) as { amount: number; reversed_at: string | null }[]).filter((p) => !p.reversed_at).reduce((a, p) => a + Number(p.amount), 0);
       const outstanding = Math.round((Number(inv.amount) - paid) * 100) / 100;
       evaluated += 1;
       if (outstanding <= 0) continue;
-      const c = invoiced!.find((x) => x.invoice_id === inv.id)!;
+      const c = chargeByInvoice.get(inv.id as string)!;
       alerts.push({
         org_id: c.org_id,
         property_id: c.property_id,
@@ -349,13 +395,14 @@ export async function runHybridAlerts(
   }
 
   // 6. Hybrid balance gap for the previous calendar month (evaluated on the 1st–3rd; deduped per month).
-  if (today.day <= 3 && (sources ?? []).length) {
+  if (today.day <= 3 && sources.length) {
     const prevMonthStart = sastInstant(today.month === 1 ? today.year - 1 : today.year, today.month === 1 ? 12 : today.month - 1, 1);
     const from = sastDateString(prevMonthStart);
     const to = sastDateString(sastInstant(today.year, today.month, 1));
-    const { data: settings } = await serviceClient.from('utility_alert_settings').select('property_id, discrepancy_threshold_pct');
+    const { data: settings, error: settingsError } = await serviceClient.from('utility_alert_settings').select('property_id, discrepancy_threshold_pct');
+    if (settingsError) throw new Error(`alert settings failed: ${settingsError.message}`);
     const threshold = new Map((settings ?? []).map((s) => [s.property_id, Number(s.discrepancy_threshold_pct)]));
-    const hybridProps = [...new Map((sources ?? []).map((s) => [s.property_id, s.org_id])).entries()];
+    const hybridProps = [...new Map(sources.map((s) => [s.property_id as string, s.org_id as string])).entries()];
     for (const [propertyId, orgId] of hybridProps) {
       const dash = await loadHybridDashboard(serviceClient, propertyId, { from, to });
       for (const [utility, pct, variance, unit] of [
