@@ -173,7 +173,8 @@ select throws_ok(
 -- ---------------------------------------------------------------- portal owner (not an org member)
 set local "request.jwt.claim.sub" = 'd7000000-0000-0000-0000-00000000000d';
 select is((select count(*) from public.utility_meters), 3::bigint, 'portal owner can now read their property''s meters');
-select is((select count(*) from public.meter_telemetry_readings), 1::bigint, 'portal owner can read telemetry for their property');
+-- 2 = the device reading + the monthly reading recorded above, mirrored into telemetry by migration 181 (TD-54).
+select is((select count(*) from public.meter_telemetry_readings), 2::bigint, 'portal owner can read telemetry for their property');
 select throws_ok(
   $$insert into public.municipal_submission_recipients (org_id, property_id, email, recipient_type)
     values ('d7111111-0000-0000-0000-000000000001', 'd7222222-0000-0000-0000-000000000001', 'owner@example.com', 'custom')$$,
