@@ -92,6 +92,8 @@ function describeCharge(c: ChargeRow): string {
   if (c.charge_type === 'allocation') return `${label} — share of ${c.calculation?.group ?? 'shared meter'} (${c.calculation?.method?.replace('_', ' ') ?? 'allocation'})`;
   if (c.charge_type === 'allowance_fee') return `${label} — fixed monthly amount`;
   if (c.charge_type === 'excess') return `${label} — usage above allowance`;
+  if (c.charge_type === 'true_up') return `${label} — true-up of an earlier estimate`;
+  if ((c.calculation as { estimate?: unknown } | null)?.estimate) return `${label} — estimated usage (readings missing)`;
   return `${label} — metered usage`;
 }
 

@@ -266,7 +266,7 @@ function money(result: ChargeResult) {
 
 export async function generateCharges(
   serviceClient: SupabaseClient,
-  args: { propertyId: string; periodStart: string; periodEnd: string; actorUserId: string | null },
+  args: { propertyId: string; periodStart: string; periodEnd: string; actorUserId: string | null; estimateMissing?: boolean },
 ): Promise<GenerateChargesResult> {
   if (args.periodEnd <= args.periodStart) throw new BillingError('The period end must be after its start.');
   const periodDays = daysBetween(args.periodStart, args.periodEnd);
@@ -403,8 +403,14 @@ export async function generateCharges(
         // one set of block allowances on their combined use.
         const parts = unitMeters.map((m) => chainConsumption(ctx, m, piece.start, piece.end));
         const known = parts.every((p) => p.consumption !== null);
-        const consumption = known ? Math.round(parts.reduce((x, p) => x + (p.consumption ?? 0), 0) * 10_000) / 10_000 : null;
+        let consumption = known ? Math.round(parts.reduce((x, p) => x + (p.consumption ?? 0), 0) * 10_000) / 10_000 : null;
         const quality = parts.some((p) => p.quality === 'insufficient') ? 'insufficient' : parts.some((p) => p.quality === 'partial') ? 'partial' : 'complete';
+        // Missing/faulty readings: optionally ESTIMATE from this unit's recent actual use; trued up later.
+        let estimate: Awaited<ReturnType<typeof estimateConsumption>> = null;
+        if (consumption === null && !refusal && args.estimateMissing) {
+          estimate = await estimateConsumption(serviceClient, a.unit_id, a.utility_type, piece.start, piece.end);
+          if (estimate) consumption = estimate.consumption;
+        }
         const single = unitMeters.length === 1 ? parts[0]! : null;
         const calc: ChargeResult = refusal
           ? { ok: false, refusal, lines: [], totals: { exclCents: 0, vatCents: 0, inclCents: 0 }, prorationFactor: daysBetween(piece.start, piece.end) / periodDays, notes: [], flags: [] }
@@ -443,19 +449,138 @@ export async function generateCharges(
             tariff_snapshot: { ...tariff },
             calculation: {
               ...calc,
+              ...(estimate ? { estimate } : {}),
               meterIds: unitMeters.map((m) => m.id),
               meters: parts.map((p, i) => ({ meterId: unitMeters[i]!.id, consumption: p.consumption, quality: p.quality, opening: p.opening, closing: p.closing })),
             },
             ...amounts,
-            review_flags: reviewFlags(a.utility_type, tariff, calc),
-            notes: calc.ok ? tariffNote : calc.refusal,
+            review_flags: estimate ? [...reviewFlags(a.utility_type, tariff, calc), 'estimated_consumption_true_up_pending'] : reviewFlags(a.utility_type, tariff, calc),
+            notes: calc.ok
+              ? [estimate ? `Estimated: no usable readings; ${estimate.avgDaily} per day from ${estimate.basisCharges.length} earlier period(s). Trued up when readings arrive.` : null, tariffNote].filter(Boolean).join(' ') || null
+              : calc.refusal,
             created_by: args.actorUserId,
           }),
         );
       }
     }
   }
+  await trueUpEstimates(ctx, result);
   return result;
+}
+
+/** Average daily ACTUAL use of a unit from its last (up to 3) non-estimated metered charges before `start`. */
+export async function estimateConsumption(serviceClient: SupabaseClient, unitId: string, utilityType: string, start: string, end: string) {
+  const { data } = await serviceClient
+    .from('utility_charges')
+    .select('id, consumption, segment_start, segment_end, period_start, period_end, calculation')
+    .eq('unit_id', unitId)
+    .eq('utility_type', utilityType)
+    .in('charge_type', ['consumption', 'excess'])
+    .neq('status', 'void')
+    .not('consumption', 'is', null)
+    .lte('segment_end', start)
+    .order('segment_end', { ascending: false })
+    .limit(10);
+  const actual = (data ?? []).filter((c) => !(c.calculation as { estimate?: unknown } | null)?.estimate).slice(0, 3);
+  const days = actual.reduce((x, c) => x + daysBetween(c.segment_start ?? c.period_start, c.segment_end ?? c.period_end), 0);
+  if (actual.length === 0 || days <= 0) return null;
+  const total = actual.reduce((x, c) => x + Number(c.consumption), 0);
+  const avgDaily = Math.round((total / days) * 10_000) / 10_000;
+  return {
+    method: 'average_daily_from_recent_actuals' as const,
+    avgDaily,
+    days: daysBetween(start, end),
+    consumption: Math.round(avgDaily * daysBetween(start, end) * 1000) / 1000,
+    basisCharges: actual.map((c) => c.id as string),
+  };
+}
+
+/**
+ * True-up of estimated charges once readings exist for their dates. Only APPROVED or INVOICED estimates are trued up
+ * (a draft estimate is simply voided and recalculated). Shortfall → a draft 'true_up' charge at the estimate's tariff
+ * snapshot; overcharge → a utility credit (invoiced estimates) applied to the lease's next charge. Once per estimate.
+ */
+async function trueUpEstimates(ctx: Ctx, result: GenerateChargesResult) {
+  const { data: estimates } = await ctx.service
+    .from('utility_charges')
+    .select('id, org_id, unit_id, lease_id, tenant_id, utility_type, arrangement_id, period_start, period_end, segment_start, segment_end, status, tariff_id, tariff_snapshot, calculation, consumption')
+    .eq('property_id', ctx.propertyId)
+    .in('status', ['approved', 'invoiced'])
+    .in('charge_type', ['consumption', 'excess'])
+    .not('calculation->estimate', 'is', null);
+  for (const est of estimates ?? []) {
+    const segStart = (est.segment_start ?? est.period_start) as string;
+    const segEnd = (est.segment_end ?? est.period_end) as string;
+    const label = `${ctx.unitLabels.get(est.unit_id) ?? 'Unit'} ${est.utility_type}`;
+    const { count: done } = await ctx.service
+      .from('utility_charges')
+      .select('id', { count: 'exact', head: true })
+      .eq('unit_id', est.unit_id)
+      .eq('utility_type', est.utility_type)
+      .eq('charge_type', 'true_up')
+      .neq('status', 'void')
+      .eq('segment_start', segStart);
+    const { count: credited } = await ctx.service
+      .from('utility_credits')
+      .select('id', { count: 'exact', head: true })
+      .eq('source_charge_id', est.id)
+      .like('reason', 'True-up%');
+    if ((done ?? 0) > 0 || (credited ?? 0) > 0) continue;
+    const meterIds = (est.calculation as { meterIds?: string[] } | null)?.meterIds ?? [];
+    const meters = ctx.meters.filter((m) => meterIds.includes(m.id) || (m.unit_id === est.unit_id && m.utility_type === est.utility_type && m.measurement_kind === 'consumption' && m.meter_role === 'submeter' && m.active));
+    if (meters.length === 0) continue;
+    const s = dateToSast(segStart);
+    const e = dateToSast(segEnd);
+    const chainIds = [...new Set(meters.flatMap((m) => replacementChain(m, ctx.meters).map((x) => x.id)))];
+    const points = await loadPoints(ctx.service, chainIds, new Date(s.getTime() - 3 * DAY_MS), new Date(e.getTime() + 3 * DAY_MS));
+    const local = { ...ctx, points } as Ctx;
+    const parts = meters.map((m) => chainConsumption(local, m, segStart, segEnd));
+    if (parts.some((p) => p.consumption === null)) continue; // still no readings
+    const actual = Math.round(parts.reduce((x, p) => x + (p.consumption ?? 0), 0) * 10_000) / 10_000;
+    const tariff = est.tariff_snapshot as TariffRow;
+    const periodDays = daysBetween(est.period_start as string, est.period_end as string);
+    const estCalc = est.calculation as ChargeResult;
+    const actualCalc = computeTariffCharge(toTariffV2(tariff), { consumption: actual, segmentStart: s, segmentEnd: e, periodDays });
+    if (!actualCalc.ok) continue;
+    const diffIncl = actualCalc.totals.inclCents - estCalc.totals.inclCents;
+    const diffExcl = actualCalc.totals.exclCents - estCalc.totals.exclCents;
+    const detail = { estimateChargeId: est.id, estimated: Number(est.consumption), actual, estimatedCents: estCalc.totals.inclCents, actualCents: actualCalc.totals.inclCents };
+    if (diffIncl < 0) {
+      if (est.status !== 'invoiced' || !est.lease_id) {
+        result.skipped.push({ unitId: est.unit_id, label, reason: 'An approved estimate was too high: void it and recalculate with the readings now available.' });
+        continue;
+      }
+      // Never credit more than was charged, counting credits already given on this charge.
+      const { data: prior } = await ctx.service.from('utility_credits').select('amount').eq('source_charge_id', est.id).neq('status', 'cancelled');
+      const room = Math.round(estCalc.totals.inclCents - (prior ?? []).reduce((x, c) => x + Math.round(Number(c.amount) * 100), 0));
+      const creditCents = Math.min(-diffIncl, room);
+      if (creditCents <= 0) continue;
+      const { error: creditError } = await ctx.service.from('utility_credits').insert({
+        org_id: est.org_id, property_id: ctx.propertyId, lease_id: est.lease_id, tenant_id: est.tenant_id, unit_id: est.unit_id, source_charge_id: est.id,
+        amount: creditCents / 100, remaining: creditCents / 100,
+        reason: `True-up: actual ${actual} vs estimated ${Number(est.consumption)} for ${segStart} to ${addDays(segEnd, -1)}`.slice(0, 500),
+        created_by: ctx.actorUserId,
+      });
+      if (creditError && creditError.code !== '23505') throw new Error(`true-up credit failed: ${creditError.message}`);
+      if (!creditError) result.created += 1; // 23505: a concurrent run already credited it (utility_credits_one_true_up)
+      continue;
+    }
+    const r = await insertCharge(ctx, {
+      org_id: est.org_id, property_id: ctx.propertyId, unit_id: est.unit_id, meter_id: meters.length === 1 ? meters[0]!.id : null,
+      arrangement_id: est.arrangement_id, lease_id: est.lease_id, tenant_id: est.tenant_id, utility_type: est.utility_type,
+      charge_type: 'true_up', period_start: est.period_start, period_end: est.period_end, segment_start: segStart, segment_end: segEnd,
+      proration_factor: actualCalc.prorationFactor, consumption: Math.round((actual - Number(est.consumption)) * 1000) / 1000,
+      consumption_quality: parts.some((p) => p.quality !== 'complete') ? 'partial' : 'complete',
+      tariff_id: est.tariff_id, tariff_snapshot: tariff,
+      calculation: { kind: 'true_up', ...detail, actualCalculation: actualCalc },
+      usage_amount: diffIncl / 100, fixed_amount: 0, total_amount: diffIncl / 100,
+      amount_excl_vat: diffExcl / 100, vat_amount: (diffIncl - diffExcl) / 100,
+      review_flags: [...reviewFlags(est.utility_type, tariff, actualCalc), 'true_up_of_estimate'],
+      notes: `True-up of an estimated charge: actual ${actual} vs estimated ${Number(est.consumption)}.`,
+      created_by: ctx.actorUserId,
+    });
+    if (r === 'created') result.created += 1;
+  }
 }
 
 /** Shared meter: price the meter's full-period use once, then split the rand amount exactly by weights. */
@@ -858,7 +983,17 @@ export async function invoiceCharges(
       const label = c.utility_type === 'water' ? 'Water' : 'Electricity';
       const period = `${c.segment_start ?? c.period_start} to ${addDays(c.segment_end ?? c.period_end, -1)}`;
       const kind =
-        c.charge_type === 'allocation' ? 'shared meter share' : c.charge_type === 'allowance_fee' ? 'fixed utility amount' : c.charge_type === 'excess' ? 'usage above allowance' : 'usage';
+        c.charge_type === 'allocation'
+          ? 'shared meter share'
+          : c.charge_type === 'allowance_fee'
+            ? 'fixed utility amount'
+            : c.charge_type === 'excess'
+              ? 'usage above allowance'
+              : c.charge_type === 'true_up'
+                ? 'true-up of estimated usage'
+                : (c.calculation as { estimate?: unknown } | null)?.estimate
+                  ? 'usage (estimated)'
+                  : 'usage';
       const qty = c.consumption !== null && c.charge_type !== 'allowance_fee' ? ` ${fmt(Number(c.consumption))} ${UNIT[c.utility_type as 'water' | 'electricity']}` : '';
       const vat = Number(c.vat_amount ?? 0) > 0 ? `, incl. VAT ${rand(Number(c.vat_amount))}` : '';
       const credit = Number(c.credit_applied) > 0 ? `, after credit ${rand(Number(c.credit_applied))}` : '';

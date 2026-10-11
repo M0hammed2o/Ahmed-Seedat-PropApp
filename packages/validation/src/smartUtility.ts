@@ -231,6 +231,8 @@ export const utilityTariffCreateSchema = z.object({
 export const utilityChargesGenerateSchema = z.object({
   periodStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   periodEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  /** Estimate units without usable readings from their recent actual use (flagged; trued up later). Default off. */
+  estimateMissing: z.boolean().optional(),
 });
 
 export const utilityChargesActionSchema = z.object({

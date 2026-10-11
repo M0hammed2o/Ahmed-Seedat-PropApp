@@ -119,6 +119,7 @@ export function BillingSection({ data, canManage }: { data: Overview; canManage:
   const [info, setInfo] = useState<string | null>(null);
   const [open, setOpen] = useState<'tariff' | 'import' | 'arrangement' | 'group' | null>(null);
   const [period, setPeriod] = useState({ periodStart: data.period.lastComplete.start, periodEnd: nextDay(data.period.lastComplete.end) });
+  const [estimateMissing, setEstimateMissing] = useState(false);
 
   const load = useCallback(async () => {
     const [t, a, g, c] = await Promise.all([
@@ -284,7 +285,10 @@ export function BillingSection({ data, canManage }: { data: Overview; canManage:
               To (exclusive)
               <input className={inputClass} type="date" value={period.periodEnd} onChange={(e) => setPeriod({ ...period, periodEnd: e.target.value })} />
             </label>
-            <Button size="sm" onClick={() => void post(chargesUrl, 'POST', period, 'Draft charges calculated.')}>Calculate charges</Button>
+            <label className="flex items-center gap-1 text-xs text-muted-foreground" title="Units without usable readings are estimated from their recent actual use, flagged, and trued up once readings arrive.">
+              <input type="checkbox" checked={estimateMissing} onChange={(e) => setEstimateMissing(e.target.checked)} /> Estimate where readings are missing
+            </label>
+            <Button size="sm" onClick={() => void post(chargesUrl, 'POST', { ...period, estimateMissing }, 'Draft charges calculated.')}>Calculate charges</Button>
           </>
         ) : null}
       </div>
