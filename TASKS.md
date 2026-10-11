@@ -538,6 +538,13 @@ notifications, deep links, biometric auth, tablet behaviour) — specification o
 - [x] Android: tenant utility statements; hybrid meters labelled monitoring-only.
 - [ ] Owner: production migrations 175–178, per-site legal decision, VAT/GL (TD-61), inverter brand (TD-64). Follow-ups TD-61–65. Report: `docs/HYBRID_UTILITIES_DELIVERY_REPORT.md`.
 
+## M22e — Utilities production-readiness audit (2026-10-11)
+
+- [x] Security, financial and integration audits; all confirmed critical/high findings fixed (migrations 179–180).
+- [x] Financial validation against hand-computed results (six-flat solar + borehole property, 13 more scenarios).
+- [x] Daily-jobs timeout root cause fixed; per-organisation utilities switch; migration rehearsal on representative data.
+- [ ] Owner: staging deployment + smoke tests; pilot decisions (`docs/UTILITIES_RELEASE_BLOCKERS.md`).
+
 ## M23 — Automated testing
 
 - [ ] Full `TESTING.md` suite: unit, RLS/policy (highest priority), accounting invariants, integration, API contract, native (iOS/Android), E2E against seeded multi-org staging.

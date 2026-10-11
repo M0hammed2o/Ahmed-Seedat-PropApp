@@ -1,5 +1,23 @@
 # Worklog
 
+## 2026-10-11 — Utilities production-readiness audit and hardening (autonomous)
+
+Brief: independently audit, test, repair and harden Smart Utilities + Hybrid utilities for a controlled staging release.
+Reports: `docs/UTILITIES_PRODUCTION_READINESS_AUDIT.md` (verdicts), `UTILITIES_SECURITY_FINDINGS.md`,
+`UTILITIES_FINANCIAL_VALIDATION.md`, `UTILITIES_STAGING_DEPLOYMENT_PLAN.md`, `UTILITIES_HARDWARE_PILOT_CHECKLIST.md`,
+`UTILITIES_FINAL_TEST_RESULTS.md`, `UTILITIES_RELEASE_BLOCKERS.md`.
+
+**Fixed (commits `04d8fd4`…`eb28de8`, migrations 179–180, local only):** cross-org write path in the utility gates;
+SSRF by DNS; cross-property evidence; self-verification; municipal retries/recipients/flag re-checks/duplicate sends
+(PDF now deterministic); ThingsBoard paging; a critical double-billing bug on mid-period arrangement changes plus
+terminated-lease, meter-replacement, TOU-allowance, stale-VAT, voided-invoice, tariff-split, multi-meter, check-meter,
+month-end and concurrent-invoice defects; daily-jobs timeout root cause (Portfolio Intelligence round trips, cap that
+skipped the same orgs, 1 000-row truncation, "URI too long"); per-organisation `utilities_enabled` switch.
+
+**Verified (fresh stack, final code):** pgTAP 102/1 625; web vitest 209 files/1 574 tests, 0 failed/0 skipped;
+Playwright 3/3; `next build` OK; Android 359/359 + lint + debug APK; migration rehearsal 172–180 on a copy of the local
+data with business-data fingerprints identical. Self-verified. Nothing deployed, pushed, sent or purchased.
+
 ## 2026-10-10 — Hybrid water & electricity (Phase 2), autonomous session
 
 Third brief: hybrid supply, tariffs, tenant billing, dashboards, statements, alerts, Android, testing. Owner summary

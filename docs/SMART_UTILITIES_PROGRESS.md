@@ -60,3 +60,10 @@ Built: supply sources + levels + logs, measurement kinds, hybrid balance, tariff
 billing arrangements, shared meters, billing v2 (segments, VAT, credits, disputes, adjustments, draft-only invoices),
 dashboard (any range), statements (tenant/owner, approve-before-visible, PDF, e-mail behind flag), hybrid alerts,
 portfolio page, web UI, Android tenant statements. Results: `SMART_UTILITIES_TEST_RESULTS.md`.
+
+## Checkpoint — production-readiness audit (2026-10-11)
+
+Read `UTILITIES_PRODUCTION_READINESS_AUDIT.md` first. Commits `04d8fd4`, `a8c2874`, `97a85de`, `ea625e6`, `5f4bfd1`,
+`eb28de8` + docs. Migrations 179–180 added (local only). Software and staging ready; pilot and production conditional
+on `UTILITIES_RELEASE_BLOCKERS.md`. Next action for whoever resumes: owner approval to deploy to staging, then the
+smoke tests in `UTILITIES_STAGING_DEPLOYMENT_PLAN.md` §6.
