@@ -543,7 +543,22 @@ notifications, deep links, biometric auth, tablet behaviour) — specification o
 - [x] Security, financial and integration audits; all confirmed critical/high findings fixed (migrations 179–180).
 - [x] Financial validation against hand-computed results (six-flat solar + borehole property, 13 more scenarios).
 - [x] Daily-jobs timeout root cause fixed; per-organisation utilities switch; migration rehearsal on representative data.
-- [ ] Owner: staging deployment + smoke tests; pilot decisions (`docs/UTILITIES_RELEASE_BLOCKERS.md`).
+- [x] Superseded by M22f for the open owner items.
+
+## M22f — Utilities Phase 3: production hardening, staging readiness, pilot validation (2026-10-11)
+
+- [x] Security: DNS-rebinding-safe poll client (TD-66), constant-time cron secret (TD-68), e2e never uses live keys
+  (TD-59); tenant write-denial on tariffs/arrangements/charges/credits proven in pgTAP.
+- [x] Performance: batch telemetry insert, opt-in retention ≥ 400 days (migration 181, TD-53); legacy monthly
+  readings (Android) mirrored into telemetry (TD-54).
+- [x] Accounting: estimates for missing readings + automatic true-up (draft charge or credit, once, race-safe);
+  TD-61 safe default (`vat_ledger_split_pending`); GL split awaits the accounting decision.
+- [x] Pilot scenario tests: hybrid 7-flat property, private-only (no tariffs) and municipal-only properties — every
+  arrangement, hand-computed (`docs/UTILITIES_PILOT_TEST_SCENARIOS.md`).
+- [x] Rollback script for 175–181, rehearsed on representative data (schema identical to 174 after rollback).
+- [x] SA pilot hardware plan with costs (`docs/UTILITIES_HARDWARE_PILOT_CHECKLIST.md` §5); nothing purchased.
+- [ ] Owner: approvals in `docs/UTILITIES_STAGING_DEPLOYMENT_PLAN.md` §9; pilot decisions in
+  `docs/UTILITIES_REMAINING_BLOCKERS.md`.
 
 ## M23 — Automated testing
 

@@ -701,3 +701,27 @@ Full design in `docs/HYBRID_UTILITIES_ARCHITECTURE.md`. In short:
 - **Statements are reviewed before anyone sees them**; tenant e-mail is off unless
   `SMART_UTILITY_TENANT_STATEMENTS_ENABLED=true` and staff press Send.
 - **No inverter vendor adapter without verification** (Victron VRM researched, not built; TD-64).
+
+## 2026-10-11 — Utilities Phase 3: decisions made autonomously
+
+- **Estimates are opt-in per calculation** ("Estimate where readings are missing"). An estimate is the unit's average
+  daily ACTUAL use over its last three metered charges. A unit with no history is never estimated; it stays at R0 for
+  review. Estimates are flagged `estimated_consumption_true_up_pending`.
+- **True-up rules:**
+  - It prices the actual use at the estimate's own tariff snapshot, once per estimate.
+  - Shortfall → a **draft** `true_up` charge.
+  - Overcharge on an **invoiced** estimate → a utility credit, capped at what was charged.
+  - Overcharge on an approved-but-not-invoiced estimate → the manager is told to void and recalculate. Nothing is
+    changed silently.
+  - Draft estimates are not trued up; they are voided and recalculated.
+- **Telemetry retention is off by default** and never touches data younger than 400 days. Deletion is irreversible;
+  the database enforces the minimum as well as the job. It keeps each SAST day's first and last reading, so any
+  day-aligned billing period can still be recalculated.
+- **Monthly readings are mirrored into telemetry** at 12:00 SAST on the reading date, as unverified manual readings.
+  The monthly table stays the source for Android and Finances.
+- **TD-61 safe default:** VAT-registered landlords get a `vat_ledger_split_pending` flag rather than an invented ledger
+  treatment. The GL split waits for an accounting decision.
+- **Rollback refuses while real utility data exists.** Restoring from backup is the only safe way back once charges,
+  statements, tariffs, sources or device data exist.
+- **Pilot restriction** also sets the `utilities_enabled` default to false, so organisations created during the pilot
+  stay off (owner runs it).
