@@ -2,7 +2,7 @@
 -- docs/UTILITIES_PHASE3_COMPLETION_REPORT.md.
 
 begin;
-select plan(20);
+select plan(21);
 
 insert into auth.users (id, email) values
   ('fb000000-0000-0000-0000-00000000000a', 'p3-manager@test.propertyvault.example'),
@@ -96,6 +96,11 @@ insert into public.utility_credits (org_id, property_id, lease_id, source_charge
 select throws_ok($$insert into public.utility_credits (org_id, property_id, lease_id, source_charge_id, amount, remaining, reason)
   values ('fb111111-0000-0000-0000-000000000001', 'fb222222-0000-0000-0000-000000000001', 'fb555555-0000-0000-0000-000000000001', 'fb999999-0000-0000-0000-000000000001', 20, 20, 'True-up: actual 90 vs estimated 100')$$,
   '23505', null, 'only one true-up credit per estimated charge');
+
+-- ------------------------------------------------ migration 182: Smart Utilities is off unless switched on
+insert into public.organizations (id, legal_name, org_type) values ('fb111111-0000-0000-0000-000000000009', 'P3 New Org', 'agency');
+select is((select utilities_enabled from public.organizations where id = 'fb111111-0000-0000-0000-000000000009'), false,
+  'a newly created organisation has Smart Utilities switched off');
 
 select * from finish();
 rollback;
