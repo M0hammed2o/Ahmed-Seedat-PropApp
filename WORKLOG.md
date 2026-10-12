@@ -1,5 +1,35 @@
 # Worklog
 
+## 2026-10-12 — Utilities staging readiness & pilot preparation (autonomous)
+
+Full report: `docs/UTILITIES_STAGING_READINESS_REPORT.md`.
+
+**Browser tests:** investigated all 8 Playwright failures.
+- Fixed 2 real UI defects: the invoices list lost its "Sent" label; company and trust owners both showed as
+  "Entity / Company".
+- Updated 6 tests left stale by deliberate product changes.
+- Added `COLD_ROUTE_MS` for first-compile steps (`7cda7cc`).
+
+**Pilot restriction:** migration 182 switches Smart Utilities OFF for every organisation, existing and new. The app
+fails closed. Every utilities write route, poll sync and approval reminder is gated (`a11c2f8`, `d1eed26`). The
+rollback now covers 175–182.
+
+**Demo data:** reusable fictional seven-flat pilot demo for disposable databases (`4ad4340`,
+`docs/UTILITIES_PILOT_DEMO.md`).
+
+**Staging:** plan with exact commands and a re-link guard. This checkout is linked to the hosted project
+"PropertyVault".
+
+**Regression:**
+- pgTAP 1,646/1,646;
+- vitest 1,593/1,594 (ClamAV first-scan timeout under load; passes alone);
+- tsc, build and Android (359 tests) pass;
+- utilities e2e pass (1 flaky);
+- whole-app Playwright could not be completed on this machine: the dev server and workers crashed, and another
+  project's Playwright run was competing. Run it on CI or staging.
+
+The main local DB was never reset (2,725 orgs, head 171). Nothing was deployed or sent.
+
 ## 2026-10-11 — Utilities Phase 3: production hardening, staging readiness, pilot validation (autonomous)
 
 Full report: `docs/UTILITIES_PHASE3_COMPLETION_REPORT.md`.

@@ -560,6 +560,14 @@ notifications, deep links, biometric auth, tablet behaviour) — specification o
 - [ ] Owner: approvals in `docs/UTILITIES_STAGING_DEPLOYMENT_PLAN.md` §9; pilot decisions in
   `docs/UTILITIES_REMAINING_BLOCKERS.md`.
 
+## M22g — Utilities staging readiness & pilot preparation (2026-10-12)
+
+- [x] 8 Playwright failures resolved (2 UI defects fixed, 6 stale tests updated).
+- [x] Smart Utilities off by default, fail closed, all write routes gated (migration 182); rollback 175–182.
+- [x] Reusable fictional pilot demo for disposable databases; exact staging commands.
+- [ ] Engineering: whole-app Playwright on CI or a quieter machine (this laptop's run crashed).
+- [ ] Owner: approvals in `docs/UTILITIES_STAGING_READINESS_REPORT.md` §7.
+
 ## M23 — Automated testing
 
 - [ ] Full `TESTING.md` suite: unit, RLS/policy (highest priority), accounting invariants, integration, API contract, native (iOS/Android), E2E against seeded multi-org staging.
