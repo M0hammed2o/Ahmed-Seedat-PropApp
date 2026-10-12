@@ -18,14 +18,21 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
   const latest = new Map<string, { metric: string; value: number; readAt: string }[]>();
   if (ids.length) {
     const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
-    const { data: readings } = await auth.supabase
-      .from('utility_source_readings')
-      .select('source_id, metric, value, read_at')
-      .in('source_id', ids)
-      .gte('read_at', since)
-      .order('read_at', { ascending: false })
-      .limit(2000);
-    for (const r of readings ?? []) {
+    // Per source: one busy sensor (e.g. 15-minute tank levels, ~1 300 rows a week) must not crowd the others out of a
+    // single shared, 1 000-row-capped response and make their latest reading look missing.
+    const perSource = await Promise.all(
+      ids.map((sourceId) =>
+        auth.supabase
+          .from('utility_source_readings')
+          .select('source_id, metric, value, read_at')
+          .eq('source_id', sourceId)
+          .gte('read_at', since)
+          .order('read_at', { ascending: false })
+          .limit(200),
+      ),
+    );
+    const readings = perSource.flatMap((r) => r.data ?? []);
+    for (const r of readings) {
       const list = latest.get(r.source_id) ?? [];
       if (!list.some((x) => x.metric === r.metric)) list.push({ metric: r.metric, value: Number(r.value), readAt: r.read_at });
       latest.set(r.source_id, list);
