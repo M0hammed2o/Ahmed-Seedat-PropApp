@@ -19,6 +19,7 @@ Apply in order, each in its own transaction (the Supabase CLI does this):
 | 180 | `portfolio_intelligence_candidates` | candidate-org function for the daily job | rollback script |
 | 181 | `utilities_phase3` | batch telemetry insert, opt-in retention, legacy monthly readings mirrored into telemetry (+ backfill), `true_up` charge type, one true-up credit per estimate | rollback script |
 | 182 | `utilities_off_by_default` | `utilities_enabled` defaults to false; every existing organisation set to false (pilot org switched on explicitly, §5) | rollback script (drops the column) |
+| 183 | `utilities_rls_set_based` | utilities RLS evaluated per property instead of per row (same visibility; portfolio query 24.6 s → 0.7 s at scale) | rollback script |
 
 **Rehearsal evidence (local, disposable stack `propvault_su`, 2026-10-11).**
 - **Data:** a data-only copy of the local database at head 171:
@@ -39,20 +40,20 @@ Apply in order, each in its own transaction (the Supabase CLI does this):
    - Dump with `pg_dump --format=custom --no-owner` to encrypted storage and record its checksum.
 2. Verify that the dump restores into a scratch project (row counts of the §1 tables).
 3. Apply to **staging** first. Run the smoke tests (§6) and the pgTAP suite there.
-4. Production (separate approval): apply 175 → 182.
+4. Production (separate approval): apply 175 → 183.
    - Verify with the rollback-only probe technique used for 171/172 (begin; exercise; rollback).
    - Run the fingerprint query.
 
-**Rollback script:** `supabase/rollback/20260101000175_182_utilities_down.sql`. Run it by hand as one transaction:
-`psql -1 -v ON_ERROR_STOP=1 -f supabase/rollback/20260101000175_182_utilities_down.sql`.
+**Rollback script:** `supabase/rollback/20260101000175_183_utilities_down.sql`. Run it by hand as one transaction:
+`psql -1 -v ON_ERROR_STOP=1 -f supabase/rollback/20260101000175_183_utilities_down.sql`.
 
 What it does:
 - **Refuses** while real utility data exists: charges, statements, municipal packs, tariffs, supply sources, or
   telemetry other than mirrored monthly readings. Dropping those would destroy customer records; **restore from the
   dump/PITR instead**.
 - Restores migration 174's `utility_meters` / `utility_readings` policies and `record_utility_reading()` verbatim.
-- Drops only what 175–182 added. The original `utility_meters` and `units` columns and all their rows stay.
-- Removes `btree_gist` and the 175–182 rows from `supabase_migrations.schema_migrations`.
+- Drops only what 175–183 added. The original `utility_meters` and `units` columns and all their rows stay.
+- Removes `btree_gist` and the 175–183 rows from `supabase_migrations.schema_migrations`.
 
 **Rehearsed on the representative copy:** up → guard refusal (a tariff existed; nothing changed) → down in 1.8–1.9 s →
 check against 174 → up again. All 7 migrations re-applied; 120/120 readings mirrored again.
@@ -168,10 +169,10 @@ See `UTILITIES_REMAINING_BLOCKERS.md` (current) and `UTILITIES_PRODUCTION_READIN
 | # | Action | Who approves | Prerequisite |
 | --- | --- | --- | --- |
 | 1 | Push the local commits to the remote | owner | review the commit list |
-| 2 | Apply 175–182 to **staging** | owner | a separate staging Supabase project exists (DEPLOYMENT.md; Unknown whether it does yet); dump of staging taken |
+| 2 | Apply 175–183 to **staging** | owner | a separate staging Supabase project exists (DEPLOYMENT.md; Unknown whether it does yet); dump of staging taken |
 | 3 | Set staging env vars (§3) — sending flags unset, Resend mock/sandbox | owner | secret store access |
 | 4 | Choose the pilot organisation; run §5 statements on staging | owner | org id |
-| 5 | Production: apply 175–182 | owner, separately | staging smoke tests pass; PITR + dump verified |
+| 5 | Production: apply 175–183 | owner, separately | staging smoke tests pass; PITR + dump verified |
 | 6 | Any real tariff, any real tenant charge, any municipal send | owner + legal check per site | `UTILITIES_REMAINING_BLOCKERS.md` |
 
 ## 10. Exact staging commands (run only after approvals 1–4)
@@ -194,12 +195,12 @@ npx supabase migration list --linked              # read-only: note the remote h
 # 2. Backup (staging): logical dump + checksum, then a restore test into a scratch project.
 npx supabase db dump --linked -f staging-pre-175.sql && sha256sum staging-pre-175.sql
 
-# 3. Dry run, then apply 175–182 (each migration runs in its own transaction).
-npx supabase db push --linked --dry-run           # must list exactly 175…182, nothing else
+# 3. Dry run, then apply 175–183 (each migration runs in its own transaction).
+npx supabase db push --linked --dry-run           # must list exactly 175…183, nothing else
 npx supabase db push --linked
 
 # 4. Verify (read-only SQL in the staging SQL editor).
-#    select max(version) from supabase_migrations.schema_migrations;                       -- 20260101000182
+#    select max(version) from supabase_migrations.schema_migrations;                       -- 20260101000183
 #    select count(*) filter (where utilities_enabled) from public.organizations;            -- 0
 #    select column_default from information_schema.columns
 #      where table_name='organizations' and column_name='utilities_enabled';                -- false
@@ -211,7 +212,7 @@ npx supabase db push --linked
 # 6. Re-link back to whatever this checkout was linked to before (or unlink) so nothing targets staging by accident.
 ```
 
-**Rollback on staging:** `psql "$STAGING_DB_URL" -1 -v ON_ERROR_STOP=1 -f supabase/rollback/20260101000175_182_utilities_down.sql`.
+**Rollback on staging:** `psql "$STAGING_DB_URL" -1 -v ON_ERROR_STOP=1 -f supabase/rollback/20260101000175_183_utilities_down.sql`.
 - It refuses once real utility data exists; restore the step-2 dump instead.
 - The app commit must be rolled back together with the schema.
 
