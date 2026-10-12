@@ -51,6 +51,35 @@ export const SMART_METER_COLUMNS =
 
 const METER_CHUNK = 100;
 
+/** The API returns at most 1 000 rows per request (Supabase `max_rows`); anything larger must be paged. */
+export const API_PAGE = 1000;
+type Page<T> = PromiseLike<{ data: T[] | null; error: { message: string } | null }>;
+
+/**
+ * Every row of a query, one API page at a time. Without this an unpaginated select is SILENTLY truncated at 1 000
+ * rows (found by the scale benchmark: the daily job analysed 1 000 of 6 601 meters). `page` must order by a unique
+ * key so pages never overlap or skip.
+ */
+export async function fetchAll<T>(page: (from: number, to: number) => Page<T>): Promise<T[]> {
+  const out: T[] = [];
+  for (let from = 0; ; from += API_PAGE) {
+    const { data, error } = await page(from, from + API_PAGE - 1);
+    if (error) throw new Error(error.message);
+    out.push(...(data ?? []));
+    if ((data ?? []).length < API_PAGE) return out;
+  }
+}
+
+/** fetchAll for an `in(...)` filter over many ids: chunked (URL length) and paged (row cap). */
+export async function fetchAllIn<T>(ids: string[], page: (chunk: string[], from: number, to: number) => Page<T>, chunkSize = METER_CHUNK): Promise<T[]> {
+  const out: T[] = [];
+  for (let c = 0; c < ids.length; c += chunkSize) {
+    const chunk = ids.slice(c, c + chunkSize);
+    out.push(...(await fetchAll((from, to) => page(chunk, from, to))));
+  }
+  return out;
+}
+
 /** Telemetry points per meter in [from, to], paged so a long window never truncates silently. */
 export async function loadPoints(
   client: SupabaseClient,

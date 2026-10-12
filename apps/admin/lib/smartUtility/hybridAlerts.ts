@@ -1,7 +1,7 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { bucketConsumption, sastDateString, sastInstant, sastParts } from './consumption';
-import { loadPoints, SMART_METER_COLUMNS, type SmartMeterRow } from './data';
+import { fetchAll, loadPoints, SMART_METER_COLUMNS, type SmartMeterRow } from './data';
 import { loadHybridDashboard } from './hybridDashboard';
 
 // Hybrid-supply and billing-workflow alerts (docs/HYBRID_UTILITIES_ARCHITECTURE.md §H). The evaluators are pure;
@@ -399,9 +399,10 @@ export async function runHybridAlerts(
     const prevMonthStart = sastInstant(today.month === 1 ? today.year - 1 : today.year, today.month === 1 ? 12 : today.month - 1, 1);
     const from = sastDateString(prevMonthStart);
     const to = sastDateString(sastInstant(today.year, today.month, 1));
-    const { data: settings, error: settingsError } = await serviceClient.from('utility_alert_settings').select('property_id, discrepancy_threshold_pct');
-    if (settingsError) throw new Error(`alert settings failed: ${settingsError.message}`);
-    const threshold = new Map((settings ?? []).map((s) => [s.property_id, Number(s.discrepancy_threshold_pct)]));
+    const settings = await fetchAll<{ property_id: string; discrepancy_threshold_pct: number }>((f, t) =>
+      serviceClient.from('utility_alert_settings').select('property_id, discrepancy_threshold_pct').order('id').range(f, t),
+    );
+    const threshold = new Map(settings.map((s) => [s.property_id, Number(s.discrepancy_threshold_pct)]));
     const hybridProps = [...new Map(sources.map((s) => [s.property_id as string, s.org_id as string])).entries()];
     for (const [propertyId, orgId] of hybridProps) {
       const dash = await loadHybridDashboard(serviceClient, propertyId, { from, to });

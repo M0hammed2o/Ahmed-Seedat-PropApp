@@ -1,6 +1,7 @@
 import 'server-only';
 import { createHash } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { enabledUtilityOrgs } from './ingest';
 import { dispatchEmail } from '../emailDispatch';
 import { notifyPropertyStaff } from '../notify';
 import { writeAuditEvent } from '../audit';
@@ -553,9 +554,7 @@ export async function sendDueDeliveries(
   const touched = new Set<string>();
   // Paused while Smart Utilities is switched off for the organisation; deliveries stay due and resume later.
   // Fail closed: if the switch cannot be read, nothing is sent this run.
-  const { data: enabledRows, error: enabledError } = await serviceClient.from('organizations').select('id').eq('utilities_enabled', true).limit(10_000);
-  if (enabledError) throw new Error(`utilities switch lookup failed: ${enabledError.message}`);
-  const enabledOrgs = new Set((enabledRows ?? []).map((o) => o.id as string));
+  const enabledOrgs = await enabledUtilityOrgs(serviceClient); // paged; throws on error (fail closed)
   const cache = new Map<
     string,
     {

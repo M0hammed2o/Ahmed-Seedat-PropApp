@@ -1,6 +1,7 @@
 import 'server-only';
 import crypto from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { fetchAll } from './data';
 import { AdapterError, type NormalisedReading } from './adapters';
 import { parsePush, type ProviderId } from './providers';
 import { classifyDecrease } from './consumption';
@@ -33,9 +34,11 @@ export type IntegrationAuthResult =
  * FAIL CLOSED: a lookup error throws, so a job step fails and reports instead of treating everyone as enabled.
  */
 export async function enabledUtilityOrgs(serviceClient: SupabaseClient): Promise<Set<string>> {
-  const { data, error } = await serviceClient.from('organizations').select('id').eq('utilities_enabled', true).limit(10_000);
-  if (error) throw new Error(`utilities switch lookup failed: ${error.message}`);
-  return new Set((data ?? []).map((o) => o.id as string));
+  // Paged: a single request is capped at 1 000 rows by the API (fetchAll). A lookup error throws (fail closed).
+  const rows = await fetchAll<{ id: string }>((f, t) => serviceClient.from('organizations').select('id').eq('utilities_enabled', true).order('id').range(f, t)).catch((e: Error) => {
+    throw new Error(`utilities switch lookup failed: ${e.message}`);
+  });
+  return new Set(rows.map((o) => o.id));
 }
 
 /** Fail closed: only an explicit `true` enables (missing row, missing value or error → disabled). */

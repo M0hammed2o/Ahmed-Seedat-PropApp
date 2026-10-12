@@ -1,5 +1,6 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { fetchAll, fetchAllIn } from './data';
 
 // Portfolio utilities summary across every property the caller can read (session client → RLS). Monthly trends
 // come from job-written meter_period_snapshots, so a large portfolio never loads raw telemetry here; the property
@@ -7,24 +8,22 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 const CHUNK = 150;
 
-async function inChunks<T>(ids: string[], load: (chunk: string[]) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>): Promise<T[]> {
-  const out: T[] = [];
-  for (let i = 0; i < ids.length; i += CHUNK) {
-    const { data, error } = await load(ids.slice(i, i + CHUNK));
-    if (error) throw new Error(error.message);
-    out.push(...(data ?? []));
-  }
-  return out;
+type Ordered<T> = { order: (column: string) => { range: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }> } };
+
+/** Chunked by id (URL length) AND paged (the API returns at most 1 000 rows per request; a 150-property chunk of
+ * monthly snapshots alone can hold tens of thousands). */
+async function inChunks<T>(ids: string[], load: (chunk: string[]) => Ordered<T>): Promise<T[]> {
+  return fetchAllIn<T>(ids, (chunk, f, t) => load(chunk).order('id').range(f, t), CHUNK);
 }
 
 export async function loadUtilityPortfolio(client: SupabaseClient, opts: { months?: number } = {}) {
   const months = Math.min(Math.max(opts.months ?? 12, 1), 24);
-  const { data: meterRows, error: meterError } = await client
-    .from('utility_meters')
-    .select('id, property_id, utility_type, meter_role, measurement_kind, active')
-    .limit(20_000);
-  if (meterError) throw new Error(meterError.message);
-  const { data: sourceRows } = await client.from('utility_supply_sources').select('id, property_id, utility_type, source_type, active').limit(5000);
+  const meterRows = await fetchAll<{ id: string; property_id: string; utility_type: string; meter_role: string; measurement_kind: string | null; active: boolean }>((f, t) =>
+    client.from('utility_meters').select('id, property_id, utility_type, meter_role, measurement_kind, active').order('id').range(f, t),
+  );
+  const sourceRows = await fetchAll<{ id: string; property_id: string; utility_type: string; source_type: string; active: boolean }>((f, t) =>
+    client.from('utility_supply_sources').select('id, property_id, utility_type, source_type, active').order('id').range(f, t),
+  );
   const propertyIds = [...new Set([...(meterRows ?? []).map((m) => m.property_id), ...(sourceRows ?? []).map((s) => s.property_id)])];
   if (propertyIds.length === 0) return { properties: [], totals: null, monthly: [] };
 
