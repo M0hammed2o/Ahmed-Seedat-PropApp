@@ -1,0 +1,52 @@
+{
+  "_about": "Independently hand-calculated expected results for reconciliation.integration.test.ts (docs/UTILITIES_BILLING_RECONCILIATION.md). FICTIONAL tariffs. Amounts in cents. VAT 15 %, rounded half-up per line. Written BEFORE running the engine; never edited to match it.",
+  "period": { "start": "2026-10-01", "end": "2026-11-01", "days": 31 },
+  "tariffs": {
+    "E_EXCL": "electricity, property-wide: flat R2.50/kWh EXCL VAT + R50.00/month fixed EXCL VAT",
+    "W_BLOCK": "water, property-wide: blocks 0-6 kL R20, 6-15 kL R30, >15 kL R50 per kL, INCL VAT, no fixed",
+    "E_R4_A": "electricity, unit R4 only: flat R3.00/kWh INCL, effective 2026-01-01 to 2026-10-15",
+    "E_R4_B": "electricity, unit R4 only: flat R3.30/kWh INCL, effective from 2026-10-16",
+    "E_SEASON": "electricity, property 2 (July): default R2.00/kWh INCL; Winter (Jun-Aug) R4.00/kWh INCL"
+  },
+  "cases": [
+    {
+      "id": "R1", "what": "VAT-exclusive flat + fixed, half-up VAT rounding", "use": "123 kWh",
+      "working": "usage 123 x 2.50 = 307.50 excl; VAT 46.125 -> 46.13; = 353.63. fixed 50.00 + 7.50 = 57.50. total 411.13",
+      "charges": [{ "type": "consumption", "inclCents": 41113, "exclCents": 35750, "vatCents": 5363 }]
+    },
+    {
+      "id": "R2", "what": "block water, full month", "use": "18 kL",
+      "working": "6x20 + 9x30 + 3x50 = 120 + 270 + 150 = 540.00 incl",
+      "charges": [{ "type": "consumption", "inclCents": 54000 }]
+    },
+    {
+      "id": "R4", "what": "unit tariff changes on 16 Oct (two pieces)", "use": "150 kWh to 16 Oct, 160 kWh after",
+      "working": "1-15 Oct: 150 x 3.00 = 450.00; 16-31 Oct: 160 x 3.30 = 528.00",
+      "charges": [{ "type": "consumption", "segmentStart": "2026-10-01", "inclCents": 45000 }, { "type": "consumption", "segmentStart": "2026-10-16", "inclCents": 52800 }]
+    },
+    {
+      "id": "R5", "what": "meter replaced on 12 Oct (old 0->80, new 0->70)", "use": "150 kWh across the chain",
+      "working": "150 x 2.50 = 375.00 excl + 56.25 VAT = 431.25; fixed 57.50; total 488.75",
+      "charges": [{ "type": "consumption", "inclCents": 48875 }]
+    },
+    {
+      "id": "R6", "what": "shared ELECTRICITY meter, equal split R6a/R6b, landlord 0 %", "use": "300 kWh on the shared meter",
+      "working": "priced once on E_EXCL: 300 x 2.50 = 750.00 + 112.50 VAT = 862.50; fixed 57.50; total 920.00; / 2 = 460.00 each (policy: the shared meter's fixed charge is shared too)",
+      "charges": [{ "unit": "R6a", "type": "allocation", "inclCents": 46000 }, { "unit": "R6b", "type": "allocation", "inclCents": 46000 }]
+    },
+    {
+      "id": "R7", "what": "prepaid (tenant buys directly) on an Eskom-direct + rainwater site", "use": "40 kWh prepaid meter, 9 kL rainwater",
+      "working": "tenant_direct arrangement: nothing to recharge; supply/source meters never billed",
+      "charges": []
+    },
+    {
+      "id": "S1", "what": "seasonal tariff, July (winter)", "property": 2, "period": { "start": "2026-07-01", "end": "2026-08-01" }, "use": "100 kWh",
+      "working": "July is in Winter: 100 x 4.00 = 400.00 incl (default rate would give 200.00)",
+      "charges": [{ "type": "consumption", "inclCents": 40000 }]
+    }
+  ],
+  "invoices": {
+    "what": "R1 approved -> draft invoice; invoicing again creates nothing; void -> charge released -> re-invoice creates ONE new draft",
+    "expected": { "liveInvoicesForCharge": 1, "voidedInvoices": 1, "issued": 0 }
+  }
+}
