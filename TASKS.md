@@ -568,6 +568,13 @@ notifications, deep links, biometric auth, tablet behaviour) — specification o
 - [ ] Engineering: whole-app Playwright on CI or a quieter machine (this laptop's run crashed).
 - [ ] Owner: approvals in `docs/UTILITIES_STAGING_READINESS_REPORT.md` §7.
 
+## M22h — Utilities Phase 3 validation (2026-10-12)
+
+- [x] Scale benchmark; per-row RLS (migration 183) and 1,000-row truncation fixed; busy-sensor latest fix.
+- [x] Independent billing reconciliation dataset; ingestion backfill; tenant dispute endpoint.
+- [x] Compliance checklist, hardware compatibility, pilot test plan, GO/NO-GO; rehearsal 175–183 on representative data.
+- [ ] Engineering: whole-app Playwright on CI (P1-W); P2 items R1–R8 in `docs/UTILITIES_PRODUCTION_GO_NO_GO.md`.
+
 ## M23 — Automated testing
 
 - [ ] Full `TESTING.md` suite: unit, RLS/policy (highest priority), accounting invariants, integration, API contract, native (iOS/Android), E2E against seeded multi-org staging.

@@ -1,5 +1,40 @@
 # Worklog
 
+## 2026-10-12 (later) — Utilities Phase 3 validation: scale, reconciliation, journeys (autonomous)
+
+Full report: `docs/UTILITIES_PHASE3_VALIDATION_REPORT.md`. GO/NO-GO: `docs/UTILITIES_PRODUCTION_GO_NO_GO.md`.
+
+**Scale benchmark:** 300 properties, 6,600 meters, 1.25 M readings (`scripts/utilities-scale/`). It found two P1
+defects, both fixed:
+- per-row RLS made a manager's meter list take 24.6 s (portfolio timed out). Migration 183 rewrites the policies
+  set-based: same visibility, 0.72 s;
+- the API's 1,000-row cap silently truncated unpaged queries: the daily job analysed 1,000 of 6,601 meters and
+  snapshots missed 5,611. Fixed with `fetchAll`/`fetchAllIn`.
+
+**Other fixes:**
+- a busy sensor hid other sources' latest level (fixed; the test fails on the old code);
+- **tenant utility disputes** (new endpoint).
+
+**Billing reconciliation:** checked against an independent hand-calculated dataset (VAT-exclusive, seasonal, tariff
+change, replacement, shared electricity, void/regenerate) — all matched.
+
+**Ingestion backfill / out-of-order test:** no defect.
+
+**Docs:** compliance checklist, hardware compatibility, pilot test plan.
+
+**Rehearsal on the representative copy (2,725 orgs):** 175–183 up, guard refusal, down identical to 174, up again.
+The 7 restore errors were investigated: 5 expected seed duplicates and 2 local schema drift from migration 173.
+
+**Regression:**
+- pgTAP 1,653/1,653;
+- vitest 1,600/1,604 (1 gateway flake that passes alone; 3 skipped);
+- tsc, build and Android (359 tests) pass.
+
+**Playwright:** not reliable on this machine. Host CPU was at 68–78 % idle, the Docker VM is shared with other
+projects' containers, and the auth admin API returned 504 under load. Run it on CI (P1-W).
+
+The main local DB was never reset. Nothing was deployed or sent.
+
 ## 2026-10-12 — Utilities staging readiness & pilot preparation (autonomous)
 
 Full report: `docs/UTILITIES_STAGING_READINESS_REPORT.md`.
