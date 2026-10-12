@@ -1,6 +1,6 @@
--- ROLLBACK of utilities migrations 175–182 (docs/UTILITIES_STAGING_DEPLOYMENT_PLAN.md §2).
+-- ROLLBACK of utilities migrations 175–183 (docs/UTILITIES_STAGING_DEPLOYMENT_PLAN.md §2).
 -- NOT a migration: run by hand, as one transaction (psql -1 -v ON_ERROR_STOP=1 -f ...), only on a database where
--- 175–182 were applied and something forces going back. Rehearsed on a disposable copy of representative data:
+-- 175–183 were applied and something forces going back. Rehearsed on a disposable copy of representative data:
 -- schema after rollback = schema at 174 (pg_dump diff empty), data fingerprint of pre-existing tables unchanged.
 --
 -- It REFUSES to run when real utility data exists (charges, statements, municipal packs, device/manual telemetry
@@ -198,11 +198,14 @@ COMMENT ON FUNCTION public.record_utility_reading(p_meter_id uuid, p_period_mont
    -- a lower-than-previous reading is stored as-is (a negative consumption value), deferred to
    future scope per the V1 gap audit rather than guessing a reset heuristic.';
 
--- 175's access helpers are unused once the policies above are back
+-- 183's set-based helpers and 175's access helpers are unused once the policies above are back
+drop function if exists public.utility_read_property_ids();
+drop function if exists public.utility_write_property_ids();
+drop function if exists public.utility_candidate_property_ids();
 drop function if exists public.can_read_property_utilities(uuid, uuid);
 drop function if exists public.can_write_property_utilities(uuid, uuid);
 -- btree_gist was installed by 179 only for utility_charges_no_overlap (gone with the table).
 drop extension if exists btree_gist;
 
--- Forget 175–182 in the migration history so `supabase db push` applies them again after a fix.
-delete from supabase_migrations.schema_migrations where version between '20260101000175' and '20260101000182';
+-- Forget 175–183 in the migration history so `supabase db push` applies them again after a fix.
+delete from supabase_migrations.schema_migrations where version between '20260101000175' and '20260101000183';
