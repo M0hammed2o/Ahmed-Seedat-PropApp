@@ -24,7 +24,7 @@ export default defineConfig({
     // `pnpm test:e2e`, never vitest -- vitest's default include glob otherwise picks up any
     // *.spec.ts file anywhere in the project and tries (and fails) to execute Playwright's own
     // test() as if it were a vitest test.
-    exclude: ['**/node_modules/**', '**/e2e/**'],
+    exclude: ['**/node_modules/**', '**/e2e/**', '**/e2e-demo/**'],
     // Run test FILES one at a time (V1 release-gate pass). Almost every suite here is a real
     // integration test against ONE shared local Supabase instance, not an isolated unit test, so
     // parallel files actively fight each other over shared global state. Before this, a full run
