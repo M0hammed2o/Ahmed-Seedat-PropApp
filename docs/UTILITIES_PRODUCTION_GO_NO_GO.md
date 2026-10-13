@@ -32,7 +32,7 @@ truncation (D1, D2).
 | B4 | POPIA basis and notices for consumption data (C11) | information officer | confirm |
 | B5 | Real tariffs entered with source references | landlord / manager | enter in the tariff form |
 | P1-H | Meter approval and commissioning for any device used for billing (C5; hardware checklist §3) | owner + installer | quotes, purchase approval, commissioning |
-| P1-W | Whole-app browser suite green on CI or a quieter machine. This laptop crashes under the full run | engineering | run `CI=1 npx playwright test` on CI or staging |
+| P1-W | ~~Whole-app browser suite green on a stable runner~~ **Closed 2026-10-13:** `Staging verify` workflow (GitHub runner, branch `staging/smart-utilities` @ `d32bc20`): Playwright **87/87**, pgTAP 1,653/1,653, vitest 1,601 passed / 3 skipped, lint, typecheck and build green | engineering | — |
 
 ### P2 — before wider rollout
 

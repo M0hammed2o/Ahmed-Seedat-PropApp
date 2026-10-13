@@ -135,6 +135,22 @@ All on 2026-10-12, against a fresh disposable stack (001–183).
   re-verified in a browser**; the RLS change is covered by pgTAP (1,653) and the integration suites.
 - **P1-W:** run `CI=1 npx playwright test` on CI or a dedicated machine before any production step.
 
+### 7a. Stable-runner results (2026-10-13, GitHub Actions `Staging verify`, branch `staging/smart-utilities`)
+
+| Gate | Result |
+| --- | --- |
+| Lint, typecheck, production build | pass |
+| pgTAP | **104 files, 1,653 tests — PASS** |
+| Vitest | **218 files passed, 1 skipped; 1,601 passed, 3 skipped, 0 failed** |
+| Playwright, whole app (one worker, ClamAV, CI retry policy) | **87 / 87 passed, 0 flaky** (run 38450234944, 15.5 min) |
+
+**Genuine defects the stable runner exposed and fixed:**
+- **onboarding.spec.ts:** the spec had its own sign-in that hit the real 10/min limit on a fast run. All specs now
+  use the shared 429-aware helper; the limit is unchanged.
+- **vitest picked up the Playwright demo spec:** `e2e-demo` is now excluded.
+
+The earlier laptop failures (auth 504s, crashed dev server) did not recur on the runner.
+
 ## 8. User journeys
 
 | Journey | Coverage | Result |
