@@ -36,7 +36,7 @@ const note = (s) => { changes.push(s); console.log('  ' + s); };
 async function main() {
   console.log(APPLY ? '=== APPLYING ===' : '=== DRY RUN (pass --apply to write) ===');
 
-  const { data: props } = await db.from('properties').select('id,nickname').eq('org_id', ORG);
+  const { data: _props } = await db.from('properties').select('id,nickname').eq('org_id', ORG);
   const { data: units } = await db.from('units').select('id,property_id,unit_label').eq('org_id', ORG);
   const { data: leases } = await db.from('leases').select('id,unit_id,rent_amount,status').eq('org_id', ORG).eq('status', 'active');
   const { data: lt } = await db.from('lease_tenants').select('lease_id,tenant_id');

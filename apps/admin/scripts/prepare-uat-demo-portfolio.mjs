@@ -92,7 +92,7 @@ const NEW_COMMERCIAL_TENANT = {
 };
 
 /** The one September rent left unpaid, so the feed has a real overdue-rent alert to show. */
-const LEAVE_UNPAID_UNIT = '102';
+const _LEAVE_UNPAID_UNIT = '102'; // documents intent; not read by this script
 
 const changes = [];
 const note = (s) => { changes.push(s); console.log('  ' + s); };
