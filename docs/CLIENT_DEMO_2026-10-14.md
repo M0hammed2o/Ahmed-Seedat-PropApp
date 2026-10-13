@@ -58,6 +58,10 @@ Render → New → **Web Service** → this GitHub repo → **branch `demo/clien
     about a minute.
   - Starter avoids that, but is a paid choice for you.
 - **Auto-deploy:** off, so later pushes don't change the demo mid-meeting.
+- **Memory:** the production build needed a 3 GB Node heap locally, so a 512 MB free instance may fail the build
+  with "out of memory".
+  - If that happens, use the same instance type as your production service (your call: it is a paid change).
+  - Or add `NODE_OPTIONS=--max-old-space-size=3072` on a plan with enough memory.
 
 **Environment variables** (Render → Environment):
 
