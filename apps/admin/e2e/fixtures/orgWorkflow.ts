@@ -88,7 +88,7 @@ export interface WorkflowOrg {
  * behaving rate-limited HTTP client uses -- back off and retry -- not raising or bypassing the
  * limit itself; check_rate_limit()'s fixed window means a retry after the window's remaining time
  * always succeeds once the count resets to 1. */
-async function signIn(request: APIRequestContext, email: string, password: string) {
+export async function signIn(request: APIRequestContext, email: string, password: string) {
   const maxAttempts = 5;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     const response = await request.post('/api/v1/auth/signin', {

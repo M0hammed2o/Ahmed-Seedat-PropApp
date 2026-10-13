@@ -1,7 +1,7 @@
 import { test, expect, type APIRequestContext } from '@playwright/test';
 import { createConfirmedTestUser } from './fixtures/testUser';
 import { completeLegalConsentAndProfile } from './fixtures/onboarding';
-import { createCommerciallyReadyOrganization } from './fixtures/orgWorkflow';
+import { createCommerciallyReadyOrganization, signIn } from './fixtures/orgWorkflow';
 import { BASE_URL } from '../playwright.config';
 
 // Production signup/onboarding (WORKLOG.md this date). Real HTTP/browser requests against the
@@ -15,13 +15,8 @@ import { BASE_URL } from '../playwright.config';
 // here -- this is the closest faithful substitute, a disclosed one, not silently treated as
 // equivalent to a real provider round trip.
 
-async function signIn(request: APIRequestContext, email: string, password: string) {
-  const response = await request.post('/api/v1/auth/signin', {
-    headers: { Origin: BASE_URL },
-    data: { email, password },
-  });
-  expect(response.ok()).toBe(true);
-}
+// signIn: the shared fixture, which backs off on the real 10/min sign-in limit (429) instead of failing a fast
+// sequential run — found on the GitHub runner, where this spec's own copy hit the limit; the limit is unchanged.
 
 // Playwright's APIRequestContext (both the standalone `request` fixture and `page.request`) is a
 // raw HTTP client -- unlike a real browser fetch(), it never attaches an Origin header on its

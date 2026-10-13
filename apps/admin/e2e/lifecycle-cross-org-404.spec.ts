@@ -1,7 +1,7 @@
-import { test, expect, type APIRequestContext } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { BASE_URL } from '../playwright.config';
-import { setUpOrg, createProperty, createUnit } from './fixtures/orgWorkflow';
+import { setUpOrg, createProperty, createUnit, signIn } from './fixtures/orgWorkflow';
 import { createConfirmedTestUser } from './fixtures/testUser';
 
 // Final local hardening pass (WORKLOG.md this date), Objective 1: the property/unit lifecycle
@@ -58,13 +58,7 @@ async function addOrgMember(orgId: string, userId: string, role: string): Promis
   }
 }
 
-async function signIn(request: APIRequestContext, email: string, password: string): Promise<void> {
-  const response = await request.post('/api/v1/auth/signin', {
-    headers: { Origin: BASE_URL },
-    data: { email, password },
-  });
-  expect(response.ok()).toBe(true);
-}
+// signIn: the shared fixture (imported above), which backs off on the real 10/min sign-in limit (429).
 
 test.describe('property/unit lifecycle routes: cross-org resource hiding', () => {
   test('a nonexistent property returns the same 404 shape on archive/restore/hard-delete/deletion-eligibility', async ({

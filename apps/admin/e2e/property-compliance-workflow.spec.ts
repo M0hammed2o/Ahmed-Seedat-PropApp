@@ -1,6 +1,6 @@
-import { test, expect, type Page, type APIRequestContext } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { BASE_URL } from '../playwright.config';
-import { setUpOrg, createProperty, createUnit } from './fixtures/orgWorkflow';
+import { setUpOrg, createProperty, createUnit, signIn } from './fixtures/orgWorkflow';
 import {
   createLinkedTenant,
   createActiveLeaseForTenant,
@@ -30,13 +30,8 @@ async function signInViaUI(page: Page, email: string, password: string) {
 // calls carry. Any test that needs to make a direct API assertion AS a specific account (not
 // whichever account `request` was last signed in as, e.g. the org-creating staff user from
 // setUpOrg) must re-authenticate `request` itself via the real signin route first.
-async function signInApi(request: APIRequestContext, email: string, password: string) {
-  const response = await request.post('/api/v1/auth/signin', {
-    headers: { Origin: BASE_URL },
-    data: { email, password },
-  });
-  expect(response.ok()).toBe(true);
-}
+// Sign-in uses the shared fixture, which backs off on the real 10/min limit (429) instead of failing a fast run.
+const signInApi = signIn;
 
 test.describe('property compliance workflow', () => {
   test('Scenario A+B: a tenant sees a required rule, views it (without acknowledging), explicitly acknowledges it, and a new version creates a fresh requirement while the old acknowledgement stays historical', async ({
