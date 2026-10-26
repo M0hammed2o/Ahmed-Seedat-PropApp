@@ -582,7 +582,10 @@ notifications, deep links, biometric auth, tablet behaviour) — specification o
 - [x] Web: register with interactive schematic layout, site record and actions, sale workflow, receipts, purchasers,
   burial register, dashboard cemetery panel with separate income streams; nav only when enabled.
 - [x] Idempotent demo provisioner (property + cemetery demo organisation); pgTAP, unit and Playwright tests.
-- [ ] Owner: production approvals (migration, invoice-number sequence fix, demo org, deploy) — see WORKLOG.
+- [x] Year of history (Nov 2025 – Oct 2026) for the demo: site history with enforced chronology, cancellations,
+  cemetery reports with month drill-down; dashboard month/year/12-month filters; Reports 12-month table.
+- [x] Migration 185: invoice-number sequence resync (production defect found 2026-10-26).
+- [ ] Owner: production approvals in `docs/CEMETERY_DEPLOYMENT_PLAN_2026-10-26.md` (184+185, deploy, demo org).
 - [ ] Engineering: TD-74 (GL posting), TD-75 (uploads, cancellation/reversal, Super Admin toggle).
 
 ## M23 — Automated testing

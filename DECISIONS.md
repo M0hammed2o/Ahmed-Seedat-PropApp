@@ -754,3 +754,23 @@ organisation (`docs/CEMETERY_MANAGEMENT.md`).
 - **Demo login provisioning:** `proplyst.co.za` has no MX record, so `cemetery.demo@proplyst.co.za` cannot receive
   mail. The account is created pre-confirmed with a strong random password stored only in a git-ignored `*.local`
   file — the same method as the 2026-10-13 demo logins; no inbox was invented.
+
+## 2026-10-26 (later) — Demo year of history, cemetery chronology, invoice numbering: decisions made autonomously
+
+- **History is enforced, not just recorded.** Every cemetery status change writes a dated site-history row through
+  triggers; an event dated before the site's latest event, or after today, is refused by the database. "Statuses reflect
+  their actual history" therefore holds for every writer, not only the seeder.
+- **Cancellation keeps the money on record.** A cancelled sale owes nothing; what was received stays in "collected"
+  (retained or refunded under the cemetery's own terms, outside Proplyst). Cancelling is refused once a burial exists.
+- **Opening register.** The demo cemetery has sales and burials from before November 2025, presented as records
+  captured when the cemetery started using Proplyst; the twelve-month reports start at November 2025.
+- **Demo data goes through the real accounting path.** Rent is invoiced and receipted with the app's own functions
+  (journals dated on the due and payment dates); expenses are posted with `post_journal_entry` on their own date
+  because `record_expense()` always posts "today". The provisioner asserts the books reconcile before it finishes.
+- **Migration 184 was amended in place** (history, chronology, cancellation) because it has never been applied to
+  production; production will receive one migration, not a patch on top of it.
+- **The invoice-number sequence is fixed with a migration (185), not by renumbering.** Existing numbers stay; the
+  sequence moves past the highest in use and generation skips taken numbers. Root cause recorded so the demo-portfolio
+  copy script is not reused as is.
+- **Live write testing on production is opt-in.** Default live checks are read-only plus a reserve-and-release; a full
+  test sale (then cancelled) runs only with the owner's approval (`LIVE_TEST_SALE=1`).
