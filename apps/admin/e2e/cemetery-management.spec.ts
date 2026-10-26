@@ -12,7 +12,10 @@ import { COLD_ROUTE_MS, createProperty, setUpOrg } from './fixtures/orgWorkflow'
 
 const SUPABASE_URL = 'http://127.0.0.1:54321';
 const slowExpect = expect.configure({ timeout: COLD_ROUTE_MS });
-const SHOTS = path.resolve(__dirname, '../../../docs/qa/cemetery-2026-10-26');
+// In CI the screenshots go into test-results/ so the workflow uploads them with the Playwright report.
+const SHOTS = process.env.CI
+  ? path.resolve(__dirname, '../test-results/cemetery-qa')
+  : path.resolve(__dirname, '../../../docs/qa/cemetery-2026-10-26');
 fs.mkdirSync(SHOTS, { recursive: true });
 const shot = (page: Page, name: string) => page.screenshot({ path: path.join(SHOTS, `${name}.png`), fullPage: true });
 const money = (n: string) => new RegExp(`R\\s?${n.replace(/ /g, '\\s?')}`);
