@@ -575,6 +575,16 @@ notifications, deep links, biometric auth, tablet behaviour) — specification o
 - [x] Compliance checklist, hardware compatibility, pilot test plan, GO/NO-GO; rehearsal 175–183 on representative data.
 - [ ] Engineering: whole-app Playwright on CI (P1-W); P2 items R1–R8 in `docs/UTILITIES_PRODUCTION_GO_NO_GO.md`.
 
+## M22i — Cemetery Management module and live demo (2026-10-26)
+
+- [x] Migration 184: cemeteries, sections, grave sites, rights holders, sales, payments, burials, document register;
+  module switch off by default; RLS accountant+/manager+; double-sale and overpayment prevention; rollback rehearsed.
+- [x] Web: register with interactive schematic layout, site record and actions, sale workflow, receipts, purchasers,
+  burial register, dashboard cemetery panel with separate income streams; nav only when enabled.
+- [x] Idempotent demo provisioner (property + cemetery demo organisation); pgTAP, unit and Playwright tests.
+- [ ] Owner: production approvals (migration, invoice-number sequence fix, demo org, deploy) — see WORKLOG.
+- [ ] Engineering: TD-74 (GL posting), TD-75 (uploads, cancellation/reversal, Super Admin toggle).
+
 ## M23 — Automated testing
 
 - [ ] Full `TESTING.md` suite: unit, RLS/policy (highest priority), accounting invariants, integration, API contract, native (iOS/Android), E2E against seeded multi-org staging.

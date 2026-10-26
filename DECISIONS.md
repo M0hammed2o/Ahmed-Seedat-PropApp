@@ -725,3 +725,32 @@ Full design in `docs/HYBRID_UTILITIES_ARCHITECTURE.md`. In short:
   statements, tariffs, sources or device data exist.
 - **Pilot restriction** also sets the `utilities_enabled` default to false, so organisations created during the pilot
   stay off (owner runs it).
+
+## 2026-10-26 — Cemetery Management module: decisions made autonomously
+
+Context: a prospective client manages grave sites; Mohammed asked for a working cemetery module plus a live demo
+organisation (`docs/CEMETERY_MANAGEMENT.md`).
+
+- **Optional, per organisation, off by default.** `organizations.cemetery_enabled` defaults to false (all existing
+  organisations stay off) and is switched on by one owner-run SQL statement — the same model as `utilities_enabled`.
+  RLS itself requires the switch, so "existing customers never see cemetery fields or navigation" holds at the
+  database, not only in the UI.
+- **A purchaser is not a tenant and a sale is not a lease.** Rights holders, sales and payments have their own tables
+  and numbering (`GS-`, `GR-`). Nothing writes invoices, rent schedules, journals or owner statements, so rental
+  accounting cannot be corrupted and grave-site sales are never counted as rental income. The cost: grave-site money
+  is not in the general ledger yet (TD-74).
+- **Burial rights is the default terminology** ("Grant of Right of Interment", "Rights holder", "Rights fee"),
+  because most South African cemeteries grant a right of interment rather than selling land; `land_sale` switches the
+  wording per cemetery. The record says ownership of the land is not transferred. This is wording, not legal advice.
+- **Sale status and burial status are separate columns**, moved only by the records that justify them (sale,
+  reservation, withdrawal, burial), enforced by triggers for every writer. Burial rules are extensible through
+  `max_interments` per site.
+- **Sensitive data is restricted to accountant, manager and principal.** Agents, viewers, owners, tenants and support
+  sessions see nothing. Because `audit_events` is readable by all members, cemetery tables use a field-whitelisting
+  audit trigger instead of the generic full-row one.
+- **The layout is a schematic grid** (section / row / plot), explicitly labelled as not a survey or cadastral map.
+- **Demo transactions are flagged in the data** (`is_demo` from the cemetery), so receipts and sale records carry a
+  "DEMONSTRATION" mark; Proplyst never collects or requests money.
+- **Demo login provisioning:** `proplyst.co.za` has no MX record, so `cemetery.demo@proplyst.co.za` cannot receive
+  mail. The account is created pre-confirmed with a strong random password stored only in a git-ignored `*.local`
+  file — the same method as the 2026-10-13 demo logins; no inbox was invented.
