@@ -177,7 +177,7 @@ export default async function ReportsPage() {
         </Panel>
 
         <Panel
-          className="xl:col-span-2"
+          className="lg:col-span-2"
           title="Monthly performance"
           description="Last 12 months · rent billed by due date, cash received by payment date, expenses by date recorded"
           bodyClassName="p-0"

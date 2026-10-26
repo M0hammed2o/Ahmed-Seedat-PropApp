@@ -63,12 +63,14 @@ export function CemeteryTrendChart({ data }: { data: CemeteryTrendPoint[] }) {
             name="Sales value"
             fill="var(--chart-1)"
             radius={[4, 4, 0, 0]}
+            isAnimationActive={false}
           />
           <Bar
             dataKey="paymentsCollected"
             name="Payments collected"
             fill="var(--chart-3)"
             radius={[4, 4, 0, 0]}
+            isAnimationActive={false}
           />
         </BarChart>
       </ResponsiveContainer>
