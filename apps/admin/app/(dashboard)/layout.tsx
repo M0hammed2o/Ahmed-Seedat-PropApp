@@ -25,6 +25,10 @@ import {
   Megaphone,
   PiggyBank,
   Gauge,
+  Flower2,
+  ReceiptText,
+  Contact,
+  BookOpen,
 } from 'lucide-react';
 import { branding } from '@propvault/config';
 import { resolvePortalSession } from '@/lib/orgSession';
@@ -41,6 +45,7 @@ import { WalkthroughOverlay } from '@/components/walkthrough/WalkthroughOverlay'
 import { getWalkthroughSteps, type PlanTier } from '@/lib/walkthroughSteps';
 import { CollectionHealthWidget } from '@/components/shell/CollectionHealthWidget';
 import { AssistantDrawer } from '@/components/assistant/AssistantDrawer';
+import { cemeteryEnabledForOrg, cemeteryRoleAllowed } from '@/lib/cemetery/access';
 
 // Client-org-facing route group, matching ARCHITECTURE.md's "Why one web app, not two" naming
 // exactly (`app/(dashboard)/**` for client orgs, `app/(super-admin)/**` for platform staff).
@@ -210,6 +215,20 @@ export default async function PortalLayout({ children }: { children: React.React
     : await loadCollectionHealth(activeOrg.orgId);
   const displayName = ADMIN_DEMO_MODE ? undefined : await loadDisplayName();
 
+  // Cemetery Management (migration 184) is an optional organisation-level module: its nav section
+  // exists only for an organisation with cemetery_enabled and a role that may read cemetery records
+  // (accountant, manager, principal) -- never in a support session. Every other organisation's
+  // navigation is exactly NAV_SECTIONS, unchanged.
+  const showCemetery =
+    !ADMIN_DEMO_MODE &&
+    !session.supportSessions.some((s) => s.orgId === activeOrg.orgId) &&
+    !isRestrictedOrg &&
+    cemeteryRoleAllowed(activeOrg.role) &&
+    (await cemeteryEnabledForOrg(activeOrg.orgId));
+  const navSections = showCemetery
+    ? withCemeteryNav(NAV_SECTIONS, await loadCemeteryHolderLabel())
+    : NAV_SECTIONS;
+
   // A support-session-derived entry is never a real membership -- treat it as read-only
   // regardless of the synthesized 'viewer' role (PWA_V1_COMPLETION_PLAN.md #12): hide the
   // manage-org links entirely (UI-layer hiding is cosmetic, PATCH endpoints/RLS are the actual
@@ -261,7 +280,7 @@ export default async function PortalLayout({ children }: { children: React.React
   return (
     <AppShell
       productLabel={branding.productName}
-      navSections={NAV_SECTIONS}
+      navSections={navSections}
       identityLine={
         activeSupportSession ? 'support mode (read-only)' : activeOrg.role.replace('_', ' ')
       }
@@ -296,6 +315,33 @@ export default async function PortalLayout({ children }: { children: React.React
       ) : null}
     </AppShell>
   );
+}
+
+function withCemeteryNav(sections: NavSection[], holderLabel: string): NavSection[] {
+  const cemetery: NavSection = {
+    label: 'Cemetery',
+    items: [
+      { href: '/cemetery', label: 'Cemetery register', icon: navIcon(Flower2) },
+      { href: '/cemetery/sales', label: 'Grave-site sales', icon: navIcon(ReceiptText) },
+      { href: '/cemetery/purchasers', label: holderLabel, icon: navIcon(Contact) },
+      { href: '/cemetery/burials', label: 'Burial register', icon: navIcon(BookOpen) },
+    ],
+  };
+  const at = sections.findIndex((s) => s.label === 'Operations');
+  return [...sections.slice(0, at + 1), cemetery, ...sections.slice(at + 1)];
+}
+
+// "Rights holders" (burial-rights cemeteries, the default) or "Purchasers" (land sales) -- the
+// same wording the cemetery pages use.
+async function loadCemeteryHolderLabel(): Promise<string> {
+  const supabase = await getServerSupabaseClient();
+  const { data } = await supabase
+    .from('cemeteries')
+    .select('tenure_model')
+    .order('name')
+    .limit(1)
+    .maybeSingle();
+  return data?.tenure_model === 'land_sale' ? 'Purchasers' : 'Rights holders';
 }
 
 async function loadWalkthroughData(

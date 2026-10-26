@@ -8,7 +8,7 @@ export default mergeConfig(
   base,
   defineConfig({
     test: {
-      include: ['scripts/utilities-pilot-demo/*.demo.ts', 'scripts/utilities-scale/*.scale.ts', 'scripts/client-demo/*.demo.ts'],
+      include: ['scripts/utilities-pilot-demo/*.demo.ts', 'scripts/utilities-scale/*.scale.ts', 'scripts/client-demo/*.demo.ts', 'scripts/cemetery-demo/*.demo.ts'],
       exclude: ['**/node_modules/**'],
     },
   }),

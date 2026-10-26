@@ -46,6 +46,8 @@ import {
   loadPropertyFinancialOverview,
 } from '@/lib/financialOverview';
 import { FinancialOverviewSection } from '@/components/dashboard/FinancialOverviewSection';
+import { CemeteryDashboardSection } from '@/components/cemetery/CemeteryDashboardSection';
+import { getCemeteryContext } from '@/lib/cemetery/access';
 import type { OwnerFinancialSummary } from '@propvault/types';
 
 // Owner Dashboard, rebuilt against reference/lovable-ui-reference's routes/index.tsx literal
@@ -285,6 +287,10 @@ export default async function DashboardPage({ searchParams }: SearchParams) {
   const filters = { propertyId: propertyId || undefined, period: resolvedPeriod, from, to };
 
   const data = ADMIN_DEMO_MODE ? DEMO_DATA : await loadData(filters);
+  // Cemetery Management (migration 184): only organisations with the module on (and accountant+
+  // roles) get the cemetery panel; for everyone else this is null and the dashboard is unchanged.
+  const cemeteryCtx = ADMIN_DEMO_MODE ? null : await getCemeteryContext();
+  const cemeteryPeriod = resolvePeriodRange(resolvedPeriod, { from, to }, new Date());
   const monthLabel = new Date().toLocaleDateString('en-ZA', { month: 'long', year: 'numeric' });
   // Real bug found and fixed 2026-08-04: showing the map when data.mappableProperties has entries
   // but no Mapbox token is configured rendered an empty box with a "Live" badge above it --
@@ -555,6 +561,16 @@ export default async function DashboardPage({ searchParams }: SearchParams) {
           data.selectedPropertyId ? `/properties/${data.selectedPropertyId}?tab=Finances` : '/properties'
         }
       />
+
+      {cemeteryCtx && !data.selectedPropertyId ? (
+        <CemeteryDashboardSection
+          periodLabel={data.periodLabel}
+          periodStartIso={cemeteryPeriod.startIso}
+          periodEndIso={cemeteryPeriod.endIso}
+          rentCollected={data.rentCollected}
+          outstandingRent={data.outstandingRent}
+        />
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {secondary.map((s) => (
@@ -1264,6 +1280,11 @@ const ACTION_LABELS: Record<string, string> = {
   'billing.checkout_started': 'Subscription checkout started',
   'billing.subscription_cancelled': 'Subscription cancelled',
   'billing.payment_refunded': 'Payment refunded',
+  'cemetery_sales.insert': 'Grave-site sale recorded',
+  'cemetery_payments.insert': 'Grave-site payment received',
+  'cemetery_burials.insert': 'Burial recorded',
+  'cemetery_purchasers.insert': 'Rights holder added',
+  'cemetery_sites.update': 'Grave site updated',
 };
 
 function describeAuditAction(action: string, entityType: string): string {
