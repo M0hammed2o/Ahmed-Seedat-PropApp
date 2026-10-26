@@ -97,6 +97,19 @@ jobs:
       - name: Install Chromium
         working-directory: apps/admin
         run: npx playwright install --with-deps chromium
+      # The fictional cemetery + property demo year (scripts/cemetery-demo), provisioned twice into the runner's own
+      # database: the second run must change nothing (idempotency). e2e/demo-year.spec.ts then browses it.
+      - name: Provision the demo year (twice — idempotency)
+        working-directory: apps/admin
+        env:
+          CEMDEMO_SUPABASE_URL: http://127.0.0.1:54321
+          CEMDEMO_SERVICE_ROLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
+          CEMDEMO_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+          CEMDEMO_CREDENTIALS_FILE: ${{ runner.temp }}/cemetery-demo.env.local
+          CEMDEMO_CONFIRM: seed-cemetery-demo
+        run: |
+          npx vitest run -c vitest.demo.config.ts scripts/cemetery-demo/provision.demo.ts
+          CEMDEMO_EXPECT_NO_CHANGES=1 npx vitest run -c vitest.demo.config.ts scripts/cemetery-demo/provision.demo.ts
       - name: Playwright (whole app, one worker, CI retry policy)
         working-directory: apps/admin
         run: npx playwright test --workers=1 --reporter=list,html
@@ -104,6 +117,7 @@ jobs:
           CI: '1'
           CLAMAV_HOST: 127.0.0.1
           CLAMAV_PORT: '3310'
+          CEMDEMO_CREDENTIALS_FILE: ${{ runner.temp }}/cemetery-demo.env.local
       - name: Upload Playwright report
         if: always()
         uses: actions/upload-artifact@v4
