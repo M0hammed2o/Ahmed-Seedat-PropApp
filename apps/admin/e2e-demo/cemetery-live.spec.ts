@@ -130,7 +130,7 @@ test('a year of history: dashboard filters, Reports, cemetery reports, a settled
   const payments = page
     .locator('section')
     .filter({ has: page.getByRole('heading', { name: 'Payment history' }) });
-  await slow()(payments.locator('tbody tr')).toHaveCount(7);
+  await slow()(payments.locator('tbody tr').filter({ hasText: 'B-014' })).toHaveCount(7);
   await noErrorBanner(page);
 });
 

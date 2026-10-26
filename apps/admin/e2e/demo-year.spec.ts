@@ -110,7 +110,8 @@ test.describe.serial('demo year of operations', () => {
     const payments = page
       .locator('section')
       .filter({ has: page.getByRole('heading', { name: 'Payment history' }) });
-    await slowExpect(payments.locator('tbody tr')).toHaveCount(7);
+    // B-014: deposit, five instalments and the settling payment (she also holds another site).
+    await slowExpect(payments.locator('tbody tr').filter({ hasText: 'B-014' })).toHaveCount(7);
     await page.getByRole('link', { name: 'B-014' }).first().click();
     const history = page
       .locator('section')
