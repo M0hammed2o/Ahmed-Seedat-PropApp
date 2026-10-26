@@ -10,13 +10,14 @@ import { formatDate, formatZar, tenureTerms } from '@/lib/cemetery/terms';
 
 export const dynamic = 'force-dynamic';
 
-type SearchParams = { searchParams: Promise<{ filter?: string }> };
+type SearchParams = { searchParams: Promise<{ filter?: string; month?: string }> };
 
 /** GET /cemetery/sales — the sales / grants register with paid and outstanding amounts per sale. */
 export default async function CemeterySalesPage({ searchParams }: SearchParams) {
   const ctx = await getCemeteryContext();
   if (!ctx) notFound();
-  const { filter } = await searchParams;
+  const { filter, month: monthParam } = await searchParams;
+  const month = /^\d{4}-\d{2}$/.test(monthParam ?? '') ? monthParam! : '';
   const supabase = await getServerSupabaseClient();
   const [cemeteries, sales, purchasers, sites] = await Promise.all([
     loadCemeteries(supabase),
@@ -25,8 +26,17 @@ export default async function CemeterySalesPage({ searchParams }: SearchParams) 
     loadSites(supabase),
   ]);
   const payments = await loadPayments(supabase);
-  const all = withBalances(sales, payments).filter((s) => s.status === 'active');
-  const rows = filter === 'outstanding' ? all.filter((s) => s.balance > 0) : filter === 'paid' ? all.filter((s) => s.balance <= 0) : all;
+  const everything = withBalances(sales, payments);
+  const all = everything.filter((s) => s.status === 'active');
+  const rows = (
+    filter === 'outstanding'
+      ? all.filter((s) => s.balance > 0)
+      : filter === 'paid'
+        ? all.filter((s) => s.balance <= 0)
+        : filter === 'cancelled'
+          ? everything.filter((s) => s.status === 'cancelled')
+          : all
+  ).filter((s) => !month || s.sale_date.slice(0, 7) === month);
   const terms = tenureTerms(cemeteries[0]?.tenure_model ?? 'burial_rights');
   const siteRef = new Map(sites.map((s) => [s.id, s.reference]));
   const holder = new Map(purchasers.map((p) => [p.id, p.full_name]));
@@ -56,6 +66,7 @@ export default async function CemeterySalesPage({ searchParams }: SearchParams) 
           ['all', 'All'],
           ['outstanding', 'Outstanding'],
           ['paid', 'Fully paid'],
+          ['cancelled', 'Cancelled'],
         ].map(([key, label]) => {
           const active = (filter ?? 'all') === key;
           return (
@@ -110,7 +121,7 @@ export default async function CemeterySalesPage({ searchParams }: SearchParams) 
                     <td className="tabular px-3 py-2.5 text-right">{formatZar(s.price)}</td>
                     <td className="tabular px-3 py-2.5 text-right">{formatZar(s.paid)}</td>
                     <td className={`tabular px-5 py-2.5 text-right font-semibold ${s.balance > 0 ? 'text-destructive' : 'text-success'}`}>
-                      {s.balance > 0 ? formatZar(s.balance) : 'Paid'}
+                      {s.status === 'cancelled' ? 'Cancelled' : s.balance > 0 ? formatZar(s.balance) : 'Paid'}
                     </td>
                   </tr>
                 ))}

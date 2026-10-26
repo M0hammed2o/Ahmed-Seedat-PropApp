@@ -66,7 +66,11 @@ export default async function CemeteryOverviewPage({ searchParams }: SearchParam
         title={cemetery.name}
         subtitle={`Cemetery Management${address ? ` · ${address}` : ''} · ${cemetery.tenure_model === 'burial_rights' ? 'burial rights (right of interment)' : 'grave plot sales'}`}
         actions={
-          ctx.canManage ? (
+          <>
+            <Link href="/cemetery/reports" className="flex h-9 items-center rounded-xl border border-border bg-card px-3.5 text-[13px] font-medium text-foreground">
+              Reports
+            </Link>
+            {ctx.canManage ? (
             <>
               <Link href="/cemetery/new" className="flex h-9 items-center rounded-xl border border-border bg-card px-3.5 text-[13px] font-medium text-foreground">
                 New cemetery
@@ -78,7 +82,8 @@ export default async function CemeteryOverviewPage({ searchParams }: SearchParam
                 <Plus className="h-4 w-4" aria-hidden="true" /> {terms.sellAction}
               </Link>
             </>
-          ) : undefined
+          ) : null}
+          </>
         }
       />
 
@@ -107,7 +112,7 @@ export default async function CemeteryOverviewPage({ searchParams }: SearchParam
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <StatTile label={`${terms.sale} value`} value={formatZar(metrics.salesValue)} foot={`${metrics.sold} active ${metrics.sold === 1 ? 'sale' : 'sales'}`} href="/cemetery/sales" />
-        <StatTile label="Payments received" value={formatZar(metrics.paymentsReceived)} foot={`${formatZar(metrics.paymentsThisMonth)} this month`} href="/cemetery/sales" />
+        <StatTile label="Payments received" value={formatZar(metrics.paymentsReceived)} foot={`${formatZar(metrics.paymentsThisMonth)} this month${metrics.retainedOnCancelled ? ` · ${formatZar(metrics.retainedOnCancelled)} on cancelled sales` : ''}`} href="/cemetery/reports" />
         <StatTile label="Outstanding balances" value={formatZar(metrics.outstanding)} foot={`${metrics.salesWithBalance} ${terms.holders.toLowerCase()} owing`} href="/cemetery/sales?filter=outstanding" />
       </div>
 

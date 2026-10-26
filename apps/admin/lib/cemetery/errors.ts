@@ -59,7 +59,24 @@ const KNOWN: Record<string, { status: number; message: string }> = {
     status: 400,
     message: 'The payment amount must be greater than zero.',
   },
-  cemetery_reason_required: { status: 400, message: 'Give a reason for withdrawing the site.' },
+  cemetery_reason_required: { status: 400, message: 'Give a reason.' },
+  cemetery_future_date: {
+    status: 400,
+    message: 'That date is in the future. Record only what has already happened.',
+  },
+  cemetery_out_of_order: {
+    status: 409,
+    message:
+      "That date is earlier than this grave site's existing history (or the sale's last payment).",
+  },
+  cemetery_payment_before_sale: {
+    status: 400,
+    message: 'The payment date is before the sale date.',
+  },
+  cemetery_sale_has_burial: {
+    status: 409,
+    message: 'A burial is recorded under this sale, so it cannot be cancelled.',
+  },
   cemetery_invalid_site_count: {
     status: 400,
     message: 'A section can have between 1 and 2,000 sites.',

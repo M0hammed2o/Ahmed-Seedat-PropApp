@@ -51,9 +51,14 @@ export async function CemeteryDashboardSection({
         title="Cemetery operations"
         description="Grave-site register, sales and balances (all cemeteries)"
         actions={
-          <Link href="/cemetery" className="text-xs font-medium text-primary">
-            Open register →
-          </Link>
+          <span className="flex gap-3">
+            <Link href="/cemetery/reports" className="text-xs font-medium text-primary">
+              12-month report →
+            </Link>
+            <Link href="/cemetery" className="text-xs font-medium text-primary">
+              Open register →
+            </Link>
+          </span>
         }
       >
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">

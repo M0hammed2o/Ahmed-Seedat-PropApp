@@ -176,6 +176,15 @@ export default async function ReportsPage() {
           )}
         </Panel>
 
+        <Panel
+          className="xl:col-span-2"
+          title="Monthly performance"
+          description="Last 12 months · rent billed by due date, cash received by payment date, expenses by date recorded"
+          bodyClassName="p-0"
+        >
+          <MonthlyPerformanceTable rows={data.monthly} />
+        </Panel>
+
         <Panel title="Report library" bodyClassName="p-5">
           <div className="grid gap-3 sm:grid-cols-2">
             {REPORT_LIBRARY.map((r) => (
@@ -198,7 +207,92 @@ export default async function ReportsPage() {
   );
 }
 
+interface MonthlyRow {
+  month: string;
+  label: string;
+  from: string;
+  to: string;
+  billed: number;
+  collected: number;
+  outstanding: number;
+  expenses: number;
+  net: number;
+  occupiedUnits: number;
+  totalUnits: number;
+}
+
+// Twelve-month operating history (added with the cemetery/property demo, 2026-10-26). Each month links to the
+// dashboard filtered to that month, where the individual figures can be inspected.
+function MonthlyPerformanceTable({ rows }: { rows: MonthlyRow[] }) {
+  if (rows.every((r) => r.billed === 0 && r.collected === 0 && r.expenses === 0)) {
+    return (
+      <p className="px-5 py-6 text-sm text-muted-foreground">
+        No rent or expenses recorded in the last 12 months.
+      </p>
+    );
+  }
+  const total = (k: 'billed' | 'collected' | 'expenses' | 'net') =>
+    rows.reduce((a, r) => a + r[k], 0);
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[760px] text-sm">
+        <thead className="text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+          <tr>
+            <th className="px-5 py-2.5">Month</th>
+            <th className="px-3 py-2.5 text-right">Rent billed</th>
+            <th className="px-3 py-2.5 text-right">Received</th>
+            <th className="px-3 py-2.5 text-right">Outstanding (month end)</th>
+            <th className="px-3 py-2.5 text-right">Expenses</th>
+            <th className="px-3 py-2.5 text-right">Net cash</th>
+            <th className="px-5 py-2.5 text-right">Occupancy</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border">
+          {rows.map((r) => (
+            <tr key={r.month} className="hover:bg-surface">
+              <td className="px-5 py-2">
+                <Link
+                  href={`/dashboard?period=custom&from=${r.from}&to=${r.to}`}
+                  className="font-medium text-primary hover:underline"
+                >
+                  {r.label}
+                </Link>
+              </td>
+              <td className="tabular px-3 py-2 text-right">{currency(r.billed)}</td>
+              <td className="tabular px-3 py-2 text-right">{currency(r.collected)}</td>
+              <td className="tabular px-3 py-2 text-right">{currency(r.outstanding)}</td>
+              <td className="tabular px-3 py-2 text-right">{currency(r.expenses)}</td>
+              <td
+                className={`tabular px-3 py-2 text-right font-medium ${r.net < 0 ? 'text-destructive' : ''}`}
+              >
+                {currency(r.net)}
+              </td>
+              <td className="tabular px-5 py-2 text-right">
+                {r.occupiedUnits}/{r.totalUnits}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot className="border-t-2 border-border font-semibold">
+          <tr>
+            <td className="px-5 py-2.5">12 months</td>
+            <td className="tabular px-3 py-2.5 text-right">{currency(total('billed'))}</td>
+            <td className="tabular px-3 py-2.5 text-right">{currency(total('collected'))}</td>
+            <td className="tabular px-3 py-2.5 text-right">
+              {currency(rows[rows.length - 1]?.outstanding ?? 0)}
+            </td>
+            <td className="tabular px-3 py-2.5 text-right">{currency(total('expenses'))}</td>
+            <td className="tabular px-3 py-2.5 text-right">{currency(total('net'))}</td>
+            <td className="px-5 py-2.5" />
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  );
+}
+
 interface ReportsData {
+  monthly: MonthlyRow[];
   incomeExpense: { label: string; income: number; expense: number }[];
   occupancy: { label: string; occupiedPct: number }[];
   rentStatusCounts: { label: string; value: number }[];
@@ -216,6 +310,7 @@ interface ReportsData {
 function demoData(): ReportsData {
   const months = lastNMonthKeys(6).map((k) => k.slice(5));
   return {
+    monthly: [],
     incomeExpense: months.map((m, i) => ({
       label: m,
       income: i === months.length - 1 ? 12500 : 0,
@@ -265,7 +360,7 @@ function demoData(): ReportsData {
 
 async function loadData(): Promise<ReportsData> {
   const supabase = await getServerSupabaseClient();
-  const monthKeys = lastNMonthKeys(6);
+  const monthKeys = lastNMonthKeys(12);
   const yearStart = `${new Date().getFullYear()}-01-01`;
 
   const [
@@ -274,6 +369,9 @@ async function loadData(): Promise<ReportsData> {
     rentSchedulesResult,
     expensesResult,
     maintenanceResult,
+    leasesResult,
+    invoicesResult,
+    invoicePaymentsResult,
     vendorBillsResult,
   ] = await Promise.all([
     supabase.from('properties').select('id, nickname').eq('status', 'active'),
@@ -281,6 +379,9 @@ async function loadData(): Promise<ReportsData> {
     supabase.from('rent_schedules').select('due_date, amount, status'),
     supabase.from('expenses').select('created_at, amount, status'),
     supabase.from('maintenance_tickets').select('status'),
+    supabase.from('leases').select('unit_id, start_date, end_date, status'),
+    supabase.from('invoices').select('id, amount, period, voided_at'),
+    supabase.from('invoice_payments').select('invoice_id, amount, paid_at, reversed_at'),
     supabase
       .from('vendor_bills')
       .select('amount, status, created_at')
@@ -299,6 +400,11 @@ async function loadData(): Promise<ReportsData> {
   if (vendorBillsResult.error)
     throw new Error(`Failed to load vendor bills: ${vendorBillsResult.error.message}`);
 
+  const rentRowsAll = (rentSchedulesResult.data ?? []) as {
+    due_date: string;
+    amount: number;
+    status: string;
+  }[];
   const incomeByMonth = new Map(monthKeys.map((k) => [k, 0]));
   for (const row of rentSchedulesResult.data ?? []) {
     if (row.status !== 'paid') continue;
@@ -370,7 +476,78 @@ async function loadData(): Promise<ReportsData> {
     ? await loadPortfolioFinancialOverview(supabase, activeOrgId, summaryMonth)
     : null;
 
+  // Monthly performance (last 12 months). Received = invoice payments by payment date (not reversed);
+  // outstanding = issued invoices for periods up to the month end, less payments made by then; occupancy =
+  // units under a lease (any status but draft) covering the month end.
+  const leases = (leasesResult.data ?? []) as {
+    unit_id: string;
+    start_date: string;
+    end_date: string | null;
+    status: string;
+  }[];
+  const invoices = (
+    (invoicesResult.data ?? []) as {
+      id: string;
+      amount: number;
+      period: string;
+      voided_at: string | null;
+    }[]
+  ).filter((i) => !i.voided_at);
+  const invoicePayments = (
+    (invoicePaymentsResult.data ?? []) as {
+      invoice_id: string;
+      amount: number;
+      paid_at: string;
+      reversed_at: string | null;
+    }[]
+  ).filter((p) => !p.reversed_at);
+  const today = new Date().toISOString().slice(0, 10);
+  const monthly: MonthlyRow[] = monthKeys.map((k) => {
+    const [y, m] = k.split('-').map(Number) as [number, number];
+    const from = `${k}-01`;
+    const to = `${k}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
+    const asOf = to < today ? to : today;
+    const billed = rentRowsAll
+      .filter((r) => r.due_date.slice(0, 7) === k)
+      .reduce((a, r) => a + Number(r.amount), 0);
+    const collected = invoicePayments
+      .filter((p) => p.paid_at.slice(0, 7) === k)
+      .reduce((a, p) => a + Number(p.amount), 0);
+    const paidBy = new Map<string, number>();
+    for (const p of invoicePayments) {
+      if (p.paid_at <= asOf) paidBy.set(p.invoice_id, (paidBy.get(p.invoice_id) ?? 0) + Number(p.amount));
+    }
+    const outstanding = invoices
+      .filter((i) => i.period <= asOf)
+      .reduce((a, i) => a + Math.max(0, Number(i.amount) - (paidBy.get(i.id) ?? 0)), 0);
+    const expenses = expenseByMonth.get(k) ?? 0;
+    const occupiedUnits = new Set(
+      leases
+        .filter(
+          (l) => l.status !== 'draft' && l.start_date <= asOf && (!l.end_date || l.end_date >= asOf),
+        )
+        .map((l) => l.unit_id),
+    ).size;
+    return {
+      month: k,
+      label: new Date(`${from}T00:00:00`).toLocaleDateString('en-ZA', {
+        month: 'short',
+        year: 'numeric',
+      }),
+      from,
+      to,
+      billed,
+      collected,
+      outstanding,
+      expenses,
+      net: collected - expenses,
+      occupiedUnits,
+      totalUnits: units.length,
+    };
+  });
+
   return {
+    monthly,
     incomeExpense,
     occupancy,
     rentStatusCounts,

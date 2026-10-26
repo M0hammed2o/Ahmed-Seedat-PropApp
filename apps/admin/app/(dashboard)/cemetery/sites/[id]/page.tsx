@@ -7,11 +7,21 @@ import { SiteActions } from '@/components/cemetery/SiteActions';
 import { DemoNotice } from '@/components/cemetery/StatTile';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { getCemeteryContext } from '@/lib/cemetery/access';
-import { loadPayments, loadPurchasers, withBalances, type BurialRow, type CemeteryRow, type SaleRow, type SiteDocumentRow, type SiteRow } from '@/lib/cemetery/data';
+import { loadPayments, loadPurchasers, loadSiteEvents, withBalances, type BurialRow, type SiteEventRow, type CemeteryRow, type SaleRow, type SiteDocumentRow, type SiteRow } from '@/lib/cemetery/data';
 import { BURIAL_STATUS_LABEL, PAYMENT_METHOD_LABEL, SALE_STATUS_LABEL, SALE_STATUS_PILL, formatDate, formatZar, tenureTerms } from '@/lib/cemetery/terms';
 import { UUID } from '@/lib/cemetery/http';
 
 export const dynamic = 'force-dynamic';
+
+const EVENT_LABEL: Record<SiteEventRow['event_type'], string> = {
+  reserved: 'Reserved',
+  reservation_released: 'Reservation released',
+  sold: 'Sold / rights granted',
+  sale_cancelled: 'Sale cancelled — returned to sale',
+  withdrawn: 'Withdrawn (unavailable)',
+  returned_to_sale: 'Returned to sale',
+  burial: 'Burial recorded',
+};
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -27,13 +37,14 @@ export default async function GraveSitePage({ params }: RouteParams) {
   const { data: siteData } = await supabase.from('cemetery_sites').select('*').eq('id', id).maybeSingle();
   if (!siteData) notFound();
   const site = siteData as SiteRow;
-  const [{ data: cemeteryData }, { data: section }, { data: salesData }, { data: burialsData }, { data: docsData }, purchasers] = await Promise.all([
+  const [{ data: cemeteryData }, { data: section }, { data: salesData }, { data: burialsData }, { data: docsData }, purchasers, events] = await Promise.all([
     supabase.from('cemeteries').select('*').eq('id', site.cemetery_id).single(),
     supabase.from('cemetery_sections').select('code, name').eq('id', site.section_id).single(),
     supabase.from('cemetery_sales').select('*').eq('site_id', id).order('created_at', { ascending: false }),
     supabase.from('cemetery_burials').select('*').eq('site_id', id).order('interment_number'),
     supabase.from('cemetery_site_documents').select('*').eq('site_id', id).order('created_at', { ascending: false }),
     loadPurchasers(supabase),
+    loadSiteEvents(supabase, { siteId: id }),
   ]);
   const cemetery = cemeteryData as CemeteryRow;
   const terms = tenureTerms(cemetery.tenure_model);
@@ -43,6 +54,7 @@ export default async function GraveSitePage({ params }: RouteParams) {
   const active = balances.find((s) => s.status === 'active') ?? null;
   const burials = (burialsData ?? []) as BurialRow[];
   const docs = (docsData ?? []) as SiteDocumentRow[];
+  const saleNumber = new Map(sales.map((x) => [x.id, x.sale_number]));
   const purchaserById = new Map(purchasers.map((p) => [p.id, p]));
   const holder = active ? purchaserById.get(active.purchaser_id) : null;
   const reservedFor = site.reserved_for_purchaser_id ? purchaserById.get(site.reserved_for_purchaser_id) : null;
@@ -225,6 +237,32 @@ export default async function GraveSitePage({ params }: RouteParams) {
           </ul>
         </Panel>
       </div>
+
+      <Panel title="Site history" description="Every status change with its effective date (oldest first)" bodyClassName="p-0">
+        {events.length === 0 ? (
+          <p className="px-5 py-5 text-sm text-muted-foreground">No history yet — the site has been available since it was set up.</p>
+        ) : (
+          <ol className="divide-y divide-border">
+            {events.map((e) => (
+              <li key={e.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-5 py-2.5 text-sm">
+                <span className="w-24 shrink-0 tabular text-xs text-muted-foreground">{formatDate(e.event_date)}</span>
+                <span className="font-medium text-foreground">{EVENT_LABEL[e.event_type]}</span>
+                {e.purchaser_id && purchaserById.get(e.purchaser_id) ? (
+                  <Link href={`/cemetery/purchasers/${e.purchaser_id}`} className="text-xs text-primary hover:underline">
+                    {purchaserById.get(e.purchaser_id)!.full_name}
+                  </Link>
+                ) : null}
+                {e.sale_id ? (
+                  <Link href={`/cemetery/sales/${e.sale_id}`} className="text-xs text-muted-foreground hover:underline">
+                    {saleNumber.get(e.sale_id) ?? 'sale'}
+                  </Link>
+                ) : null}
+                {e.notes ? <span className="text-xs text-muted-foreground">{e.notes}</span> : null}
+              </li>
+            ))}
+          </ol>
+        )}
+      </Panel>
     </div>
   );
 }

@@ -2,7 +2,7 @@
 -- payment / reservation / burial invariants (double-sale and overpayment prevention), idempotent site generation.
 
 begin;
-select plan(50);
+select plan(68);
 
 insert into auth.users (id, email) values
   ('ce000000-0000-0000-0000-000000000001', 'cem-a-principal@test.propertyvault.example'),
@@ -229,6 +229,88 @@ set local "request.jwt.claim.sub" = 'ce000000-0000-0000-0000-000000000003';
 select lives_ok(
   $$select public.cemetery_record_payment((select s.id from public.cemetery_sales s join public.cemetery_sites t on t.id = s.site_id where t.reference = 'A-001'), 5000, current_date, 'eft')$$,
   'an accountant can record a payment (settles the balance)'
+);
+
+-- ============ site history, chronology and cancellation (org A manager) ============
+reset role;
+set local role authenticated;
+set local "request.jwt.claim.sub" = 'ce000000-0000-0000-0000-000000000002';
+select is(
+  (select string_agg(e.event_type, ',' order by e.event_date, e.created_at) from public.cemetery_site_events e
+     join public.cemetery_sites t on t.id = e.site_id where t.reference = 'A-001'),
+  'sold,burial', 'site history records the sale and the burial'
+);
+select is(
+  (select string_agg(e.event_type, ',' order by e.event_date, e.created_at) from public.cemetery_site_events e
+     join public.cemetery_sites t on t.id = e.site_id where t.reference = 'A-003'),
+  'reserved,sold', 'a reservation followed by its sale is recorded in order'
+);
+select throws_like(
+  $$select public.cemetery_record_sale((select id from public.cemetery_sites where reference = 'A-005'), 'cece3000-0000-0000-0000-000000000001', 9000, current_date + 5)$$,
+  'cemetery_future_date%', 'a sale cannot be dated in the future'
+);
+select lives_ok(
+  $$select public.cemetery_reserve_site((select id from public.cemetery_sites where reference = 'A-006'), 'cece3000-0000-0000-0000-000000000001', null, null, current_date - 3)$$,
+  'a reservation can be recorded with the date it was made'
+);
+select is(
+  (select e.event_date from public.cemetery_site_events e join public.cemetery_sites t on t.id = e.site_id
+    where t.reference = 'A-006' and e.event_type = 'reserved'),
+  current_date - 3, 'the history carries the reservation''s effective date'
+);
+select throws_like(
+  $$select public.cemetery_record_sale((select id from public.cemetery_sites where reference = 'A-006'), 'cece3000-0000-0000-0000-000000000001', 9000, current_date - 10)$$,
+  'cemetery_out_of_order%', 'a sale cannot be dated before the site''s reservation'
+);
+select throws_like(
+  $$select public.cemetery_release_reservation((select id from public.cemetery_sites where reference = 'A-006'), current_date - 4)$$,
+  'cemetery_out_of_order%', 'a reservation cannot be released before it was made'
+);
+select lives_ok(
+  $$select public.cemetery_record_sale((select id from public.cemetery_sites where reference = 'A-007'), 'cece3000-0000-0000-0000-000000000001', 8000, current_date - 5, 2000)$$,
+  'a back-dated sale with a deposit is accepted'
+);
+select throws_like(
+  $$select public.cemetery_record_payment((select s.id from public.cemetery_sales s join public.cemetery_sites t on t.id = s.site_id where t.reference = 'A-007'), 100, current_date - 6)$$,
+  'cemetery_payment_before_sale%', 'a payment cannot be dated before its sale'
+);
+select throws_like(
+  $$select public.cemetery_record_payment((select s.id from public.cemetery_sales s join public.cemetery_sites t on t.id = s.site_id where t.reference = 'A-007'), 100, current_date + 2)$$,
+  'cemetery_future_date%', 'a payment cannot be dated in the future'
+);
+select throws_like(
+  $$select public.cemetery_cancel_sale((select s.id from public.cemetery_sales s join public.cemetery_sites t on t.id = s.site_id where t.reference = 'A-001'), 'test')$$,
+  'cemetery_sale_has_burial%', 'a sale with a burial cannot be cancelled'
+);
+select throws_like(
+  $$select public.cemetery_cancel_sale((select s.id from public.cemetery_sales s join public.cemetery_sites t on t.id = s.site_id where t.reference = 'A-007'), '')$$,
+  'cemetery_reason_required%', 'a cancellation needs a reason'
+);
+select lives_ok(
+  $$select public.cemetery_cancel_sale((select s.id from public.cemetery_sales s join public.cemetery_sites t on t.id = s.site_id where t.reference = 'A-007'), 'Purchaser emigrated; deposit retained', current_date - 1)$$,
+  'an active sale without burials can be cancelled'
+);
+select is(
+  (select sale_status::text from public.cemetery_sites where reference = 'A-007'), 'available', 'the cancelled site is available again'
+);
+select is(
+  (select b.balance_due::text || '/' || b.amount_paid::text || '/' || b.status::text from public.cemetery_sale_balances b
+     join public.cemetery_sales s on s.id = b.sale_id join public.cemetery_sites t on t.id = s.site_id where t.reference = 'A-007'),
+  '0.00/2000.00/cancelled', 'a cancelled sale owes nothing and keeps the deposit received'
+);
+select lives_ok(
+  $$select public.cemetery_record_sale((select id from public.cemetery_sites where reference = 'A-007'), 'cece3000-0000-0000-0000-000000000002', 8500)$$,
+  'a cancelled site can be sold again'
+);
+select is(
+  (select string_agg(e.event_type, ',' order by e.event_date, e.created_at) from public.cemetery_site_events e
+     join public.cemetery_sites t on t.id = e.site_id where t.reference = 'A-007'),
+  'sold,sale_cancelled,sold', 'the history shows sale, cancellation and resale'
+);
+select throws_ok(
+  $$insert into public.cemetery_site_events (org_id, site_id, event_type, event_date)
+    select org_id, id, 'sold', current_date from public.cemetery_sites where reference = 'A-008'$$,
+  '42501', null, 'users cannot write site history directly'
 );
 
 -- audit trail without personal information: a viewer can read the org's audit_events, but no cemetery name in them

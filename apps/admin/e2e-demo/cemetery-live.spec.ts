@@ -13,7 +13,10 @@ const slow = (ms = 60_000) => expect.configure({ timeout: ms });
 const money = (n: string) => new RegExp(`R\\s?${n.replace(/ /g, '\\s?')}`);
 
 async function login(page: Page) {
-  test.skip(!process.env.DEMO_BASE_URL || !EMAIL || !PASSWORD, 'DEMO_BASE_URL / DEMO_LOGIN_EMAIL / DEMO_LOGIN_PASSWORD not set');
+  test.skip(
+    !process.env.DEMO_BASE_URL || !EMAIL || !PASSWORD,
+    'DEMO_BASE_URL / DEMO_LOGIN_EMAIL / DEMO_LOGIN_PASSWORD not set',
+  );
   await page.goto('/login');
   await page.waitForLoadState('networkidle');
   await page.locator('input[type="email"]').fill(EMAIL);
@@ -23,7 +26,11 @@ async function login(page: Page) {
 }
 
 async function noErrorBanner(page: Page) {
-  await expect(page.getByText(/Unexpected response from the server|Something went wrong|Application error|Page not found/i)).toHaveCount(0);
+  await expect(
+    page.getByText(
+      /Unexpected response from the server|Something went wrong|Application error|Page not found/i,
+    ),
+  ).toHaveCount(0);
 }
 
 test('dashboard: rental KPIs plus a separate cemetery panel', async ({ page }) => {
@@ -37,7 +44,9 @@ test('dashboard: rental KPIs plus a separate cemetery panel', async ({ page }) =
   await noErrorBanner(page);
 });
 
-test('residential and commercial properties, units, tenants, leases, invoices, maintenance', async ({ page }) => {
+test('residential and commercial properties, units, tenants, leases, invoices, maintenance', async ({
+  page,
+}) => {
   await login(page);
   await page.goto('/properties');
   await slow()(page.getByText('Riverside Heights Apartments').first()).toBeVisible();
@@ -68,11 +77,19 @@ test('cemetery register: 120 sites, layout details, search and filters', async (
   await page.goto('/cemetery');
   await slow()(page.getByRole('heading', { name: 'Greenfields Memorial Gardens' })).toBeVisible();
   await expect(page.getByText('Demonstration data.')).toBeVisible();
-  await expect(page.locator('.panel').filter({ has: page.getByText('Grave sites', { exact: true }) }).first()).toContainText('120');
+  await expect(
+    page
+      .locator('.panel')
+      .filter({ has: page.getByText('Grave sites', { exact: true }) })
+      .first(),
+  ).toContainText('120');
   await page.getByRole('button', { name: /^A-001:/ }).click();
   await expect(page.getByRole('heading', { name: 'A-001' })).toBeVisible();
   await expect(page.getByText('Rights holder').first()).toBeVisible();
-  await page.getByRole('group', { name: 'Filter by sale status' }).getByRole('button', { name: /^Reserved/ }).click();
+  await page
+    .getByRole('group', { name: 'Filter by sale status' })
+    .getByRole('button', { name: /^Reserved/ })
+    .click();
   await expect(page.getByText(/of 120 sites match/)).toBeVisible();
   await page.getByLabel('Search grave sites').fill('Naidoo');
   await expect(page.getByText(/of 120 sites match/)).toBeVisible();
@@ -85,14 +102,16 @@ test('cemetery register: 120 sites, layout details, search and filters', async (
   await noErrorBanner(page);
 });
 
-test('live sale workflow on the demo cemetery: grant, deposit, payment, receipt; refusals; reserve and release', async ({ page }) => {
+test('live sale workflow on the demo cemetery: grant, deposit, payment, receipt; refusals; reserve and release', async ({
+  page,
+}) => {
   await login(page);
   await page.goto('/cemetery');
   await slow()(page.getByRole('heading', { name: 'Greenfields Memorial Gardens' })).toBeVisible();
   const available = page.getByRole('button', { name: /^C-\d{3}: Available/ });
   const reference = ((await available.first().getAttribute('aria-label')) ?? '').split(':')[0]!;
   await available.first().click();
-  await page.getByRole('link', { name: 'Grant rights' }).click();
+  await page.locator('aside').getByRole('link', { name: 'Grant rights' }).click(); // the site panel's link, not the header button
   await slow()(page.getByRole('heading', { name: /New grant of rights/ })).toBeVisible();
   await page.getByRole('radio', { name: /New rights holder/ }).click();
   await page.getByLabel('Full name').fill('Live Verification Holder (fictional)');
@@ -101,12 +120,20 @@ test('live sale workflow on the demo cemetery: grant, deposit, payment, receipt;
   await slow()(page.getByText('Grant of burial rights recorded.')).toBeVisible();
   await expect(page.getByText('DEMONSTRATION — not a real transaction')).toBeVisible();
   const saleId = page.url().split('/cemetery/sales/')[1]!.split('?')[0]!;
-  const siteHref = (await page.getByRole('link', { name: new RegExp(`Grave site ${reference}`) }).getAttribute('href'))!;
+  const siteHref = (await page
+    .getByRole('link', { name: new RegExp(`Grave site ${reference}`) })
+    .getAttribute('href'))!;
   const siteId = siteHref.split('/').pop()!;
 
   const again = await page.request.post('/api/v1/cemetery/sales', {
     headers: { Origin: process.env.DEMO_BASE_URL! },
-    data: { siteId, newPurchaser: { fullName: 'Second buyer (fictional)' }, price: 1000, saleDate: '2026-10-26', deposit: 0 },
+    data: {
+      siteId,
+      newPurchaser: { fullName: 'Second buyer (fictional)' },
+      price: 1000,
+      saleDate: '2026-10-26',
+      deposit: 0,
+    },
   });
   expect(again.status(), 'a sold site cannot be sold again').toBe(409);
   const over = await page.request.post(`/api/v1/cemetery/sales/${saleId}/payments`, {
@@ -129,7 +156,9 @@ test('live sale workflow on the demo cemetery: grant, deposit, payment, receipt;
   await page.getByRole('link', { name: 'Open site record' }).click();
   await slow()(page.getByRole('button', { name: 'Reserve' })).toBeVisible();
   await page.getByRole('button', { name: 'Reserve' }).click();
-  await page.getByLabel('For rights holder').selectOption({ label: 'Live Verification Holder (fictional)' });
+  await page
+    .getByLabel('For rights holder')
+    .selectOption({ label: 'Live Verification Holder (fictional)' });
   await page.getByRole('button', { name: 'Reserve site' }).click();
   await slow()(page.getByRole('button', { name: 'Release reservation' })).toBeVisible();
   await page.getByRole('button', { name: 'Release reservation' }).click();
@@ -142,7 +171,9 @@ test('responsive: the cemetery layout fits a phone and a site opens', async ({ p
   for (const url of ['/cemetery', '/cemetery/sales', '/cemetery/purchasers', '/dashboard']) {
     await page.goto(url);
     await page.waitForLoadState('networkidle');
-    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - window.innerWidth,
+    );
     expect(overflow, `${url} overflows horizontally by ${overflow}px`).toBeLessThanOrEqual(1);
   }
   await page.goto('/cemetery');

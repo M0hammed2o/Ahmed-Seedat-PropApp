@@ -17,7 +17,8 @@ const SHOTS = process.env.CI
   ? path.resolve(__dirname, '../test-results/cemetery-qa')
   : path.resolve(__dirname, '../../../docs/qa/cemetery-2026-10-26');
 fs.mkdirSync(SHOTS, { recursive: true });
-const shot = (page: Page, name: string) => page.screenshot({ path: path.join(SHOTS, `${name}.png`), fullPage: true });
+const shot = (page: Page, name: string) =>
+  page.screenshot({ path: path.join(SHOTS, `${name}.png`), fullPage: true });
 const money = (n: string) => new RegExp(`R\\s?${n.replace(/ /g, '\\s?')}`);
 
 /** Cemetery Management is OFF for every organisation (migration 184); switched on per organisation by the owner. */
@@ -40,7 +41,9 @@ async function expectNotFound(page: Page, url: string) {
 }
 
 test.describe.serial('Cemetery Management', () => {
-  test('manager sets up a cemetery, sells a site with a deposit, receipts a payment, records a burial', async ({ page }) => {
+  test('manager sets up a cemetery, sells a site with a deposit, receipts a payment, records a burial', async ({
+    page,
+  }) => {
     test.setTimeout(420_000);
     const { orgId } = await setUpOrg(page.request, 'cemetery');
     await enableCemeteryForTests(orgId);
@@ -68,7 +71,7 @@ test.describe.serial('Cemetery Management', () => {
     await page.getByRole('button', { name: /^A-001:/ }).click();
     await expect(page.getByRole('heading', { name: 'A-001' })).toBeVisible();
     await shot(page, '02-layout-site-selected');
-    await page.getByRole('link', { name: 'Grant rights' }).click();
+    await page.locator('aside').getByRole('link', { name: 'Grant rights' }).click(); // the site panel's link, not the header button
     await slowExpect(page.getByRole('heading', { name: /New grant of rights/ })).toBeVisible();
     await expect(page.getByLabel('Grave site')).toHaveValue(/.+/);
     await page.getByLabel('Full name').fill('Edith Mbeki (e2e)');
@@ -82,14 +85,29 @@ test.describe.serial('Cemetery Management', () => {
     await expect(page.getByRole('heading', { name: 'Grant of Right of Interment' })).toBeVisible();
     await expect(page.getByText(money('10 000,00')).first()).toBeVisible();
     shared.saleA1 = page.url().split('/cemetery/sales/')[1]!.split('?')[0];
-    shared.siteA1 = (await page.getByRole('link', { name: /Grave site A-001/ }).getAttribute('href'))!.split('/').pop();
-    shared.purchaser = (await page.getByRole('link', { name: 'Edith Mbeki (e2e)' }).first().getAttribute('href'))!.split('/').pop();
+    shared.siteA1 = (await page
+      .getByRole('link', { name: /Grave site A-001/ })
+      .getAttribute('href'))!
+      .split('/')
+      .pop();
+    shared.purchaser = (await page
+      .getByRole('link', { name: 'Edith Mbeki (e2e)' })
+      .first()
+      .getAttribute('href'))!
+      .split('/')
+      .pop();
     await shot(page, '04-sale-record');
 
     // --- the database refuses a second sale and an overpayment, whatever the client sends
     const again = await page.request.post('/api/v1/cemetery/sales', {
       headers: { Origin: BASE_URL },
-      data: { siteId: shared.siteA1, purchaserId: shared.purchaser, price: 1000, saleDate: '2026-10-26', deposit: 0 },
+      data: {
+        siteId: shared.siteA1,
+        purchaserId: shared.purchaser,
+        price: 1000,
+        saleDate: '2026-10-26',
+        deposit: 0,
+      },
     });
     expect(again.status()).toBe(409);
     const over = await page.request.post(`/api/v1/cemetery/sales/${shared.saleA1}/payments`, {
@@ -105,7 +123,12 @@ test.describe.serial('Cemetery Management', () => {
     await slowExpect(page.getByRole('heading', { name: 'Receipt' })).toBeVisible();
     await expect(page.getByText('DEMONSTRATION RECEIPT')).toHaveCount(0); // not a demo cemetery
     await expect(page.getByText(/GR-\d{6}/).first()).toBeVisible();
-    await expect(page.locator('div').filter({ hasText: /^Balance outstanding/ }).last()).toContainText(money('6 000,00'));
+    await expect(
+      page
+        .locator('div')
+        .filter({ hasText: /^Balance outstanding/ })
+        .last(),
+    ).toContainText(money('6 000,00'));
     await shot(page, '05-receipt');
 
     // --- burial: sale status stays sold, burial status becomes occupied
@@ -136,7 +159,11 @@ test.describe.serial('Cemetery Management', () => {
     // --- overview metrics, search and filters
     await page.goto('/cemetery');
     await slowExpect(page.getByRole('heading', { name: 'E2E Memorial Park' })).toBeVisible();
-    const tile = (label: string) => page.locator('.panel').filter({ has: page.getByText(label, { exact: true }) }).first();
+    const tile = (label: string) =>
+      page
+        .locator('.panel')
+        .filter({ has: page.getByText(label, { exact: true }) })
+        .first();
     await expect(tile('Grave sites')).toContainText('20');
     await expect(tile('Reserved')).toContainText('1');
     await expect(tile('Occupied')).toContainText('1');
@@ -145,7 +172,10 @@ test.describe.serial('Cemetery Management', () => {
     await page.getByLabel('Search grave sites').fill('Mbeki');
     await expect(page.getByText('2 of 20 sites match')).toBeVisible(); // holder of A-001 and reservation on A-002
     await page.getByLabel('Search grave sites').fill('');
-    await page.getByRole('group', { name: 'Filter by sale status' }).getByRole('button', { name: /^Available/ }).click();
+    await page
+      .getByRole('group', { name: 'Filter by sale status' })
+      .getByRole('button', { name: /^Available/ })
+      .click();
     await expect(page.getByText('18 of 20 sites match')).toBeVisible();
     await shot(page, '07-overview-filtered');
 
@@ -154,6 +184,51 @@ test.describe.serial('Cemetery Management', () => {
     await slowExpect(page.getByRole('heading', { name: 'Edith Mbeki (e2e)' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'A-001' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'A-002' })).toBeVisible();
+
+    // --- cancellation: a second grant for the same holder, cancelled from the sale record; the site is free again
+    await page.goto('/cemetery');
+    const a4 = (await page.getByRole('button', { name: /^A-004:/ }).getAttribute('aria-label'))!;
+    expect(a4).toContain('Available');
+    await page.getByRole('button', { name: /^A-004:/ }).click();
+    const a4Id = (await page.getByRole('link', { name: 'Open site record' }).getAttribute('href'))!
+      .split('/')
+      .pop();
+    const sold = await page.request.post('/api/v1/cemetery/sales', {
+      headers: { Origin: BASE_URL },
+      data: {
+        siteId: a4Id,
+        purchaserId: shared.purchaser,
+        price: 15000,
+        saleDate: '2026-10-26',
+        deposit: 2000,
+      },
+    });
+    expect(sold.status()).toBe(201);
+    const a4Sale = (await sold.json()).sale.sale_id as string;
+    await page.goto(`/cemetery/sales/${a4Sale}`);
+    await page.getByRole('button', { name: 'Cancel grant' }).click();
+    await page.getByLabel('Reason for cancellation').fill('Holder chose a different site (e2e)');
+    await page.getByRole('button', { name: 'Confirm cancellation' }).click();
+    await slowExpect(page.getByText(/^CANCELLED /)).toBeVisible();
+    await expect(page.getByText(/stays on record/)).toBeVisible();
+    await page.goto(`/cemetery/sites/${a4Id}`);
+    const history = page
+      .locator('section')
+      .filter({ has: page.getByRole('heading', { name: 'Site history' }) });
+    await slowExpect(history).toContainText('Sale cancelled');
+    await expect(page.getByText('Available', { exact: true }).first()).toBeVisible();
+
+    // --- cemetery reports: 12 months, this month's activity, drill-down
+    await page.goto('/cemetery/reports');
+    await slowExpect(page.getByRole('heading', { name: 'Cemetery reports' })).toBeVisible();
+    const breakdown = page
+      .locator('section')
+      .filter({ has: page.getByRole('heading', { name: 'Monthly breakdown' }) });
+    await expect(breakdown.locator('tbody tr')).toHaveCount(12);
+    await breakdown.locator('tbody tr').last().getByRole('link').click();
+    await slowExpect(page.getByRole('heading', { name: /^Transactions in / })).toBeVisible();
+    await expect(page.getByText(/GR-\d{6}/).first()).toBeVisible();
+    await shot(page, '075-cemetery-reports');
 
     // --- dashboard: separate cemetery panel, rental KPIs untouched
     await page.goto('/dashboard');
@@ -164,10 +239,18 @@ test.describe.serial('Cemetery Management', () => {
 
     // --- phone width: no horizontal page scroll on the layout, the sale record and the receipt
     await page.setViewportSize({ width: 390, height: 844 });
-    for (const url of ['/cemetery', `/cemetery/sales/${shared.saleA1}`, `/cemetery/sites/${shared.siteA1}`]) {
+    for (const url of [
+      '/cemetery',
+      '/cemetery/reports',
+      '/reports',
+      `/cemetery/sales/${shared.saleA1}`,
+      `/cemetery/sites/${shared.siteA1}`,
+    ]) {
       await page.goto(url);
       await page.waitForLoadState('networkidle');
-      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - window.innerWidth,
+      );
       expect(overflow, `${url} overflows horizontally by ${overflow}px`).toBeLessThanOrEqual(1);
     }
     await page.goto('/cemetery');
@@ -176,7 +259,9 @@ test.describe.serial('Cemetery Management', () => {
     await shot(page, '09-phone-layout');
   });
 
-  test('module off: no navigation, no pages, no API; another organisation cannot reach these records', async ({ browser }) => {
+  test('module off: no navigation, no pages, no API; another organisation cannot reach these records', async ({
+    browser,
+  }) => {
     test.setTimeout(300_000);
     expect(shared.siteA1, 'first test must run first').toBeTruthy();
 
@@ -191,7 +276,10 @@ test.describe.serial('Cemetery Management', () => {
     await expect(off.getByText('Cemetery operations')).toHaveCount(0);
     await expectNotFound(off, '/cemetery');
     await expectNotFound(off, `/cemetery/sites/${shared.siteA1}`);
-    const offApi = await off.request.post('/api/v1/cemetery/purchasers', { headers: { Origin: BASE_URL }, data: { fullName: 'Nope' } });
+    const offApi = await off.request.post('/api/v1/cemetery/purchasers', {
+      headers: { Origin: BASE_URL },
+      data: { fullName: 'Nope' },
+    });
     expect(offApi.status()).toBe(403);
     // Existing property workflows are untouched for this organisation.
     await off.goto('/properties');
@@ -213,7 +301,13 @@ test.describe.serial('Cemetery Management', () => {
     expect(pay.status()).toBe(404);
     const sell = await other.request.post('/api/v1/cemetery/sales', {
       headers: { Origin: BASE_URL },
-      data: { siteId: shared.siteA1, newPurchaser: { fullName: 'Intruder' }, price: 100, saleDate: '2026-10-26', deposit: 0 },
+      data: {
+        siteId: shared.siteA1,
+        newPurchaser: { fullName: 'Intruder' },
+        price: 100,
+        saleDate: '2026-10-26',
+        deposit: 0,
+      },
     });
     expect(sell.status()).toBe(404);
     await other.goto('/cemetery');

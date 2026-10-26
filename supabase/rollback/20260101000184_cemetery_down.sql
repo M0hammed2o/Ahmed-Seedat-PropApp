@@ -26,14 +26,16 @@ begin
 end $$;
 
 drop function if exists public.cemetery_record_burial(uuid, text, date, date, date, text, text, text);
+drop function if exists public.cemetery_cancel_sale(uuid, text, date);
 drop function if exists public.cemetery_record_payment(uuid, numeric, date, public.payment_method, text, text);
 drop function if exists public.cemetery_record_sale(uuid, uuid, numeric, date, numeric, public.payment_method, text, text);
-drop function if exists public.cemetery_set_site_unavailable(uuid, boolean, text);
-drop function if exists public.cemetery_release_reservation(uuid);
-drop function if exists public.cemetery_reserve_site(uuid, uuid, date, text);
+drop function if exists public.cemetery_set_site_unavailable(uuid, boolean, text, date);
+drop function if exists public.cemetery_release_reservation(uuid, date);
+drop function if exists public.cemetery_reserve_site(uuid, uuid, date, text, date);
 drop function if exists public.cemetery_generate_sites(uuid, integer, numeric, numeric, numeric);
 
 drop view if exists public.cemetery_sale_balances;
+drop table if exists public.cemetery_site_events;
 drop table if exists public.cemetery_site_documents;
 drop table if exists public.cemetery_burials;
 drop table if exists public.cemetery_payments;
@@ -52,6 +54,14 @@ drop function if exists public.cemetery_sales_before_update();
 drop function if exists public.cemetery_sales_before_insert();
 drop function if exists public.cemetery_sites_check_status();
 drop function if exists public.cemetery_audit_trigger();
+drop function if exists public.cemetery_burials_before_insert();
+drop function if exists public.cemetery_burials_log_event();
+drop function if exists public.cemetery_sales_log_event();
+drop function if exists public.cemetery_sites_log_event();
+drop function if exists public.cemetery_site_events_immutable();
+drop function if exists public.cemetery_site_events_before_insert();
+drop function if exists public.cemetery_event_date();
+drop function if exists public.cemetery_today();
 
 drop type if exists public.cemetery_sale_status;
 drop type if exists public.grave_burial_status;

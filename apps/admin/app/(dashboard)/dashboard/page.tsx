@@ -275,7 +275,13 @@ type SearchParams = {
   searchParams: Promise<{ propertyId?: string; period?: string; from?: string; to?: string }>;
 };
 
-const KNOWN_PERIODS: readonly DashboardPeriod[] = ['this_month', 'last_month', 'ytd', 'custom'];
+const KNOWN_PERIODS: readonly DashboardPeriod[] = [
+  'this_month',
+  'last_month',
+  'ytd',
+  'last_12_months',
+  'custom',
+];
 
 export default async function DashboardPage({ searchParams }: SearchParams) {
   const { propertyId, period, from, to } = await searchParams;
@@ -524,6 +530,8 @@ export default async function DashboardPage({ searchParams }: SearchParams) {
           properties={data.propertyOptions}
           selectedPropertyId={data.selectedPropertyId}
           selectedPeriod={data.selectedPeriod}
+          selectedFrom={from}
+          selectedTo={to}
         />
       ) : null}
 
@@ -597,7 +605,7 @@ export default async function DashboardPage({ searchParams }: SearchParams) {
         <Panel
           className="xl:col-span-2"
           title="Income vs collections"
-          description="Thousands (ZAR) · last 9 months"
+          description="Thousands (ZAR) · last 12 months"
           actions={
             <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
               <span className="flex items-center gap-1.5">
@@ -1055,8 +1063,8 @@ async function loadData(filters: {
   const monthlyBilledLastMonth = showDelta ? billedInMonth(lastMonthKey) : null;
   const outstandingLastMonth = showDelta ? outstandingAsOf(lastMonthKey) : null;
 
-  const revenueSeries = Array.from({ length: 9 }, (_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth() - (8 - i), 1);
+  const revenueSeries = Array.from({ length: 12 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - (11 - i), 1);
     const key = monthKey(d);
     const monthExpenses = expenses
       .filter(

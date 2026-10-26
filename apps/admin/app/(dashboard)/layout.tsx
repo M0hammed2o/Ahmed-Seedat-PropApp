@@ -29,6 +29,7 @@ import {
   ReceiptText,
   Contact,
   BookOpen,
+  LineChart,
 } from 'lucide-react';
 import { branding } from '@propvault/config';
 import { resolvePortalSession } from '@/lib/orgSession';
@@ -325,6 +326,7 @@ function withCemeteryNav(sections: NavSection[], holderLabel: string): NavSectio
       { href: '/cemetery/sales', label: 'Grave-site sales', icon: navIcon(ReceiptText) },
       { href: '/cemetery/purchasers', label: holderLabel, icon: navIcon(Contact) },
       { href: '/cemetery/burials', label: 'Burial register', icon: navIcon(BookOpen) },
+      { href: '/cemetery/reports', label: 'Cemetery reports', icon: navIcon(LineChart) },
     ],
   };
   const at = sections.findIndex((s) => s.label === 'Operations');

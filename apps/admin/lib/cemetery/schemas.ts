@@ -119,3 +119,8 @@ export const documentSchema = z.object({
   notes: optionalText(1000),
   saleId: z.guid().optional().nullable(),
 });
+
+export const cancelSchema = z.object({
+  reason: z.string().trim().min(1, 'Give a reason for the cancellation').max(500),
+  cancelledOn: isoDate.optional().nullable(),
+});

@@ -235,26 +235,61 @@ create table public.cemetery_site_documents (
   foreign key (sale_id, org_id) references public.cemetery_sales(id, org_id) on delete restrict
 );
 
+-- Site history: one row per status-changing event (reserved, released, sold, cancelled, withdrawn, returned to sale,
+-- burial), each with its EFFECTIVE date. Written only by the triggers below (never directly by users), and kept in
+-- chronological order per site: an event dated before the site's latest event, or in the future, is refused -- so a
+-- site's history cannot be recorded out of order by any path (app, API, seeder or service role).
+create table public.cemetery_site_events (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null,
+  site_id uuid not null,
+  event_type text not null
+    check (event_type in ('reserved', 'reservation_released', 'sold', 'sale_cancelled', 'withdrawn', 'returned_to_sale', 'burial')),
+  event_date date not null,
+  sale_id uuid,
+  purchaser_id uuid,
+  notes text,
+  actor_user_id uuid,
+  created_at timestamptz not null default now(),
+  foreign key (site_id, org_id) references public.cemetery_sites(id, org_id) on delete restrict,
+  foreign key (sale_id, org_id) references public.cemetery_sales(id, org_id) on delete restrict,
+  foreign key (purchaser_id, org_id) references public.cemetery_purchasers(id, org_id) on delete restrict
+);
+
+create index cemetery_site_events_site_idx on public.cemetery_site_events (site_id, event_date, created_at);
+create index cemetery_site_events_org_idx on public.cemetery_site_events (org_id, event_date);
+
 create index cemetery_sites_section_idx on public.cemetery_sites (section_id, site_number);
 create index cemetery_sites_org_status_idx on public.cemetery_sites (org_id, sale_status);
 create index cemetery_burials_site_idx on public.cemetery_burials (site_id);
 create index cemetery_site_documents_site_idx on public.cemetery_site_documents (site_id);
 
--- Payment totals per sale (security_invoker: the caller's RLS applies to the underlying rows).
+-- Payment totals per sale (security_invoker: the caller's RLS applies to the underlying rows). A cancelled sale owes
+-- nothing; what was paid on it stays recorded (retained under the cemetery's cancellation terms).
 create view public.cemetery_sale_balances
 with (security_invoker = true) as
 select s.id as sale_id,
        s.org_id,
+       s.status,
        s.price,
        coalesce(sum(p.amount), 0)::numeric(12, 2) as amount_paid,
-       (s.price - coalesce(sum(p.amount), 0))::numeric(12, 2) as balance_due
+       (case when s.status = 'active' then s.price - coalesce(sum(p.amount), 0) else 0 end)::numeric(12, 2) as balance_due
   from public.cemetery_sales s
   left join public.cemetery_payments p on p.sale_id = s.id
- group by s.id, s.org_id, s.price;
+ group by s.id, s.org_id, s.status, s.price;
 
 -- ---------------------------------------------------------------------------------------------------------------
 -- Integrity triggers (apply to every writer, including the service role)
 -- ---------------------------------------------------------------------------------------------------------------
+
+-- The business date in South Africa: nothing may be recorded as having happened after it.
+create or replace function public.cemetery_today()
+returns date
+language sql
+stable
+as $$
+  select (now() at time zone 'Africa/Johannesburg')::date;
+$$;
 
 create trigger set_cemeteries_updated_at before update on public.cemeteries
   for each row execute function public.set_updated_at();
@@ -319,6 +354,9 @@ begin
   end if;
   if v_site.cemetery_id <> new.cemetery_id then
     raise exception 'cemetery_site_wrong_cemetery' using errcode = 'P0001';
+  end if;
+  if new.sale_date > public.cemetery_today() then
+    raise exception 'cemetery_future_date: a sale cannot be dated in the future' using errcode = 'P0001';
   end if;
   if new.status = 'active' then
     if v_site.sale_status = 'sold' then
@@ -387,6 +425,12 @@ begin
   if v_sale.status <> 'active' then
     raise exception 'cemetery_sale_not_active: payments can only be recorded against an active sale' using errcode = 'P0001';
   end if;
+  if new.paid_on > public.cemetery_today() then
+    raise exception 'cemetery_future_date: a payment cannot be dated in the future' using errcode = 'P0001';
+  end if;
+  if new.paid_on < v_sale.sale_date then
+    raise exception 'cemetery_payment_before_sale: the payment date is before the sale date (%)', v_sale.sale_date using errcode = 'P0001';
+  end if;
   select coalesce(sum(amount), 0) into v_paid from public.cemetery_payments where sale_id = new.sale_id;
   if new.amount > v_sale.price - v_paid then
     raise exception 'cemetery_payment_exceeds_balance: balance due is %', to_char(v_sale.price - v_paid, 'FM999999990.00')
@@ -412,6 +456,146 @@ $$;
 
 create trigger cemetery_payments_immutable before update or delete on public.cemetery_payments
   for each row execute function public.cemetery_payments_immutable();
+
+create or replace function public.cemetery_burials_before_insert()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if new.burial_date > public.cemetery_today() then
+    raise exception 'cemetery_future_date: a burial cannot be recorded with a future date' using errcode = 'P0001';
+  end if;
+  return new;
+end;
+$$;
+
+create trigger cemetery_burials_before_insert before insert on public.cemetery_burials
+  for each row execute function public.cemetery_burials_before_insert();
+
+-- ---------------------------------------------------------------------------------------------------------------
+-- Site history (cemetery_site_events)
+-- ---------------------------------------------------------------------------------------------------------------
+
+-- Effective date of the current workflow step. The workflow functions set it for their own transaction when the
+-- caller gives a date (for example a reservation made last month); otherwise it is today.
+create or replace function public.cemetery_event_date()
+returns date
+language sql
+stable
+as $$
+  select coalesce(nullif(current_setting('proplyst.cemetery_event_date', true), '')::date, public.cemetery_today());
+$$;
+
+create or replace function public.cemetery_site_events_before_insert()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+declare
+  v_latest date;
+begin
+  if new.event_date > public.cemetery_today() then
+    raise exception 'cemetery_future_date: % cannot be dated in the future', replace(new.event_type, '_', ' ') using errcode = 'P0001';
+  end if;
+  select max(event_date) into v_latest from public.cemetery_site_events where site_id = new.site_id;
+  if v_latest is not null and new.event_date < v_latest then
+    raise exception 'cemetery_out_of_order: this site already has history dated % — % cannot be dated %',
+      v_latest, replace(new.event_type, '_', ' '), new.event_date using errcode = 'P0001';
+  end if;
+  return new;
+end;
+$$;
+
+create trigger cemetery_site_events_before_insert before insert on public.cemetery_site_events
+  for each row execute function public.cemetery_site_events_before_insert();
+
+create or replace function public.cemetery_site_events_immutable()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  raise exception 'cemetery_history_immutable: site history cannot be edited or deleted' using errcode = 'P0001';
+end;
+$$;
+
+create trigger cemetery_site_events_immutable before update or delete on public.cemetery_site_events
+  for each row execute function public.cemetery_site_events_immutable();
+
+-- Logged by triggers (SECURITY DEFINER: users have no INSERT privilege on the history, so it cannot be forged).
+create or replace function public.cemetery_sites_log_event()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_type text;
+begin
+  if new.sale_status is not distinct from old.sale_status then
+    return new;
+  end if;
+  -- 'sold' and 'sale_cancelled' are logged by the sale itself (with the sale's own dates).
+  v_type := case
+    when new.sale_status = 'reserved' then 'reserved'
+    when old.sale_status = 'reserved' and new.sale_status = 'available' then 'reservation_released'
+    when new.sale_status = 'unavailable' then 'withdrawn'
+    when old.sale_status = 'unavailable' and new.sale_status = 'available' then 'returned_to_sale'
+  end;
+  if v_type is not null then
+    insert into public.cemetery_site_events (org_id, site_id, event_type, event_date, purchaser_id, notes, actor_user_id)
+    values (
+      new.org_id, new.id, v_type, public.cemetery_event_date(),
+      case v_type when 'reserved' then new.reserved_for_purchaser_id when 'reservation_released' then old.reserved_for_purchaser_id end,
+      case v_type when 'reserved' then new.reservation_notes when 'withdrawn' then new.unavailable_reason end,
+      auth.uid()
+    );
+  end if;
+  return new;
+end;
+$$;
+
+create trigger cemetery_sites_log_event after update on public.cemetery_sites
+  for each row execute function public.cemetery_sites_log_event();
+
+create or replace function public.cemetery_sales_log_event()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if TG_OP = 'INSERT' and new.status = 'active' then
+    insert into public.cemetery_site_events (org_id, site_id, event_type, event_date, sale_id, purchaser_id, actor_user_id)
+    values (new.org_id, new.site_id, 'sold', new.sale_date, new.id, new.purchaser_id, auth.uid());
+  elsif TG_OP = 'UPDATE' and old.status = 'active' and new.status = 'cancelled' then
+    insert into public.cemetery_site_events (org_id, site_id, event_type, event_date, sale_id, purchaser_id, notes, actor_user_id)
+    values (new.org_id, new.site_id, 'sale_cancelled', (new.cancelled_at at time zone 'Africa/Johannesburg')::date,
+            new.id, new.purchaser_id, new.cancel_reason, auth.uid());
+  end if;
+  return new;
+end;
+$$;
+
+create trigger cemetery_sales_log_event after insert or update on public.cemetery_sales
+  for each row execute function public.cemetery_sales_log_event();
+
+create or replace function public.cemetery_burials_log_event()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.cemetery_site_events (org_id, site_id, event_type, event_date, sale_id, actor_user_id)
+  values (new.org_id, new.site_id, 'burial', new.burial_date, new.sale_id, auth.uid());
+  return new;
+end;
+$$;
+
+create trigger cemetery_burials_log_event after insert on public.cemetery_burials
+  for each row execute function public.cemetery_burials_log_event();
 
 -- Audit trail in audit_events, WITHOUT personal information. The generic log_audit_event_trigger() copies the whole
 -- row into before/after, and audit_events is readable by every member of the organisation (viewer+) -- which would
@@ -495,15 +679,17 @@ alter table public.cemetery_sales enable row level security;
 alter table public.cemetery_payments enable row level security;
 alter table public.cemetery_burials enable row level security;
 alter table public.cemetery_site_documents enable row level security;
+alter table public.cemetery_site_events enable row level security;
 
 -- Read: accountant+ (accountant, manager, principal). Write: manager+. No DELETE policies anywhere: records are
--- corrected or cancelled, never removed.
+-- corrected or cancelled, never removed. Site history is read-only for everyone (written by triggers).
 do $$
 declare
   t text;
 begin
   foreach t in array array['cemeteries', 'cemetery_sections', 'cemetery_purchasers', 'cemetery_sites',
-                           'cemetery_sales', 'cemetery_burials', 'cemetery_site_documents', 'cemetery_payments'] loop
+                           'cemetery_sales', 'cemetery_burials', 'cemetery_site_documents', 'cemetery_payments',
+                           'cemetery_site_events'] loop
     execute format('create policy %I on public.%I for select to authenticated using (org_id in (select public.cemetery_org_ids(''accountant'')))',
                    t || '_select_accountant_plus', t);
   end loop;
@@ -524,17 +710,17 @@ create policy cemetery_payments_insert_accountant_plus on public.cemetery_paymen
 -- payments are insert-only.
 revoke all on public.cemeteries, public.cemetery_sections, public.cemetery_purchasers, public.cemetery_sites,
   public.cemetery_sales, public.cemetery_payments, public.cemetery_burials, public.cemetery_site_documents,
-  public.cemetery_sale_balances from authenticated;
+  public.cemetery_site_events, public.cemetery_sale_balances from authenticated;
 grant select, insert, update on public.cemeteries, public.cemetery_sections, public.cemetery_purchasers,
   public.cemetery_sites, public.cemetery_sales, public.cemetery_burials, public.cemetery_site_documents to authenticated;
 grant select, insert on public.cemetery_payments to authenticated;
-grant select on public.cemetery_sale_balances to authenticated;
+grant select on public.cemetery_site_events, public.cemetery_sale_balances to authenticated;
 grant all on public.cemeteries, public.cemetery_sections, public.cemetery_purchasers, public.cemetery_sites,
   public.cemetery_sales, public.cemetery_payments, public.cemetery_burials, public.cemetery_site_documents,
-  public.cemetery_sale_balances to service_role;
+  public.cemetery_site_events, public.cemetery_sale_balances to service_role;
 revoke all on public.cemeteries, public.cemetery_sections, public.cemetery_purchasers, public.cemetery_sites,
   public.cemetery_sales, public.cemetery_payments, public.cemetery_burials, public.cemetery_site_documents,
-  public.cemetery_sale_balances from anon;
+  public.cemetery_site_events, public.cemetery_sale_balances from anon;
 grant usage on sequence public.cemetery_sale_number_seq, public.cemetery_receipt_number_seq to authenticated, service_role;
 
 -- ---------------------------------------------------------------------------------------------------------------
@@ -580,11 +766,13 @@ begin
 end;
 $$;
 
+-- p_reserved_on: the date the reservation was made (default today); it is recorded in the site history.
 create or replace function public.cemetery_reserve_site(
   p_site_id uuid,
   p_purchaser_id uuid,
   p_reserved_until date default null,
-  p_notes text default null
+  p_notes text default null,
+  p_reserved_on date default null
 )
 returns void
 language plpgsql
@@ -593,6 +781,7 @@ set search_path = public
 as $$
 declare
   v_site public.cemetery_sites%rowtype;
+  v_on date := coalesce(p_reserved_on, public.cemetery_today());
 begin
   select * into v_site from public.cemetery_sites where id = p_site_id for update;
   if not found then
@@ -604,14 +793,20 @@ begin
   if not exists (select 1 from public.cemetery_purchasers where id = p_purchaser_id and org_id = v_site.org_id) then
     raise exception 'cemetery_purchaser_not_found' using errcode = 'P0002';
   end if;
+  if p_reserved_until is not null and p_reserved_until < v_on then
+    raise exception 'cemetery_out_of_order: the reservation cannot end before it starts' using errcode = 'P0001';
+  end if;
+  perform set_config('proplyst.cemetery_event_date', v_on::text, true);
   update public.cemetery_sites
      set sale_status = 'reserved', reserved_for_purchaser_id = p_purchaser_id, reserved_until = p_reserved_until,
          reservation_notes = p_notes
    where id = p_site_id;
+  perform set_config('proplyst.cemetery_event_date', '', true);
 end;
 $$;
 
-create or replace function public.cemetery_release_reservation(p_site_id uuid)
+-- p_released_on: when the reservation lapsed or was released (default today).
+create or replace function public.cemetery_release_reservation(p_site_id uuid, p_released_on date default null)
 returns void
 language plpgsql
 security invoker
@@ -627,13 +822,20 @@ begin
   if v_site.sale_status <> 'reserved' then
     raise exception 'cemetery_site_not_reserved: grave site % is not reserved', v_site.reference using errcode = 'P0001';
   end if;
+  perform set_config('proplyst.cemetery_event_date', coalesce(p_released_on, public.cemetery_today())::text, true);
   update public.cemetery_sites
      set sale_status = 'available', reserved_for_purchaser_id = null, reserved_until = null, reservation_notes = null
    where id = p_site_id;
+  perform set_config('proplyst.cemetery_event_date', '', true);
 end;
 $$;
 
-create or replace function public.cemetery_set_site_unavailable(p_site_id uuid, p_unavailable boolean, p_reason text default null)
+create or replace function public.cemetery_set_site_unavailable(
+  p_site_id uuid,
+  p_unavailable boolean,
+  p_reason text default null,
+  p_effective_on date default null
+)
 returns void
 language plpgsql
 security invoker
@@ -646,6 +848,7 @@ begin
   if not found then
     raise exception 'cemetery_site_not_found' using errcode = 'P0002';
   end if;
+  perform set_config('proplyst.cemetery_event_date', coalesce(p_effective_on, public.cemetery_today())::text, true);
   if p_unavailable then
     if v_site.sale_status <> 'available' then
       raise exception 'cemetery_site_not_available: only an available site can be withdrawn (site % is %)', v_site.reference, v_site.sale_status
@@ -661,6 +864,50 @@ begin
     end if;
     update public.cemetery_sites set sale_status = 'available', unavailable_reason = null where id = p_site_id;
   end if;
+  perform set_config('proplyst.cemetery_event_date', '', true);
+end;
+$$;
+
+-- Cancel an active sale / grant of rights (manager+): the site returns to Available. Payments already received stay
+-- recorded (retained under the cemetery's cancellation terms; refunds are handled outside Proplyst). Refused when a
+-- burial has been recorded under the sale, and dated no earlier than the sale or its last payment.
+create or replace function public.cemetery_cancel_sale(p_sale_id uuid, p_reason text, p_cancelled_on date default null)
+returns void
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  v_sale public.cemetery_sales%rowtype;
+  v_on date := coalesce(p_cancelled_on, public.cemetery_today());
+  v_last_payment date;
+begin
+  select * into v_sale from public.cemetery_sales where id = p_sale_id for update;
+  if not found then
+    raise exception 'cemetery_sale_not_found' using errcode = 'P0002';
+  end if;
+  if v_sale.status <> 'active' then
+    raise exception 'cemetery_sale_not_active: this sale is already cancelled' using errcode = 'P0001';
+  end if;
+  if p_reason is null or length(btrim(p_reason)) = 0 then
+    raise exception 'cemetery_reason_required: give a reason for the cancellation' using errcode = '22023';
+  end if;
+  if exists (select 1 from public.cemetery_burials b where b.sale_id = v_sale.id) then
+    raise exception 'cemetery_sale_has_burial: a burial is recorded under this sale; it cannot be cancelled' using errcode = 'P0001';
+  end if;
+  if v_on > public.cemetery_today() then
+    raise exception 'cemetery_future_date: a cancellation cannot be dated in the future' using errcode = 'P0001';
+  end if;
+  select max(paid_on) into v_last_payment from public.cemetery_payments where sale_id = v_sale.id;
+  if v_on < v_sale.sale_date or (v_last_payment is not null and v_on < v_last_payment) then
+    raise exception 'cemetery_out_of_order: the cancellation cannot be dated before the sale or its last payment' using errcode = 'P0001';
+  end if;
+  update public.cemetery_sales
+     set status = 'cancelled',
+         cancelled_at = (v_on + time '12:00') at time zone 'Africa/Johannesburg',
+         cancel_reason = btrim(p_reason)
+   where id = v_sale.id;
+  update public.cemetery_sites set sale_status = 'available' where id = v_sale.site_id;
 end;
 $$;
 
@@ -670,7 +917,7 @@ create or replace function public.cemetery_record_sale(
   p_site_id uuid,
   p_purchaser_id uuid,
   p_price numeric,
-  p_sale_date date default current_date,
+  p_sale_date date default null,
   p_deposit numeric default 0,
   p_method public.payment_method default 'eft',
   p_reference text default null,
@@ -701,7 +948,7 @@ begin
   end if;
 
   insert into public.cemetery_sales (org_id, cemetery_id, site_id, purchaser_id, tenure_model, sale_date, price, notes, created_by)
-  values (v_site.org_id, v_site.cemetery_id, v_site.id, p_purchaser_id, 'burial_rights', coalesce(p_sale_date, current_date),
+  values (v_site.org_id, v_site.cemetery_id, v_site.id, p_purchaser_id, 'burial_rights', coalesce(p_sale_date, public.cemetery_today()),
           p_price, p_notes, auth.uid())
   returning * into v_sale;
 
@@ -711,7 +958,7 @@ begin
 
   if coalesce(p_deposit, 0) > 0 then
     insert into public.cemetery_payments (org_id, sale_id, amount, paid_on, method, reference, is_deposit, recorded_by)
-    values (v_sale.org_id, v_sale.id, p_deposit, coalesce(p_sale_date, current_date), p_method, p_reference, true, auth.uid())
+    values (v_sale.org_id, v_sale.id, p_deposit, coalesce(p_sale_date, public.cemetery_today()), p_method, p_reference, true, auth.uid())
     returning * into v_payment;
   end if;
 
@@ -728,7 +975,7 @@ $$;
 create or replace function public.cemetery_record_payment(
   p_sale_id uuid,
   p_amount numeric,
-  p_paid_on date default current_date,
+  p_paid_on date default null,
   p_method public.payment_method default 'eft',
   p_reference text default null,
   p_notes text default null
@@ -750,7 +997,7 @@ begin
     raise exception 'cemetery_sale_not_found' using errcode = 'P0002';
   end if;
   insert into public.cemetery_payments (org_id, sale_id, amount, paid_on, method, reference, notes, recorded_by)
-  values (v_sale.org_id, v_sale.id, p_amount, coalesce(p_paid_on, current_date), p_method, p_reference, p_notes, auth.uid())
+  values (v_sale.org_id, v_sale.id, p_amount, coalesce(p_paid_on, public.cemetery_today()), p_method, p_reference, p_notes, auth.uid())
   returning * into v_payment;
   return jsonb_build_object('payment_id', v_payment.id, 'receipt_number', v_payment.receipt_number, 'is_demo', v_payment.is_demo);
 end;
@@ -806,16 +1053,18 @@ end;
 $$;
 
 revoke all on function public.cemetery_generate_sites(uuid, integer, numeric, numeric, numeric) from public, anon;
-revoke all on function public.cemetery_reserve_site(uuid, uuid, date, text) from public, anon;
-revoke all on function public.cemetery_release_reservation(uuid) from public, anon;
-revoke all on function public.cemetery_set_site_unavailable(uuid, boolean, text) from public, anon;
+revoke all on function public.cemetery_reserve_site(uuid, uuid, date, text, date) from public, anon;
+revoke all on function public.cemetery_release_reservation(uuid, date) from public, anon;
+revoke all on function public.cemetery_set_site_unavailable(uuid, boolean, text, date) from public, anon;
+revoke all on function public.cemetery_cancel_sale(uuid, text, date) from public, anon;
 revoke all on function public.cemetery_record_sale(uuid, uuid, numeric, date, numeric, public.payment_method, text, text) from public, anon;
 revoke all on function public.cemetery_record_payment(uuid, numeric, date, public.payment_method, text, text) from public, anon;
 revoke all on function public.cemetery_record_burial(uuid, text, date, date, date, text, text, text) from public, anon;
 grant execute on function public.cemetery_generate_sites(uuid, integer, numeric, numeric, numeric) to authenticated, service_role;
-grant execute on function public.cemetery_reserve_site(uuid, uuid, date, text) to authenticated, service_role;
-grant execute on function public.cemetery_release_reservation(uuid) to authenticated, service_role;
-grant execute on function public.cemetery_set_site_unavailable(uuid, boolean, text) to authenticated, service_role;
+grant execute on function public.cemetery_reserve_site(uuid, uuid, date, text, date) to authenticated, service_role;
+grant execute on function public.cemetery_release_reservation(uuid, date) to authenticated, service_role;
+grant execute on function public.cemetery_set_site_unavailable(uuid, boolean, text, date) to authenticated, service_role;
+grant execute on function public.cemetery_cancel_sale(uuid, text, date) to authenticated, service_role;
 grant execute on function public.cemetery_record_sale(uuid, uuid, numeric, date, numeric, public.payment_method, text, text) to authenticated, service_role;
 grant execute on function public.cemetery_record_payment(uuid, numeric, date, public.payment_method, text, text) to authenticated, service_role;
 grant execute on function public.cemetery_record_burial(uuid, text, date, date, date, text, text, text) to authenticated, service_role;

@@ -84,6 +84,8 @@ export interface SaleRow {
   is_demo: boolean;
   notes: string | null;
   created_at: string;
+  cancelled_at?: string | null;
+  cancel_reason?: string | null;
 }
 
 export interface PaymentRow {
@@ -401,7 +403,10 @@ export interface CemeteryMetrics {
   unavailable: number;
   occupied: number;
   salesValue: number;
+  /** Cash received on every sale, including deposits kept on cancelled sales. */
   paymentsReceived: number;
+  /** Part of paymentsReceived that was paid on sales later cancelled (retained under the cancellation terms). */
+  retainedOnCancelled: number;
   outstanding: number;
   paymentsThisMonth: number;
   salesThisMonth: number;
@@ -414,9 +419,9 @@ export function computeCemeteryMetrics(
   payments: PaymentRow[],
   now: Date = new Date(),
 ): CemeteryMetrics {
-  const monthKey = now.toISOString().slice(0, 7);
+  const monthKey = sastDate(now).slice(0, 7);
   const active = sales.filter((s) => s.status === 'active');
-  const activeIds = new Set(active.map((s) => s.id));
+  const cancelledIds = new Set(sales.filter((s) => s.status === 'cancelled').map((s) => s.id));
   const round = (n: number) => Math.round(n * 100) / 100;
   return {
     totalSites: sites.length,
@@ -426,8 +431,9 @@ export function computeCemeteryMetrics(
     unavailable: sites.filter((s) => s.sale_status === 'unavailable').length,
     occupied: sites.filter((s) => s.burial_status === 'occupied').length,
     salesValue: round(active.reduce((sum, s) => sum + s.price, 0)),
-    paymentsReceived: round(
-      payments.filter((p) => activeIds.has(p.sale_id)).reduce((sum, p) => sum + p.amount, 0),
+    paymentsReceived: round(payments.reduce((sum, p) => sum + p.amount, 0)),
+    retainedOnCancelled: round(
+      payments.filter((p) => cancelledIds.has(p.sale_id)).reduce((sum, p) => sum + p.amount, 0),
     ),
     outstanding: round(active.reduce((sum, s) => sum + s.balance, 0)),
     paymentsThisMonth: round(
@@ -438,6 +444,57 @@ export function computeCemeteryMetrics(
     salesThisMonth: active.filter((s) => s.sale_date.slice(0, 7) === monthKey).length,
     salesWithBalance: active.filter((s) => s.balance > 0).length,
   };
+}
+
+/** Today's business date in South Africa (UTC+2, no daylight saving). */
+export function sastDate(now: Date = new Date()): string {
+  return new Date(now.getTime() + 2 * 3_600_000).toISOString().slice(0, 10);
+}
+
+export interface SiteEventRow {
+  id: string;
+  site_id: string;
+  event_type:
+    | 'reserved'
+    | 'reservation_released'
+    | 'sold'
+    | 'sale_cancelled'
+    | 'withdrawn'
+    | 'returned_to_sale'
+    | 'burial';
+  event_date: string;
+  sale_id: string | null;
+  purchaser_id: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
+export async function loadSiteEvents(
+  supabase: SupabaseClient,
+  filter: { siteId?: string } = {},
+): Promise<SiteEventRow[]> {
+  return fetchAll<SiteEventRow>((from, to) => {
+    let q = supabase
+      .from('cemetery_site_events')
+      .select('id, site_id, event_type, event_date, sale_id, purchaser_id, notes, created_at')
+      .order('event_date')
+      .order('created_at');
+    if (filter.siteId) q = q.eq('site_id', filter.siteId);
+    return q.range(from, to);
+  }, 'site history');
+}
+
+export async function loadBurials(supabase: SupabaseClient): Promise<BurialRow[]> {
+  return fetchAll<BurialRow>(
+    (from, to) =>
+      supabase.from('cemetery_burials').select('*').order('burial_date').range(from, to),
+    'burials',
+  );
+}
+
+/** The business date a cancelled sale was cancelled on. */
+export function cancelledOn(sale: Pick<SaleRow, 'cancelled_at'>): string | null {
+  return sale.cancelled_at ? sastDate(new Date(sale.cancelled_at)) : null;
 }
 
 /** Organisation-wide cemetery metrics for the main dashboard (all cemeteries the caller can read). */

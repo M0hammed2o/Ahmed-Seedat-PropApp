@@ -213,7 +213,10 @@ export default async function PropertyDetailPage({ params, searchParams }: Route
   const { id } = await params;
   const { period: periodParam, from, to, tab } = await searchParams;
   const period: DashboardPeriod =
-    periodParam === 'last_month' || periodParam === 'ytd' || periodParam === 'custom'
+    periodParam === 'last_month' ||
+    periodParam === 'ytd' ||
+    periodParam === 'last_12_months' ||
+    periodParam === 'custom'
       ? periodParam
       : 'this_month';
 

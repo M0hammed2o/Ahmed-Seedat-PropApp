@@ -3,9 +3,10 @@ import { notFound } from 'next/navigation';
 import { Panel } from '@/components/ui/Panel';
 import { PaymentForm } from '@/components/cemetery/PaymentForm';
 import { PrintButton } from '@/components/cemetery/PrintButton';
+import { CancelSaleForm } from '@/components/cemetery/CancelSaleForm';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { getCemeteryContext } from '@/lib/cemetery/access';
-import { loadPayments, withBalances, type CemeteryRow, type PurchaserRow, type SaleRow, type SiteRow } from '@/lib/cemetery/data';
+import { cancelledOn, loadPayments, withBalances, type CemeteryRow, type PurchaserRow, type SaleRow, type SiteRow } from '@/lib/cemetery/data';
 import { PAYMENT_METHOD_LABEL, formatDate, formatZar, tenureTerms } from '@/lib/cemetery/terms';
 import { UUID } from '@/lib/cemetery/http';
 
@@ -33,6 +34,11 @@ export default async function CemeterySalePage({ params, searchParams }: Props) 
     loadPayments(supabase, { saleIds: [id] }),
   ]);
   const [sale] = withBalances([sale0], payments);
+  const { count: burialCount } = await supabase
+    .from('cemetery_burials')
+    .select('id', { count: 'exact', head: true })
+    .eq('sale_id', id);
+  const hasBurial = (burialCount ?? 0) > 0;
   const s = site as SiteRow;
   const c = cemetery as CemeteryRow;
   const p = purchaser as PurchaserRow;
@@ -68,6 +74,11 @@ export default async function CemeterySalePage({ params, searchParams }: Props) 
             <p className="font-semibold text-foreground">{sale!.sale_number}</p>
             <p className="text-muted-foreground">{formatDate(sale!.sale_date)}</p>
             {sale!.is_demo ? <p className="mt-1 rounded bg-warning/20 px-2 py-0.5 text-[11px] font-semibold text-foreground">DEMONSTRATION — not a real transaction</p> : null}
+            {sale!.status === 'cancelled' ? (
+              <p className="mt-1 rounded bg-destructive/15 px-2 py-0.5 text-[11px] font-semibold text-destructive">
+                CANCELLED {formatDate(cancelledOn(sale!))}
+              </p>
+            ) : null}
           </div>
         </header>
 
@@ -136,8 +147,20 @@ export default async function CemeterySalePage({ params, searchParams }: Props) 
             </tr>
           </tbody>
         </table>
+        {sale!.status === 'cancelled' ? (
+          <p className="text-sm text-foreground">
+            Cancelled on {formatDate(cancelledOn(sale!))}: {sale!.cancel_reason}. The grave site was returned to sale;
+            {payments.length ? ` ${formatZar(sale!.paid, { cents: true })} received before the cancellation stays on record.` : ' nothing had been paid.'}
+          </p>
+        ) : null}
         {sale!.notes ? <p className="text-xs text-muted-foreground print:hidden">Internal notes: {sale!.notes}</p> : null}
       </article>
+
+      {ctx.canManage && sale!.status === 'active' && !hasBurial ? (
+        <div className="print:hidden">
+          <CancelSaleForm saleId={sale!.id} label={terms.saleLower === 'sale' ? 'sale' : 'grant'} />
+        </div>
+      ) : null}
 
       {ctx.canRecordPayments && sale!.balance > 0 && sale!.status === 'active' ? (
         <Panel title="Record a payment" description={`Balance due ${formatZar(sale!.balance, { cents: true })}`} className="print:hidden">

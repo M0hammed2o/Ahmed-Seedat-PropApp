@@ -6,7 +6,7 @@
 // lease->unit->property / property_id join) -- these functions do date-range slicing and summation
 // only, never a database read.
 
-export type DashboardPeriod = 'this_month' | 'last_month' | 'ytd' | 'custom';
+export type DashboardPeriod = 'this_month' | 'last_month' | 'ytd' | 'last_12_months' | 'custom';
 
 export interface PeriodRange {
   /** Inclusive, YYYY-MM-DD. */
@@ -26,6 +26,15 @@ function toIsoDate(d: Date): string {
 
 function monthLabel(d: Date): string {
   return d.toLocaleDateString('en-ZA', { month: 'long', year: 'numeric' });
+}
+
+/** A whole calendar month or year reads as such ("March 2026", "2026"); any other range as its bounds. */
+function customLabel(from: string, to: string): string {
+  const start = new Date(`${from}T00:00:00`);
+  const monthEnd = new Date(start.getFullYear(), start.getMonth() + 1, 0);
+  if (start.getDate() === 1 && toIsoDate(monthEnd) === to) return monthLabel(start);
+  if (from.endsWith('-01-01') && to.endsWith('-12-31') && from.slice(0, 4) === to.slice(0, 4)) return from.slice(0, 4);
+  return `${from} to ${to}`;
 }
 
 /**
@@ -53,8 +62,17 @@ export function resolvePeriodRange(
       label: `Year to date ${now.getFullYear()}`,
     };
   }
+  if (period === 'last_12_months') {
+    const start = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return {
+      startIso: toIsoDate(start),
+      endIso: toIsoDate(end),
+      label: `the last 12 months (${monthLabel(start)} – ${monthLabel(end)})`,
+    };
+  }
   if (period === 'custom' && custom.from && custom.to) {
-    return { startIso: custom.from, endIso: custom.to, label: `${custom.from} to ${custom.to}` };
+    return { startIso: custom.from, endIso: custom.to, label: customLabel(custom.from, custom.to) };
   }
   // 'this_month', and 'custom' without both bounds (an honest fallback, never a silent crash).
   const start = new Date(now.getFullYear(), now.getMonth(), 1);

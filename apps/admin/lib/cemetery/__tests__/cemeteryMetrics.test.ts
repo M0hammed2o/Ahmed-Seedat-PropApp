@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { computeCemeteryMetrics, withBalances, type PaymentRow, type SaleRow } from '@/lib/cemetery/data';
+import {
+  computeCemeteryMetrics,
+  withBalances,
+  type PaymentRow,
+  type SaleRow,
+} from '@/lib/cemetery/data';
 import { formatZar, tenureTerms } from '@/lib/cemetery/terms';
 
 const sale = (id: string, price: number, extra: Partial<SaleRow> = {}): SaleRow => ({
@@ -54,8 +59,16 @@ describe('cemetery balances and metrics', () => {
       { sale_status: 'sold', burial_status: 'occupied' },
       { sale_status: 'unavailable', burial_status: 'unused' },
     ] as const;
-    const sales = withBalances([sale('1', 10000), sale('2', 8000, { sale_date: '2025-01-01' })], [pay('1', 2500), pay('2', 8000, '2025-02-01')]);
-    const m = computeCemeteryMetrics([...sites], sales, [pay('1', 2500), pay('2', 8000, '2025-02-01')], new Date('2026-10-26T10:00:00Z'));
+    const sales = withBalances(
+      [sale('1', 10000), sale('2', 8000, { sale_date: '2025-01-01' })],
+      [pay('1', 2500), pay('2', 8000, '2025-02-01')],
+    );
+    const m = computeCemeteryMetrics(
+      [...sites],
+      sales,
+      [pay('1', 2500), pay('2', 8000, '2025-02-01')],
+      new Date('2026-10-26T10:00:00Z'),
+    );
     expect(m).toMatchObject({
       totalSites: 5,
       available: 1,
@@ -73,8 +86,16 @@ describe('cemetery balances and metrics', () => {
   });
 
   it('uses burial-rights wording by default and land-sale wording when configured', () => {
-    expect(tenureTerms('burial_rights')).toMatchObject({ holder: 'Rights holder', sold: 'Rights granted', recordTitle: 'Grant of Right of Interment' });
-    expect(tenureTerms('land_sale')).toMatchObject({ holder: 'Purchaser', sold: 'Sold', recordTitle: 'Grave Plot Sale Agreement' });
+    expect(tenureTerms('burial_rights')).toMatchObject({
+      holder: 'Rights holder',
+      sold: 'Rights granted',
+      recordTitle: 'Grant of Right of Interment',
+    });
+    expect(tenureTerms('land_sale')).toMatchObject({
+      holder: 'Purchaser',
+      sold: 'Sold',
+      recordTitle: 'Grave Plot Sale Agreement',
+    });
   });
 
   it('formats rand amounts', () => {
