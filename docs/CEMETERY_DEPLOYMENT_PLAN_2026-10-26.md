@@ -25,7 +25,7 @@
   - the 184 rollback restores the pre-184 schema exactly (the only difference is 185's intended function change);
   - pgTAP passes 68 + 3 assertions;
   - the provisioner runs and reconciles, and a second run creates nothing.
-- **CI (`staging/cemetery-management`):** see the run linked in the WORKLOG entry.
+- **CI (`staging/cemetery-management`), run `40406265182`:** pass across all jobs — lint, typecheck and build; pgTAP 1,724 assertions; vitest 1,618 tests; Playwright 93/93, including the demo year provisioned twice (idempotency) and browsed as the demo login.
 - **Permissions:** the access token in this checkout can query and push migrations to the project (used read-only so
   far). Pushing `main` deploys through Render's auto-deploy. There is no Render API key on this machine: the deploy is
   detected by a route changing status.

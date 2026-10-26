@@ -1,5 +1,85 @@
 # Worklog
 
+## 2026-10-26 — Cemetery Management module, one-year property + cemetery demo, invoice-number defect (autonomous; NOT deployed)
+
+Module reference: `docs/CEMETERY_MANAGEMENT.md`. Approval plan: `docs/CEMETERY_DEPLOYMENT_PLAN_2026-10-26.md`.
+
+**Where the work lives:**
+- Branch `feature/cemetery-management`, in a separate worktree (`C:\Users\junsm\Downloads\PropValt-cemetery`) created
+  from `main` `0e0df7f`. The `ios/native-app` checkout and its uncommitted files were not touched.
+- It is pushed only as `staging/cemetery-management`.
+- **Production is unchanged:** head 183, no demo organisation.
+
+**Built:**
+- **Migration 184, Cemetery Management.**
+  - Off for every organisation by default; RLS requires the module switch.
+  - Accountant+ can read, manager+ can write. Agents, viewers, owners, tenants and support sessions see nothing.
+  - Its own sales and payments tables, so rental accounting is untouched.
+  - Double sale and overpayment are impossible; payments are append-only.
+  - Site history with database-enforced chronology: nothing is future-dated or out of order.
+  - Cancellation keeps money already received on record; the audit trail carries no personal information.
+- **App:**
+  - register with an interactive schematic layout;
+  - site record and history;
+  - sale workflow, receipts and cancellation;
+  - rights holders and burial register;
+  - `/cemetery/reports` (12 months or a year, with month drill-down);
+  - dashboard cemetery panel with income streams kept separate.
+- **Existing reporting:**
+  - Dashboard: "Last 12 months", month and year filters, and a 12-month chart.
+  - Reports: a 12-month "Monthly performance" table.
+- **Demo:** "Proplyst Property & Cemetery Demo", login `cemetery.demo@proplyst.co.za`.
+  - `proplyst.co.za` has no MX record, so the login is created pre-confirmed and its password goes only to a
+    git-ignored `*.local` file.
+  - One year of history, defined in `scripts/cemetery-demo/plan.ts` and replayed through the app's own functions:
+    - rent journals are dated on the due and paid dates;
+    - expenses are posted on their own date;
+    - the provisioner asserts the books reconcile before finishing.
+  - It is idempotent: CI runs it twice, and the second run must change nothing.
+
+**Defects found by testing (all fixed):**
+- **Privacy:** the generic audit trigger would have copied purchaser and burial details into `audit_events`, which
+  every member (viewer+) can read. Cemetery tables now use a field-whitelisting audit trigger, guarded by a pgTAP
+  check.
+- **Accountants could not receipt payments:** the payment trigger's row lock needed update rights. It is now
+  `SECURITY DEFINER`, with its own organisation and role check.
+- **Payment edits were silently ignored rather than refused:** schema default privileges grant ALL to
+  `authenticated`. Privileges are now explicit.
+- **Missing chart of accounts:** an organisation created without `create_organization()` gets no chart of accounts.
+  The seeder now seeds it.
+- **Visual QA from CI screenshots:**
+  - the product tour and getting-started checklist appeared on a year-old demo organisation;
+  - the month-end site columns wrapped into an unreadable stack;
+  - the Reports table was cut off at a 1280 px viewport;
+  - the cemetery chart's animation was captured mid-draw.
+
+**Production defect found (read-only), fix ready as migration 185:**
+- `invoice_number_seq` = 3 while INV-001865 to INV-002296 exist. The marketing-demo copy script copied
+  `invoice_number`, and the UAT portfolio holds INV-000003 to INV-000007.
+- The next rent invoice for any organisation would fail; none has been created since 2026-09-08.
+- Migration 185 resyncs the sequence and skips taken numbers. It was rehearsed after resetting the sequence to 3 on a
+  production-data copy.
+
+**Verification:**
+
+| Where | What ran | Result |
+| --- | --- | --- |
+| Disposable stack (production-data copy) | migrations 184 + 185 apply, 184 rollback, re-apply | rollback schema identical to pre-184 except 185's intended change |
+| Disposable stack | pgTAP | 68/68 (cemetery) and 3/3 (invoice numbering) |
+| Disposable stack | provisioner | reconciles: rent R2,896,250 invoiced = AR journals; R2,779,575 received = bank journals; expenses R783,924 = journals; cemetery R985,863.34 = per-sale totals. Second run: no changes |
+| Local | unit tests | plan 7, reports 3, metrics 4, periods 3, KPI 13 |
+| CI | static | lint, typecheck, build: pass |
+| CI | pgTAP | 106 files / 1,724 assertions: pass |
+| CI | vitest | 222 files: 1,618 tests pass, 3 skipped |
+| CI | Playwright, final run `40406265182` (2026-10-26) | whole app **93/93**, no retries: cemetery journey + isolation, and the 4 demo-year specs as the demo login |
+
+**Not verified:**
+- No local browser run: this laptop has about 400 MB free, and Docker Desktop crashed once under load. It was
+  restarted, along with the 5 containers of other projects that had been running.
+- Nothing has been run against production except read-only queries.
+
+**Next:** owner approvals listed in the deployment plan.
+
 ## 2026-10-12 (later) — Utilities Phase 3 validation: scale, reconciliation, journeys (autonomous)
 
 Full report: `docs/UTILITIES_PHASE3_VALIDATION_REPORT.md`. GO/NO-GO: `docs/UTILITIES_PRODUCTION_GO_NO_GO.md`.
