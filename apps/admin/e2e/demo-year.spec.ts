@@ -32,6 +32,7 @@ async function login(page: Page) {
 
 const shot = async (page: Page, name: string) => {
   fs.mkdirSync(SHOTS, { recursive: true });
+  await page.waitForTimeout(2_000); // let chart entry animations finish so the evidence shows the full series
   await page.screenshot({ path: path.join(SHOTS, `${name}.png`), fullPage: true });
 };
 
@@ -65,7 +66,7 @@ test.describe.serial('demo year of operations', () => {
     await slowExpect(panel).toBeVisible();
     await expect(panel.locator('tbody tr')).toHaveCount(12);
     await expect(panel.getByRole('link', { name: 'Nov 2025' })).toBeVisible();
-    await expect(panel.getByText('12 months')).toBeVisible();
+    await expect(panel.getByRole('cell', { name: '12 months' })).toBeVisible();
     await shot(page, '03-reports');
     await panel.getByRole('link', { name: 'Feb 2026' }).click();
     await slowExpect(page.getByText(/performing in February 2026/)).toBeVisible();

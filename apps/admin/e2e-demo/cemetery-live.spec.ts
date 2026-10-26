@@ -2,8 +2,8 @@ import { test, expect, type Page } from '@playwright/test';
 
 // Cemetery + property demo, end to end, against the DEPLOYED site (playwright.demo.config.ts), logged in as the demo
 // organisation "Proplyst Property & Cemetery Demo" (docs/CEMETERY_MANAGEMENT.md). Writes ONLY inside that fictional
-// organisation's demo cemetery: one demo-flagged grant of rights with a deposit and a payment (receipted), and a
-// reservation that is released again. Refusal checks (double sale, overpayment) write nothing.
+// organisation's demo cemetery: a reservation that is released again, and — only with LIVE_TEST_SALE=1 — one
+// demo-flagged grant with a deposit and a payment that is then cancelled. Refusal checks write nothing.
 //   DEMO_BASE_URL=https://proplyst.co.za DEMO_LOGIN_EMAIL=... DEMO_LOGIN_PASSWORD=... [DEMO_FOREIGN_PROPERTY_ID=...]
 //   npx playwright test -c playwright.demo.config.ts e2e-demo/cemetery-live.spec.ts
 
@@ -102,33 +102,56 @@ test('cemetery register: 120 sites, layout details, search and filters', async (
   await noErrorBanner(page);
 });
 
-test('live sale workflow on the demo cemetery: grant, deposit, payment, receipt; refusals; reserve and release', async ({
+test('a year of history: dashboard filters, Reports, cemetery reports, a settled plan and cancellations', async ({
   page,
 }) => {
   await login(page);
+  await page.goto('/dashboard?period=last_12_months');
+  await slow()(page.getByText(/performing in the last 12 months/)).toBeVisible();
+  await page.goto('/dashboard?period=custom&from=2026-03-01&to=2026-03-31');
+  await slow()(page.getByText(/performing in March 2026/)).toBeVisible();
+  await page.goto('/reports');
+  const monthly = page
+    .locator('section')
+    .filter({ has: page.getByRole('heading', { name: 'Monthly performance' }) });
+  await slow()(monthly.locator('tbody tr')).toHaveCount(12);
+  await page.goto('/cemetery/reports');
+  const breakdown = page
+    .locator('section')
+    .filter({ has: page.getByRole('heading', { name: 'Monthly breakdown' }) });
+  await slow()(breakdown.locator('tbody tr')).toHaveCount(12);
+  await page.getByLabel('Inspect month').selectOption('2026-02');
+  await slow()(page.getByRole('heading', { name: 'Transactions in February 2026' })).toBeVisible();
+  await page.goto('/cemetery/sales?filter=cancelled');
+  await slow()(page.locator('tbody tr').first()).toBeVisible();
+  expect(await page.locator('tbody tr').count()).toBeGreaterThanOrEqual(3);
+  await page.goto('/cemetery/purchasers');
+  await page.getByRole('link', { name: 'Kavitha Moodley' }).click();
+  const payments = page
+    .locator('section')
+    .filter({ has: page.getByRole('heading', { name: 'Payment history' }) });
+  await slow()(payments.locator('tbody tr')).toHaveCount(7);
+  await noErrorBanner(page);
+});
+
+test('live write checks on the demo cemetery: refusals, reserve and release; optional test sale', async ({
+  page,
+}) => {
+  await login(page);
+  const origin = { Origin: process.env.DEMO_BASE_URL! };
+  // A sold site cannot be sold again; nothing is written.
   await page.goto('/cemetery');
   await slow()(page.getByRole('heading', { name: 'Greenfields Memorial Gardens' })).toBeVisible();
-  const available = page.getByRole('button', { name: /^C-\d{3}: Available/ });
-  const reference = ((await available.first().getAttribute('aria-label')) ?? '').split(':')[0]!;
-  await available.first().click();
-  await page.locator('aside').getByRole('link', { name: 'Grant rights' }).click(); // the site panel's link, not the header button
-  await slow()(page.getByRole('heading', { name: /New grant of rights/ })).toBeVisible();
-  await page.getByRole('radio', { name: /New rights holder/ }).click();
-  await page.getByLabel('Full name').fill('Live Verification Holder (fictional)');
-  await page.getByLabel('Deposit / payment received now (ZAR)').fill('3000');
-  await page.getByRole('button', { name: 'Record grant of rights' }).click();
-  await slow()(page.getByText('Grant of burial rights recorded.')).toBeVisible();
-  await expect(page.getByText('DEMONSTRATION — not a real transaction')).toBeVisible();
-  const saleId = page.url().split('/cemetery/sales/')[1]!.split('?')[0]!;
-  const siteHref = (await page
-    .getByRole('link', { name: new RegExp(`Grave site ${reference}`) })
-    .getAttribute('href'))!;
-  const siteId = siteHref.split('/').pop()!;
-
+  await page.getByRole('button', { name: /^A-001:/ }).click();
+  const soldSiteId = (await page
+    .getByRole('link', { name: 'Open site record' })
+    .getAttribute('href'))!
+    .split('/')
+    .pop()!;
   const again = await page.request.post('/api/v1/cemetery/sales', {
-    headers: { Origin: process.env.DEMO_BASE_URL! },
+    headers: origin,
     data: {
-      siteId,
+      siteId: soldSiteId,
       newPurchaser: { fullName: 'Second buyer (fictional)' },
       price: 1000,
       saleDate: '2026-10-26',
@@ -136,19 +159,20 @@ test('live sale workflow on the demo cemetery: grant, deposit, payment, receipt;
     },
   });
   expect(again.status(), 'a sold site cannot be sold again').toBe(409);
-  const over = await page.request.post(`/api/v1/cemetery/sales/${saleId}/payments`, {
-    headers: { Origin: process.env.DEMO_BASE_URL! },
+  // No payment above a balance; nothing is written.
+  await page.goto('/cemetery/sales?filter=outstanding');
+  await page
+    .getByRole('link', { name: /GS-\d{6}/ })
+    .first()
+    .click();
+  const owingSaleId = page.url().split('/cemetery/sales/')[1]!.split('?')[0]!;
+  const over = await page.request.post(`/api/v1/cemetery/sales/${owingSaleId}/payments`, {
+    headers: origin,
     data: { amount: 99_999_999, paidOn: '2026-10-26', method: 'eft' },
   });
   expect(over.status(), 'no payment above the balance').toBe(409);
 
-  await page.getByLabel('Amount received (ZAR)').fill('1000');
-  await page.getByRole('button', { name: 'Record payment & issue receipt' }).click();
-  await slow()(page.getByRole('heading', { name: 'Receipt' })).toBeVisible();
-  await expect(page.getByText(/DEMONSTRATION RECEIPT/)).toBeVisible();
-  await expect(page.getByText(money('1 000,00')).first()).toBeVisible();
-
-  // Reserve an available site and release it again (net zero).
+  // Reserve an available site for an existing rights holder and release it again (net zero).
   await page.goto('/cemetery');
   const next = page.getByRole('button', { name: /^C-\d{3}: Available/ }).first();
   await slow()(next).toBeVisible();
@@ -156,19 +180,51 @@ test('live sale workflow on the demo cemetery: grant, deposit, payment, receipt;
   await page.getByRole('link', { name: 'Open site record' }).click();
   await slow()(page.getByRole('button', { name: 'Reserve' })).toBeVisible();
   await page.getByRole('button', { name: 'Reserve' }).click();
-  await page
-    .getByLabel('For rights holder')
-    .selectOption({ label: 'Live Verification Holder (fictional)' });
+  await page.getByLabel('For rights holder').selectOption({ label: 'Priya Naidoo' });
   await page.getByRole('button', { name: 'Reserve site' }).click();
   await slow()(page.getByRole('button', { name: 'Release reservation' })).toBeVisible();
   await page.getByRole('button', { name: 'Release reservation' }).click();
   await slow()(page.getByRole('button', { name: 'Reserve' })).toBeVisible();
+
+  // Optional (LIVE_TEST_SALE=1, owner-approved): a full grant -> deposit -> payment -> receipt on the live site,
+  // cancelled again at the end so the site is free. It stays visible as a cancelled sale.
+  if (process.env.LIVE_TEST_SALE === '1') {
+    await page.goto('/cemetery');
+    const site = page.getByRole('button', { name: /^C-\d{3}: Available/ }).first();
+    await site.click();
+    await page.locator('aside').getByRole('link', { name: 'Grant rights' }).click();
+    await slow()(page.getByRole('heading', { name: /New grant of rights/ })).toBeVisible();
+    await page.getByRole('radio', { name: /New rights holder/ }).click();
+    await page.getByLabel('Full name').fill('Deployment Check (fictional)');
+    await page.getByLabel('Deposit / payment received now (ZAR)').fill('3000');
+    await page.getByRole('button', { name: 'Record grant of rights' }).click();
+    await slow()(page.getByText('Grant of burial rights recorded.')).toBeVisible();
+    await expect(page.getByText('DEMONSTRATION — not a real transaction')).toBeVisible();
+    const saleUrl = page.url().split('?')[0]!;
+    await page.getByLabel('Amount received (ZAR)').fill('1000');
+    await page.getByRole('button', { name: 'Record payment & issue receipt' }).click();
+    await slow()(page.getByRole('heading', { name: 'Receipt' })).toBeVisible();
+    await expect(page.getByText(/DEMONSTRATION RECEIPT/)).toBeVisible();
+    await expect(page.getByText(money('1 000,00')).first()).toBeVisible();
+    await page.goto(saleUrl);
+    await page.getByRole('button', { name: 'Cancel grant' }).click();
+    await page.getByLabel('Reason for cancellation').fill('Live deployment check (fictional)');
+    await page.getByRole('button', { name: 'Confirm cancellation' }).click();
+    await slow()(page.getByText(/^CANCELLED /)).toBeVisible();
+  }
   await noErrorBanner(page);
 });
 
 test('responsive: the cemetery layout fits a phone and a site opens', async ({ page }) => {
   await login(page);
-  for (const url of ['/cemetery', '/cemetery/sales', '/cemetery/purchasers', '/dashboard']) {
+  for (const url of [
+    '/cemetery',
+    '/cemetery/sales',
+    '/cemetery/purchasers',
+    '/cemetery/reports',
+    '/dashboard',
+    '/reports',
+  ]) {
     await page.goto(url);
     await page.waitForLoadState('networkidle');
     const overflow = await page.evaluate(

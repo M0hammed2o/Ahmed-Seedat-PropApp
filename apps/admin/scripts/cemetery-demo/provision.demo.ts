@@ -282,16 +282,14 @@ describe.skipIf(!CONFIGURED)(
         )) as { id: string };
         await must(
           'subscription',
-          db
-            .from('organization_subscriptions')
-            .insert({
-              org_id: orgId,
-              plan_id: plan.id,
-              billing_cycle: 'annual',
-              current_period_start: today,
-              current_period_end: addDays(today, 365),
-              status: 'active',
-            }),
+          db.from('organization_subscriptions').insert({
+            org_id: orgId,
+            plan_id: plan.id,
+            billing_cycle: 'annual',
+            current_period_start: today,
+            current_period_end: addDays(today, 365),
+            status: 'active',
+          }),
         );
         bump('organization_subscriptions'); // demo account: no PayFast contact, no payment method, nothing is charged
       }
@@ -303,6 +301,38 @@ describe.skipIf(!CONFIGURED)(
       if (!coa) {
         await must('chart of accounts', db.rpc('seed_chart_of_accounts', { p_org_id: orgId }));
         bump('chart_of_accounts');
+      }
+      // An organisation that has used Proplyst for a year has long finished first-use onboarding: no getting-started
+      // checklist and no product tour in the demo (this organisation's own onboarding row only).
+      {
+        const since = `${HISTORY_START}T09:00:00+02:00`;
+        const keys = [
+          'staff_step_skipped_at',
+          'viewed_payments_intro_at',
+          'viewed_documents_intro_at',
+          'walkthrough_completed_at',
+        ];
+        const { data: ob } = await db
+          .from('organization_onboarding_state')
+          .select('*')
+          .eq('org_id', orgId)
+          .maybeSingle();
+        const fill = Object.fromEntries(
+          keys.filter((k) => !(ob as Record<string, unknown> | null)?.[k]).map((k) => [k, since]),
+        );
+        if (!ob) {
+          await must(
+            'onboarding',
+            db.from('organization_onboarding_state').insert({ org_id: orgId, ...fill }),
+          );
+          bump('organization_onboarding_state');
+        } else if (Object.keys(fill).length) {
+          await must(
+            'onboarding',
+            db.from('organization_onboarding_state').update(fill).eq('org_id', orgId),
+          );
+          bump('organization_onboarding_state');
+        }
       }
       const accounts = (await must(
         'accounts',
@@ -351,7 +381,21 @@ describe.skipIf(!CONFIGURED)(
             property_type: p.type,
             notes: 'Fictional demonstration property.',
             owner_user_id: userId,
+            estimated_value: p.key === 'res' ? 18_500_000 : 32_000_000,
+            estimated_value_as_of: '2026-07-01',
+            estimated_value_updated_by: userId,
           },
+        );
+        await must(
+          'valuation',
+          db
+            .from('properties')
+            .update({
+              estimated_value: p.key === 'res' ? 18_500_000 : 32_000_000,
+              estimated_value_as_of: '2026-07-01',
+            })
+            .eq('id', propertyId[p.key])
+            .is('estimated_value', null),
         );
         for (const u of p.units) {
           const unitId = await ensure(
@@ -596,7 +640,10 @@ describe.skipIf(!CONFIGURED)(
           notes: 'Fictional demonstration cemetery. Schematic layout only.',
         },
       );
-      await must('demo flag', db.from('cemeteries').update({ is_demo: true }).eq('id', cemeteryId));
+      await must(
+        'demo flag',
+        db.from('cemeteries').update({ is_demo: true }).eq('id', cemeteryId).eq('is_demo', false),
+      );
       const plan = cemeteryPlan(today);
       for (const [i, code] of (['A', 'B', 'C'] as const).entries()) {
         const sectionId = await ensure(
@@ -620,7 +667,7 @@ describe.skipIf(!CONFIGURED)(
           await call<number>(user, 'cemetery_generate_sites', {
             p_section_id: sectionId,
             p_count: 40,
-            p_list_price: listPrice(`${code}-001`, HISTORY_START),
+            p_list_price: listPrice(`${code}-001`, today),
             p_length_m: 2.4,
             p_width_m: 1.2,
           }),
@@ -640,7 +687,12 @@ describe.skipIf(!CONFIGURED)(
             'double site',
             db
               .from('cemetery_sites')
-              .update({ site_type: 'double', max_interments: 2, width_m: 1.4 })
+              .update({
+                site_type: 'double',
+                max_interments: 2,
+                width_m: 1.4,
+                list_price: listPrice(s, today),
+              })
               .eq('id', siteId.get(s)!),
           );
       }
@@ -650,7 +702,12 @@ describe.skipIf(!CONFIGURED)(
             'cremation site',
             db
               .from('cemetery_sites')
-              .update({ site_type: 'cremation', length_m: 1, width_m: 1 })
+              .update({
+                site_type: 'cremation',
+                length_m: 1,
+                width_m: 1,
+                list_price: listPrice(s, today),
+              })
               .eq('id', siteId.get(s)!),
           );
       }
