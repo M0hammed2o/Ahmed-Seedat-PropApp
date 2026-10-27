@@ -1,5 +1,69 @@
 # Worklog
 
+## 2026-10-27 — Cemetery Management + demo year DEPLOYED to production (owner-approved items 1–4; item 4 = reserve/release only)
+
+**Deployed:**
+- `main` was fast-forwarded `0e0df7f` → `fd250a2` at 13:07 SAST. That is exactly the commit that staging CI run `40490208536` passed.
+- The new build was serving 215 s later. Render has no API key on this machine, so the deploy was detected when
+  `POST /api/v1/cemetery/purchasers` changed from 404 to 401.
+- Migrations 184 and 185 were applied with `supabase db push` after a dry-run listed exactly those two. Head is now 185.
+  `cemetery_enabled` is false for all 16 existing organisations. `invoice_number_seq` went from 3 to 2296, and the demo's
+  rent invoices are numbered INV-002297 to INV-002486 with no duplicate numbers.
+- **Backup:** daily backup `2026-10-27T00:47Z` COMPLETED; PITR is off.
+
+**Blocker found before deploy, and fixed:**
+- Staging CI on the docs-only commit `9921d96` failed when it ran at 00:10 SAST.
+- Cause: pgTAP and the browser specs used UTC dates (`current_date`, and a hard-coded `'2026-10-26'`), but the module
+  enforces chronology against `cemetery_today()` (Africa/Johannesburg).
+- `fd250a2` fixes it:
+  - the `sale_date` and `paid_on` defaults in 184 use the SAST date;
+  - the tests use the SAST date.
+- **Regression proof:** the old test aborts under session time zone UTC+14. The new test passes 68/68 under UTC+14,
+  UTC and Africa/Johannesburg.
+- CI on `fd250a2`:
+  - pgTAP 1,724;
+  - vitest 1,618 passed, 3 skipped;
+  - the demo provisioner twice;
+  - Playwright 93/93 with no retries.
+
+**Demo in production:**
+- Organisation `9dfbccef-…`, login `cemetery.demo@proplyst.co.za`.
+- The password is only in the git-ignored `PropValt-cemetery/.env.cemetery-demo.local`.
+- The provisioner's first run created the same totals as the local rehearsal and reconciled to the cent:
+  - rent invoiced R2,896,250 = AR journals;
+  - rent received R2,779,575 = bank journals;
+  - expenses R783,924 = journals;
+  - cemetery receipts R985,863.34 = per-sale paid totals (R973,363.34 active + R12,500 kept on 3 cancelled sales);
+  - cemetery outstanding R79,686.66.
+- The second run (`CEMDEMO_EXPECT_NO_CHANGES=1`) created nothing.
+
+**Live verification on `https://proplyst.co.za`:**
+- `e2e-demo/cemetery-live.spec.ts`, as the demo login:
+  - passed: dashboard, residential and commercial properties, the register of 120 sites, the year of history, reports
+    and phone layout;
+  - the write checks passed after two test-only fixes. One was a race on reading the URL; the other was an inexact
+    "Reserve" locator.
+  - Those checks: double sale → 409, overpayment → 409, reserve then release (2 history rows).
+  - Afterwards the database showed no test rows, 56 holders, 79 sales, 225 receipts, and statuses back to
+    29/10/76/5.
+- New spec `e2e-demo/cemetery-existing-org.spec.ts`, as the marketing demo organisation (cemetery off), 2/2 passed:
+  - no cemetery navigation or panel;
+  - `/cemetery*` returns 404 and the cemetery API returns 403 `cemetery_unavailable`;
+  - the dashboard, properties, units, tenants, leases, maintenance, accounting and reports all load, and the 12-month
+    table renders.
+- **UAT owner login:** stops at the Terms v1.1 consent gate. This is its existing state, not a regression (this release
+  changes no legal or consent code), and its consent was not given on its behalf.
+- **Database isolation:** as each of the 12 active members of existing organisations, in an uncommitted transaction,
+  each saw 0 cemetery rows, 0 cemetery audit rows and 0 demo properties.
+- **Existing-data fingerprint:** 18 tables, including the auth password hashes, e-mail and WhatsApp counts. It was
+  identical before the migrations, after them, after provisioning, and after the live tests.
+
+**Not done:**
+- No live test sale (owner chose reserve/release).
+- Render's dashboard and logs were not inspected (no API key).
+- This record and the two spec changes are on `feature/cemetery-management` / `staging/cemetery-management` only, so
+  that `main` stays on the CI-verified deployed commit.
+
 ## 2026-10-26 — Cemetery Management module, one-year property + cemetery demo, invoice-number defect (autonomous; NOT deployed)
 
 Module reference: `docs/CEMETERY_MANAGEMENT.md`. Approval plan: `docs/CEMETERY_DEPLOYMENT_PLAN_2026-10-26.md`.

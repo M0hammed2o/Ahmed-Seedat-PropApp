@@ -167,6 +167,7 @@ test('live write checks on the demo cemetery: refusals, reserve and release; opt
     .getByRole('link', { name: /GS-\d{6}/ })
     .first()
     .click();
+  await page.waitForURL(/\/cemetery\/sales\/[0-9a-f-]{36}/);
   const owingSaleId = page.url().split('/cemetery/sales/')[1]!.split('?')[0]!;
   const over = await page.request.post(`/api/v1/cemetery/sales/${owingSaleId}/payments`, {
     headers: origin,
@@ -180,13 +181,15 @@ test('live write checks on the demo cemetery: refusals, reserve and release; opt
   await slow()(next).toBeVisible();
   await next.click();
   await page.getByRole('link', { name: 'Open site record' }).click();
-  await slow()(page.getByRole('button', { name: 'Reserve' })).toBeVisible();
-  await page.getByRole('button', { name: 'Reserve' }).click();
+  await page.waitForURL(/\/cemetery\/sites\/[0-9a-f-]{36}/);
+  const reserve = page.getByRole('button', { name: 'Reserve', exact: true });
+  await slow()(reserve).toBeVisible();
+  await reserve.click();
   await page.getByLabel('For rights holder').selectOption({ label: 'Priya Naidoo' });
-  await page.getByRole('button', { name: 'Reserve site' }).click();
+  await page.getByRole('button', { name: 'Reserve site', exact: true }).click();
   await slow()(page.getByRole('button', { name: 'Release reservation' })).toBeVisible();
   await page.getByRole('button', { name: 'Release reservation' }).click();
-  await slow()(page.getByRole('button', { name: 'Reserve' })).toBeVisible();
+  await slow()(reserve).toBeVisible();
 
   // Optional (LIVE_TEST_SALE=1, owner-approved): a full grant -> deposit -> payment -> receipt on the live site,
   // cancelled again at the end so the site is free. It stays visible as a cancelled sale.

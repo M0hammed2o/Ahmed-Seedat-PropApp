@@ -1,6 +1,11 @@
 # Production deployment plan — Cemetery Management + demo year (prepared 2026-10-26)
 
-**Status: awaiting owner approval. Nothing below has been run against production.**
+**Status: EXECUTED 2026-10-27.**
+- The owner approved decisions 1–3. Decision 4 was limited to reserve and release, so there was no live test sale.
+- Deployed commit: `fd250a2`.
+- Production migration head: 185.
+- Demo organisation provisioned and verified live.
+- Results: see the 2026-10-27 entry in `WORKLOG.md`.
 
 ## What changes
 
