@@ -20,6 +20,8 @@ fs.mkdirSync(SHOTS, { recursive: true });
 const shot = (page: Page, name: string) =>
   page.screenshot({ path: path.join(SHOTS, `${name}.png`), fullPage: true });
 const money = (n: string) => new RegExp(`R\\s?${n.replace(/ /g, '\\s?')}`);
+// Today's business date in South Africa (the database refuses anything dated after it, and orders site history by it).
+const TODAY = new Date(Date.now() + 2 * 3_600_000).toISOString().slice(0, 10);
 
 /** Cemetery Management is OFF for every organisation (migration 184); switched on per organisation by the owner. */
 async function enableCemeteryForTests(orgId: string) {
@@ -105,14 +107,14 @@ test.describe.serial('Cemetery Management', () => {
         siteId: shared.siteA1,
         purchaserId: shared.purchaser,
         price: 1000,
-        saleDate: '2026-10-26',
+        saleDate: TODAY,
         deposit: 0,
       },
     });
     expect(again.status()).toBe(409);
     const over = await page.request.post(`/api/v1/cemetery/sales/${shared.saleA1}/payments`, {
       headers: { Origin: BASE_URL },
-      data: { amount: 10000.01, paidOn: '2026-10-26', method: 'eft' },
+      data: { amount: 10000.01, paidOn: TODAY, method: 'eft' },
     });
     expect(over.status()).toBe(409);
     expect((await over.json()).error.code).toBe('cemetery_payment_exceeds_balance');
@@ -199,7 +201,7 @@ test.describe.serial('Cemetery Management', () => {
         siteId: a4Id,
         purchaserId: shared.purchaser,
         price: 15000,
-        saleDate: '2026-10-26',
+        saleDate: TODAY,
         deposit: 2000,
       },
     });
@@ -296,7 +298,7 @@ test.describe.serial('Cemetery Management', () => {
     await expectNotFound(other, `/cemetery/purchasers/${shared.purchaser}`);
     const pay = await other.request.post(`/api/v1/cemetery/sales/${shared.saleA1}/payments`, {
       headers: { Origin: BASE_URL },
-      data: { amount: 1, paidOn: '2026-10-26', method: 'cash' },
+      data: { amount: 1, paidOn: TODAY, method: 'cash' },
     });
     expect(pay.status()).toBe(404);
     const sell = await other.request.post('/api/v1/cemetery/sales', {
@@ -305,7 +307,7 @@ test.describe.serial('Cemetery Management', () => {
         siteId: shared.siteA1,
         newPurchaser: { fullName: 'Intruder' },
         price: 100,
-        saleDate: '2026-10-26',
+        saleDate: TODAY,
         deposit: 0,
       },
     });

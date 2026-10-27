@@ -151,7 +151,7 @@ create table public.cemetery_sales (
   sale_number text not null default ('GS-' || lpad(nextval('public.cemetery_sale_number_seq')::text, 6, '0')) unique,
   -- Snapshot of the cemetery's tenure model at the time of sale (terminology on the sale record).
   tenure_model public.cemetery_tenure_model not null,
-  sale_date date not null default current_date,
+  sale_date date not null default (now() at time zone 'Africa/Johannesburg')::date,
   price numeric(12, 2) not null check (price > 0),
   status public.cemetery_sale_status not null default 'active',
   is_demo boolean not null default false,
@@ -179,7 +179,7 @@ create table public.cemetery_payments (
   sale_id uuid not null,
   receipt_number text not null default ('GR-' || lpad(nextval('public.cemetery_receipt_number_seq')::text, 6, '0')) unique,
   amount numeric(12, 2) not null check (amount > 0),
-  paid_on date not null default current_date,
+  paid_on date not null default (now() at time zone 'Africa/Johannesburg')::date,
   method public.payment_method not null,
   reference text check (reference is null or length(reference) <= 120),
   is_deposit boolean not null default false,

@@ -121,7 +121,7 @@ set local "request.jwt.claim.sub" = 'ce000000-0000-0000-0000-000000000002';
 select ok(
   (public.cemetery_record_sale(
      (select id from public.cemetery_sites where reference = 'A-001'), 'cece3000-0000-0000-0000-000000000001',
-     12000, current_date, 3000, 'eft', 'DEP-1') ->> 'receipt_number') like 'GR-%',
+     12000, public.cemetery_today(), 3000, 'eft', 'DEP-1') ->> 'receipt_number') like 'GR-%',
   'record_sale with a deposit returns a receipt number'
 );
 select is((select sale_status::text from public.cemetery_sites where reference = 'A-001'), 'sold', 'the sold site is marked sold');
@@ -151,7 +151,7 @@ select throws_like(
   'cemetery_payment_exceeds_balance%', 'a payment above the balance due is refused'
 );
 select lives_ok(
-  $$select public.cemetery_record_payment((select s.id from public.cemetery_sales s join public.cemetery_sites t on t.id = s.site_id where t.reference = 'A-001'), 4000, current_date, 'cash')$$,
+  $$select public.cemetery_record_payment((select s.id from public.cemetery_sales s join public.cemetery_sites t on t.id = s.site_id where t.reference = 'A-001'), 4000, public.cemetery_today(), 'cash')$$,
   'a part payment is accepted'
 );
 select throws_ok(
@@ -177,7 +177,7 @@ select throws_like(
 
 -- reservations
 select lives_ok(
-  $$select public.cemetery_reserve_site((select id from public.cemetery_sites where reference = 'A-003'), 'cece3000-0000-0000-0000-000000000001', current_date + 30)$$,
+  $$select public.cemetery_reserve_site((select id from public.cemetery_sites where reference = 'A-003'), 'cece3000-0000-0000-0000-000000000001', public.cemetery_today() + 30)$$,
   'an available site can be reserved'
 );
 select throws_like(
@@ -185,7 +185,7 @@ select throws_like(
   'cemetery_site_reserved_for_other%', 'a site reserved for one purchaser cannot be sold to another'
 );
 select lives_ok(
-  $$select public.cemetery_record_sale((select id from public.cemetery_sites where reference = 'A-003'), 'cece3000-0000-0000-0000-000000000001', 9000, current_date, 9000, 'card')$$,
+  $$select public.cemetery_record_sale((select id from public.cemetery_sites where reference = 'A-003'), 'cece3000-0000-0000-0000-000000000001', 9000, public.cemetery_today(), 9000, 'card')$$,
   'the reserved site can be sold to its own purchaser, fully paid'
 );
 select is(
@@ -199,16 +199,16 @@ select is(
 
 -- burials
 select throws_like(
-  $$select public.cemetery_record_burial((select id from public.cemetery_sites where reference = 'A-002'), 'Test Person', current_date)$$,
+  $$select public.cemetery_record_burial((select id from public.cemetery_sites where reference = 'A-002'), 'Test Person', public.cemetery_today())$$,
   'cemetery_site_not_sold%', 'no burial on a site without granted rights'
 );
 select lives_ok(
-  $$select public.cemetery_record_burial((select id from public.cemetery_sites where reference = 'A-001'), 'Test Person', current_date, current_date - 4)$$,
+  $$select public.cemetery_record_burial((select id from public.cemetery_sites where reference = 'A-001'), 'Test Person', public.cemetery_today(), public.cemetery_today() - 4)$$,
   'a burial is recorded on a sold site'
 );
 select is((select burial_status::text from public.cemetery_sites where reference = 'A-001'), 'occupied', 'the burial marks the site occupied');
 select throws_like(
-  $$select public.cemetery_record_burial((select id from public.cemetery_sites where reference = 'A-001'), 'Second Person', current_date)$$,
+  $$select public.cemetery_record_burial((select id from public.cemetery_sites where reference = 'A-001'), 'Second Person', public.cemetery_today())$$,
   'cemetery_site_full%', 'max_interments is enforced'
 );
 
@@ -227,7 +227,7 @@ reset role;
 set local role authenticated;
 set local "request.jwt.claim.sub" = 'ce000000-0000-0000-0000-000000000003';
 select lives_ok(
-  $$select public.cemetery_record_payment((select s.id from public.cemetery_sales s join public.cemetery_sites t on t.id = s.site_id where t.reference = 'A-001'), 5000, current_date, 'eft')$$,
+  $$select public.cemetery_record_payment((select s.id from public.cemetery_sales s join public.cemetery_sites t on t.id = s.site_id where t.reference = 'A-001'), 5000, public.cemetery_today(), 'eft')$$,
   'an accountant can record a payment (settles the balance)'
 );
 
@@ -246,36 +246,36 @@ select is(
   'reserved,sold', 'a reservation followed by its sale is recorded in order'
 );
 select throws_like(
-  $$select public.cemetery_record_sale((select id from public.cemetery_sites where reference = 'A-005'), 'cece3000-0000-0000-0000-000000000001', 9000, current_date + 5)$$,
+  $$select public.cemetery_record_sale((select id from public.cemetery_sites where reference = 'A-005'), 'cece3000-0000-0000-0000-000000000001', 9000, public.cemetery_today() + 5)$$,
   'cemetery_future_date%', 'a sale cannot be dated in the future'
 );
 select lives_ok(
-  $$select public.cemetery_reserve_site((select id from public.cemetery_sites where reference = 'A-006'), 'cece3000-0000-0000-0000-000000000001', null, null, current_date - 3)$$,
+  $$select public.cemetery_reserve_site((select id from public.cemetery_sites where reference = 'A-006'), 'cece3000-0000-0000-0000-000000000001', null, null, public.cemetery_today() - 3)$$,
   'a reservation can be recorded with the date it was made'
 );
 select is(
   (select e.event_date from public.cemetery_site_events e join public.cemetery_sites t on t.id = e.site_id
     where t.reference = 'A-006' and e.event_type = 'reserved'),
-  current_date - 3, 'the history carries the reservation''s effective date'
+  public.cemetery_today() - 3, 'the history carries the reservation''s effective date'
 );
 select throws_like(
-  $$select public.cemetery_record_sale((select id from public.cemetery_sites where reference = 'A-006'), 'cece3000-0000-0000-0000-000000000001', 9000, current_date - 10)$$,
+  $$select public.cemetery_record_sale((select id from public.cemetery_sites where reference = 'A-006'), 'cece3000-0000-0000-0000-000000000001', 9000, public.cemetery_today() - 10)$$,
   'cemetery_out_of_order%', 'a sale cannot be dated before the site''s reservation'
 );
 select throws_like(
-  $$select public.cemetery_release_reservation((select id from public.cemetery_sites where reference = 'A-006'), current_date - 4)$$,
+  $$select public.cemetery_release_reservation((select id from public.cemetery_sites where reference = 'A-006'), public.cemetery_today() - 4)$$,
   'cemetery_out_of_order%', 'a reservation cannot be released before it was made'
 );
 select lives_ok(
-  $$select public.cemetery_record_sale((select id from public.cemetery_sites where reference = 'A-007'), 'cece3000-0000-0000-0000-000000000001', 8000, current_date - 5, 2000)$$,
+  $$select public.cemetery_record_sale((select id from public.cemetery_sites where reference = 'A-007'), 'cece3000-0000-0000-0000-000000000001', 8000, public.cemetery_today() - 5, 2000)$$,
   'a back-dated sale with a deposit is accepted'
 );
 select throws_like(
-  $$select public.cemetery_record_payment((select s.id from public.cemetery_sales s join public.cemetery_sites t on t.id = s.site_id where t.reference = 'A-007'), 100, current_date - 6)$$,
+  $$select public.cemetery_record_payment((select s.id from public.cemetery_sales s join public.cemetery_sites t on t.id = s.site_id where t.reference = 'A-007'), 100, public.cemetery_today() - 6)$$,
   'cemetery_payment_before_sale%', 'a payment cannot be dated before its sale'
 );
 select throws_like(
-  $$select public.cemetery_record_payment((select s.id from public.cemetery_sales s join public.cemetery_sites t on t.id = s.site_id where t.reference = 'A-007'), 100, current_date + 2)$$,
+  $$select public.cemetery_record_payment((select s.id from public.cemetery_sales s join public.cemetery_sites t on t.id = s.site_id where t.reference = 'A-007'), 100, public.cemetery_today() + 2)$$,
   'cemetery_future_date%', 'a payment cannot be dated in the future'
 );
 select throws_like(
@@ -287,7 +287,7 @@ select throws_like(
   'cemetery_reason_required%', 'a cancellation needs a reason'
 );
 select lives_ok(
-  $$select public.cemetery_cancel_sale((select s.id from public.cemetery_sales s join public.cemetery_sites t on t.id = s.site_id where t.reference = 'A-007'), 'Purchaser emigrated; deposit retained', current_date - 1)$$,
+  $$select public.cemetery_cancel_sale((select s.id from public.cemetery_sales s join public.cemetery_sites t on t.id = s.site_id where t.reference = 'A-007'), 'Purchaser emigrated; deposit retained', public.cemetery_today() - 1)$$,
   'an active sale without burials can be cancelled'
 );
 select is(
@@ -309,7 +309,7 @@ select is(
 );
 select throws_ok(
   $$insert into public.cemetery_site_events (org_id, site_id, event_type, event_date)
-    select org_id, id, 'sold', current_date from public.cemetery_sites where reference = 'A-008'$$,
+    select org_id, id, 'sold', public.cemetery_today() from public.cemetery_sites where reference = 'A-008'$$,
   '42501', null, 'users cannot write site history directly'
 );
 

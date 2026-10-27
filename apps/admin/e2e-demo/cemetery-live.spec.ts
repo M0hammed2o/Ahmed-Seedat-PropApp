@@ -11,6 +11,8 @@ const EMAIL = process.env.DEMO_LOGIN_EMAIL ?? '';
 const PASSWORD = process.env.DEMO_LOGIN_PASSWORD ?? '';
 const slow = (ms = 60_000) => expect.configure({ timeout: ms });
 const money = (n: string) => new RegExp(`R\\s?${n.replace(/ /g, '\\s?')}`);
+// Today's business date in South Africa (the database refuses anything dated after it, and orders site history by it).
+const TODAY = new Date(Date.now() + 2 * 3_600_000).toISOString().slice(0, 10);
 
 async function login(page: Page) {
   test.skip(
@@ -154,7 +156,7 @@ test('live write checks on the demo cemetery: refusals, reserve and release; opt
       siteId: soldSiteId,
       newPurchaser: { fullName: 'Second buyer (fictional)' },
       price: 1000,
-      saleDate: '2026-10-26',
+      saleDate: TODAY,
       deposit: 0,
     },
   });
@@ -168,7 +170,7 @@ test('live write checks on the demo cemetery: refusals, reserve and release; opt
   const owingSaleId = page.url().split('/cemetery/sales/')[1]!.split('?')[0]!;
   const over = await page.request.post(`/api/v1/cemetery/sales/${owingSaleId}/payments`, {
     headers: origin,
-    data: { amount: 99_999_999, paidOn: '2026-10-26', method: 'eft' },
+    data: { amount: 99_999_999, paidOn: TODAY, method: 'eft' },
   });
   expect(over.status(), 'no payment above the balance').toBe(409);
 
