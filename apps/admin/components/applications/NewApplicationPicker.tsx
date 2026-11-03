@@ -58,10 +58,16 @@ export function NewApplicationPicker({
   if (propertyId && unitId && selectedProperty && selectedUnit) {
     return (
       <div>
-        <PageHeader title="New application" subtitle={`${selectedProperty.nickname} — ${selectedUnit.unitLabel}`} />
+        <PageHeader
+          title="New application"
+          subtitle={`${selectedProperty.nickname} — ${selectedUnit.unitLabel}`}
+        />
         {selectedUnit.marketRent !== null ? (
           <p className="mt-1 text-[13px] text-muted-foreground">
-            Market rent: <span className="tabular font-medium text-foreground">{currency(selectedUnit.marketRent)}</span>
+            Market rent:{' '}
+            <span className="tabular font-medium text-foreground">
+              {currency(selectedUnit.marketRent)}
+            </span>
           </p>
         ) : null}
         <button
@@ -80,7 +86,10 @@ export function NewApplicationPicker({
 
   return (
     <div>
-      <PageHeader title="New application" subtitle="Choose the property and vacant unit this applicant is applying for." />
+      <PageHeader
+        title="New application"
+        subtitle="Choose the property and vacant unit this applicant is applying for."
+      />
 
       <div className="mt-6 max-w-xl space-y-4">
         <label className="block text-xs">
@@ -106,7 +115,11 @@ export function NewApplicationPicker({
           unitsForProperty.length > 0 ? (
             <label className="block text-xs">
               <span className="text-light-textMuted dark:text-dark-textMuted">Vacant unit</span>
-              <select value={unitId} onChange={(e) => setUnitId(e.target.value)} className={selectClass}>
+              <select
+                value={unitId}
+                onChange={(e) => setUnitId(e.target.value)}
+                className={selectClass}
+              >
                 <option value="">Select a unit…</option>
                 {unitsForProperty.map((u) => (
                   <option key={u.id} value={u.id}>

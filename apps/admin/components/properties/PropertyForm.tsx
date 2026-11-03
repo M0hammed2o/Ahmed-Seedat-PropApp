@@ -109,8 +109,7 @@ export function PropertyForm({ mode, orgId, property }: PropertyFormProps) {
         municipalAccountNumber: form.municipalAccountNumber || null,
         notes: form.notes || null,
       };
-      const payload =
-        mode === 'create' ? { orgId, country: 'ZA', ...basePayload } : basePayload;
+      const payload = mode === 'create' ? { orgId, country: 'ZA', ...basePayload } : basePayload;
       const response = await fetch(url, {
         method: mode === 'create' ? 'POST' : 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -119,7 +118,9 @@ export function PropertyForm({ mode, orgId, property }: PropertyFormProps) {
       const body = await response.json();
       if (!response.ok) {
         setFieldErrors(body.error?.field_errors ?? {});
-        setError(body.error?.message ?? `Failed to ${mode === 'create' ? 'create' : 'update'} property.`);
+        setError(
+          body.error?.message ?? `Failed to ${mode === 'create' ? 'create' : 'update'} property.`,
+        );
         setUpgradeRequired(body.error?.upgradeRequired === true);
         return;
       }
@@ -130,10 +131,16 @@ export function PropertyForm({ mode, orgId, property }: PropertyFormProps) {
       // "Set up financial details" empty state, below, is what actually asks the questions).
       // Editing an existing property still returns to its normal Overview -- this is a
       // create-only nudge, not a change to how the detail page opens otherwise.
-      router.push(mode === 'create' ? `/properties/${body.property.id}?tab=Finances` : `/properties/${body.property.id}`);
+      router.push(
+        mode === 'create'
+          ? `/properties/${body.property.id}?tab=Finances`
+          : `/properties/${body.property.id}`,
+      );
       router.refresh();
     } catch {
-      setError(`Failed to ${mode === 'create' ? 'create' : 'save'} property -- check your connection and try again.`);
+      setError(
+        `Failed to ${mode === 'create' ? 'create' : 'save'} property -- check your connection and try again.`,
+      );
     } finally {
       setSubmitting(false);
     }
@@ -257,7 +264,9 @@ export function PropertyForm({ mode, orgId, property }: PropertyFormProps) {
             </Button>
             <Button
               type="button"
-              onClick={() => router.push(mode === 'create' ? '/properties' : `/properties/${property!.id}`)}
+              onClick={() =>
+                router.push(mode === 'create' ? '/properties' : `/properties/${property!.id}`)
+              }
             >
               Cancel
             </Button>

@@ -46,8 +46,20 @@ export interface PaymentMethodSummary {
 
 export interface CapacitySummary {
   /** The plan's own base allowance, EXCLUDING purchased add-ons, is `included`. Null = unlimited. */
-  properties: { included: number | null; purchased: number; used: number; restricted: number; unitPrice: number | null };
-  owners: { included: number | null; purchased: number; used: number; restricted: number; unitPrice: number | null };
+  properties: {
+    included: number | null;
+    purchased: number;
+    used: number;
+    restricted: number;
+    unitPrice: number | null;
+  };
+  owners: {
+    included: number | null;
+    purchased: number;
+    used: number;
+    restricted: number;
+    unitPrice: number | null;
+  };
   staff: { included: number | null; used: number; suspended: number };
 }
 
@@ -198,7 +210,9 @@ export function OrganizationBillingView({
   const canCancel =
     subscription && (subscription.status === 'active' || subscription.status === 'overdue');
   const restrictedTotal =
-    capacitySummary.properties.restricted + capacitySummary.owners.restricted + capacitySummary.staff.suspended;
+    capacitySummary.properties.restricted +
+    capacitySummary.owners.restricted +
+    capacitySummary.staff.suspended;
 
   async function requestQuote(planId: string) {
     setError(null);
@@ -217,7 +231,9 @@ export function OrganizationBillingView({
       }
       setQuote(body);
       setDowngradeSelection(
-        body.downgradeImpact?.requiresSelection ? defaultDowngradeSelection(body.downgradeImpact) : null,
+        body.downgradeImpact?.requiresSelection
+          ? defaultDowngradeSelection(body.downgradeImpact)
+          : null,
       );
     } catch {
       setError('Could not price this plan change -- check your connection and try again.');
@@ -346,7 +362,9 @@ export function OrganizationBillingView({
         return;
       }
       const stillRestricted =
-        (body.restrictedProperties ?? 0) + (body.restrictedOwners ?? 0) + (body.suspendedStaff ?? 0);
+        (body.restrictedProperties ?? 0) +
+        (body.restrictedOwners ?? 0) +
+        (body.suspendedStaff ?? 0);
       setRestoreNotice(
         stillRestricted === 0
           ? 'All resources restored.'
@@ -364,7 +382,8 @@ export function OrganizationBillingView({
     resourceType: 'property' | 'owner',
     direction: 'add' | 'remove',
   ) {
-    const summary = resourceType === 'property' ? capacitySummary.properties : capacitySummary.owners;
+    const summary =
+      resourceType === 'property' ? capacitySummary.properties : capacitySummary.owners;
     if (summary.unitPrice === null) return;
     const currentTotal = (summary.included ?? 0) + summary.purchased;
     const targetQuantity = direction === 'add' ? summary.purchased + 1 : summary.purchased - 1;
@@ -464,9 +483,9 @@ export function OrganizationBillingView({
 
       {organization.status === 'overdue' ? (
         <p className="rounded-md border border-light-warning bg-light-warning/10 px-3 py-2 text-xs text-light-warning dark:border-dark-warning dark:bg-dark-warning/10 dark:text-dark-warning">
-          Your last payment didn&rsquo;t go through. Your account keeps full access during a
-          7-day grace period, but access will be restricted if it isn&rsquo;t resolved. Update
-          your payment method below to fix this.
+          Your last payment didn&rsquo;t go through. Your account keeps full access during a 7-day
+          grace period, but access will be restricted if it isn&rsquo;t resolved. Update your
+          payment method below to fix this.
         </p>
       ) : null}
 
@@ -522,12 +541,11 @@ export function OrganizationBillingView({
       <Panel>
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-xs text-light-textMuted dark:text-dark-textMuted">
-              Payment method
-            </p>
+            <p className="text-xs text-light-textMuted dark:text-dark-textMuted">Payment method</p>
             {paymentMethod ? (
               <p className="mt-1 text-sm text-light-textPrimary dark:text-dark-textPrimary">
-                On file via {paymentMethod.provider === 'payfast' ? 'PayFast' : paymentMethod.provider}
+                On file via{' '}
+                {paymentMethod.provider === 'payfast' ? 'PayFast' : paymentMethod.provider}
                 {mounted
                   ? ` — updated ${new Date(paymentMethod.updatedAt).toLocaleDateString('en-ZA')}`
                   : ''}
@@ -746,7 +764,8 @@ export function OrganizationBillingView({
               </>
             ) : null}
           </dl>
-          {quote.changeType === 'downgrade' && new Date(quote.effectiveAt).getTime() > Date.now() ? (
+          {quote.changeType === 'downgrade' &&
+          new Date(quote.effectiveAt).getTime() > Date.now() ? (
             <p className="mt-3 text-xs text-light-textSecondary dark:text-dark-textSecondary">
               You keep your current plan&rsquo;s full access until{' '}
               {new Date(quote.effectiveAt).toLocaleDateString('en-ZA')} — no refund is issued for
@@ -754,9 +773,9 @@ export function OrganizationBillingView({
             </p>
           ) : quote.changeType === 'downgrade' ? (
             <p className="mt-3 text-xs text-light-textSecondary dark:text-dark-textSecondary">
-              This takes effect immediately — trial access is not charged, so there is no
-              remaining paid period to keep. Any resources above {quotedPlan.name}&rsquo;s
-              allowance are restricted (never deleted) right away.
+              This takes effect immediately — trial access is not charged, so there is no remaining
+              paid period to keep. Any resources above {quotedPlan.name}&rsquo;s allowance are
+              restricted (never deleted) right away.
             </p>
           ) : (
             <p className="mt-3 text-xs text-light-textSecondary dark:text-dark-textSecondary">
@@ -953,7 +972,9 @@ export function OrganizationBillingView({
                       {new Date(invoice.issuedAt).toLocaleDateString('en-ZA')}
                     </td>
                     <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">
-                      {invoice.paymentPurpose === 'trial_activation' ? 'Card verification' : (invoice.planName ?? '—')}{' '}
+                      {invoice.paymentPurpose === 'trial_activation'
+                        ? 'Card verification'
+                        : (invoice.planName ?? '—')}{' '}
                       <span className="text-xs text-light-textMuted dark:text-dark-textMuted">
                         ({invoiceTypeLabel(invoice)})
                       </span>

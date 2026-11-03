@@ -23,15 +23,30 @@ export function inputToTariffV2(d: UtilityTariffV2Input): TariffV2 {
 
 /** Kind-specific completeness on top of validateTariff (block order / TOU coverage / seasons). */
 export function tariffProblem(d: UtilityTariffV2Input): string | null {
-  if ((d.tariffKind === 'block' || d.tariffKind === 'cost_recovery') && d.blocks.length === 0 && !d.seasons.some((s) => s.blocks?.length)) {
+  if (
+    (d.tariffKind === 'block' || d.tariffKind === 'cost_recovery') &&
+    d.blocks.length === 0 &&
+    !d.seasons.some((s) => s.blocks?.length)
+  ) {
     return 'Add at least one rate block (or seasonal blocks).';
   }
-  if (d.tariffKind === 'flat' && d.blocks.length !== 1) return 'A flat tariff has exactly one rate (one block with no upper limit).';
-  if (d.tariffKind === 'tou' && d.touPeriods.length === 0 && !d.seasons.some((s) => s.touPeriods?.length)) return 'Add the time-of-use periods.';
+  if (d.tariffKind === 'flat' && d.blocks.length !== 1)
+    return 'A flat tariff has exactly one rate (one block with no upper limit).';
+  if (
+    d.tariffKind === 'tou' &&
+    d.touPeriods.length === 0 &&
+    !d.seasons.some((s) => s.touPeriods?.length)
+  )
+    return 'Add the time-of-use periods.';
   return validateTariff(inputToTariffV2(d));
 }
 
-export function tariffInsertRow(d: UtilityTariffV2Input, orgId: string, propertyId: string, userId: string) {
+export function tariffInsertRow(
+  d: UtilityTariffV2Input,
+  orgId: string,
+  propertyId: string,
+  userId: string,
+) {
   return {
     org_id: orgId,
     property_id: propertyId,
@@ -54,7 +69,10 @@ export function tariffInsertRow(d: UtilityTariffV2Input, orgId: string, property
     notes: d.notes || null,
     // Cost-recovery tariffs (landlord-defined rates) always need a contract/regulatory review before use.
     requires_review: d.tariffKind === 'cost_recovery',
-    review_reason: d.tariffKind === 'cost_recovery' ? 'Landlord-defined cost-recovery rate: confirm lease clause and regulatory position.' : null,
+    review_reason:
+      d.tariffKind === 'cost_recovery'
+        ? 'Landlord-defined cost-recovery rate: confirm lease clause and regulatory position.'
+        : null,
     created_by: userId,
   };
 }
@@ -64,8 +82,16 @@ export function tariffInsertRow(d: UtilityTariffV2Input, orgId: string, property
  * the day before, so history is never overwritten. Used tariffs stay immutable (DB trigger); only effective_to
  * changes on them.
  */
-export async function createTariff(client: SupabaseClient, d: UtilityTariffV2Input, orgId: string, propertyId: string, userId: string) {
-  const dayBefore = new Date(Date.parse(`${d.effectiveFrom}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
+export async function createTariff(
+  client: SupabaseClient,
+  d: UtilityTariffV2Input,
+  orgId: string,
+  propertyId: string,
+  userId: string,
+) {
+  const dayBefore = new Date(Date.parse(`${d.effectiveFrom}T00:00:00Z`) - 86_400_000)
+    .toISOString()
+    .slice(0, 10);
   let close = client
     .from('utility_tariffs')
     .update({ effective_to: dayBefore })
@@ -74,10 +100,16 @@ export async function createTariff(client: SupabaseClient, d: UtilityTariffV2Inp
     .is('effective_to', null)
     .lt('effective_from', d.effectiveFrom);
   close = d.unitId ? close.eq('unit_id', d.unitId) : close.is('unit_id', null);
-  close = d.supplySourceType ? close.eq('supply_source_type', d.supplySourceType) : close.is('supply_source_type', null);
+  close = d.supplySourceType
+    ? close.eq('supply_source_type', d.supplySourceType)
+    : close.is('supply_source_type', null);
   const { error: closeError } = await close;
   if (closeError) throw closeError;
-  const { data, error } = await client.from('utility_tariffs').insert(tariffInsertRow(d, orgId, propertyId, userId)).select('id').single();
+  const { data, error } = await client
+    .from('utility_tariffs')
+    .insert(tariffInsertRow(d, orgId, propertyId, userId))
+    .select('id')
+    .single();
   if (error) throw error;
   return data.id as string;
 }
@@ -137,10 +169,14 @@ export function parseCsv(text: string): string[][] {
 
 function parseBlocks(s: string): { upTo: number | null; rate: number }[] | string {
   const out: { upTo: number | null; rate: number }[] = [];
-  for (const part of s.split(';').map((p) => p.trim()).filter(Boolean)) {
+  for (const part of s
+    .split(';')
+    .map((p) => p.trim())
+    .filter(Boolean)) {
     const [limit, rate] = part.split(':').map((x) => x.trim());
     const r = Number(rate);
-    if (rate === undefined || rate === '' || !Number.isFinite(r)) return `Block "${part}" needs upTo:rate.`;
+    if (rate === undefined || rate === '' || !Number.isFinite(r))
+      return `Block "${part}" needs upTo:rate.`;
     if (limit === '*' || limit === '') out.push({ upTo: null, rate: r });
     else {
       const l = Number(limit);
@@ -158,12 +194,21 @@ export interface ImportRow {
   tariff?: UtilityTariffV2Input;
 }
 
-export function parseTariffCsv(csv: string, unitIdsByLabel: Map<string, string>): { rows: ImportRow[]; headerError?: string } {
+export function parseTariffCsv(
+  csv: string,
+  unitIdsByLabel: Map<string, string>,
+): { rows: ImportRow[]; headerError?: string } {
   const all = parseCsv(csv.replace(/^\uFEFF/, ''));
   if (all.length === 0) return { rows: [], headerError: 'The file is empty.' };
   const header = all[0]!.map((h) => h.trim().toLowerCase());
-  const missing = ['utility_type', 'name', 'effective_from', 'blocks'].filter((c) => !header.includes(c));
-  if (missing.length) return { rows: [], headerError: `Missing column(s): ${missing.join(', ')}. Expected: ${TARIFF_CSV_COLUMNS.join(', ')}.` };
+  const missing = ['utility_type', 'name', 'effective_from', 'blocks'].filter(
+    (c) => !header.includes(c),
+  );
+  if (missing.length)
+    return {
+      rows: [],
+      headerError: `Missing column(s): ${missing.join(', ')}. Expected: ${TARIFF_CSV_COLUMNS.join(', ')}.`,
+    };
   const col = (r: string[], name: string) => {
     const i = header.indexOf(name);
     return i < 0 ? '' : (r[i] ?? '').trim();
@@ -193,15 +238,22 @@ export function parseTariffCsv(csv: string, unitIdsByLabel: Map<string, string>)
       customerClass: col(r, 'customer_class') || null,
       sourceReference: col(r, 'source_reference') || null,
     };
-    if (['tou'].includes(candidate.tariffKind)) errors.push('Time-of-use tariffs are entered in the form, not by CSV.');
+    if (['tou'].includes(candidate.tariffKind))
+      errors.push('Time-of-use tariffs are entered in the form, not by CSV.');
     const parsed = utilityTariffV2Schema.safeParse(candidate);
     if (!parsed.success) {
-      for (const issue of parsed.error.issues) errors.push(`${issue.path.join('.') || 'row'}: ${issue.message}`);
+      for (const issue of parsed.error.issues)
+        errors.push(`${issue.path.join('.') || 'row'}: ${issue.message}`);
     } else if (errors.length === 0) {
       const problem = tariffProblem(parsed.data);
       if (problem) errors.push(problem);
     }
-    rows.push({ line: i + 1, ok: errors.length === 0, errors, tariff: parsed.success ? parsed.data : undefined });
+    rows.push({
+      line: i + 1,
+      ok: errors.length === 0,
+      errors,
+      tariff: parsed.success ? parsed.data : undefined,
+    });
   }
   return { rows };
 }

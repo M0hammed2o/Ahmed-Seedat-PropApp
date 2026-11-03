@@ -13,10 +13,12 @@ const mockCookieJar = new Map<string, string>();
 
 vi.mock('next/headers', () => ({
   headers: async () => ({
-    get: (name: string) => (name.toLowerCase() === 'authorization' ? mockAuthorizationHeader : null),
+    get: (name: string) =>
+      name.toLowerCase() === 'authorization' ? mockAuthorizationHeader : null,
   }),
   cookies: async () => ({
-    get: (name: string) => (mockCookieJar.has(name) ? { value: mockCookieJar.get(name) } : undefined),
+    get: (name: string) =>
+      mockCookieJar.has(name) ? { value: mockCookieJar.get(name) } : undefined,
     set: (name: string, value: string) => {
       mockCookieJar.set(name, value);
     },
@@ -38,7 +40,11 @@ vi.mock('@/lib/uploadScan', async () => {
   return {
     scanUpload: async (bytes: Uint8Array) => ({
       clean: true,
-      verdict: { bytes, sha256: createHash('sha256').update(bytes).digest('hex'), scanner: 'test-clean' },
+      verdict: {
+        bytes,
+        sha256: createHash('sha256').update(bytes).digest('hex'),
+        scanner: 'test-clean',
+      },
     }),
   };
 });
@@ -69,14 +75,20 @@ const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingm
 function realDocxBuffer(): Buffer {
   const zip = new PizZip();
   zip.file('[Content_Types].xml', '<?xml version="1.0"?><Types xmlns="x"></Types>');
-  zip.file('word/document.xml', '<?xml version="1.0"?><w:document xmlns:w="x"><w:body/></w:document>');
+  zip.file(
+    'word/document.xml',
+    '<?xml version="1.0"?><w:document xmlns:w="x"><w:body/></w:document>',
+  );
   return zip.generate({ type: 'nodebuffer' });
 }
 
 function docmLikeBuffer(): Buffer {
   const zip = new PizZip();
   zip.file('[Content_Types].xml', '<?xml version="1.0"?><Types xmlns="x"></Types>');
-  zip.file('word/document.xml', '<?xml version="1.0"?><w:document xmlns:w="x"><w:body/></w:document>');
+  zip.file(
+    'word/document.xml',
+    '<?xml version="1.0"?><w:document xmlns:w="x"><w:body/></w:document>',
+  );
   zip.file('word/vbaProject.bin', Buffer.from([0x01, 0x02, 0x03]));
   return zip.generate({ type: 'nodebuffer' });
 }
@@ -114,7 +126,11 @@ describeIfSupabase('POST /api/v1/lease-templates (real local Supabase integratio
     mockCookieJar.clear();
     const email = `lt-manager-${Date.now()}@propertyvault.example`;
     const password = 'TestPassw0rd!23';
-    const created = await adminFetch('/auth/v1/admin/users', { email, password, email_confirm: true });
+    const created = await adminFetch('/auth/v1/admin/users', {
+      email,
+      password,
+      email_confirm: true,
+    });
     managerId = created.id;
 
     const tokenRes = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
@@ -147,7 +163,9 @@ describeIfSupabase('POST /api/v1/lease-templates (real local Supabase integratio
   });
 
   it('a real DOCX upload succeeds', async () => {
-    const file = new File([Uint8Array.from(realDocxBuffer())], 'template.docx', { type: DOCX_MIME });
+    const file = new File([Uint8Array.from(realDocxBuffer())], 'template.docx', {
+      type: DOCX_MIME,
+    });
     const response = await POST(uploadRequest({ orgId, name: 'Default Residential' }, file));
     expect(response.status).toBe(201);
     const body = await response.json();
@@ -170,9 +188,13 @@ describeIfSupabase('POST /api/v1/lease-templates (real local Supabase integratio
   });
 
   it('a non-zip file claiming the DOCX MIME type is rejected', async () => {
-    const file = new File([Uint8Array.from(Buffer.from('not actually a zip file at all'))], 'fake.docx', {
-      type: DOCX_MIME,
-    });
+    const file = new File(
+      [Uint8Array.from(Buffer.from('not actually a zip file at all'))],
+      'fake.docx',
+      {
+        type: DOCX_MIME,
+      },
+    );
     const response = await POST(uploadRequest({ orgId, name: 'Fake' }, file));
     expect(response.status).toBe(400);
     const body = await response.json();
@@ -219,7 +241,9 @@ describeIfSupabase('POST /api/v1/lease-templates (real local Supabase integratio
     );
     expect(v2.status).toBe(201);
     const v2Body = await v2.json();
-    expect(v2Body.leaseTemplate.supersedesId ?? v2Body.leaseTemplate.supersedes_id).toBe(v1Body.leaseTemplate.id);
+    expect(v2Body.leaseTemplate.supersedesId ?? v2Body.leaseTemplate.supersedes_id).toBe(
+      v1Body.leaseTemplate.id,
+    );
 
     const { data: v1Row } = await serviceClient
       .from('lease_templates')

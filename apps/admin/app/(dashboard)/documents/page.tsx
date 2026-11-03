@@ -18,7 +18,9 @@ type SearchParams = {
 
 type DocumentFilters = { propertyId?: string; categoryId?: string; unitId?: string };
 
-const DEMO_PROPERTIES: PropertyOption[] = [{ id: 'demo-property-1', nickname: 'Sea Point Apartment' }];
+const DEMO_PROPERTIES: PropertyOption[] = [
+  { id: 'demo-property-1', nickname: 'Sea Point Apartment' },
+];
 const DEMO_CATEGORIES: CategoryOption[] = [{ id: 'demo-category-1', label: 'Rental Documents' }];
 
 const DEMO_DOCUMENTS: DocumentRecord[] = [

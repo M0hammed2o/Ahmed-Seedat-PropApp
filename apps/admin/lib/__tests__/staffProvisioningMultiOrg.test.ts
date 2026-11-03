@@ -85,8 +85,20 @@ describeIfSupabase(
       createdOrgIds.push(orgBId);
 
       await serviceClient.from('organization_members').insert([
-        { org_id: orgAId, user_id: principalAId, role: 'principal', status: 'active', joined_at: new Date().toISOString() },
-        { org_id: orgBId, user_id: principalBId, role: 'principal', status: 'active', joined_at: new Date().toISOString() },
+        {
+          org_id: orgAId,
+          user_id: principalAId,
+          role: 'principal',
+          status: 'active',
+          joined_at: new Date().toISOString(),
+        },
+        {
+          org_id: orgBId,
+          user_id: principalBId,
+          role: 'principal',
+          status: 'active',
+          joined_at: new Date().toISOString(),
+        },
       ]);
 
       const { data: propertyB } = await serviceClient

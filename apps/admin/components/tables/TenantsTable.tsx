@@ -101,7 +101,9 @@ const columns: ColumnDef<TenantWithTenancy, unknown>[] = [
         return <span className="text-light-textMuted dark:text-dark-textMuted">No lease</span>;
       return (
         <StatusBadge
-          presentation={LEASE_STATUS_PRESENTATION[tenancy.leaseStatus as keyof typeof LEASE_STATUS_PRESENTATION]}
+          presentation={
+            LEASE_STATUS_PRESENTATION[tenancy.leaseStatus as keyof typeof LEASE_STATUS_PRESENTATION]
+          }
         />
       );
     },

@@ -58,5 +58,9 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     after: { sentAt: prep.sentAt, emailSent: emailResult.sent },
   });
 
-  return NextResponse.json({ leasePreparation: prep, email: emailResult, whatsapp: whatsappResult });
+  return NextResponse.json({
+    leasePreparation: prep,
+    email: emailResult,
+    whatsapp: whatsappResult,
+  });
 }

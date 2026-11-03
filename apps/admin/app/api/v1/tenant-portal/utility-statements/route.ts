@@ -13,7 +13,10 @@ export async function GET() {
   const supabase = await getServerSupabaseClient();
   const session = await resolveTenantSession();
   if (!session) {
-    return NextResponse.json({ error: { code: 'unauthenticated', message: 'Sign in required.' } }, { status: 401 });
+    return NextResponse.json(
+      { error: { code: 'unauthenticated', message: 'Sign in required.' } },
+      { status: 401 },
+    );
   }
   const { data, error } = await supabase
     .from('utility_statements')
@@ -23,7 +26,13 @@ export async function GET() {
     .in('status', ['approved', 'sent'])
     .order('period_start', { ascending: false })
     .limit(36);
-  if (error) return serverError('utility_statements_failed', 'Could not load your utility statements.', 'tenant_portal.utility_statements', error);
+  if (error)
+    return serverError(
+      'utility_statements_failed',
+      'Could not load your utility statements.',
+      'tenant_portal.utility_statements',
+      error,
+    );
 
   type Snapshot = {
     unitLabel?: string | null;

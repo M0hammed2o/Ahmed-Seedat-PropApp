@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { deriveTenantPortalStatus } from '../tenantPortalStatus';
 
-const iso = (daysFromNow: number) => new Date(Date.now() + daysFromNow * 24 * 60 * 60 * 1000).toISOString();
+const iso = (daysFromNow: number) =>
+  new Date(Date.now() + daysFromNow * 24 * 60 * 60 * 1000).toISOString();
 
 describe('deriveTenantPortalStatus', () => {
   it('is "Active" whenever userId is set, regardless of invitation history', () => {

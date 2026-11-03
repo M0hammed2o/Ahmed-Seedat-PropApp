@@ -56,14 +56,13 @@ export default function TermsPage() {
         These terms are the agreement between you and {product} for the use of our property
         management software at proplyst.co.za and in the {product} Android app. {product} is a
         product of {platformBillingEntity.legalEntityName ?? 'the company operating it'}, and
-        &ldquo;we&rdquo; in these terms means that company. We have tried to
-        write them in plain language. Please read them.
+        &ldquo;we&rdquo; in these terms means that company. We have tried to write them in plain
+        language. Please read them.
       </p>
 
       <Section title="1. Accepting these terms">
         <p>
-          By creating a {product} account, or by using {product}{' '}
-          in any way, you agree to these
+          By creating a {product} account, or by using {product} in any way, you agree to these
           terms. If you are agreeing on behalf of a company, a close corporation, a trust or another
           organisation, you confirm that you are authorised to bind it, and &ldquo;you&rdquo; means
           that organisation.
@@ -140,8 +139,8 @@ export default function TermsPage() {
           anything that matters — a tax return, a lease decision, a dispute.
         </p>
         <p>
-          {product} is not a bank, a payment service, an estate agency, an accountant or an attorney,
-          and using it does not create any of those relationships.
+          {product} is not a bank, a payment service, an estate agency, an accountant or an
+          attorney, and using it does not create any of those relationships.
         </p>
       </Section>
 
@@ -165,8 +164,7 @@ export default function TermsPage() {
 
       <Section title="8. Notifications">
         <p>
-          {product}{' '}
-          can send messages by email and, where you have configured it, by WhatsApp — rent
+          {product} can send messages by email and, where you have configured it, by WhatsApp — rent
           reminders, payment confirmations, maintenance updates and similar. Delivery depends on
           third-party networks and on the recipient&apos;s own settings, so we cannot promise that
           any particular message arrives, arrives on time, or is read. Do not rely on a {product}{' '}
@@ -186,13 +184,14 @@ export default function TermsPage() {
           details. Subscriptions are taken out and managed on the {product} website only — the
           Android app sells nothing, contains no purchase or upgrade flow, and is not a way to buy
           or change a plan. If your organisation already has an active subscription, signing into
-          the Android app simply gives you what that plan allows. A subscription renews automatically for the same period until you cancel.
+          the Android app simply gives you what that plan allows. A subscription renews
+          automatically for the same period until you cancel.
         </p>
         <p>
-          You can cancel at any time from your billing settings. Cancelling stops future billing;
-          it does not refund the period you have already paid for, unless the law requires
-          otherwise. If a payment fails or a subscription lapses, we may restrict access to parts of{' '}
-          {product} until it is resolved.
+          You can cancel at any time from your billing settings. Cancelling stops future billing; it
+          does not refund the period you have already paid for, unless the law requires otherwise.
+          If a payment fails or a subscription lapses, we may restrict access to parts of {product}{' '}
+          until it is resolved.
         </p>
         <p>
           We may change our prices. If we do, we will give you reasonable notice before the change
@@ -202,11 +201,11 @@ export default function TermsPage() {
 
       <Section title="10. Services we rely on">
         <p>
-          {product} runs on third-party infrastructure and services: Supabase, Render, PayFast,
-          Meta Platforms for WhatsApp delivery, Resend for email, and Google Cloud for reading text
-          out of documents you upload. Google and Apple also act as sign-in providers if you choose
-          to sign in with them on the website. They are listed, with what each one does and what
-          each one receives, in our{' '}
+          {product} runs on third-party infrastructure and services: Supabase, Render, PayFast, Meta
+          Platforms for WhatsApp delivery, Resend for email, and Google Cloud for reading text out
+          of documents you upload. Google and Apple also act as sign-in providers if you choose to
+          sign in with them on the website. They are listed, with what each one does and what each
+          one receives, in our{' '}
           <Link href="/privacy" className="text-light-accent hover:underline dark:text-dark-accent">
             Privacy Policy
           </Link>
@@ -219,7 +218,10 @@ export default function TermsPage() {
         <p>You agree not to:</p>
         <ul className="list-disc space-y-1 pl-5">
           <li>use {product} for anything unlawful, or to harass or defraud anyone;</li>
-          <li>try to access another organisation&apos;s data, or any part of the system you have not been given access to;</li>
+          <li>
+            try to access another organisation&apos;s data, or any part of the system you have not
+            been given access to;
+          </li>
           <li>probe, scan or test the security of the service without our written permission;</li>
           <li>copy, resell or white-label the service, or use it to build a competing product;</li>
           <li>scrape the service, or use automated means to extract data at scale;</li>
@@ -242,8 +244,8 @@ export default function TermsPage() {
       <Section title="13. Availability and changes to the service">
         <p>
           We work to keep {product} available and working well, but we do not promise that it will
-          be uninterrupted or error-free, and we do not offer a guaranteed uptime level. Maintenance,
-          outages at the services we depend on, and faults all happen.
+          be uninterrupted or error-free, and we do not offer a guaranteed uptime level.
+          Maintenance, outages at the services we depend on, and faults all happen.
         </p>
         <p>
           We improve {product} continuously, so features change. We may add, alter or withdraw
@@ -271,9 +273,8 @@ export default function TermsPage() {
       <Section title="15. Suspension and termination">
         <p>
           You can stop using {product} at any time. We may suspend or close an account that breaches
-          these terms, that is being used unlawfully, or where a subscription has gone unpaid.
-          Where it is reasonable to do so, we will tell you first and give you a chance to put it
-          right.
+          these terms, that is being used unlawfully, or where a subscription has gone unpaid. Where
+          it is reasonable to do so, we will tell you first and give you a chance to put it right.
         </p>
       </Section>
 
@@ -302,15 +303,15 @@ export default function TermsPage() {
           account is deleted they no longer identify you.
         </p>
         <p>
-          <strong>Deleting your account does not delete your organisation.</strong> Property, tenant,
-          lease and financial records belong to the organisation, not to you personally, and other
-          people may still depend on them. If you are an invited user, you simply lose access and
-          the organisation carries on.
+          <strong>Deleting your account does not delete your organisation.</strong> Property,
+          tenant, lease and financial records belong to the organisation, not to you personally, and
+          other people may still depend on them. If you are an invited user, you simply lose access
+          and the organisation carries on.
         </p>
         <p>
-          <strong>If you are the only owner of an organisation,</strong> deleting your account leaves
-          it with nobody who can reach it. Transfer ownership to someone else first, or ask us to
-          delete the organisation and everything in it by emailing{' '}
+          <strong>If you are the only owner of an organisation,</strong> deleting your account
+          leaves it with nobody who can reach it. Transfer ownership to someone else first, or ask
+          us to delete the organisation and everything in it by emailing{' '}
           <a
             href={`mailto:${support}?subject=Organisation%20deletion%20request`}
             className="text-light-accent hover:underline dark:text-dark-accent"
@@ -339,8 +340,7 @@ export default function TermsPage() {
 
       <Section title="17. Disclaimers">
         <p>
-          Except where the law says otherwise, {product}{' '}
-          is provided &ldquo;as is&rdquo;. We do not
+          Except where the law says otherwise, {product} is provided &ldquo;as is&rdquo;. We do not
           warrant that it will meet your particular requirements, that it will be available without
           interruption, or that the calculations and alerts it produces are free of error.
         </p>

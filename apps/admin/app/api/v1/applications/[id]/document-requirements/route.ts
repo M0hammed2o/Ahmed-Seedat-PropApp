@@ -55,7 +55,8 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
   // at the scale this table sees.
   const requirements = await Promise.all(
     rows.map(async (r) => {
-      let ocr: { overallConfidence: number; fieldCount: number; reviewedAt: string | null } | null = null;
+      let ocr: { overallConfidence: number; fieldCount: number; reviewedAt: string | null } | null =
+        null;
       if (r.document_id) {
         const { data: job } = await supabase
           .from('extraction_jobs')

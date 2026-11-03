@@ -10,7 +10,8 @@ import { DEFAULT_INCLUDE_FIELDS, readingLines, type IncludeFields } from './temp
 // Only OFFICIAL (ownership = 'municipal') meters belong in a pack. Private submeter readings are
 // never submitted to a municipality.
 
-export type ReadingVerification = 'photo_verified' | 'device_derived' | 'manual_unverified' | 'missing';
+export type ReadingVerification =
+  'photo_verified' | 'device_derived' | 'manual_unverified' | 'missing';
 
 export interface ReportMeterLine {
   meterId: string;
@@ -75,13 +76,19 @@ function toDisplay(utilityType: 'water' | 'electricity', base: number): number {
  * (latest valid reading at or before period start), and the consumption between them via the
  * rollover/reset-aware interval engine. A reset between the two leaves consumption null.
  */
-export function buildMeterLine(input: ReportMeterInput, periodStart: Date, periodEnd: Date): ReportMeterLine {
+export function buildMeterLine(
+  input: ReportMeterInput,
+  periodStart: Date,
+  periodEnd: Date,
+): ReportMeterLine {
   const valid = input.points
     .filter((p) => (p.status ?? 'valid') === 'valid')
     .map((p) => ({ ...p, at: new Date(p.readAt) }))
     .sort((a, b) => a.at.getTime() - b.at.getTime());
   const unit = input.utilityType === 'water' ? 'kL' : 'kWh';
-  const current = [...valid].reverse().find((p) => p.at.getTime() <= periodEnd.getTime() && p.at >= periodStart);
+  const current = [...valid]
+    .reverse()
+    .find((p) => p.at.getTime() <= periodEnd.getTime() && p.at >= periodStart);
   const previous = [...valid].reverse().find((p) => p.at.getTime() <= periodStart.getTime());
 
   if (!current) {
@@ -165,8 +172,14 @@ export function buildMunicipalReport(args: {
   if (lines.some((l) => l.verification === 'device_derived')) {
     notes.push('Device-derived readings should be checked against the meter dial.');
   }
-  if (lines.some((l) => l.currentReading !== null && l.consumption === null && l.previousReading !== null)) {
-    notes.push('A meter reset or replacement was detected; consumption for that meter is not calculated.');
+  if (
+    lines.some(
+      (l) => l.currentReading !== null && l.consumption === null && l.previousReading !== null,
+    )
+  ) {
+    notes.push(
+      'A meter reset or replacement was detected; consumption for that meter is not calculated.',
+    );
   }
   return {
     version: 1,
@@ -241,16 +254,40 @@ function csvCell(v: unknown): string {
 
 export function renderReportCsv(r: MunicipalReport): string {
   const header = [
-    'property', 'address', 'municipality', 'municipal_account_number', 'period_start', 'period_end',
-    'utility', 'meter_number', 'serial_number', 'unit', 'previous_reading', 'previous_reading_date',
-    'current_reading', 'current_reading_date', 'consumption', 'verification',
+    'property',
+    'address',
+    'municipality',
+    'municipal_account_number',
+    'period_start',
+    'period_end',
+    'utility',
+    'meter_number',
+    'serial_number',
+    'unit',
+    'previous_reading',
+    'previous_reading_date',
+    'current_reading',
+    'current_reading_date',
+    'consumption',
+    'verification',
   ];
   const rows = r.meters.map((m) => [
-    r.property.name, r.property.address, r.municipality?.name ?? '', r.municipalAccountNumber ?? '',
-    r.period.start, r.period.end, m.utilityType, m.meterNumber ?? '', m.serialNumber ?? '', m.unit,
-    m.previousReading ?? '', m.previousReadingAt ? fmtDate(m.previousReadingAt) : '',
-    m.currentReading ?? '', m.currentReadingAt ? fmtDate(m.currentReadingAt) : '',
-    m.consumption ?? '', m.verification,
+    r.property.name,
+    r.property.address,
+    r.municipality?.name ?? '',
+    r.municipalAccountNumber ?? '',
+    r.period.start,
+    r.period.end,
+    m.utilityType,
+    m.meterNumber ?? '',
+    m.serialNumber ?? '',
+    m.unit,
+    m.previousReading ?? '',
+    m.previousReadingAt ? fmtDate(m.previousReadingAt) : '',
+    m.currentReading ?? '',
+    m.currentReadingAt ? fmtDate(m.currentReadingAt) : '',
+    m.consumption ?? '',
+    m.verification,
   ]);
   return [header, ...rows].map((row) => row.map(csvCell).join(',')).join('\r\n') + '\r\n';
 }
@@ -272,8 +309,14 @@ export function renderReportPdf(
   return new Promise((resolve, reject) => {
     // Deterministic bytes: the creation date is the report's own generation time, so re-rendering an approved pack
     // for a retry produces exactly the same file as the first attempt.
-    const created = Number.isFinite(Date.parse(r.generatedAt)) ? new Date(r.generatedAt) : new Date(0);
-    const doc = new PDFDocument({ size: 'A4', margin: 50, info: { CreationDate: created, ModDate: created } });
+    const created = Number.isFinite(Date.parse(r.generatedAt))
+      ? new Date(r.generatedAt)
+      : new Date(0);
+    const doc = new PDFDocument({
+      size: 'A4',
+      margin: 50,
+      info: { CreationDate: created, ModDate: created },
+    });
     const chunks: Buffer[] = [];
     doc.on('data', (chunk: Buffer) => chunks.push(chunk));
     doc.on('end', () => resolve(Buffer.concat(chunks)));
@@ -284,7 +327,8 @@ export function renderReportPdf(
     doc.text(`Property: ${r.property.name}${f.propertyAddress ? `, ${r.property.address}` : ''}`);
     if (r.preparedFor) doc.text(`Owner / managing agent: ${r.preparedFor}`);
     if (r.municipality) doc.text(`Municipality: ${r.municipality.name}`);
-    if (r.municipalAccountNumber && f.accountNumber) doc.text(`Municipal account number: ${r.municipalAccountNumber}`);
+    if (r.municipalAccountNumber && f.accountNumber)
+      doc.text(`Municipal account number: ${r.municipalAccountNumber}`);
     doc.text(`Reporting period: ${r.period.start} to ${r.period.end}`);
     doc.moveDown();
     for (const m of r.meters) {
@@ -297,17 +341,31 @@ export function renderReportPdf(
           const imgTop = doc.y;
           doc.image(img.buffer, doc.page.margins.left, imgTop, { fit: [240, 180] });
           doc.y = imgTop + 186; // below the fitted image box, so the caption never overlaps it
-          doc.fontSize(8).fillColor('#555555').text(img.caption, doc.page.margins.left).fontSize(10).fillColor('#111111');
+          doc
+            .fontSize(8)
+            .fillColor('#555555')
+            .text(img.caption, doc.page.margins.left)
+            .fontSize(10)
+            .fillColor('#111111');
         } catch {
-          doc.fontSize(8).fillColor('#555555').text('(photo could not be embedded)').fontSize(10).fillColor('#111111');
+          doc
+            .fontSize(8)
+            .fillColor('#555555')
+            .text('(photo could not be embedded)')
+            .fontSize(10)
+            .fillColor('#111111');
         }
       }
       doc.moveDown();
     }
     for (const n of r.notes) doc.text(`Note: ${n}`);
-    doc.moveDown().fontSize(8).fillColor('#555555').text(
-      `Generated ${fmtDate(r.generatedAt)} by Proplyst. A sent submission is not confirmation that the municipality accepted the reading.`,
-    );
+    doc
+      .moveDown()
+      .fontSize(8)
+      .fillColor('#555555')
+      .text(
+        `Generated ${fmtDate(r.generatedAt)} by Proplyst. A sent submission is not confirmation that the municipality accepted the reading.`,
+      );
     doc.end();
   });
 }
@@ -354,7 +412,10 @@ export function renderEvidencePdf(e: EvidenceReportInput): Promise<Buffer> {
       doc.rect(50, top, 250, 200).stroke('#cccccc');
       doc.fillColor('#777777').text('No photo provided', 60, top + 90);
     }
-    doc.fontSize(8).fillColor('#555555').text(e.imageCaption, 50, top + 305, { width: 250 });
+    doc
+      .fontSize(8)
+      .fillColor('#555555')
+      .text(e.imageCaption, 50, top + 305, { width: 250 });
     const rows: [string, string][] = [
       ['Meter', e.meterLabel],
       ['Meter number', e.meterNumber ?? '—'],
@@ -365,7 +426,10 @@ export function renderEvidencePdf(e: EvidenceReportInput): Promise<Buffer> {
       ['Recorded by', e.submittedBy ?? '—'],
       ['Source', e.source],
       ['Verification', e.verificationStatus.replace('_', ' ')],
-      ['Verified by', e.verifiedBy ? `${e.verifiedBy}${e.verifiedAt ? ` on ${fmtDate(e.verifiedAt)}` : ''}` : '—'],
+      [
+        'Verified by',
+        e.verifiedBy ? `${e.verifiedBy}${e.verifiedAt ? ` on ${fmtDate(e.verifiedAt)}` : ''}` : '—',
+      ],
       ['Note', e.note ?? '—'],
     ];
     let y = top;
@@ -375,10 +439,15 @@ export function renderEvidencePdf(e: EvidenceReportInput): Promise<Buffer> {
       // Measure the wrapped value so a long value never overlaps the next row.
       y += Math.max(22, doc.heightOfString(v, { width: 135 }) + 8);
     }
-    doc.fontSize(8).fillColor('#555555').text(
-      'Readings entered by a person are shown as unverified until reviewed. Proplyst does not treat photo-based or automated readings as verified without a reviewer.',
-      50, top + 340, { width: 495 },
-    );
+    doc
+      .fontSize(8)
+      .fillColor('#555555')
+      .text(
+        'Readings entered by a person are shown as unverified until reviewed. Proplyst does not treat photo-based or automated readings as verified without a reviewer.',
+        50,
+        top + 340,
+        { width: 495 },
+      );
     doc.end();
   });
 }

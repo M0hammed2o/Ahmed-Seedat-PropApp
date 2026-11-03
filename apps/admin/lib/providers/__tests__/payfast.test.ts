@@ -137,7 +137,11 @@ describe('PayFastBillingGatewayProvider', () => {
     // Parametrized across all three tiers x both billing cycles, matching exactly what
     // startTrialActivationCheckout() can request in production -- "do not assume annual behaviour"
     // applies here too, so it's exercised explicitly rather than inferred from the monthly case.
-    const PLAN_PRICES: Array<{ planCode: string; billingCycle: 'monthly' | 'annual'; amount: number }> = [
+    const PLAN_PRICES: Array<{
+      planCode: string;
+      billingCycle: 'monthly' | 'annual';
+      amount: number;
+    }> = [
       { planCode: 'starter_monthly', billingCycle: 'monthly', amount: 299 },
       { planCode: 'professional_monthly', billingCycle: 'monthly', amount: 699 },
       { planCode: 'business_monthly', billingCycle: 'monthly', amount: 1999 },

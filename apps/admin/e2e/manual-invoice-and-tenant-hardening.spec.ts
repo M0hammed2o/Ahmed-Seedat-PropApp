@@ -68,13 +68,17 @@ async function setUpTenantedUnit(page: Page, label: string, tenantName: string) 
 }
 
 test.describe('A. Internal tenant creation', () => {
-  test('creating an internal tenant with email shows Not invited, no invitation UI', async ({ page }) => {
+  test('creating an internal tenant with email shows Not invited, no invitation UI', async ({
+    page,
+  }) => {
     const { orgId } = await setUpOrg(page.request, 'qa-internal-tenant-not-invited');
     await page.goto('/tenants/new');
     await page.waitForLoadState('networkidle');
 
     await page.getByLabel('Full name').fill('QA Not Invited Tenant');
-    await page.getByRole('textbox', { name: 'Email' }).fill('qa-not-invited@test.propertyvault.example');
+    await page
+      .getByRole('textbox', { name: 'Email' })
+      .fill('qa-not-invited@test.propertyvault.example');
     await expect(page.getByRole('radio', { name: /Manage internally only/i })).toBeChecked();
     await page.getByRole('button', { name: 'Create tenant' }).click();
 
@@ -88,11 +92,11 @@ test.describe('A. Internal tenant creation', () => {
 
 test.describe('E-K. Manual invoice: cascade, line items, draft, edit, issue, blocked post-issue edit', () => {
   test('full manual invoice lifecycle through the real UI', async ({ page }) => {
-    const { propertyId: _p, unitId: _u, tenantId: _t } = await setUpTenantedUnit(
-      page,
-      'qa-manual-invoice-lifecycle',
-      'QA Manual Invoice Tenant',
-    );
+    const {
+      propertyId: _p,
+      unitId: _u,
+      tenantId: _t,
+    } = await setUpTenantedUnit(page, 'qa-manual-invoice-lifecycle', 'QA Manual Invoice Tenant');
 
     // E/F: Accounting -> Invoices -> Create invoice, Property -> Unit -> Tenant cascade.
     await page.goto('/accounting/invoices/new');

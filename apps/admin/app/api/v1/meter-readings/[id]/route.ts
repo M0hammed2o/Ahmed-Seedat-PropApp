@@ -2,7 +2,17 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { meterReadingReviewSchema } from '@propvault/validation';
 import { getServiceRoleClient } from '@/lib/supabase/server';
 import { writeAuditEvent } from '@/lib/audit';
-import { canWriteUtilities, forbidden, jsonError, notFound, parseJson, requireUser, serverError, utilitiesDisabled, utilitiesEnabledForOrg } from '@/lib/smartUtility/http';
+import {
+  canWriteUtilities,
+  forbidden,
+  jsonError,
+  notFound,
+  parseJson,
+  requireUser,
+  serverError,
+  utilitiesDisabled,
+  utilitiesEnabledForOrg,
+} from '@/lib/smartUtility/http';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -19,11 +29,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   if ('response' in parsed) return parsed.response;
   const { data: reading } = await auth.supabase
     .from('meter_telemetry_readings')
-    .select('id, org_id, property_id, meter_id, source, verification_status, read_at, value, recorded_by')
+    .select(
+      'id, org_id, property_id, meter_id, source, verification_status, read_at, value, recorded_by',
+    )
     .eq('id', id)
     .maybeSingle();
   if (!reading) return notFound('Reading');
-  if (!(await canWriteUtilities(auth.supabase, reading.org_id, reading.property_id))) return forbidden();
+  if (!(await canWriteUtilities(auth.supabase, reading.org_id, reading.property_id)))
+    return forbidden();
   if (!(await utilitiesEnabledForOrg(reading.org_id))) return utilitiesDisabled();
   if (reading.verification_status === 'not_required') {
     return jsonError(409, 'not_reviewable', 'Device readings are not reviewed manually.');
@@ -41,7 +54,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       .in('role', ['accountant', 'manager', 'principal'])
       .neq('user_id', auth.user.id);
     if ((count ?? 0) > 0) {
-      return jsonError(409, 'self_review', 'Someone else in your organisation must verify a reading you recorded.');
+      return jsonError(
+        409,
+        'self_review',
+        'Someone else in your organisation must verify a reading you recorded.',
+      );
     }
     selfReviewed = true;
   }
@@ -52,12 +69,24 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       verification_status: parsed.data.decision,
       verified_by: auth.user.id,
       verified_at: now,
-      verification_note: [selfReviewed ? 'Self-verified (only reviewer in the organisation)' : null, parsed.data.note || null].filter(Boolean).join(' — ') || null,
+      verification_note:
+        [
+          selfReviewed ? 'Self-verified (only reviewer in the organisation)' : null,
+          parsed.data.note || null,
+        ]
+          .filter(Boolean)
+          .join(' — ') || null,
       status: parsed.data.decision === 'rejected' ? 'rejected' : 'valid',
       status_reason: parsed.data.decision === 'rejected' ? 'rejected on review' : null,
     })
     .eq('id', id);
-  if (error) return serverError('reading_review_failed', 'Could not save the review.', 'meter_readings.review', error);
+  if (error)
+    return serverError(
+      'reading_review_failed',
+      'Could not save the review.',
+      'meter_readings.review',
+      error,
+    );
   await writeAuditEvent(service, {
     orgId: reading.org_id,
     actorUserId: auth.user.id,
@@ -66,7 +95,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     entityType: 'meter_telemetry_readings',
     entityId: id,
     before: { verificationStatus: reading.verification_status },
-    after: { verificationStatus: parsed.data.decision, note: parsed.data.note ?? null, selfReviewed },
+    after: {
+      verificationStatus: parsed.data.decision,
+      note: parsed.data.note ?? null,
+      selfReviewed,
+    },
   });
   return NextResponse.json({ verificationStatus: parsed.data.decision, verifiedAt: now });
 }

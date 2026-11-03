@@ -6,20 +6,20 @@ accounting boundaries it respects, and what remains deliberately deferred.
 
 ## Authoritative tables — one financial truth per concept
 
-| Concept | Authoritative table/function | Never use instead |
-|---|---|---|
-| Owner operating expense (actual money spent) | `expenses` (unchanged, migration 20260101000037) | `payment_reports`, `levy_statement_line_items` (never auto-posts) |
-| Recurring rates/levy *configuration* (expected monthly amount) | `recurring_property_costs` (migration 163) | — this is planning data, it never itself posts to `expenses` |
-| Utility responsibility (who pays) | `utility_responsibility_settings` (migration 163) | — |
-| Utility meters/readings | `utility_meters` / `utility_readings` (migration 163) | — |
-| Property budget (planned) | `property_budgets` / `budget_category_lines` (migration 164) | — |
-| Budget actual | Computed live from `expenses` via `budget_vs_actual()` (migration 164/166) | Never stored — always derived |
-| Tenant rent due / paid status | `rent_schedules.status` (unchanged) | `payment_reports.status` (a claim, not the ledger) |
-| Real payment allocation | `invoice_payments` via `record_invoice_payment()` (unchanged) | — |
-| Tenant payment *claim* (before owner review) | `payment_reports` (unchanged) | — |
+| Concept                                                        | Authoritative table/function                                               | Never use instead                                                 |
+| -------------------------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Owner operating expense (actual money spent)                   | `expenses` (unchanged, migration 20260101000037)                           | `payment_reports`, `levy_statement_line_items` (never auto-posts) |
+| Recurring rates/levy _configuration_ (expected monthly amount) | `recurring_property_costs` (migration 163)                                 | — this is planning data, it never itself posts to `expenses`      |
+| Utility responsibility (who pays)                              | `utility_responsibility_settings` (migration 163)                          | —                                                                 |
+| Utility meters/readings                                        | `utility_meters` / `utility_readings` (migration 163)                      | —                                                                 |
+| Property budget (planned)                                      | `property_budgets` / `budget_category_lines` (migration 164)               | —                                                                 |
+| Budget actual                                                  | Computed live from `expenses` via `budget_vs_actual()` (migration 164/166) | Never stored — always derived                                     |
+| Tenant rent due / paid status                                  | `rent_schedules.status` (unchanged)                                        | `payment_reports.status` (a claim, not the ledger)                |
+| Real payment allocation                                        | `invoice_payments` via `record_invoice_payment()` (unchanged)              | —                                                                 |
+| Tenant payment _claim_ (before owner review)                   | `payment_reports` (unchanged)                                              | —                                                                 |
 
 **The single rule that matters most:** `payment_reports.status = 'confirmed'` means the owner has
-*acknowledged* a claim. It is not proof the ledger moved. Migration 165 makes `confirm_payment_report()`
+_acknowledged_ a claim. It is not proof the ledger moved. Migration 165 makes `confirm_payment_report()`
 allocate through `record_invoice_payment()` when it safely can (see below) — but the check for "is this
 tenant paid" must always read `rent_schedules.status`, never `payment_reports.status`.
 
@@ -42,7 +42,7 @@ confirmation:
 2. **`rent_schedule_id` is null** (an ad-hoc/advance payment not tied to one schedule row) →
    acknowledgement-only, unchanged from the pre-165 behaviour. This is a genuine ambiguity (which
    invoice would it apply to?), not a shortcut.
-3. **`rent_schedule_id` set but no invoice issued yet** → confirmation is *refused*
+3. **`rent_schedule_id` set but no invoice issued yet** → confirmation is _refused_
    (`error_code: invoice_not_issued`), never silently downgraded to acknowledgement-only. The owner
    issues the invoice first (an existing, separate action), then confirms.
 
@@ -53,7 +53,7 @@ double-allocate").
 Cash vs EFT are not distinguished by this fix — both flow through the same `record_invoice_payment()`
 call with `payment_reports.payment_method` passed straight through (its enum `eft`/`cash`/`other` is a
 strict subset of `invoice_payments`' own method list). A dedicated "cash collector" identity field was
-**not** added: `payment_reports.reported_by_user_id` already *is* the collector whenever
+**not** added: `payment_reports.reported_by_user_id` already _is_ the collector whenever
 `reported_by_tenant = false` (the existing staff-records-cash-on-tenant's-behalf path), which covers the
 real-world case this system supports. A tenant self-reporting cash they handed to someone has no
 separate "who did I pay" field — `reported_by` (the tenant) and `reviewed_by` (whoever confirms) remain
@@ -81,13 +81,13 @@ independent facts that can drift (e.g. a unit re-let under new terms).
 
 ## Rates & levies — effective-dated, never overwritten
 
-`recurring_property_costs`: one *current* row (`effective_to IS NULL`) per (property or unit) ×
+`recurring_property_costs`: one _current_ row (`effective_to IS NULL`) per (property or unit) ×
 (`rates_and_taxes` or `levy`), enforced by a partial unique index. Setting a new amount closes out the
 old row (`effective_to = new effective_from - 1 day`) and inserts a new one — the old row's amount is
 never edited in place, so a past period's expected cost never silently changes. Passing `amount = null`
 retires the cost entirely (no bogus zero-amount placeholder row, per the approved business rule).
 
-This is *configuration*, not a transaction — setting a levy amount does not itself create an `expenses`
+This is _configuration_, not a transaction — setting a levy amount does not itself create an `expenses`
 row. Turning "R2,200/month levy is configured" into an actual posted expense for a given month is a
 separate, explicit action (recording an expense with a matching category), deliberately not automated —
 the correct accounting treatment for a given month (was it actually paid? does the amount match the
@@ -117,6 +117,7 @@ alert" bug, since nothing is stored to duplicate.
 
 Never "leak detected." The rule (implemented in
 `apps/admin/app/api/v1/utility-meters/[id]/readings/route.ts`, `GET`) requires **both**:
+
 - a ≥20% period-over-period increase, **and**
 - an absolute increase of at least 200 L (water) or 20 kWh (electricity) — so a 1 L → 3 L "reading" (a
   200% increase on a meaningless base) never triggers a flag,
@@ -154,7 +155,7 @@ and found to be a **frozen snapshot**: it returns the existing row for an owner+
 never recomputes it — a new row is only created once per calendar month. That's correct for its actual
 job (a WhatsApp-dispatched monthly report that must read the same weeks later as it did when sent), but
 wrong for a screen an owner checks daily expecting today's real numbers. Extending it would have added
-more stale figures alongside the rent figures Home was *already* showing stale (a pre-existing
+more stale figures alongside the rent figures Home was _already_ showing stale (a pre-existing
 characteristic, not something this pass introduced).
 
 **Chosen: a new live RPC, `owner_portfolio_financial_summary(org_id, month)`** (migration 167),
@@ -192,7 +193,7 @@ check from the start (pgTAP-verified, `owner_portfolio_financial_summary.test.sq
   evidence. Never computes "authoritative" consumption itself. A reading lower than the previous one is
   surfaced plainly ("this reading is lower than the previous one...") rather than silently corrected —
   meter reset/rollover stays out of scope, per the first pass's own documented limitation. An optional
-  bill photo uploads and links as the *reading's* evidence (`utility_readings.document_id`) — it does
+  bill photo uploads and links as the _reading's_ evidence (`utility_readings.document_id`) — it does
   **not** create an expense by itself (§6's own rule: only the owner knows the real amount from the
   bill; that still needs its own Add Expense entry).
 - **Utility History** (`ui/utilities/`) — property/utility-type/meter pickers, a chronological list of

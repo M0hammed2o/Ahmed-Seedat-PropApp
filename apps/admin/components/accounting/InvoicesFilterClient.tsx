@@ -43,7 +43,8 @@ export function InvoicesFilterClient({
   const units = useMemo(() => {
     const seen = new Map<string, string>();
     for (const inv of invoices) {
-      if (propertyId === 'all' || inv.propertyId === propertyId) seen.set(inv.unitId, inv.unitLabel);
+      if (propertyId === 'all' || inv.propertyId === propertyId)
+        seen.set(inv.unitId, inv.unitLabel);
     }
     return [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1]));
   }, [invoices, propertyId]);
@@ -113,7 +114,11 @@ export function InvoicesFilterClient({
           ))}
         </select>
 
-        <select value={tenantId} onChange={(e) => setTenantId(e.target.value)} className={selectClass}>
+        <select
+          value={tenantId}
+          onChange={(e) => setTenantId(e.target.value)}
+          className={selectClass}
+        >
           <option value="all">All tenants</option>
           {tenants.map(([id, label]) => (
             <option key={id} value={id}>
@@ -137,11 +142,21 @@ export function InvoicesFilterClient({
 
         <label className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
           From
-          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={selectClass} />
+          <input
+            type="date"
+            value={from}
+            onChange={(e) => setFrom(e.target.value)}
+            className={selectClass}
+          />
         </label>
         <label className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
           To
-          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={selectClass} />
+          <input
+            type="date"
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+            className={selectClass}
+          />
         </label>
       </div>
 

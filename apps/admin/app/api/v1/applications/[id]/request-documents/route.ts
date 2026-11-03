@@ -40,7 +40,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
   const { data: application, error: applicationError } = await supabase
     .from('applications')
-    .select('org_id, applicant_email, units(unit_label, properties(nickname)), organizations(trading_name, legal_name)')
+    .select(
+      'org_id, applicant_email, units(unit_label, properties(nickname)), organizations(trading_name, legal_name)',
+    )
     .eq('id', id)
     .maybeSingle();
   if (applicationError) {
@@ -50,13 +52,21 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     );
   }
   if (!application) {
-    return NextResponse.json({ error: { code: 'not_found', message: 'Application not found.' } }, { status: 404 });
+    return NextResponse.json(
+      { error: { code: 'not_found', message: 'Application not found.' } },
+      { status: 404 },
+    );
   }
 
   const canWrite = await requireOrgRole(supabase, application.org_id, 'agent');
   if (!canWrite) {
     return NextResponse.json(
-      { error: { code: 'forbidden', message: 'You do not have permission to manage this application.' } },
+      {
+        error: {
+          code: 'forbidden',
+          message: 'You do not have permission to manage this application.',
+        },
+      },
       { status: 403 },
     );
   }
@@ -101,7 +111,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     if (req.status === 'requested') continue; // already in the requested state -- no-op
     const { error: updateError } = await supabase
       .from('application_document_requirements')
-      .update({ status: 'requested', rejection_reason: parsed.data.message ?? null, document_id: null, updated_at: new Date().toISOString() })
+      .update({
+        status: 'requested',
+        rejection_reason: parsed.data.message ?? null,
+        document_id: null,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', req.id);
     if (!updateError) changed.push(req.requirement_key);
   }
@@ -121,8 +136,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     after: { requirementKeys: changed },
   });
 
-  const units = (application as unknown as { units: { unit_label: string; properties: { nickname: string } | null } | null }).units;
-  const org = (application as unknown as { organizations: { trading_name: string | null; legal_name: string } | null }).organizations;
+  const units = (
+    application as unknown as {
+      units: { unit_label: string; properties: { nickname: string } | null } | null;
+    }
+  ).units;
+  const org = (
+    application as unknown as {
+      organizations: { trading_name: string | null; legal_name: string } | null;
+    }
+  ).organizations;
   const propertyLabel = units?.properties?.nickname
     ? `${units.properties.nickname} — ${units.unit_label}`
     : (units?.unit_label ?? 'your rental');
@@ -143,7 +166,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       orgId: application.org_id,
       toAddress: application.applicant_email,
       templateName: 'application_documents_requested',
-      templateVars: { orgName: org?.trading_name ?? org?.legal_name ?? 'Your landlord', propertyLabel },
+      templateVars: {
+        orgName: org?.trading_name ?? org?.legal_name ?? 'Your landlord',
+        propertyLabel,
+      },
       relatedEntityType: 'application_document_requests',
       relatedEntityId: dispatchId,
       actorUserId: user.id,

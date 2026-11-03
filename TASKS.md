@@ -319,7 +319,7 @@ notifications, deep links, biometric auth, tablet behaviour) — specification o
       becomes unavailable while backgrounded. `MainActivity` changed `ComponentActivity` →
       `FragmentActivity` (required to host `BiometricPrompt`; a safe superset, no existing API
       lost). Verified: real `gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease
-      bundleRelease` — **171/171 unit tests passing** (was 161 before this pass's own 10 new
+bundleRelease` — **171/171 unit tests passing** (was 161 before this pass's own 10 new
       tests), lint 0 errors (59 warnings, unchanged class of pre-existing `GradleDependency`/
       `OldTargetApi` items plus one documented `StaticFieldLeak` suppression on the new
       `BiometricGateViewModel`, a confirmed lint false-positive explained inline). **Remaining,
@@ -327,7 +327,7 @@ notifications, deep links, biometric auth, tablet behaviour) — specification o
       Firebase project, an explicit external-setup decision, not attempted), the real App Links
       SHA-256 signing fingerprint (needs Mohammed's release keystore/Play App Signing
       enrollment), release signing itself (same blocker — `app-release.aab`/`app-release-
-      unsigned.apk` both build, neither is signed), the cross-platform design-token codegen step,
+unsigned.apk` both build, neither is signed), the cross-platform design-token codegen step,
       and a real Invoices/balance-ledger screen (Android's "Payments" tabs are the
       tenant-reported-claim workflow only, not the authoritative `invoice_payments`-backed ledger
       the web tenant portal now has — a real V1-level completeness gap, not a correctness bug: no
@@ -379,114 +379,114 @@ notifications, deep links, biometric auth, tablet behaviour) — specification o
   signing; real App Links fingerprint; design-token codegen) remain open and are not Android code
   work.
 - [x] **Proplyst Mobile Design System: Navy Deck redesign, 2026-09-02**. Full visual/navigation
-  redesign onto the approved "1b Navy Deck" direction
-  (`design/Proplyst mobile app design/design_handoff_proplyst_mobile/`) — replaces the old
-  earth-tone palette and the 8-tab (owner)/6-tab (tenant) bottom nav with a 4-tab IA each
-  (Owner: Home · Properties · Activity · More / Tenant: Home · Payments · Requests · Profile) and
-  a floating white pill bottom nav (the one deliberate departure from the mockups' dark navy nav,
-  per this pass's own explicit instruction). Design tokens, typography, and shapes rewritten as a
-  proper `ProplystTheme` design system with System/Light/Dark appearance support (More/Profile >
-  Appearance). Real bug fix found and corrected in the process: the old
-  `Shapes.extraLarge = 999.dp` was the actual cause of the circular-clipped dialogs observed in the
-  prior pass's emulator smoke test (mis-attributed at the time to the emulator's software
-  renderer) — M3 dialogs use `shapes.extraLarge` as their container shape by default; now a real
-  28dp per the design spec. Every previously-top-level screen remains fully reachable, nested one
-  level deeper (Owner More, Property Detail's contextual links). Property photography wired to the
-  real backend (`property_photos` table, existing `propertyPhotos.ts` cover-photo resolution/
-  signing, previously used by web only) via best-effort JSON API enrichment on
-  `GET /api/v1/properties` (list + detail) — signed URLs and real unit/occupancy counts, never
-  fabricated. Login redesigned with real invalid/network error distinction and a working
-  `sendPasswordReset()` flow (Supabase's own `/auth/v1/recover`); "Continue with Google" is a real
-  UI boundary gated on `BuildConfig.GOOGLE_WEB_CLIENT_ID`, confirmed empty everywhere in this repo
-  — **GOOGLE SIGN-IN: OWNER CONFIGURATION REQUIRED**, not implemented further per this pass's own
-  "do not invent OAuth credentials" instruction. A development-only mock role selector
-  (`MockAuthRepository`, email-prefix "tenant" → tenant fixture) lets the emulator exercise both
-  portals without real credentials; compiled into every build but only ever wired live when
-  `USE_MOCK_DATA` is true, itself hardcoded `false` in every release build. Business logic,
-  repositories, API contracts, and auth/session/biometric architecture unchanged. Real, disclosed
-  gaps found and left open (not fabricated screens): the Tenant Requests (maintenance) list and the
-  Owner/tenant Activity feed still use their pre-existing plain-list visual treatment, not a
-  restyled photo-thumbnail card (design handoff §"Tenant Requests" was not individually mocked and
-  time-boxed this pass); a portfolio-wide occupancy % now shown on Owner Home is computed from the
-  properties already fetched for that screen, not a separate backend aggregate. Real device/emulator
-  visual pass caught and fixed three genuine defects before this pass's own final report: missing
-  status-bar inset handling on every new navy header, a hardcoded occupancy placeholder that had
-  real data available, and the floating nav silently going dark in dark mode (a real spec §22
-  violation) — see WORKLOG.md's own entry for detail. See this pass's own final report for exact
-  test/lint/build verification.
+      redesign onto the approved "1b Navy Deck" direction
+      (`design/Proplyst mobile app design/design_handoff_proplyst_mobile/`) — replaces the old
+      earth-tone palette and the 8-tab (owner)/6-tab (tenant) bottom nav with a 4-tab IA each
+      (Owner: Home · Properties · Activity · More / Tenant: Home · Payments · Requests · Profile) and
+      a floating white pill bottom nav (the one deliberate departure from the mockups' dark navy nav,
+      per this pass's own explicit instruction). Design tokens, typography, and shapes rewritten as a
+      proper `ProplystTheme` design system with System/Light/Dark appearance support (More/Profile >
+      Appearance). Real bug fix found and corrected in the process: the old
+      `Shapes.extraLarge = 999.dp` was the actual cause of the circular-clipped dialogs observed in the
+      prior pass's emulator smoke test (mis-attributed at the time to the emulator's software
+      renderer) — M3 dialogs use `shapes.extraLarge` as their container shape by default; now a real
+      28dp per the design spec. Every previously-top-level screen remains fully reachable, nested one
+      level deeper (Owner More, Property Detail's contextual links). Property photography wired to the
+      real backend (`property_photos` table, existing `propertyPhotos.ts` cover-photo resolution/
+      signing, previously used by web only) via best-effort JSON API enrichment on
+      `GET /api/v1/properties` (list + detail) — signed URLs and real unit/occupancy counts, never
+      fabricated. Login redesigned with real invalid/network error distinction and a working
+      `sendPasswordReset()` flow (Supabase's own `/auth/v1/recover`); "Continue with Google" is a real
+      UI boundary gated on `BuildConfig.GOOGLE_WEB_CLIENT_ID`, confirmed empty everywhere in this repo
+      — **GOOGLE SIGN-IN: OWNER CONFIGURATION REQUIRED**, not implemented further per this pass's own
+      "do not invent OAuth credentials" instruction. A development-only mock role selector
+      (`MockAuthRepository`, email-prefix "tenant" → tenant fixture) lets the emulator exercise both
+      portals without real credentials; compiled into every build but only ever wired live when
+      `USE_MOCK_DATA` is true, itself hardcoded `false` in every release build. Business logic,
+      repositories, API contracts, and auth/session/biometric architecture unchanged. Real, disclosed
+      gaps found and left open (not fabricated screens): the Tenant Requests (maintenance) list and the
+      Owner/tenant Activity feed still use their pre-existing plain-list visual treatment, not a
+      restyled photo-thumbnail card (design handoff §"Tenant Requests" was not individually mocked and
+      time-boxed this pass); a portfolio-wide occupancy % now shown on Owner Home is computed from the
+      properties already fetched for that screen, not a separate backend aggregate. Real device/emulator
+      visual pass caught and fixed three genuine defects before this pass's own final report: missing
+      status-bar inset handling on every new navy header, a hardcoded occupancy placeholder that had
+      real data available, and the floating nav silently going dark in dark mode (a real spec §22
+      violation) — see WORKLOG.md's own entry for detail. See this pass's own final report for exact
+      test/lint/build verification.
 
 - [x] **Claude Design fidelity audit implementation, 2026-09-02 (continued)**. Implemented
-  `design/New-design_handoff_proplyst_mobile/ANDROID_FIDELITY_AUDIT.md` in its suggested order:
-  §0 globals (Plus Jakarta Sans bundled locally in `res/font/` — real ExtraBold; full §8 type
-  token table; wordmark asset; dp-correct navy-header glow; audit-spec shadows; a custom
-  `ProplystTextField` replacing Material's outlined fields), §1 Login (bottom-anchored hero,
-  kind-specific banners incl. a real session-expired state and signed-out toast driven by actual
-  auth transitions via a presentation-only `AuthEventStore`, 45%-disabled Sign in, badged Google
-  boundary, full-navy forgot-sent state), §6 auth/biometric (approved navy lock screen with
-  failed state and working "Use password instead" → returning-user sign-in with fingerprint
-  shortcut, session intact; one-time biometric offer screen gated on a real system prompt;
-  Settings › Security rebuild with inline unavailable/not-enrolled states, enroll intent, custom
-  50×30 switch, bottom-sheet sign-out), §2 Owner Home, §3 Properties, §5 Tenant Home, §4 More,
-  §11 floating-nav polish (11/600 labels, outlined icons). Security semantics unchanged;
-  disclosed deviations: no BiometricPrompt negative-button label (device-credential fallback
-  would be lost), greeting/avatar names limited to the stored email (no profile-name field),
-  Properties "Attention" chip and per-property income figures omitted (no honest data source),
-  tenant "Rent due <date>" uses the invoice's period label (no due-date field), one documents
-  entry point instead of two fabricated named shortcuts. §10 screenshot acceptance completed on
-  `PropertyVault_Pixel7_API35` against the matching `B-*.dc.html` mocks (login, dark/light owner
-  home, properties, security, sign-out sheet, signed-out toast, tenant home); found and fixed one
-  real bug in the process — the emulator-only `MockAuthRepository` dev fixture never persisted the
-  sign-in email, so the avatar/account-row initial silently fell back to "•" in the smoke-test
-  build (`SupabaseAuthRepository` already did this correctly). Final gate: 209/209 tests, 0 lint
-  errors / 62 warnings, debug/release APK + AAB all build. Lock/offer screens implemented and
-  unit-tested but not emulator-exercised (AVD has no enrolled fingerprint — NOT_ENROLLED state
-  captured instead). See WORKLOG.md and the pass's final report for verification detail.
+      `design/New-design_handoff_proplyst_mobile/ANDROID_FIDELITY_AUDIT.md` in its suggested order:
+      §0 globals (Plus Jakarta Sans bundled locally in `res/font/` — real ExtraBold; full §8 type
+      token table; wordmark asset; dp-correct navy-header glow; audit-spec shadows; a custom
+      `ProplystTextField` replacing Material's outlined fields), §1 Login (bottom-anchored hero,
+      kind-specific banners incl. a real session-expired state and signed-out toast driven by actual
+      auth transitions via a presentation-only `AuthEventStore`, 45%-disabled Sign in, badged Google
+      boundary, full-navy forgot-sent state), §6 auth/biometric (approved navy lock screen with
+      failed state and working "Use password instead" → returning-user sign-in with fingerprint
+      shortcut, session intact; one-time biometric offer screen gated on a real system prompt;
+      Settings › Security rebuild with inline unavailable/not-enrolled states, enroll intent, custom
+      50×30 switch, bottom-sheet sign-out), §2 Owner Home, §3 Properties, §5 Tenant Home, §4 More,
+      §11 floating-nav polish (11/600 labels, outlined icons). Security semantics unchanged;
+      disclosed deviations: no BiometricPrompt negative-button label (device-credential fallback
+      would be lost), greeting/avatar names limited to the stored email (no profile-name field),
+      Properties "Attention" chip and per-property income figures omitted (no honest data source),
+      tenant "Rent due <date>" uses the invoice's period label (no due-date field), one documents
+      entry point instead of two fabricated named shortcuts. §10 screenshot acceptance completed on
+      `PropertyVault_Pixel7_API35` against the matching `B-*.dc.html` mocks (login, dark/light owner
+      home, properties, security, sign-out sheet, signed-out toast, tenant home); found and fixed one
+      real bug in the process — the emulator-only `MockAuthRepository` dev fixture never persisted the
+      sign-in email, so the avatar/account-row initial silently fell back to "•" in the smoke-test
+      build (`SupabaseAuthRepository` already did this correctly). Final gate: 209/209 tests, 0 lint
+      errors / 62 warnings, debug/release APK + AAB all build. Lock/offer screens implemented and
+      unit-tested but not emulator-exercised (AVD has no enrolled fingerprint — NOT_ENROLLED state
+      captured instead). See WORKLOG.md and the pass's final report for verification detail.
 
 ## M22a — Utilities, rates & levies, budgets (V1)
 
 - [x] **Evidence-based gap audit, 2026-09-02**: `UTILITIES_RATES_BUDGET_GAP_AUDIT.md`. Confirmed
-  what already existed (expenses, levy statement OCR ingestion, payment review, document
-  categories) vs what was genuinely missing (utility meters/readings, rates/levy configuration,
-  budgets) before writing any code.
+      what already existed (expenses, levy statement OCR ingestion, payment review, document
+      categories) vs what was genuinely missing (utility meters/readings, rates/levy configuration,
+      budgets) before writing any code.
 - [x] **Implementation, 2026-09-02 (continued)**: `UTILITIES_RATES_BUDGET_IMPLEMENTATION.md`.
-  Migrations 20260101000163-166: `recurring_property_costs` (effective-dated rates & taxes/levy),
-  `utility_responsibility_settings`, `utility_meters`, `utility_readings`,
-  `property_budgets`/`budget_category_lines`, `owner_financial_summary()`/`budget_vs_actual()`
-  (both `SECURITY DEFINER`, both explicitly org-role gated — a real cross-org data-leak
-  vulnerability was found and fixed in `budget_vs_actual()` before it ever shipped). Payment
-  confirmation traced end-to-end and fixed: `confirm_payment_report()` now allocates through
-  `record_invoice_payment()` (the existing authoritative ledger entry point) instead of only
-  acknowledging the tenant's claim — idempotent, never double-allocates, refuses rather than
-  silently downgrades when no invoice has been issued yet. Full pgTAP suite: 92 files / 1412
-  tests, 0 failures (was 91/1403 before this pass). Backend: 8 new API routes, all typecheck +
-  lint + `next build` clean. Web: property detail page "Finances" tab (rates & taxes, levy, water/
-  electricity responsibility, monthly budget). Android: "Rent status" paid/unpaid tenant list
-  (More → Rent status), server-authoritative from `rent_schedules.status`, never
-  `payment_reports.status`; `FinancialSummaryRepository`/DI wiring for the dashboard extension
-  below. Clean Kotlin compile on first attempt; full Android gate (tests/lint/debug+release
-  build/AAB) run — see WORKLOG.md for exact results.
+      Migrations 20260101000163-166: `recurring_property_costs` (effective-dated rates & taxes/levy),
+      `utility_responsibility_settings`, `utility_meters`, `utility_readings`,
+      `property_budgets`/`budget_category_lines`, `owner_financial_summary()`/`budget_vs_actual()`
+      (both `SECURITY DEFINER`, both explicitly org-role gated — a real cross-org data-leak
+      vulnerability was found and fixed in `budget_vs_actual()` before it ever shipped). Payment
+      confirmation traced end-to-end and fixed: `confirm_payment_report()` now allocates through
+      `record_invoice_payment()` (the existing authoritative ledger entry point) instead of only
+      acknowledging the tenant's claim — idempotent, never double-allocates, refuses rather than
+      silently downgrades when no invoice has been issued yet. Full pgTAP suite: 92 files / 1412
+      tests, 0 failures (was 91/1403 before this pass). Backend: 8 new API routes, all typecheck +
+      lint + `next build` clean. Web: property detail page "Finances" tab (rates & taxes, levy, water/
+      electricity responsibility, monthly budget). Android: "Rent status" paid/unpaid tenant list
+      (More → Rent status), server-authoritative from `rent_schedules.status`, never
+      `payment_reports.status`; `FinancialSummaryRepository`/DI wiring for the dashboard extension
+      below. Clean Kotlin compile on first attempt; full Android gate (tests/lint/debug+release
+      build/AAB) run — see WORKLOG.md for exact results.
 - [x] **Continuation pass, 2026-09-03**: `UTILITIES_RATES_BUDGET_IMPLEMENTATION.md` §"Continuation
-  pass". New migration `20260101000167_owner_portfolio_financial_summary.sql` — a LIVE,
-  portfolio-wide RPC (chosen over extending the stale-snapshot `owner_property_summaries`, with
-  the reasoning recorded in the doc); pgTAP 11/11 including a cross-org `throws_ok`. Full pgTAP
-  suite now 93 files / 1423 tests. Android: Owner Home dashboard extension (Operating costs/
-  Budget/Net position/Needs Attention merge) now wired to that live RPC for every money figure,
-  not just the new ones; four new screens shipped — Add Expense, Utility Capture, Utility History,
-  Budget View — all reachable via More → Finances; Payment Review and Rent Status polished
-  (method labels, reported-by-tenant-vs-staff, "Confirm payment received" wording, month
-  selector). Web: `UnitFinancesPanel.tsx` (unit-level rates/levy/responsibility, the first pass's
-  disclosed gap, now closed) and `PropertyUtilityMetersPanel.tsx` (create/list meters, record
-  readings, view history — previously the web app had **zero** meter UI, which meant Android's
-  own capture screen pointed nowhere; this was the highest-priority gap closed this pass), plus
-  annual budget distribution on `PropertyFinancesPanel.tsx`. Alerts: `portfolioIntelligence.ts`
-  gained `budget_exceeded`/`budget_approaching`/`unusual_utility_usage` rules in the existing
-  Needs Attention engine (never a competing alert system), with the anomaly threshold logic
-  extracted to a shared `lib/utilityAnomaly.ts` used by both the API route and the new rules — 4
-  new real-Supabase integration tests, 9/9 passing. Android full suite 216/216, 0 lint errors.
+      pass". New migration `20260101000167_owner_portfolio_financial_summary.sql` — a LIVE,
+      portfolio-wide RPC (chosen over extending the stale-snapshot `owner_property_summaries`, with
+      the reasoning recorded in the doc); pgTAP 11/11 including a cross-org `throws_ok`. Full pgTAP
+      suite now 93 files / 1423 tests. Android: Owner Home dashboard extension (Operating costs/
+      Budget/Net position/Needs Attention merge) now wired to that live RPC for every money figure,
+      not just the new ones; four new screens shipped — Add Expense, Utility Capture, Utility History,
+      Budget View — all reachable via More → Finances; Payment Review and Rent Status polished
+      (method labels, reported-by-tenant-vs-staff, "Confirm payment received" wording, month
+      selector). Web: `UnitFinancesPanel.tsx` (unit-level rates/levy/responsibility, the first pass's
+      disclosed gap, now closed) and `PropertyUtilityMetersPanel.tsx` (create/list meters, record
+      readings, view history — previously the web app had **zero** meter UI, which meant Android's
+      own capture screen pointed nowhere; this was the highest-priority gap closed this pass), plus
+      annual budget distribution on `PropertyFinancesPanel.tsx`. Alerts: `portfolioIntelligence.ts`
+      gained `budget_exceeded`/`budget_approaching`/`unusual_utility_usage` rules in the existing
+      Needs Attention engine (never a competing alert system), with the anomaly threshold logic
+      extracted to a shared `lib/utilityAnomaly.ts` used by both the API route and the new rules — 4
+      new real-Supabase integration tests, 9/9 passing. Android full suite 216/216, 0 lint errors.
 - [ ] **Still deferred, disclosed in `UTILITIES_RATES_BUDGET_IMPLEMENTATION.md`**: vendor
-  selection in Add Expense (Android always sends `vendorId: null`); annual budget progress on
-  Android (web-only this pass); `budget_category_lines` UI (table/RLS exist, nothing reads/writes
-  them); meter reset/rollover handling (a lower reading is stored as-is, by design).
+      selection in Add Expense (Android always sends `vendorId: null`); annual budget progress on
+      Android (web-only this pass); `budget_category_lines` UI (table/RLS exist, nothing reads/writes
+      them); meter reset/rollover handling (a lower reading is stored as-is, by design).
 - **Exit criteria**: substantially met for V1 scope — schema, payment-ledger fix, portfolio-wide
   live financial summary, the full Android owner workflow set (Home/Rent status/Payment review/
   Add expense/Utility capture/Utility history/Budget), and web setup (property+unit rates/levy/
@@ -496,27 +496,27 @@ notifications, deep links, biometric auth, tablet behaviour) — specification o
 ## M22b — Smart Utility Monitoring (Phase 1, 2026-10-08)
 
 - [x] **Research + audit**: `docs/SMART_UTILITY_HARDWARE_RESEARCH.md` (SA water/electricity hardware with
-  prices and sources, integration-type vocabulary, municipal submission channels per metro, POPIA/NERSA/
-  by-law constraints), `docs/SMART_UTILITY_ARCHITECTURE.md`, `docs/SMART_UTILITY_IMPLEMENTATION_PLAN.md`
-  (codebase reuse audit, estimates, costs, risks).
+      prices and sources, integration-type vocabulary, municipal submission channels per metro, POPIA/NERSA/
+      by-law constraints), `docs/SMART_UTILITY_ARCHITECTURE.md`, `docs/SMART_UTILITY_IMPLEMENTATION_PLAN.md`
+      (codebase reuse audit, estimates, costs, risks).
 - [x] **Schema** — migration `20260101000175`: optional buildings, smart columns on `utility_meters`
-  (role, ownership, hierarchy, device binding, multiplier/offset/rollover, health, replacement chain),
-  hashed-token push integrations, append-only interval telemetry + ingest log, alerts + thresholds,
-  municipal submission settings/recipients/packs/deliveries; **plus a fix for migration 163's org-only
-  RLS on `utility_meters`/`utility_readings`** (now property-access + owner-portal aware).
+      (role, ownership, hierarchy, device binding, multiplier/offset/rollover, health, replacement chain),
+      hashed-token push integrations, append-only interval telemetry + ingest log, alerts + thresholds,
+      municipal submission settings/recipients/packs/deliveries; **plus a fix for migration 163's org-only
+      RLS on `utility_meters`/`utility_readings`** (now property-access + owner-portal aware).
 - [x] **Ingestion**: one bearer-token endpoint, adapters for Milesight EM300-DI (LoRaWAN), Shelly Gen2+,
-  generic JSON (Modbus gateways) and a simulator; idempotent, spoof-resistant, rotation/revocation.
+      generic JSON (Modbus gateways) and a simulator; idempotent, spoof-resistant, rotation/revocation.
 - [x] **Engines**: rollover/reset/replacement-aware consumption, billing-day periods (SAST), main-vs-
-  submeter reconciliation, rule-based alerts (night flow, base load, spike, vacant unit, offline, reset).
+      submeter reconciliation, rule-based alerts (night flow, base load, spike, vacant unit, offline, reset).
 - [x] **Municipal packs**: HTML/text email + CSV + PDF (+ photos), manual / approval / automatic (flag-gated)
-  modes, authorised recipients only, per-recipient delivery with 1 h/6 h/24 h retries, acceptance recorded
-  by a person only.
+      modes, authorised recipients only, per-recipient delivery with 1 h/6 h/24 h retries, acceptance recorded
+      by a person only.
 - [x] **Web UI**: property → Utilities tab. **Jobs**: `runSmartUtilityJob` in daily-jobs + standalone route.
 - [ ] **Phase 2**: TD-52 (vendor-credential encryption), TD-53 (ingestion batching/retention), TD-54 (single
-  reading store), TD-55 (enable automatic sending — owner decision), TD-56 (block tariffs, tenant recharge),
-  TD-57 (native screens + MOBILE_V1_API_ROUTES), more adapters (Kamstrup OMS-LoRaWAN, SDM230-LoRaWAN).
+      reading store), TD-55 (enable automatic sending — owner decision), TD-56 (block tariffs, tenant recharge),
+      TD-57 (native screens + MOBILE_V1_API_ROUTES), more adapters (Kamstrup OMS-LoRaWAN, SDM230-LoRaWAN).
 - [ ] **Blocked on the physical world**: first test property survey + install (`docs/SMART_UTILITY_ARCHITECTURE.md`
-  §13), pulse-head compatibility confirmation, 2–4 weeks burn-in data.
+      §13), pulse-head compatibility confirmation, 2–4 weeks burn-in data.
 
 ## M22c — Smart Utilities initial release (2026-10-10)
 
@@ -548,17 +548,17 @@ notifications, deep links, biometric auth, tablet behaviour) — specification o
 ## M22f — Utilities Phase 3: production hardening, staging readiness, pilot validation (2026-10-11)
 
 - [x] Security: DNS-rebinding-safe poll client (TD-66), constant-time cron secret (TD-68), e2e never uses live keys
-  (TD-59); tenant write-denial on tariffs/arrangements/charges/credits proven in pgTAP.
+      (TD-59); tenant write-denial on tariffs/arrangements/charges/credits proven in pgTAP.
 - [x] Performance: batch telemetry insert, opt-in retention ≥ 400 days (migration 181, TD-53); legacy monthly
-  readings (Android) mirrored into telemetry (TD-54).
+      readings (Android) mirrored into telemetry (TD-54).
 - [x] Accounting: estimates for missing readings + automatic true-up (draft charge or credit, once, race-safe);
-  TD-61 safe default (`vat_ledger_split_pending`); GL split awaits the accounting decision.
+      TD-61 safe default (`vat_ledger_split_pending`); GL split awaits the accounting decision.
 - [x] Pilot scenario tests: hybrid 7-flat property, private-only (no tariffs) and municipal-only properties — every
-  arrangement, hand-computed (`docs/UTILITIES_PILOT_TEST_SCENARIOS.md`).
+      arrangement, hand-computed (`docs/UTILITIES_PILOT_TEST_SCENARIOS.md`).
 - [x] Rollback script for 175–181, rehearsed on representative data (schema identical to 174 after rollback).
 - [x] SA pilot hardware plan with costs (`docs/UTILITIES_HARDWARE_PILOT_CHECKLIST.md` §5); nothing purchased.
 - [ ] Owner: approvals in `docs/UTILITIES_STAGING_DEPLOYMENT_PLAN.md` §9; pilot decisions in
-  `docs/UTILITIES_REMAINING_BLOCKERS.md`.
+      `docs/UTILITIES_REMAINING_BLOCKERS.md`.
 
 ## M22g — Utilities staging readiness & pilot preparation (2026-10-12)
 
@@ -578,12 +578,12 @@ notifications, deep links, biometric auth, tablet behaviour) — specification o
 ## M22i — Cemetery Management module and live demo (2026-10-26)
 
 - [x] Migration 184: cemeteries, sections, grave sites, rights holders, sales, payments, burials, document register;
-  module switch off by default; RLS accountant+/manager+; double-sale and overpayment prevention; rollback rehearsed.
+      module switch off by default; RLS accountant+/manager+; double-sale and overpayment prevention; rollback rehearsed.
 - [x] Web: register with interactive schematic layout, site record and actions, sale workflow, receipts, purchasers,
-  burial register, dashboard cemetery panel with separate income streams; nav only when enabled.
+      burial register, dashboard cemetery panel with separate income streams; nav only when enabled.
 - [x] Idempotent demo provisioner (property + cemetery demo organisation); pgTAP, unit and Playwright tests.
 - [x] Year of history (Nov 2025 – Oct 2026) for the demo: site history with enforced chronology, cancellations,
-  cemetery reports with month drill-down; dashboard month/year/12-month filters; Reports 12-month table.
+      cemetery reports with month drill-down; dashboard month/year/12-month filters; Reports 12-month table.
 - [x] Migration 185: invoice-number sequence resync (production defect found 2026-10-26).
 - [ ] Owner: production approvals in `docs/CEMETERY_DEPLOYMENT_PLAN_2026-10-26.md` (184+185, deploy, demo org).
 - [ ] Engineering: TD-74 (GL posting), TD-75 (uploads, cancellation/reversal, Super Admin toggle).

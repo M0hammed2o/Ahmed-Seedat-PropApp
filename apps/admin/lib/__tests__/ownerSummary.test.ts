@@ -213,15 +213,13 @@ describeIfSupabase('owner monthly summary aggregation (real local Supabase integ
       })
       .select('id')
       .single();
-    await serviceClient
-      .from('rent_schedules')
-      .insert({
-        org_id: orgId,
-        lease_id: leaseB!.id,
-        due_date: '2026-03-01',
-        amount: 9999,
-        status: 'paid',
-      });
+    await serviceClient.from('rent_schedules').insert({
+      org_id: orgId,
+      lease_id: leaseB!.id,
+      due_date: '2026-03-01',
+      amount: 9999,
+      status: 'paid',
+    });
   });
 
   afterEach(async () => {

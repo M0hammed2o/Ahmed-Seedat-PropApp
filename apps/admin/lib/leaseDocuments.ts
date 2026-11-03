@@ -114,7 +114,11 @@ export async function createLeaseDocumentVersion(
       action: leaseAction,
       entityType: 'leases',
       entityId: input.leaseId,
-      after: { leaseDocumentId: data.id, version: nextVersion, templateId: input.templateId ?? null },
+      after: {
+        leaseDocumentId: data.id,
+        version: nextVersion,
+        templateId: input.templateId ?? null,
+      },
     });
   }
 

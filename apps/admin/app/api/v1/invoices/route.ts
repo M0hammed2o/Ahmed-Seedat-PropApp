@@ -91,7 +91,12 @@ export async function POST(request: NextRequest) {
   const canWrite = await requireOrgRole(supabase, parsed.data.orgId, 'accountant');
   if (!canWrite) {
     return NextResponse.json(
-      { error: { code: 'forbidden', message: 'You do not have permission to create invoices for this organization.' } },
+      {
+        error: {
+          code: 'forbidden',
+          message: 'You do not have permission to create invoices for this organization.',
+        },
+      },
       { status: 403 },
     );
   }
@@ -137,7 +142,11 @@ export async function POST(request: NextRequest) {
       {
         error: {
           code: 'invoice_fetch_failed',
-          message: safeErrorMessage(fetchError, 'Invoice was created, but could not be loaded. Please refresh.', 'invoices.create.fetch'),
+          message: safeErrorMessage(
+            fetchError,
+            'Invoice was created, but could not be loaded. Please refresh.',
+            'invoices.create.fetch',
+          ),
         },
       },
       { status: 500 },

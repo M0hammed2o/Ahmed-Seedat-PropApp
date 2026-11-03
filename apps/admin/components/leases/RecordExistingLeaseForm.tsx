@@ -168,7 +168,9 @@ export function RecordExistingLeaseForm({
       }
       const tenantResponses = await Promise.all(tenantAssignments);
       if (tenantResponses.some((r) => !r.ok)) {
-        setError('Lease was recorded, but assigning the tenant failed — open the lease to try again.');
+        setError(
+          'Lease was recorded, but assigning the tenant failed — open the lease to try again.',
+        );
         router.push(`/leases/${leaseId}`);
         return;
       }
@@ -181,7 +183,9 @@ export function RecordExistingLeaseForm({
           body: formData,
         });
         if (!docResponse.ok) {
-          setError('Lease and tenant were recorded, but the document upload failed — open the lease to try again.');
+          setError(
+            'Lease and tenant were recorded, but the document upload failed — open the lease to try again.',
+          );
           router.push(`/leases/${leaseId}`);
           return;
         }
@@ -289,7 +293,9 @@ export function RecordExistingLeaseForm({
                 />
               </Field>
             ) : (
-              <div className="flex items-end pb-2 text-[13px] text-muted-foreground">Ongoing — no expiry date</div>
+              <div className="flex items-end pb-2 text-[13px] text-muted-foreground">
+                Ongoing — no expiry date
+              </div>
             )}
             <Field label="Monthly rent (ZAR)">
               <input
@@ -352,15 +358,15 @@ export function RecordExistingLeaseForm({
               />
             ) : null}
             <p className="mt-2 text-[11px] text-muted-foreground">
-              This controls when rent schedules start in Proplyst — it never changes the lease&apos;s
-              legal start date above.
+              This controls when rent schedules start in Proplyst — it never changes the
+              lease&apos;s legal start date above.
             </p>
             {isHistorical ? (
               <div className="mt-3 rounded-md border border-light-statusNeedsReview/40 bg-light-statusNeedsReview/10 p-3 dark:border-dark-statusNeedsReview/40 dark:bg-dark-statusNeedsReview/10">
                 <p className="text-[12px] text-light-statusNeedsReview dark:text-dark-statusNeedsReview">
-                  This will generate rent schedules going back to {resolvedTrackingDate} — that&apos;s{' '}
-                  {daysAgo(resolvedTrackingDate)} days of history. Only continue if you actually want
-                  Proplyst to track arrears from that date.
+                  This will generate rent schedules going back to {resolvedTrackingDate} —
+                  that&apos;s {daysAgo(resolvedTrackingDate)} days of history. Only continue if you
+                  actually want Proplyst to track arrears from that date.
                 </p>
                 <label className="mt-2 flex items-center gap-1.5 text-[12px] text-foreground">
                   <input

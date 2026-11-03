@@ -193,7 +193,9 @@ const DEMO_DATA: DashboardData = {
     budgetRemaining: 1600,
     netOperatingPosition: 77100,
     awaitingConfirmationCount: 1,
-    budgetAlerts: [{ propertyId: 'demo-org-1', month: '2026-08-01', level: 'approaching', percentUsed: 82.2 }],
+    budgetAlerts: [
+      { propertyId: 'demo-org-1', month: '2026-08-01', level: 'approaching', percentUsed: 82.2 },
+    ],
     utilityAnomalyAlerts: [],
   },
   propertyOptions: [{ id: 'demo-property-1', nickname: 'Sea Point Apartment' }],
@@ -508,7 +510,9 @@ export default async function DashboardPage({ searchParams }: SearchParams) {
   const financesHref = data.selectedPropertyId
     ? `/properties/${data.selectedPropertyId}?tab=Finances`
     : '/properties';
-  const budgetHref = data.selectedPropertyId ? `/budget?propertyId=${data.selectedPropertyId}` : '/budget';
+  const budgetHref = data.selectedPropertyId
+    ? `/budget?propertyId=${data.selectedPropertyId}`
+    : '/budget';
   const quickActions = [
     { label: 'Add property', icon: Building2, href: '/properties/new' },
     { label: 'New lease', icon: FileSignature, href: '/properties' },
@@ -584,7 +588,9 @@ export default async function DashboardPage({ searchParams }: SearchParams) {
         periodLabel={data.periodLabel}
         manageBudgetHref={budgetHref}
         manageUtilitiesHref={
-          data.selectedPropertyId ? `/properties/${data.selectedPropertyId}?tab=Finances` : '/properties'
+          data.selectedPropertyId
+            ? `/properties/${data.selectedPropertyId}?tab=Finances`
+            : '/properties'
         }
       />
 
@@ -887,7 +893,11 @@ async function loadData(filters: {
   const todayIso = southAfricanToday();
   const in45 = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 45);
   const in45Days = `${in45.getFullYear()}-${String(in45.getMonth() + 1).padStart(2, '0')}-${String(in45.getDate()).padStart(2, '0')}`;
-  const periodRange = resolvePeriodRange(filters.period, { from: filters.from, to: filters.to }, now);
+  const periodRange = resolvePeriodRange(
+    filters.period,
+    { from: filters.from, to: filters.to },
+    now,
+  );
 
   // V1 commercial onboarding pass: resolved independently of the RLS-scoped queries below (which
   // never needed an explicit org id at all) purely to drive the getting-started checklist -- a
@@ -934,26 +944,32 @@ async function loadData(filters: {
     ),
     // Paged: an org passes PostgREST's 1000-row cap after ~85 leases x 12 months, and the rows cut
     // off were the newest months (lib/pagedRead.ts).
-    fetchAllPagesResult<{ id: string; lease_id: string; due_date: string; amount: number; status: string }>(
-      'rent schedule',
-      (from, to) =>
-        supabase
-          .from('rent_schedules')
-          .select('id, lease_id, due_date, amount, status')
-          .order('id', { ascending: true })
-          .range(from, to),
+    fetchAllPagesResult<{
+      id: string;
+      lease_id: string;
+      due_date: string;
+      amount: number;
+      status: string;
+    }>('rent schedule', (from, to) =>
+      supabase
+        .from('rent_schedules')
+        .select('id, lease_id, due_date, amount, status')
+        .order('id', { ascending: true })
+        .range(from, to),
     ),
     // expenses carries property_id directly (unlike rent_schedules, which only has lease_id and
     // needs the lease->unit->property join built below) -- the property filter applies here as a
     // real server-side .eq(), not an in-memory filter.
-    fetchAllPagesResult<{ created_at: string; amount: number; status: string; property_id: string | null }>(
-      'expenses',
-      (from, to) => {
-        let q = supabase.from('expenses').select('id, created_at, amount, status, property_id');
-        if (filters.propertyId) q = q.eq('property_id', filters.propertyId);
-        return q.order('id', { ascending: true }).range(from, to);
-      },
-    ),
+    fetchAllPagesResult<{
+      created_at: string;
+      amount: number;
+      status: string;
+      property_id: string | null;
+    }>('expenses', (from, to) => {
+      let q = supabase.from('expenses').select('id, created_at, amount, status, property_id');
+      if (filters.propertyId) q = q.eq('property_id', filters.propertyId);
+      return q.order('id', { ascending: true }).range(from, to);
+    }),
     // "Payments awaiting confirmation" -- payment_reports.status = 'reported' is the one real,
     // queryable concept for a tenant-reported-but-not-yet-staff-confirmed payment (same status
     // lib/ownerSummary.ts's own awaitingConfirmation bucket uses, never folded into rentCollected).
@@ -1265,9 +1281,9 @@ async function loadData(filters: {
     mappableProperties,
     recentPayments,
     insights: (insightResult.data ?? []).map((row) => {
-      const dataSource = row.data_source as
-        | { triggering_records?: { property_id?: string }[] }
-        | null;
+      const dataSource = row.data_source as {
+        triggering_records?: { property_id?: string }[];
+      } | null;
       return {
         id: row.id as string,
         message: row.message as string,

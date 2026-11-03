@@ -46,13 +46,11 @@ describe('scanUpload', () => {
 
   it('refuses with 422 malware_detected when the scanner reports a threat', async () => {
     real(
-      vi
-        .fn()
-        .mockResolvedValue({
-          clean: false,
-          threatName: 'Test-Signature',
-          providerName: 'test-scanner',
-        }),
+      vi.fn().mockResolvedValue({
+        clean: false,
+        threatName: 'Test-Signature',
+        providerName: 'test-scanner',
+      }),
     );
     const error = await refusalOf(await scanUpload(new Uint8Array([1, 2, 3])));
     expect(error.status).toBe(422);

@@ -51,7 +51,11 @@ export async function GET(request: NextRequest) {
       {
         error: {
           code: 'maintenance_tickets_list_failed',
-          message: safeErrorMessage(error, 'Could not load maintenance tickets.', 'maintenanceTickets.list'),
+          message: safeErrorMessage(
+            error,
+            'Could not load maintenance tickets.',
+            'maintenanceTickets.list',
+          ),
         },
       },
       { status: 500 },

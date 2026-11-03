@@ -37,7 +37,11 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       {
         error: {
           code: 'unit_fetch_failed',
-          message: safeErrorMessage(visibilityError, 'Could not load this unit.', 'units/[id]/hard-delete.visibility'),
+          message: safeErrorMessage(
+            visibilityError,
+            'Could not load this unit.',
+            'units/[id]/hard-delete.visibility',
+          ),
         },
       },
       { status: 500 },

@@ -613,7 +613,11 @@ describe('resolveAuthenticatedDestination', () => {
     });
 
     it('never gates platform admin, tenant, or owner identities on commercial setup', async () => {
-      mockResolveOwnerSession.mockResolvedValue({ userId: 'user-1', ownerId: 'o-1', orgId: 'org-1' });
+      mockResolveOwnerSession.mockResolvedValue({
+        userId: 'user-1',
+        ownerId: 'o-1',
+        orgId: 'org-1',
+      });
       mockSetupQuery.mockResolvedValue({ data: [{ id: 'org-1' }] });
 
       expect(await resolveAuthenticatedDestination()).toEqual({

@@ -4,10 +4,23 @@ import { meterIntegrationActionSchema } from '@propvault/validation';
 import { getServiceRoleClient } from '@/lib/supabase/server';
 import { writeAuditEvent } from '@/lib/audit';
 import { requireOrgRole } from '@/lib/portfolio';
-import { canWriteUtilities, jsonError, notFound, parseJson, requireUser, serverError, utilitiesDisabled, utilitiesEnabledForOrg } from '@/lib/smartUtility/http';
+import {
+  canWriteUtilities,
+  jsonError,
+  notFound,
+  parseJson,
+  requireUser,
+  serverError,
+  utilitiesDisabled,
+  utilitiesEnabledForOrg,
+} from '@/lib/smartUtility/http';
 import { issueToken } from '@/lib/smartUtility/tokens';
 import { getProvider } from '@/lib/smartUtility/providers';
-import { decryptCredentials, encryptCredentials, isCredentialsKeyConfigured } from '@/lib/smartUtility/secrets';
+import {
+  decryptCredentials,
+  encryptCredentials,
+  isCredentialsKeyConfigured,
+} from '@/lib/smartUtility/secrets';
 import { loadPollIntegration, syncIntegration } from '@/lib/smartUtility/sync';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -21,7 +34,9 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
   if ('response' in auth) return auth.response;
   const { data: integration } = await auth.supabase
     .from('meter_integrations')
-    .select('id, provider, name, token_prefix, status, last_seen_at, rotated_at, revoked_at, previous_token_expires_at')
+    .select(
+      'id, provider, name, token_prefix, status, last_seen_at, rotated_at, revoked_at, previous_token_expires_at',
+    )
     .eq('id', id)
     .maybeSingle();
   if (!integration) return notFound('Integration');
@@ -31,7 +46,13 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     .eq('integration_id', id)
     .order('received_at', { ascending: false })
     .limit(20);
-  if (error) return serverError('ingest_events_failed', 'Could not load ingestion history.', 'meter_integrations.events', error);
+  if (error)
+    return serverError(
+      'ingest_events_failed',
+      'Could not load ingestion history.',
+      'meter_integrations.events',
+      error,
+    );
   return NextResponse.json({ integration, events: events ?? [] });
 }
 
@@ -55,9 +76,15 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   const allowed =
     (await requireOrgRole(auth.supabase, integration.org_id, 'manager')) &&
     (await canWriteUtilities(auth.supabase, integration.org_id, integration.property_id));
-  if (!allowed) return jsonError(403, 'forbidden', 'Only an organisation manager or principal can manage meter hardware.');
+  if (!allowed)
+    return jsonError(
+      403,
+      'forbidden',
+      'Only an organisation manager or principal can manage meter hardware.',
+    );
   if (!(await utilitiesEnabledForOrg(integration.org_id))) return utilitiesDisabled();
-  if (integration.status === 'revoked') return jsonError(409, 'integration_revoked', 'This integration has been revoked.');
+  if (integration.status === 'revoked')
+    return jsonError(409, 'integration_revoked', 'This integration has been revoked.');
 
   const service = getServiceRoleClient();
   const now = new Date();
@@ -81,8 +108,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       });
     }
     const row = await loadPollIntegration(service, id);
-    if (!row?.credentials_ciphertext) return jsonError(409, 'no_credentials', 'No credentials stored for this connection.');
-    if (!isCredentialsKeyConfigured()) return jsonError(503, 'credentials_key_missing', 'Secure credential storage is not configured.');
+    if (!row?.credentials_ciphertext)
+      return jsonError(409, 'no_credentials', 'No credentials stored for this connection.');
+    if (!isCredentialsKeyConfigured())
+      return jsonError(
+        503,
+        'credentials_key_missing',
+        'Secure credential storage is not configured.',
+      );
     const result = await provider.verifyConnection({
       config: row.provider_config ?? {},
       credentials: decryptCredentials(row.credentials_ciphertext, row.id),
@@ -92,7 +125,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
 
   if (parsed.data.action === 'sync_now') {
-    if (integration.sync_mode !== 'poll') return jsonError(409, 'not_polled', 'This connection pushes data; there is nothing to sync.');
+    if (integration.sync_mode !== 'poll')
+      return jsonError(409, 'not_polled', 'This connection pushes data; there is nothing to sync.');
     const row = await loadPollIntegration(service, id);
     if (!row) return notFound('Integration');
     const outcome = await syncIntegration(service, row, { actorUserId: auth.user.id });
@@ -100,12 +134,18 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
 
   if (parsed.data.action === 'update_credentials') {
-    if (integration.sync_mode !== 'poll' || !provider) return jsonError(409, 'not_polled', 'This connection has no stored credentials.');
+    if (integration.sync_mode !== 'poll' || !provider)
+      return jsonError(409, 'not_polled', 'This connection has no stored credentials.');
     const allowedKeys = new Set(provider.credentialFields.map((f) => f.key));
     if (Object.keys(parsed.data.credentials).some((k) => !allowedKeys.has(k))) {
       return jsonError(400, 'invalid_credentials', 'Unexpected credential field.');
     }
-    if (!isCredentialsKeyConfigured()) return jsonError(503, 'credentials_key_missing', 'Secure credential storage is not configured.');
+    if (!isCredentialsKeyConfigured())
+      return jsonError(
+        503,
+        'credentials_key_missing',
+        'Secure credential storage is not configured.',
+      );
     const { error } = await service
       .from('meter_integrations')
       .update({
@@ -115,7 +155,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         next_sync_at: now.toISOString(),
       })
       .eq('id', id);
-    if (error) return serverError('integration_credentials_failed', 'Could not update the credentials.', 'meter_integrations.credentials', error);
+    if (error)
+      return serverError(
+        'integration_credentials_failed',
+        'Could not update the credentials.',
+        'meter_integrations.credentials',
+        error,
+      );
     await writeAuditEvent(service, {
       orgId: integration.org_id,
       actorUserId: auth.user.id,
@@ -142,7 +188,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         credentials_ciphertext: null,
       })
       .eq('id', id);
-    if (error) return serverError('integration_revoke_failed', 'Could not revoke the integration.', 'meter_integrations.revoke', error);
+    if (error)
+      return serverError(
+        'integration_revoke_failed',
+        'Could not revoke the integration.',
+        'meter_integrations.revoke',
+        error,
+      );
     await writeAuditEvent(service, {
       orgId: integration.org_id,
       actorUserId: auth.user.id,
@@ -154,7 +206,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ status: 'revoked' });
   }
 
-  const { data: current } = await service.from('meter_integrations').select('token_hash').eq('id', id).single();
+  const { data: current } = await service
+    .from('meter_integrations')
+    .select('token_hash')
+    .eq('id', id)
+    .single();
   const issued = issueToken();
   const { error } = await service
     .from('meter_integrations')
@@ -167,7 +223,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       rotated_at: now.toISOString(),
     })
     .eq('id', id);
-  if (error) return serverError('integration_rotate_failed', 'Could not rotate the token.', 'meter_integrations.rotate', error);
+  if (error)
+    return serverError(
+      'integration_rotate_failed',
+      'Could not rotate the token.',
+      'meter_integrations.rotate',
+      error,
+    );
   await writeAuditEvent(service, {
     orgId: integration.org_id,
     actorUserId: auth.user.id,
@@ -175,7 +237,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     action: 'meter_integration.rotate',
     entityType: 'meter_integrations',
     entityId: id,
-    after: { tokenPrefix: issued.prefix, previousValidUntil: new Date(now.getTime() + ROTATION_GRACE_MS).toISOString() },
+    after: {
+      tokenPrefix: issued.prefix,
+      previousValidUntil: new Date(now.getTime() + ROTATION_GRACE_MS).toISOString(),
+    },
   });
-  return NextResponse.json({ token: issued.token, previousTokenValidUntil: new Date(now.getTime() + ROTATION_GRACE_MS).toISOString() });
+  return NextResponse.json({
+    token: issued.token,
+    previousTokenValidUntil: new Date(now.getTime() + ROTATION_GRACE_MS).toISOString(),
+  });
 }

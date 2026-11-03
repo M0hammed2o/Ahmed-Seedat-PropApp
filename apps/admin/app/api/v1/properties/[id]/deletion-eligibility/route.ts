@@ -37,7 +37,11 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
       {
         error: {
           code: 'property_fetch_failed',
-          message: safeErrorMessage(fetchError, 'Could not load this property.', 'properties/[id]/deletion-eligibility.fetch'),
+          message: safeErrorMessage(
+            fetchError,
+            'Could not load this property.',
+            'properties/[id]/deletion-eligibility.fetch',
+          ),
         },
       },
       { status: 500 },

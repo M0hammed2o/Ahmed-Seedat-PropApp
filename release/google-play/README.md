@@ -2,29 +2,29 @@
 
 Prepared 2026-09-10 for the first production release of the Proplyst Android app.
 
-| | |
-|---|---|
+|                |                                                                                                    |
+| -------------- | -------------------------------------------------------------------------------------------------- |
 | Application ID | `za.co.genbridge.proplyst`, the Play Console package (Kotlin namespace stays `za.co.proplyst.app`) |
-| Version name | 1.0.0 |
-| Version code | 1 |
-| Min SDK | 26 (Android 8.0) |
-| Target SDK | **36 (Android 16)** — required for new apps from 2026-08-31 |
-| Artifact | Not built yet. See `ARTIFACTS.md` |
+| Version name   | 1.0.0                                                                                              |
+| Version code   | 1                                                                                                  |
+| Min SDK        | 26 (Android 8.0)                                                                                   |
+| Target SDK     | **36 (Android 16)** — required for new apps from 2026-08-31                                        |
+| Artifact       | Not built yet. See `ARTIFACTS.md`                                                                  |
 
 ## Files here
 
-| File | What it is |
-|---|---|
-| `STORE_LISTING.md` | App name, descriptions, category, contact fields |
-| `DATA_SAFETY.md` | Every Data safety answer, derived from the actual code |
-| `APP_ACCESS.md` | Reviewer sign-in instructions (no password in git) |
-| `RELEASE_NOTES.md` | "What's new" text |
-| `REVIEWER_NOTES.md` | Context for the Google reviewer |
-| `SIGNING.md` | Upload key location, fingerprints, backup rules |
-| `PRIVACY_POLICY_DRAFT.md` | Accurate policy text — **needs Mohammed's legal sign-off** |
-| `ASSETS.md` | Which store graphics exist and which are still needed |
-| `ARTIFACTS.md` | Build record for the upload bundle, and the versionCode check before building it |
-| `DEVICE_TEST_CHECKLIST.md` | Real-phone checks an emulator cannot cover (camera, fingerprint, gallery) |
+| File                       | What it is                                                                       |
+| -------------------------- | -------------------------------------------------------------------------------- |
+| `STORE_LISTING.md`         | App name, descriptions, category, contact fields                                 |
+| `DATA_SAFETY.md`           | Every Data safety answer, derived from the actual code                           |
+| `APP_ACCESS.md`            | Reviewer sign-in instructions (no password in git)                               |
+| `RELEASE_NOTES.md`         | "What's new" text                                                                |
+| `REVIEWER_NOTES.md`        | Context for the Google reviewer                                                  |
+| `SIGNING.md`               | Upload key location, fingerprints, backup rules                                  |
+| `PRIVACY_POLICY_DRAFT.md`  | Accurate policy text — **needs Mohammed's legal sign-off**                       |
+| `ASSETS.md`                | Which store graphics exist and which are still needed                            |
+| `ARTIFACTS.md`             | Build record for the upload bundle, and the versionCode check before building it |
+| `DEVICE_TEST_CHECKLIST.md` | Real-phone checks an emulator cannot cover (camera, fingerprint, gallery)        |
 
 ## What is blocking publication
 

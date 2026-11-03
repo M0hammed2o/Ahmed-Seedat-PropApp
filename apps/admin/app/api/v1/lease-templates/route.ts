@@ -9,8 +9,7 @@ import { removeProtectedObjects, storeScannedUpload } from '@/lib/protectedStora
 import { validateDocxContent } from '@/lib/leaseTemplateValidation';
 import { writeAuditEvent } from '@/lib/audit';
 
-const DOCX_MIME_TYPE =
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+const DOCX_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
 const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024; // matches the 'documents' bucket's own limit, same bucket is reused
 
@@ -253,7 +252,11 @@ export async function POST(request: NextRequest) {
     action: parsed.data.supersedesId ? 'template.replaced' : 'template.uploaded',
     entityType: 'lease_templates',
     entityId: data.id,
-    after: { name: parsed.data.name, isDefault: parsed.data.isDefault, supersedesId: parsed.data.supersedesId ?? null },
+    after: {
+      name: parsed.data.name,
+      isDefault: parsed.data.isDefault,
+      supersedesId: parsed.data.supersedesId ?? null,
+    },
   });
 
   return NextResponse.json({ leaseTemplate: mapLeaseTemplateRow(data) }, { status: 201 });

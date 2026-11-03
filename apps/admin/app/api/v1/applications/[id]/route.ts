@@ -34,7 +34,11 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
       {
         error: {
           code: 'application_fetch_failed',
-          message: safeErrorMessage(error, 'Could not load this application.', 'applications/[id].fetch'),
+          message: safeErrorMessage(
+            error,
+            'Could not load this application.',
+            'applications/[id].fetch',
+          ),
         },
       },
       { status: 500 },

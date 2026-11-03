@@ -67,7 +67,10 @@ async function assignTenantAndActivate(
 /** activate_lease() calls generate_rent_schedules_for_lease() itself -- this just finds the
  * schedule it produced for a given org (each test's org has exactly one lease/schedule set,
  * so the org-scoped, still-pending list is unambiguous). */
-async function findPendingRentScheduleId(request: APIRequestContext, orgId: string): Promise<string> {
+async function findPendingRentScheduleId(
+  request: APIRequestContext,
+  orgId: string,
+): Promise<string> {
   const response = await request.get(`/api/v1/rent-schedules?org_id=${orgId}&status=pending`);
   expect(response.ok()).toBe(true);
   const body = await response.json();
@@ -104,10 +107,13 @@ async function recordAndMatchPayment(
   expect(txnResponse.ok()).toBe(true);
   const txn = await txnResponse.json();
 
-  const matchResponse = await request.post(`/api/v1/bank-transactions/${txn.bankTransaction.id}/confirm-match`, {
-    headers: { Origin: BASE_URL },
-    data: { rentScheduleId },
-  });
+  const matchResponse = await request.post(
+    `/api/v1/bank-transactions/${txn.bankTransaction.id}/confirm-match`,
+    {
+      headers: { Origin: BASE_URL },
+      data: { rentScheduleId },
+    },
+  );
   expect(matchResponse.ok()).toBe(true);
 }
 
@@ -130,7 +136,9 @@ async function setUpIssuedInvoice(
 }
 
 test.describe('I. Landlord invoices page', () => {
-  test('the invoices list shows every required column, and filters/search work', async ({ page }) => {
+  test('the invoices list shows every required column, and filters/search work', async ({
+    page,
+  }) => {
     const { propertyId, unitId, tenantId } = await setUpIssuedInvoice(page, 'qa-invoices-list', {
       tenantName: 'John Smith',
     });
@@ -157,19 +165,27 @@ test.describe('I. Landlord invoices page', () => {
     await page.getByPlaceholder('Search invoice # or tenant').fill('');
 
     // Property/unit/tenant/status filters -- each select is identified by its own default option.
-    const propertySelect = page.locator('select').filter({ has: page.locator('option', { hasText: 'All properties' }) });
+    const propertySelect = page
+      .locator('select')
+      .filter({ has: page.locator('option', { hasText: 'All properties' }) });
     await propertySelect.selectOption({ label: 'Musgrave Heights' });
     await expect(table.getByText('John Smith')).toBeVisible();
 
-    const unitSelect = page.locator('select').filter({ has: page.locator('option', { hasText: 'All units' }) });
+    const unitSelect = page
+      .locator('select')
+      .filter({ has: page.locator('option', { hasText: 'All units' }) });
     await unitSelect.selectOption({ label: '601' });
     await expect(table.getByText('John Smith')).toBeVisible();
 
-    const tenantSelect = page.locator('select').filter({ has: page.locator('option', { hasText: 'All tenants' }) });
+    const tenantSelect = page
+      .locator('select')
+      .filter({ has: page.locator('option', { hasText: 'All tenants' }) });
     await tenantSelect.selectOption({ label: 'John Smith' });
     await expect(table.getByText('John Smith')).toBeVisible();
 
-    const statusSelect = page.locator('select').filter({ has: page.locator('option', { hasText: 'All statuses' }) });
+    const statusSelect = page
+      .locator('select')
+      .filter({ has: page.locator('option', { hasText: 'All statuses' }) });
     await statusSelect.selectOption('Issued');
     await expect(table.getByText('John Smith')).toBeVisible();
     await statusSelect.selectOption('Paid');
@@ -203,7 +219,9 @@ test.describe('J. Partial payment', () => {
     // No competing source of truth: the underlying rent_schedule itself must also read 'partial'.
     const scheduleResponse = await page.request.get(`/api/v1/rent-schedules?org_id=${orgId}`);
     const scheduleBody = await scheduleResponse.json();
-    const schedule = scheduleBody.rentSchedules.find((s: { id: string }) => s.id === rentScheduleId);
+    const schedule = scheduleBody.rentSchedules.find(
+      (s: { id: string }) => s.id === rentScheduleId,
+    );
     expect(schedule.status).toBe('partial');
   });
 });
@@ -224,7 +242,9 @@ test.describe('K. Internal tenant invoice', () => {
     // Row actions live in a per-row "Actions" menu (48f63bb).
     await row.locator('summary', { hasText: 'Actions' }).click();
     await row.getByRole('button', { name: 'Send invoice' }).click();
-    await expect(row.getByText(/no email address on file/i)).toBeVisible({ timeout: COLD_ROUTE_MS });
+    await expect(row.getByText(/no email address on file/i)).toBeVisible({
+      timeout: COLD_ROUTE_MS,
+    });
 
     // The invoice itself remains perfectly valid -- no fake "sent" state, no crash.
     await expect(row.getByText(currency(12000)).first()).toBeVisible();
@@ -265,7 +285,7 @@ test.describe('L. Portal tenant invoice (no auto-send, explicit send only)', () 
 });
 
 test.describe('M. SaaS invoice separation', () => {
-  test('the landlord invoices page never shows SaaS subscription invoices -- only this org\'s own rent invoices, using the rent-invoice number format', async ({
+  test("the landlord invoices page never shows SaaS subscription invoices -- only this org's own rent invoices, using the rent-invoice number format", async ({
     page,
   }) => {
     await setUpIssuedInvoice(page, 'qa-saas-separation', { tenantName: 'Separation Tenant' });

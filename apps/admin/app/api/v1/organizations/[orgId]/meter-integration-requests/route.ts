@@ -15,11 +15,19 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
   if ('response' in auth) return auth.response;
   const { data, error } = await auth.supabase
     .from('meter_integration_requests')
-    .select('id, property_id, utility_type, manufacturer, model, connection_method, supplier, notes, status, created_at')
+    .select(
+      'id, property_id, utility_type, manufacturer, model, connection_method, supplier, notes, status, created_at',
+    )
     .eq('org_id', orgId)
     .order('created_at', { ascending: false })
     .limit(50);
-  if (error) return serverError('integration_requests_failed', 'Could not load requests.', 'integration_requests.list', error);
+  if (error)
+    return serverError(
+      'integration_requests_failed',
+      'Could not load requests.',
+      'integration_requests.list',
+      error,
+    );
   return NextResponse.json({ requests: data ?? [] });
 }
 
@@ -36,7 +44,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   if (!(await requireOrgRole(auth.supabase, orgId, 'viewer'))) {
     return jsonError(403, 'forbidden', 'You are not a member of this organisation.');
   }
-  const limited = await rateLimitOrRespond(getServiceRoleClient(), `meter-integration-request:${auth.user.id}`, 10, 3600);
+  const limited = await rateLimitOrRespond(
+    getServiceRoleClient(),
+    `meter-integration-request:${auth.user.id}`,
+    10,
+    3600,
+  );
   if (limited) return limited;
   const d = parsed.data;
   const { data, error } = await auth.supabase
@@ -55,8 +68,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     .select('id')
     .single();
   if (error) {
-    if (error.code === '42501') return jsonError(403, 'forbidden', 'You cannot file a request for that property.');
-    return serverError('integration_request_failed', 'Could not save the request.', 'integration_requests.insert', error);
+    if (error.code === '42501')
+      return jsonError(403, 'forbidden', 'You cannot file a request for that property.');
+    return serverError(
+      'integration_request_failed',
+      'Could not save the request.',
+      'integration_requests.insert',
+      error,
+    );
   }
   await notifyPropertyStaff(getServiceRoleClient(), {
     orgId,

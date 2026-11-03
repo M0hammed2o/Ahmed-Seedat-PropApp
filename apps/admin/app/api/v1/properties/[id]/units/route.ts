@@ -21,7 +21,11 @@ async function loadVisibleProperty(
   supabase: Awaited<ReturnType<typeof getServerSupabaseClient>>,
   propertyId: string,
 ) {
-  return supabase.from('properties').select('id, org_id, status').eq('id', propertyId).maybeSingle();
+  return supabase
+    .from('properties')
+    .select('id, org_id, status')
+    .eq('id', propertyId)
+    .maybeSingle();
 }
 
 export async function GET(request: NextRequest, { params }: RouteParams) {
@@ -43,7 +47,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       {
         error: {
           code: 'property_fetch_failed',
-          message: safeErrorMessage(fetchError, 'Could not load this property.', 'properties/[id]/units.fetchProperty'),
+          message: safeErrorMessage(
+            fetchError,
+            'Could not load this property.',
+            'properties/[id]/units.fetchProperty',
+          ),
         },
       },
       { status: 500 },
@@ -114,7 +122,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       {
         error: {
           code: 'property_fetch_failed',
-          message: safeErrorMessage(fetchError, 'Could not load this property.', 'properties/[id]/units.fetchProperty'),
+          message: safeErrorMessage(
+            fetchError,
+            'Could not load this property.',
+            'properties/[id]/units.fetchProperty',
+          ),
         },
       },
       { status: 500 },
@@ -149,7 +161,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       {
         error: {
           code: 'property_archived',
-          message: 'This property is archived and cannot receive new units. Restore the property first.',
+          message:
+            'This property is archived and cannot receive new units. Restore the property first.',
         },
       },
       { status: 409 },

@@ -6,7 +6,8 @@ vi.mock('server-only', () => ({}));
 const { API_PAGE, fetchAll, fetchAllIn } = await import('../data');
 
 const table = Array.from({ length: 2_345 }, (_, i) => ({ id: i }));
-const page = (rows: { id: number }[]) => (from: number, to: number) => Promise.resolve({ data: rows.slice(from, Math.min(to + 1, from + API_PAGE)), error: null });
+const page = (rows: { id: number }[]) => (from: number, to: number) =>
+  Promise.resolve({ data: rows.slice(from, Math.min(to + 1, from + API_PAGE)), error: null });
 
 describe('API paging helpers', () => {
   it('fetchAll returns every row across pages, in order, with the 1 000-row cap respected per request', async () => {
@@ -14,7 +15,11 @@ describe('API paging helpers', () => {
     const rows = await fetchAll(spy);
     expect(rows).toHaveLength(2_345);
     expect(rows[2_344]).toEqual({ id: 2_344 });
-    expect(spy.mock.calls.map(([f, t]) => [f, t])).toEqual([[0, 999], [1000, 1999], [2000, 2999]]);
+    expect(spy.mock.calls.map(([f, t]) => [f, t])).toEqual([
+      [0, 999],
+      [1000, 1999],
+      [2000, 2999],
+    ]);
   });
 
   it('fetchAll stops after one request when the first page is short, and on an exact multiple fetches one empty page', async () => {
@@ -26,7 +31,15 @@ describe('API paging helpers', () => {
 
   it('fetchAll throws on an error instead of returning a partial list', async () => {
     let n = 0;
-    await expect(fetchAll(() => Promise.resolve(n++ === 0 ? { data: table.slice(0, 1000), error: null } : { data: null, error: { message: 'boom' } }))).rejects.toThrow('boom');
+    await expect(
+      fetchAll(() =>
+        Promise.resolve(
+          n++ === 0
+            ? { data: table.slice(0, 1000), error: null }
+            : { data: null, error: { message: 'boom' } },
+        ),
+      ),
+    ).rejects.toThrow('boom');
   });
 
   it('fetchAllIn chunks ids (URL length) and pages each chunk', async () => {

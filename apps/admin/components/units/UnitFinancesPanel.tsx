@@ -27,13 +27,16 @@ const RESPONSIBILITY_LABELS: Record<UtilityResponsibilityMode, string> = {
 
 // common_area_owner is inherently property-wide (migration 163's own CHECK constraint rejects it
 // on a unit-scoped row) -- excluded from this unit-level picker rather than offered and rejected.
-const UNIT_RESPONSIBILITY_MODES = (Object.keys(RESPONSIBILITY_LABELS) as UtilityResponsibilityMode[]).filter(
-  (mode) => mode !== 'common_area_owner',
-);
+const UNIT_RESPONSIBILITY_MODES = (
+  Object.keys(RESPONSIBILITY_LABELS) as UtilityResponsibilityMode[]
+).filter((mode) => mode !== 'common_area_owner');
 
 // Demo mode fixture (§13, web owner financial dashboard pass, this date) -- same rule
 // PropertyFinancesPanel's own DEMO_COSTS/DEMO_SETTINGS follow.
-const DEMO_UNIT_TIMESTAMPS = { createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' };
+const DEMO_UNIT_TIMESTAMPS = {
+  createdAt: '2026-01-01T00:00:00Z',
+  updatedAt: '2026-01-01T00:00:00Z',
+};
 const DEMO_UNIT_COSTS: RecurringPropertyCost[] = [
   {
     id: 'demo-unit-cost-levy',
@@ -148,7 +151,10 @@ export function UnitFinancesPanel({
     }
   }
 
-  async function setResponsibility(utilityType: 'water' | 'electricity', mode: UtilityResponsibilityMode) {
+  async function setResponsibility(
+    utilityType: 'water' | 'electricity',
+    mode: UtilityResponsibilityMode,
+  ) {
     setBusy(true);
     setError(null);
     try {
@@ -187,8 +193,8 @@ export function UnitFinancesPanel({
       <Panel title="Rates, taxes & levy (unit level, expected/configured)">
         <p className="mb-3 text-xs text-muted-foreground">
           For a sectional-title unit owned individually. Leave blank if not applicable -- e.g. a
-          whole-building owner sets rates at the property level instead, and levies may not apply
-          at all. These are expected monthly amounts, not the same as actual recorded expenses.
+          whole-building owner sets rates at the property level instead, and levies may not apply at
+          all. These are expected monthly amounts, not the same as actual recorded expenses.
         </p>
         <div className="grid grid-cols-2 gap-4">
           <RecurringCostField

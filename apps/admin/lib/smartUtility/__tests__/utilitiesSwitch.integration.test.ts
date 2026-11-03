@@ -27,7 +27,9 @@ try {
   reachable = false;
 }
 const d = reachable ? describe : describe.skip;
-const service: SupabaseClient = createClient(URL_, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false, autoRefreshToken: false } });
+const service: SupabaseClient = createClient(URL_, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+  auth: { persistSession: false, autoRefreshToken: false },
+});
 
 d('Smart Utilities per-organisation switch (real local Supabase)', () => {
   const sfx = Date.now();
@@ -36,17 +38,50 @@ d('Smart Utilities per-organisation switch (real local Supabase)', () => {
   let token: string;
 
   beforeAll(async () => {
-    orgId = (await service.from('organizations').insert({ legal_name: `SW ${sfx}`, org_type: 'agency' }).select('id').single()).data!.id;
-    propertyId = (await service.from('properties').insert({ org_id: orgId, nickname: 'SW', address_line1: '1', city: 'Durban', province: 'KwaZulu-Natal', postal_code: '4001' }).select('id').single()).data!.id;
+    orgId = (
+      await service
+        .from('organizations')
+        .insert({ legal_name: `SW ${sfx}`, org_type: 'agency' })
+        .select('id')
+        .single()
+    ).data!.id;
+    propertyId = (
+      await service
+        .from('properties')
+        .insert({
+          org_id: orgId,
+          nickname: 'SW',
+          address_line1: '1',
+          city: 'Durban',
+          province: 'KwaZulu-Natal',
+          postal_code: '4001',
+        })
+        .select('id')
+        .single()
+    ).data!.id;
     const t = issueToken();
     token = t.token;
-    await service.from('meter_integrations').insert({ org_id: orgId, property_id: propertyId, provider: 'generic_json', name: 'SW gw', token_prefix: t.prefix, token_hash: t.hash });
+    await service.from('meter_integrations').insert({
+      org_id: orgId,
+      property_id: propertyId,
+      provider: 'generic_json',
+      name: 'SW gw',
+      token_prefix: t.prefix,
+      token_hash: t.hash,
+    });
   });
 
   it('a newly created organisation is OFF by default (migration 182): ingestion refused, API gate closed', async () => {
-    const { data: org } = await service.from('organizations').select('utilities_enabled').eq('id', orgId).single();
+    const { data: org } = await service
+      .from('organizations')
+      .select('utilities_enabled')
+      .eq('id', orgId)
+      .single();
     expect(org!.utilities_enabled).toBe(false);
-    expect(await authenticateIntegration(service, token)).toEqual({ ok: false, reason: 'utilities_disabled' });
+    expect(await authenticateIntegration(service, token)).toEqual({
+      ok: false,
+      reason: 'utilities_disabled',
+    });
     expect((await loadReadableProperty(service, propertyId))?.utilities_enabled).toBe(false);
     expect((await enabledUtilityOrgs(service)).has(orgId)).toBe(false);
   });
@@ -61,42 +96,109 @@ d('Smart Utilities per-organisation switch (real local Supabase)', () => {
   it('switched off again: ingestion refused, API gate closed, municipal deliveries paused', async () => {
     await service.from('organizations').update({ utilities_enabled: false }).eq('id', orgId);
     try {
-      expect(await authenticateIntegration(service, token)).toEqual({ ok: false, reason: 'utilities_disabled' });
+      expect(await authenticateIntegration(service, token)).toEqual({
+        ok: false,
+        reason: 'utilities_disabled',
+      });
       expect((await loadReadableProperty(service, propertyId))?.utilities_enabled).toBe(false);
       expect((await enabledUtilityOrgs(service)).has(orgId)).toBe(false);
       const { data: sub } = await service
         .from('municipal_submissions')
-        .insert({ org_id: orgId, property_id: propertyId, period_start: '2025-06-01', period_end: '2025-06-28', status: 'scheduled', mode: 'approval_required', report: { meters: [] } })
+        .insert({
+          org_id: orgId,
+          property_id: propertyId,
+          period_start: '2025-06-01',
+          period_end: '2025-06-28',
+          status: 'scheduled',
+          mode: 'approval_required',
+          report: { meters: [] },
+        })
         .select('id')
         .single();
-      await service.from('municipal_submission_recipients').insert({ org_id: orgId, property_id: propertyId, email: `sw-${sfx}@example.com`, recipient_type: 'custom', authorised_at: new Date().toISOString() });
-      await service.from('municipal_submission_deliveries').insert({ org_id: orgId, property_id: propertyId, submission_id: sub!.id, recipient_email: `sw-${sfx}@example.com`, recipient_type: 'custom', next_attempt_at: new Date(Date.now() - 60_000).toISOString() });
+      await service.from('municipal_submission_recipients').insert({
+        org_id: orgId,
+        property_id: propertyId,
+        email: `sw-${sfx}@example.com`,
+        recipient_type: 'custom',
+        authorised_at: new Date().toISOString(),
+      });
+      await service.from('municipal_submission_deliveries').insert({
+        org_id: orgId,
+        property_id: propertyId,
+        submission_id: sub!.id,
+        recipient_email: `sw-${sfx}@example.com`,
+        recipient_type: 'custom',
+        next_attempt_at: new Date(Date.now() - 60_000).toISOString(),
+      });
       const sender = vi.fn();
-      const r = await sendDueDeliveries(service, { submissionId: sub!.id, now: new Date(), sender: sender as never });
+      const r = await sendDueDeliveries(service, {
+        submissionId: sub!.id,
+        now: new Date(),
+        sender: sender as never,
+      });
       expect(sender).not.toHaveBeenCalled();
       expect(r.attempted).toBe(0);
-      const { data: del } = await service.from('municipal_submission_deliveries').select('status, attempts').eq('submission_id', sub!.id).single();
+      const { data: del } = await service
+        .from('municipal_submission_deliveries')
+        .select('status, attempts')
+        .eq('submission_id', sub!.id)
+        .single();
       expect(del).toEqual({ status: 'pending', attempts: 0 }); // paused, not failed: resumes when re-enabled
 
       // No approval reminders for a switched-off organisation.
       const { data: pending } = await service
         .from('municipal_submissions')
-        .insert({ org_id: orgId, property_id: propertyId, period_start: '2025-07-01', period_end: '2025-07-28', status: 'pending_approval', mode: 'approval_required', report: { meters: [] }, created_at: new Date(Date.now() - 2 * 86_400_000).toISOString() })
+        .insert({
+          org_id: orgId,
+          property_id: propertyId,
+          period_start: '2025-07-01',
+          period_end: '2025-07-28',
+          status: 'pending_approval',
+          mode: 'approval_required',
+          report: { meters: [] },
+          created_at: new Date(Date.now() - 2 * 86_400_000).toISOString(),
+        })
         .select('id')
         .single();
       await runApprovalReminders(service, new Date());
-      expect((await service.from('municipal_submissions').select('reminder_sent_at').eq('id', pending!.id).single()).data).toEqual({ reminder_sent_at: null });
+      expect(
+        (
+          await service
+            .from('municipal_submissions')
+            .select('reminder_sent_at')
+            .eq('id', pending!.id)
+            .single()
+        ).data,
+      ).toEqual({ reminder_sent_at: null });
 
       // Never polls a switched-off organisation's server.
       const pt = issueToken();
       const { data: poll } = await service
         .from('meter_integrations')
-        .insert({ org_id: orgId, property_id: propertyId, provider: 'thingsboard', name: 'SW poll', token_prefix: pt.prefix, token_hash: pt.hash, sync_mode: 'poll', credentials_ciphertext: 'not-used', provider_config: { baseUrl: 'https://tb.example.com' } })
+        .insert({
+          org_id: orgId,
+          property_id: propertyId,
+          provider: 'thingsboard',
+          name: 'SW poll',
+          token_prefix: pt.prefix,
+          token_hash: pt.hash,
+          sync_mode: 'poll',
+          credentials_ciphertext: 'not-used',
+          provider_config: { baseUrl: 'https://tb.example.com' },
+        })
         .select('id')
         .single();
       const fetchSpy = vi.fn();
       await runPollSync(service, { now: new Date(), fetchImpl: fetchSpy as never });
-      expect((await service.from('meter_integrations').select('last_sync_at, consecutive_failures').eq('id', poll!.id).single()).data).toEqual({ last_sync_at: null, consecutive_failures: 0 });
+      expect(
+        (
+          await service
+            .from('meter_integrations')
+            .select('last_sync_at, consecutive_failures')
+            .eq('id', poll!.id)
+            .single()
+        ).data,
+      ).toEqual({ last_sync_at: null, consecutive_failures: 0 });
     } finally {
       await service.from('organizations').update({ utilities_enabled: true }).eq('id', orgId);
     }

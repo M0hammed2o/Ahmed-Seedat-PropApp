@@ -2,7 +2,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { test, expect, type Page } from '@playwright/test';
 import { BASE_URL } from '../playwright.config';
-import { setUpOrg, createProperty, createUnit, enableSmartUtilitiesForTests } from './fixtures/orgWorkflow';
+import {
+  setUpOrg,
+  createProperty,
+  createUnit,
+  enableSmartUtilitiesForTests,
+} from './fixtures/orgWorkflow';
 
 // Production-readiness browser checks (docs/UTILITIES_FINAL_TEST_RESULTS.md): a manual reading WITH a photo and its
 // review + evidence PDF, the consumption graph, municipal approval withdrawn by a content change, a refused invalid
@@ -12,10 +17,14 @@ import { setUpOrg, createProperty, createUnit, enableSmartUtilitiesForTests } fr
 const slowExpect = expect.configure({ timeout: 45_000 });
 const SHOTS = path.resolve(__dirname, '../../../docs/qa/utilities-readiness-2026-10-11');
 fs.mkdirSync(SHOTS, { recursive: true });
-const shot = (page: Page, name: string) => page.screenshot({ path: path.join(SHOTS, `${name}.png`), fullPage: true });
+const shot = (page: Page, name: string) =>
+  page.screenshot({ path: path.join(SHOTS, `${name}.png`), fullPage: true });
 
 // 1×1 PNG (a stand-in for a meter photo).
-const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=', 'base64');
+const PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=',
+  'base64',
+);
 
 async function dismissTour(page: Page) {
   const skip = page.getByRole('button', { name: 'Skip tour', exact: true }).first();
@@ -26,10 +35,14 @@ async function dismissTour(page: Page) {
 }
 
 async function noHorizontalScroll(page: Page) {
-  return page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  return page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
 }
 
-test('readings with photo evidence, graphs, approval invalidation, error display and layouts', async ({ page }) => {
+test('readings with photo evidence, graphs, approval invalidation, error display and layouts', async ({
+  page,
+}) => {
   test.setTimeout(360_000);
   const { orgId } = await setUpOrg(page.request, 'utilities-readiness');
   await enableSmartUtilitiesForTests(orgId); // off by default since migration 182
@@ -39,7 +52,14 @@ test('readings with photo evidence, graphs, approval invalidation, error display
   // A municipal water meter via the API (the wizard itself is covered by smart-utilities.spec.ts).
   const created = await page.request.post(`/api/v1/properties/${propertyId}/smart-meters`, {
     headers: { Origin: BASE_URL },
-    data: { utilityType: 'water', meterRole: 'main', ownership: 'municipal', connectivity: 'manual', meterNumber: 'RC-W-1', location: 'Gate box' },
+    data: {
+      utilityType: 'water',
+      meterRole: 'main',
+      ownership: 'municipal',
+      connectivity: 'manual',
+      meterNumber: 'RC-W-1',
+      location: 'Gate box',
+    },
   });
   expect(created.status()).toBe(201);
   const meterId = (await created.json()).meterId as string;
@@ -57,7 +77,10 @@ test('readings with photo evidence, graphs, approval invalidation, error display
   // --- Manual reading with a photo, through the UI
   await page.getByRole('button', { name: 'Reading', exact: true }).first().click();
   await page.getByLabel(/Reading on the dial/).fill('1012.5');
-  await page.locator('input[type="file"]').first().setInputFiles({ name: 'meter.png', mimeType: 'image/png', buffer: PNG });
+  await page
+    .locator('input[type="file"]')
+    .first()
+    .setInputFiles({ name: 'meter.png', mimeType: 'image/png', buffer: PNG });
   await page.getByRole('button', { name: 'Save reading' }).click();
   await slowExpect(page.getByText('Record a reading')).toHaveCount(0);
   await page.getByRole('button', { name: 'History' }).first().click();
@@ -80,22 +103,37 @@ test('readings with photo evidence, graphs, approval invalidation, error display
   await shot(page, '03-consumption-graph');
 
   // --- Invalid tariff: refused with a readable message
-  const billing = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Utility recharges' }) }).last();
+  const billing = page
+    .locator('section')
+    .filter({ has: page.getByRole('heading', { name: 'Utility recharges' }) })
+    .last();
   await billing.getByRole('button', { name: 'Add tariff' }).click();
   await billing.getByRole('textbox', { name: 'Name' }).fill('FICTIONAL broken blocks');
-  await billing.getByRole('spinbutton', { name: /Rate \(R per kL\)/ }).first().fill('20');
+  await billing
+    .getByRole('spinbutton', { name: /Rate \(R per kL\)/ })
+    .first()
+    .fill('20');
   await billing.getByRole('button', { name: 'Add block' }).click();
   await billing.getByRole('spinbutton', { name: /Block 1: up to/ }).fill('15');
-  await billing.getByRole('spinbutton', { name: /Rate \(R per kL\)/ }).nth(1).fill('10');
+  await billing
+    .getByRole('spinbutton', { name: /Rate \(R per kL\)/ })
+    .nth(1)
+    .fill('10');
   await billing.getByRole('button', { name: 'Add block' }).click();
   await billing.getByRole('spinbutton', { name: /Block 2: up to/ }).fill('6'); // descending: invalid
-  await billing.getByRole('spinbutton', { name: /Rate \(R per kL\)/ }).nth(2).fill('30');
+  await billing
+    .getByRole('spinbutton', { name: /Rate \(R per kL\)/ })
+    .nth(2)
+    .fill('30');
   await billing.getByRole('button', { name: 'Save tariff' }).click();
   await slowExpect(billing.getByRole('alert').first()).toBeVisible();
   await shot(page, '04-invalid-tariff-error');
 
   // --- Municipal: approve, then change the content → approval withdrawn
-  const muni = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Monthly municipal readings' }) }).last();
+  const muni = page
+    .locator('section')
+    .filter({ has: page.getByRole('heading', { name: 'Monthly municipal readings' }) })
+    .last();
   await muni.getByRole('combobox', { name: /^Municipality/ }).selectOption('tshwane');
   await muni.getByRole('textbox', { name: /^Municipal account/ }).fill('5000000001');
   await muni.getByRole('button', { name: 'Save settings' }).click();
@@ -112,11 +150,17 @@ test('readings with photo evidence, graphs, approval invalidation, error display
   await muni.getByRole('button', { name: 'Save settings' }).click();
   await slowExpect(muni.getByText(/approval was withdrawn/)).toBeVisible();
   await muni.getByRole('button', { name: 'Preview saved email' }).click();
-  await slowExpect(page.getByRole('region', { name: 'Email preview' }).getByText('Not approved')).toBeVisible();
+  await slowExpect(
+    page.getByRole('region', { name: 'Email preview' }).getByText('Not approved'),
+  ).toBeVisible();
   await shot(page, '05-approval-withdrawn');
 
   // --- Layouts: desktop, tablet, phone — Utilities tab and the portfolio page
-  for (const [name, width, height] of [['desktop', 1440, 900], ['tablet', 768, 1024], ['phone', 390, 844]] as const) {
+  for (const [name, width, height] of [
+    ['desktop', 1440, 900],
+    ['tablet', 768, 1024],
+    ['phone', 390, 844],
+  ] as const) {
     await page.setViewportSize({ width, height });
     await page.goto(`/properties/${propertyId}?tab=Utilities`);
     await slowExpect(page.getByText('Utility monitoring')).toBeVisible();

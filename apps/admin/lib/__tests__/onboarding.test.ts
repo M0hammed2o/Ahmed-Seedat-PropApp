@@ -84,7 +84,10 @@ describeIfSupabase('resolveOnboardingProgress (real local Supabase integration)'
   it('a grandfathered org (commercial_setup_required=false) never shows plan/payment-method steps at all', async () => {
     await serviceClient
       .from('organizations')
-      .update({ commercial_setup_required: false, commercial_setup_completed_at: new Date().toISOString() })
+      .update({
+        commercial_setup_required: false,
+        commercial_setup_completed_at: new Date().toISOString(),
+      })
       .eq('id', orgId);
 
     const progress = await resolveOnboardingProgress(serviceClient, orgId);
@@ -149,7 +152,10 @@ describeIfSupabase('resolveOnboardingProgress (real local Supabase integration)'
   it('percentComplete reaches 100 and allDone is true once every step is complete or skipped', async () => {
     await serviceClient
       .from('organizations')
-      .update({ commercial_setup_required: false, commercial_setup_completed_at: new Date().toISOString() })
+      .update({
+        commercial_setup_required: false,
+        commercial_setup_completed_at: new Date().toISOString(),
+      })
       .eq('id', orgId);
     await skipStaffOnboardingStep(serviceClient, orgId);
 

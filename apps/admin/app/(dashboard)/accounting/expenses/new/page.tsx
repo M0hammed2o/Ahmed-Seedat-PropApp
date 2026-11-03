@@ -41,21 +41,24 @@ export default async function NewExpensePage() {
   // property ExpenseForm's own picker selects, same NewApplicationPicker.tsx pattern), the org's
   // active vendors (existing Vendors module, reused as-is), and the 'receipt' document category
   // id the optional evidence upload tags its document with.
-  const [{ data: units, error: unitsError }, { data: vendors, error: vendorsError }, { data: receiptCategory }] =
-    await Promise.all([
-      supabase
-        .from('units')
-        .select('id, property_id, unit_label')
-        .eq('org_id', activeOrg.orgId)
-        .order('unit_label', { ascending: true }),
-      supabase
-        .from('vendors')
-        .select('id, name')
-        .eq('org_id', activeOrg.orgId)
-        .eq('status', 'active')
-        .order('name', { ascending: true }),
-      supabase.from('document_categories').select('id').eq('slug', 'receipt').maybeSingle(),
-    ]);
+  const [
+    { data: units, error: unitsError },
+    { data: vendors, error: vendorsError },
+    { data: receiptCategory },
+  ] = await Promise.all([
+    supabase
+      .from('units')
+      .select('id, property_id, unit_label')
+      .eq('org_id', activeOrg.orgId)
+      .order('unit_label', { ascending: true }),
+    supabase
+      .from('vendors')
+      .select('id, name')
+      .eq('org_id', activeOrg.orgId)
+      .eq('status', 'active')
+      .order('name', { ascending: true }),
+    supabase.from('document_categories').select('id').eq('slug', 'receipt').maybeSingle(),
+  ]);
   if (unitsError) throw new Error(`Failed to load units: ${unitsError.message}`);
   if (vendorsError) throw new Error(`Failed to load vendors: ${vendorsError.message}`);
 

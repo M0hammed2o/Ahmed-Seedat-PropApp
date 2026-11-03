@@ -98,6 +98,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             : message.startsWith('invalid_addon_quantity')
               ? 'invalid_addon_quantity'
               : 'addon_change_failed';
-    return NextResponse.json({ error: { code, message } }, { status: code === 'addon_change_failed' ? 422 : 409 });
+    return NextResponse.json(
+      { error: { code, message } },
+      { status: code === 'addon_change_failed' ? 422 : 409 },
+    );
   }
 }

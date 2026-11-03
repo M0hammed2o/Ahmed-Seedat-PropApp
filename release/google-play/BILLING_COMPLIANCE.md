@@ -30,7 +30,7 @@ heard of.
 `Likely:` this passes review. Enforcement in practice keys on in-app purchase and steering
 surfaces, and Android now has neither. But §3 describes "cloud software and services (… financial
 management)" as requiring Play billing, and Proplyst is that; a reviewer could still take the view
-that §3 applies to an app that *unlocks* paid cloud software regardless of where the money changed
+that §3 applies to an app that _unlocks_ paid cloud software regardless of where the money changed
 hands. Option B below remains the unambiguous end state if that happens.
 
 ---
@@ -47,7 +47,7 @@ Audited 11 September 2026 against the live policy text.
 2. `ui/more/OwnerMoreScreen.kt:58` defines
    `WEB_BILLING_URL = "https://proplyst.co.za/organization/billing"`.
 3. Line 175, inside an `if (isPrincipal)` block labelled **"Manage subscription"** /
-   *"Billing and plan (opens in browser)"*, fires
+   _"Billing and plan (opens in browser)"_, fires
    `Intent(ACTION_VIEW, Uri.parse(WEB_BILLING_URL))` — it leaves the app for the system browser.
 4. That page (`components/organizations/OrganizationBillingView.tsx`) is not a read-only receipt.
    It offers **Upgrade**, **Cancel subscription**, **update payment method** and **restore access**.
@@ -62,8 +62,8 @@ Checked against the live policy text on 11 September 2026, not from memory —
 [Payments policy](https://support.google.com/googleplay/android-developer/answer/9858738).
 
 **Section 3 — what must use Play billing.** The "requires Google Play's billing system" list
-explicitly includes *"cloud software and services (storage, productivity, **financial
-management**)"* and *"subscription services"*. Proplyst is subscription cloud software for
+explicitly includes _"cloud software and services (storage, productivity, **financial
+management**)"_ and _"subscription services"_. Proplyst is subscription cloud software for
 property financial management. It lands inside that description rather than near it.
 
 **No exemption applies.** The exemptions are physical goods, physical services, credit-card and
@@ -72,31 +72,32 @@ content. **There is no SaaS, B2B or enterprise-software exemption.** This is the
 worth abandoning early — "we're B2B, the consumer rules don't apply" is not in the policy.
 
 **Section 4 — anti-steering.** Separately and independently, §4 prohibits leading users to an
-alternative payment method *"via … in-app webviews, buttons, links, messaging, advertisements"*.
+alternative payment method _"via … in-app webviews, buttons, links, messaging, advertisements"_.
 The "Manage subscription" button is precisely a button leading to an alternative payment method.
 
 Both halves are violated. Fixing only the billing integration and keeping the link out, or removing
 the link and keeping PayFast-only purchasing, each still leaves one half standing.
 
-## What is *not* available as an escape
+## What is _not_ available as an escape
 
 The **external offers programme**, which legitimises linking out, is **EEA-only**. Proplyst is a
 South African product billing in ZAR through a South African processor. It does not qualify.
 
 **User choice billing does cover South Africa** — SA is named among the countries where a user may
 pick an alternative billing system at purchase, with the service fee reduced by 4%. That is a real
-option, but note what it is not: it still requires integrating Play Billing and *offering Play's own
-system as one of the choices*. It is not permission to keep PayFast alone.
+option, but note what it is not: it still requires integrating Play Billing and _offering Play's own
+system as one of the choices_. It is not permission to keep PayFast alone.
 
 ## The options, in the order I would consider them
 
-### A. Strip the billing entry point from the Android app *(lowest cost, unblocks submission)*
+### A. Strip the billing entry point from the Android app _(lowest cost, unblocks submission)_
+
 Delete `WEB_BILLING_URL` and the "Manage subscription" row. The app then contains no purchase flow
 and no steering link; subscriptions are bought on the web by people who found Proplyst as a web
 product. This removes the §4 violation outright and removes the in-app purchase surface that §3
 attaches to.
 
-Honest about the residual risk: the app still *unlocks paid cloud software*, and Google can still
+Honest about the residual risk: the app still _unlocks paid cloud software_, and Google can still
 take the view that §3 applies to the app regardless of where the transaction happens. `Likely:`
 this passes review, because enforcement in practice keys on in-app purchase and steering surfaces,
 both of which would be gone — but it is a judgement call, not a guarantee.
@@ -104,6 +105,7 @@ both of which would be gone — but it is a judgement call, not a guarantee.
 Cost: a few lines, then a rebuild, version bump and re-sign of the AAB.
 
 ### B. Integrate Play Billing properly
+
 Add the Play Billing Library, create the subscription products in Play Console, and reconcile Play's
 purchase tokens against the existing PayFast subscription records server-side. Unambiguously
 compliant.
@@ -113,6 +115,7 @@ Play's 15%/30% fee on Android-originated subscriptions. This is an architectural
 **not** something to start without an explicit decision.
 
 ### C. User choice billing (SA-eligible)
+
 B, plus an alternative billing system alongside it, for a 4% fee reduction. Strictly more work than
 B. Only worth it once B exists and the Android subscription volume justifies it.
 

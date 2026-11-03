@@ -47,10 +47,20 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       { status: 500 },
     );
   }
-  const app = appData as { valid: boolean; error_code: string | null; application_id: string | null; org_id: string | null };
+  const app = appData as {
+    valid: boolean;
+    error_code: string | null;
+    application_id: string | null;
+    org_id: string | null;
+  };
   if (!app.valid || !app.application_id || !app.org_id) {
     return NextResponse.json(
-      { error: { code: app.error_code ?? 'invalid_token', message: 'This link is no longer valid.' } },
+      {
+        error: {
+          code: app.error_code ?? 'invalid_token',
+          message: 'This link is no longer valid.',
+        },
+      },
       { status: 410 },
     );
   }
@@ -63,7 +73,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     .eq('id', documentId)
     .maybeSingle();
   if (!document || document.application_id !== app.application_id) {
-    return NextResponse.json({ error: { code: 'not_found', message: 'Document not found.' } }, { status: 404 });
+    return NextResponse.json(
+      { error: { code: 'not_found', message: 'Document not found.' } },
+      { status: 404 },
+    );
   }
 
   const { data: job } = await serviceRole
@@ -76,7 +89,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     .maybeSingle();
   if (!job) {
     return NextResponse.json(
-      { error: { code: 'not_found', message: 'No completed OCR extraction exists for this document yet.' } },
+      {
+        error: {
+          code: 'not_found',
+          message: 'No completed OCR extraction exists for this document yet.',
+        },
+      },
       { status: 404 },
     );
   }
@@ -95,7 +113,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
   const { data: result, error: updateError } = await serviceRole
     .from('extraction_results')
-    .update({ corrected_fields: parsed.data.correctedFields, reviewed_at: new Date().toISOString() })
+    .update({
+      corrected_fields: parsed.data.correctedFields,
+      reviewed_at: new Date().toISOString(),
+    })
     .eq('extraction_job_id', job.id)
     .select('id')
     .maybeSingle();

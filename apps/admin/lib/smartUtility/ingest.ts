@@ -35,7 +35,14 @@ export type IntegrationAuthResult =
  */
 export async function enabledUtilityOrgs(serviceClient: SupabaseClient): Promise<Set<string>> {
   // Paged: a single request is capped at 1 000 rows by the API (fetchAll). A lookup error throws (fail closed).
-  const rows = await fetchAll<{ id: string }>((f, t) => serviceClient.from('organizations').select('id').eq('utilities_enabled', true).order('id').range(f, t)).catch((e: Error) => {
+  const rows = await fetchAll<{ id: string }>((f, t) =>
+    serviceClient
+      .from('organizations')
+      .select('id')
+      .eq('utilities_enabled', true)
+      .order('id')
+      .range(f, t),
+  ).catch((e: Error) => {
     throw new Error(`utilities switch lookup failed: ${e.message}`);
   });
   return new Set(rows.map((o) => o.id));
@@ -43,7 +50,11 @@ export async function enabledUtilityOrgs(serviceClient: SupabaseClient): Promise
 
 /** Fail closed: only an explicit `true` enables (missing row, missing value or error → disabled). */
 async function orgUtilitiesEnabled(serviceClient: SupabaseClient, orgId: string): Promise<boolean> {
-  const { data, error } = await serviceClient.from('organizations').select('utilities_enabled').eq('id', orgId).maybeSingle();
+  const { data, error } = await serviceClient
+    .from('organizations')
+    .select('utilities_enabled')
+    .eq('id', orgId)
+    .maybeSingle();
   if (error) return false;
   return (data as { utilities_enabled?: boolean } | null)?.utilities_enabled === true;
 }
@@ -66,7 +77,8 @@ export async function authenticateIntegration(
     .maybeSingle();
   if (current && tokenMatchesHash(token, current.token_hash)) {
     if (current.status !== 'active') return { ok: false, reason: 'revoked' };
-    if (!(await orgUtilitiesEnabled(serviceClient, current.org_id))) return { ok: false, reason: 'utilities_disabled' };
+    if (!(await orgUtilitiesEnabled(serviceClient, current.org_id)))
+      return { ok: false, reason: 'utilities_disabled' };
     return { ok: true, integration: current as IntegrationRow };
   }
 
@@ -83,7 +95,8 @@ export async function authenticateIntegration(
     tokenMatchesHash(token, previous.previous_token_hash)
   ) {
     if (previous.status !== 'active') return { ok: false, reason: 'revoked' };
-    if (!(await orgUtilitiesEnabled(serviceClient, previous.org_id))) return { ok: false, reason: 'utilities_disabled' };
+    if (!(await orgUtilitiesEnabled(serviceClient, previous.org_id)))
+      return { ok: false, reason: 'utilities_disabled' };
     return { ok: true, integration: previous as IntegrationRow };
   }
   return { ok: false, reason: 'invalid_token' };
@@ -115,12 +128,7 @@ export interface IngestRejection {
   deviceId: string;
   channel: string;
   readAt: string | null;
-  reason:
-    | 'unknown_device'
-    | 'future_timestamp'
-    | 'too_old'
-    | 'invalid_value'
-    | 'payload_invalid';
+  reason: 'unknown_device' | 'future_timestamp' | 'too_old' | 'invalid_value' | 'payload_invalid';
   detail?: string;
 }
 
@@ -155,7 +163,13 @@ export async function ingestPayload(
     readings = parsePush(integration.provider, input.body, now, input.query);
   } catch (err) {
     const detail = err instanceof AdapterError ? err.message : 'Unparseable payload';
-    result.rejected.push({ deviceId: '', channel: '', readAt: null, reason: 'payload_invalid', detail });
+    result.rejected.push({
+      deviceId: '',
+      channel: '',
+      readAt: null,
+      reason: 'payload_invalid',
+      detail,
+    });
     await logIngestEvent(serviceClient, integration, result, input.sourceIp);
     return result;
   }
@@ -222,7 +236,11 @@ export async function storeReadings(
   const levelRows: Record<string, unknown>[] = [];
   for (const r of readings) {
     const meter = meterByKey.get(`${r.externalDeviceId}\u0000${r.channel}`);
-    const base = { deviceId: r.externalDeviceId, channel: r.channel, readAt: r.readAt.toISOString() };
+    const base = {
+      deviceId: r.externalDeviceId,
+      channel: r.channel,
+      readAt: r.readAt.toISOString(),
+    };
     const sensor = meter ? undefined : sourceByKey.get(`${r.externalDeviceId}\u0000${r.channel}`);
     if (!meter && !sensor) {
       // A known device reporting an unbound field (battery, temperature …) is normal, not an attack.
@@ -295,7 +313,9 @@ export async function storeReadings(
       let status: 'valid' | 'suspect' = 'valid';
       let statusReason: string | null = null;
       if (prevRaw !== null && r.rawValue < prevRaw) {
-        const decision = classifyDecrease(prevRaw, r.rawValue, { registerDigits: meter.register_digits });
+        const decision = classifyDecrease(prevRaw, r.rawValue, {
+          registerDigits: meter.register_digits,
+        });
         if (decision.kind === 'reset') {
           status = 'suspect';
           statusReason = `reset_suspected: register fell from ${prevRaw} to ${r.rawValue}`;
@@ -324,7 +344,9 @@ export async function storeReadings(
     const byTime = new Map(items.map((r) => [r.readAt.toISOString(), r]));
     for (let i = 0; i < rows.length; i += 500) {
       const chunk = rows.slice(i, i + 500);
-      const { data: inserted, error } = await serviceClient.rpc('ingest_telemetry_batch', { p_rows: chunk });
+      const { data: inserted, error } = await serviceClient.rpc('ingest_telemetry_batch', {
+        p_rows: chunk,
+      });
       if (error) throw new Error(`telemetry insert failed: ${error.message}`);
       const got = (inserted ?? []) as { read_at: string; status: string }[];
       result.duplicates += chunk.length - got.length;
@@ -338,7 +360,8 @@ export async function storeReadings(
         } else {
           result.accepted += 1;
         }
-        if (!latestAccepted || at > latestAccepted.at) latestAccepted = { at, value: toValue(r.rawValue) };
+        if (!latestAccepted || at > latestAccepted.at)
+          latestAccepted = { at, value: toValue(r.rawValue) };
       }
     }
 
@@ -347,7 +370,10 @@ export async function storeReadings(
         last_sync_at: now.toISOString(),
         health_status: 'online',
       };
-      if (!meter.last_reading_at || latestAccepted.at.getTime() > new Date(meter.last_reading_at).getTime()) {
+      if (
+        !meter.last_reading_at ||
+        latestAccepted.at.getTime() > new Date(meter.last_reading_at).getTime()
+      ) {
         update.last_reading_at = latestAccepted.at.toISOString();
         update.last_reading_value = Math.round(latestAccepted.value * 10_000) / 10_000;
       }
@@ -420,6 +446,8 @@ async function logIngestEvent(
     rejected_count: result.rejected.length,
     details: { rejected: result.rejected.slice(0, 50), suspect: result.suspect },
     // Hashed, never stored raw (POPIA data minimisation); enough to spot a rogue sender.
-    source_ip_hash: sourceIp ? crypto.createHash('sha256').update(sourceIp).digest('hex').slice(0, 32) : null,
+    source_ip_hash: sourceIp
+      ? crypto.createHash('sha256').update(sourceIp).digest('hex').slice(0, 32)
+      : null,
   });
 }

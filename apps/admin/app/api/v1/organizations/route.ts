@@ -52,7 +52,10 @@ async function attributeReferralBestEffort(
       { onConflict: 'org_id', ignoreDuplicates: true },
     );
     if (error) {
-      console.error('[referral] failed to write organization_referral_attributions row', error.message);
+      console.error(
+        '[referral] failed to write organization_referral_attributions row',
+        error.message,
+      );
     }
   } catch (err) {
     console.error('[referral] unexpected error attributing referral', err);
@@ -154,7 +157,11 @@ export async function POST(request: NextRequest) {
   // Referral attribution (V1 launch-completion pass) -- fires only after create_organization()
   // has actually committed; never awaited into the error path above, and never able to change the
   // response returned to the caller either way (see attributeReferralBestEffort's own comment).
-  await attributeReferralBestEffort(orgId as string, parsed.data.referralCode, parsed.data.referrerName);
+  await attributeReferralBestEffort(
+    orgId as string,
+    parsed.data.referralCode,
+    parsed.data.referrerName,
+  );
 
   return NextResponse.json({ id: orgId, legalName: parsed.data.legalName }, { status: 201 });
 }

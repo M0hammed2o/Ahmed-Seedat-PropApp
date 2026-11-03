@@ -22,13 +22,20 @@ export function isUnusualUsage(params: {
 }): boolean {
   const { consumption, previousConsumption, unitOfMeasure, periodIndex } = params;
   if (periodIndex < MIN_HISTORY_PERIODS_FOR_ANOMALY - 1) return false;
-  if (consumption === null || previousConsumption === null || previousConsumption <= 0) return false;
+  if (consumption === null || previousConsumption === null || previousConsumption <= 0)
+    return false;
   const percentChange = ((consumption - previousConsumption) / previousConsumption) * 100;
   const absoluteIncrease = consumption - previousConsumption;
-  return percentChange >= ANOMALY_PERCENT_THRESHOLD && absoluteIncrease >= ANOMALY_MIN_ABSOLUTE_INCREASE[unitOfMeasure];
+  return (
+    percentChange >= ANOMALY_PERCENT_THRESHOLD &&
+    absoluteIncrease >= ANOMALY_MIN_ABSOLUTE_INCREASE[unitOfMeasure]
+  );
 }
 
-export function percentChange(consumption: number | null, previousConsumption: number | null): number | null {
+export function percentChange(
+  consumption: number | null,
+  previousConsumption: number | null,
+): number | null {
   if (consumption === null || previousConsumption === null || previousConsumption <= 0) return null;
   return Math.round(((consumption - previousConsumption) / previousConsumption) * 1000) / 10;
 }

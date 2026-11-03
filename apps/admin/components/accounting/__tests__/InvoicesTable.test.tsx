@@ -41,7 +41,12 @@ function invoice(overrides: Partial<InvoiceRow>): InvoiceRow {
 
 describe('InvoicesTable actions menu', () => {
   it('a Draft invoice offers View, Edit, Issue, and Void -- never Record payment or Send', () => {
-    render(<InvoicesTable data={[invoice({ displayStatus: 'Draft', paid: 0, balance: 12500 })]} canSend />);
+    render(
+      <InvoicesTable
+        data={[invoice({ displayStatus: 'Draft', paid: 0, balance: 12500 })]}
+        canSend
+      />,
+    );
     expect(screen.getByText('Edit invoice')).toBeTruthy();
     expect(screen.getByText('Issue invoice')).toBeTruthy();
     expect(screen.getByText('Void invoice')).toBeTruthy();
@@ -50,7 +55,12 @@ describe('InvoicesTable actions menu', () => {
   });
 
   it('an Issued invoice with an outstanding balance offers Record payment, Send, View payments, Download PDF, and Void (zero active payments)', () => {
-    render(<InvoicesTable data={[invoice({ displayStatus: 'Issued', paid: 0, balance: 12500 })]} canSend />);
+    render(
+      <InvoicesTable
+        data={[invoice({ displayStatus: 'Issued', paid: 0, balance: 12500 })]}
+        canSend
+      />,
+    );
     expect(screen.getByText('Record payment')).toBeTruthy();
     expect(screen.getByText('Send invoice')).toBeTruthy();
     expect(screen.getByText('View payments')).toBeTruthy();
@@ -61,13 +71,23 @@ describe('InvoicesTable actions menu', () => {
   });
 
   it('a Partially paid invoice (balance > 0, some paid) hides Void -- active payments exist', () => {
-    render(<InvoicesTable data={[invoice({ displayStatus: 'Partially paid', paid: 8000, balance: 4500 })]} canSend />);
+    render(
+      <InvoicesTable
+        data={[invoice({ displayStatus: 'Partially paid', paid: 8000, balance: 4500 })]}
+        canSend
+      />,
+    );
     expect(screen.getByText('Record payment')).toBeTruthy();
     expect(screen.queryByText('Void invoice')).toBeNull();
   });
 
   it('a Paid invoice hides Record payment and Void, but still offers View payments, Download PDF, and Send if not yet emailed', () => {
-    render(<InvoicesTable data={[invoice({ displayStatus: 'Paid', paid: 12500, balance: 0, emailedAt: null })]} canSend />);
+    render(
+      <InvoicesTable
+        data={[invoice({ displayStatus: 'Paid', paid: 12500, balance: 0, emailedAt: null })]}
+        canSend
+      />,
+    );
     expect(screen.queryByText('Record payment')).toBeNull();
     expect(screen.queryByText('Void invoice')).toBeNull();
     expect(screen.getByText('View payments')).toBeTruthy();
@@ -78,7 +98,14 @@ describe('InvoicesTable actions menu', () => {
   it('a Paid invoice that has already been emailed does not offer Send again', () => {
     render(
       <InvoicesTable
-        data={[invoice({ displayStatus: 'Paid', paid: 12500, balance: 0, emailedAt: '2026-08-26T00:00:00Z' })]}
+        data={[
+          invoice({
+            displayStatus: 'Paid',
+            paid: 12500,
+            balance: 0,
+            emailedAt: '2026-08-26T00:00:00Z',
+          }),
+        ]}
         canSend
       />,
     );
@@ -88,7 +115,9 @@ describe('InvoicesTable actions menu', () => {
   it('a Void invoice offers only View payments and Download PDF -- never Send, Record payment, or Void again', () => {
     render(
       <InvoicesTable
-        data={[invoice({ displayStatus: 'Void', paid: 0, balance: 0, voidedAt: '2026-08-27T00:00:00Z' })]}
+        data={[
+          invoice({ displayStatus: 'Void', paid: 0, balance: 0, voidedAt: '2026-08-27T00:00:00Z' }),
+        ]}
         canSend
       />,
     );
@@ -100,7 +129,12 @@ describe('InvoicesTable actions menu', () => {
   });
 
   it('a read-only caller (canSend=false, agent/viewer) sees only View -- no write actions at all', () => {
-    render(<InvoicesTable data={[invoice({ displayStatus: 'Issued', paid: 0, balance: 12500 })]} canSend={false} />);
+    render(
+      <InvoicesTable
+        data={[invoice({ displayStatus: 'Issued', paid: 0, balance: 12500 })]}
+        canSend={false}
+      />,
+    );
     expect(screen.getByText('View invoice')).toBeTruthy();
     expect(screen.queryByText('Record payment')).toBeNull();
     expect(screen.queryByText('Send invoice')).toBeNull();

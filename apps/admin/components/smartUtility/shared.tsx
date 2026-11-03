@@ -38,7 +38,9 @@ export async function api(
 }
 
 export function errorMessage(data: unknown, fallback = 'Something went wrong.'): string {
-  const err = (data as { error?: { message?: string; field_errors?: Record<string, string[]> } } | null)?.error;
+  const err = (
+    data as { error?: { message?: string; field_errors?: Record<string, string[]> } } | null
+  )?.error;
   const first = err?.field_errors ? Object.values(err.field_errors).flat()[0] : undefined;
   return first ?? err?.message ?? fallback;
 }
@@ -55,7 +57,11 @@ export function fmtRand(n: number | null | undefined): string {
 
 export function fmtDateTime(iso: string | null | undefined): string {
   if (!iso) return '—';
-  return new Date(iso).toLocaleString('en-ZA', { timeZone: 'Africa/Johannesburg', dateStyle: 'medium', timeStyle: 'short' });
+  return new Date(iso).toLocaleString('en-ZA', {
+    timeZone: 'Africa/Johannesburg',
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
 }
 
 const TONE: Record<string, string> = {
@@ -67,7 +73,9 @@ const TONE: Record<string, string> = {
 
 export function Badge({ tone, children }: { tone: keyof typeof TONE; children: ReactNode }) {
   return (
-    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${TONE[tone]}`}>
+    <span
+      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${TONE[tone]}`}
+    >
       {children}
     </span>
   );
@@ -103,9 +111,13 @@ export function Stat({ label, value, hint }: { label: string; value: string; hin
 
 export function meterLabel(m: MeterSummary, units: Overview['units']): string {
   const unit = m.unitId ? units.find((u) => u.id === m.unitId)?.unit_label : null;
-  const who = unit ?? (m.meterRole === 'main' ? 'Main' : m.meterRole === 'check' ? 'Check' : 'Common');
+  const who =
+    unit ?? (m.meterRole === 'main' ? 'Main' : m.meterRole === 'check' ? 'Check' : 'Common');
   const id = m.meterNumber ?? m.serialNumber ?? m.externalDeviceId ?? m.id.slice(0, 8);
-  const kind = m.measurementKind && m.measurementKind !== 'consumption' ? ` (${KIND_LABEL[m.measurementKind] ?? m.measurementKind})` : '';
+  const kind =
+    m.measurementKind && m.measurementKind !== 'consumption'
+      ? ` (${KIND_LABEL[m.measurementKind] ?? m.measurementKind})`
+      : '';
   return `${who} · ${m.utilityType === 'water' ? 'Water' : 'Electricity'}${kind} · ${id}`;
 }
 
@@ -139,16 +151,36 @@ export const SOURCE_LABEL: Record<string, string> = {
   other: 'Other',
 };
 
-export const BASIS_TONE: Record<string, 'good' | 'warn' | 'neutral' | 'bad'> = { measured: 'good', derived: 'neutral', logged: 'warn', estimated: 'warn', missing: 'bad' };
+export const BASIS_TONE: Record<string, 'good' | 'warn' | 'neutral' | 'bad'> = {
+  measured: 'good',
+  derived: 'neutral',
+  logged: 'warn',
+  estimated: 'warn',
+  missing: 'bad',
+};
 
-export function Figure({ label, value, unit, basis, hint }: { label: string; value: number | null; unit: string; basis: string; hint?: string }) {
+export function Figure({
+  label,
+  value,
+  unit,
+  basis,
+  hint,
+}: {
+  label: string;
+  value: number | null;
+  unit: string;
+  basis: string;
+  hint?: string;
+}) {
   return (
     <div className="rounded-md border border-light-border p-3 dark:border-dark-border">
       <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
         <span>{label}</span>
         <Badge tone={BASIS_TONE[basis] ?? 'neutral'}>{basis}</Badge>
       </div>
-      <div className="mt-1 text-lg font-semibold text-foreground">{value === null ? '—' : `${fmtNumber(value, 2)} ${unit}`}</div>
+      <div className="mt-1 text-lg font-semibold text-foreground">
+        {value === null ? '—' : `${fmtNumber(value, 2)} ${unit}`}
+      </div>
       {hint ? <div className="mt-0.5 text-[11px] text-muted-foreground">{hint}</div> : null}
     </div>
   );

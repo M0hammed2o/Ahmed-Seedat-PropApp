@@ -97,6 +97,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       : message.startsWith('commercial_setup_already_complete')
         ? 'commercial_setup_already_complete'
         : 'billing_checkout_failed';
-    return NextResponse.json({ error: { code, message } }, { status: code === 'billing_checkout_failed' ? 422 : 409 });
+    return NextResponse.json(
+      { error: { code, message } },
+      { status: code === 'billing_checkout_failed' ? 422 : 409 },
+    );
   }
 }

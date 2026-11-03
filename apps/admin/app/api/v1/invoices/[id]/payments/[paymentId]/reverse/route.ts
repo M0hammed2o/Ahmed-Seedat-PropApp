@@ -34,18 +34,35 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     .maybeSingle();
   if (fetchError) {
     return NextResponse.json(
-      { error: { code: 'invoice_payment_fetch_failed', message: safeErrorMessage(fetchError, 'Could not load this payment.', 'invoices/[id]/payments/[paymentId]/reverse.fetch') } },
+      {
+        error: {
+          code: 'invoice_payment_fetch_failed',
+          message: safeErrorMessage(
+            fetchError,
+            'Could not load this payment.',
+            'invoices/[id]/payments/[paymentId]/reverse.fetch',
+          ),
+        },
+      },
       { status: 500 },
     );
   }
   if (!existing || existing.invoice_id !== id) {
-    return NextResponse.json({ error: { code: 'not_found', message: 'Payment not found.' } }, { status: 404 });
+    return NextResponse.json(
+      { error: { code: 'not_found', message: 'Payment not found.' } },
+      { status: 404 },
+    );
   }
 
   const canWrite = await requireOrgRole(supabase, existing.org_id, 'accountant');
   if (!canWrite) {
     return NextResponse.json(
-      { error: { code: 'forbidden', message: 'You do not have permission to reverse payments for this organization.' } },
+      {
+        error: {
+          code: 'forbidden',
+          message: 'You do not have permission to reverse payments for this organization.',
+        },
+      },
       { status: 403 },
     );
   }
@@ -83,7 +100,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       {
         error: {
           code: 'invoice_payment_reversal_failed',
-          message: safeErrorMessage(rpcError, 'Could not reverse this payment.', 'invoices/[id]/payments/[paymentId]/reverse'),
+          message: safeErrorMessage(
+            rpcError,
+            'Could not reverse this payment.',
+            'invoices/[id]/payments/[paymentId]/reverse',
+          ),
         },
       },
       { status: 400 },
@@ -97,7 +118,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     .single();
   if (reloadError) {
     return NextResponse.json(
-      { error: { code: 'invoice_payment_fetch_failed', message: 'Payment was reversed, but could not be reloaded. Please refresh.' } },
+      {
+        error: {
+          code: 'invoice_payment_fetch_failed',
+          message: 'Payment was reversed, but could not be reloaded. Please refresh.',
+        },
+      },
       { status: 500 },
     );
   }

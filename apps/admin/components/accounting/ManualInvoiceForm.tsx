@@ -77,12 +77,16 @@ export function ManualInvoiceForm({
   const [propertyId, setPropertyId] = useState(editContext?.propertyId ?? '');
   const [unitId, setUnitId] = useState(editContext?.unitId ?? '');
   const [tenantId, setTenantId] = useState(editContext?.tenantId ?? '');
-  const [invoiceDate, setInvoiceDate] = useState(editContext?.invoiceDate ?? new Date().toISOString().slice(0, 10));
+  const [invoiceDate, setInvoiceDate] = useState(
+    editContext?.invoiceDate ?? new Date().toISOString().slice(0, 10),
+  );
   const [dueDate, setDueDate] = useState(editContext?.dueDate ?? '');
   const [reference, setReference] = useState(editContext?.reference ?? '');
   const [description, setDescription] = useState(editContext?.description ?? '');
   const [notes, setNotes] = useState(editContext?.notes ?? '');
-  const [lines, setLines] = useState<LineItemDraft[]>(editContext?.lineItems ?? [{ ...EMPTY_LINE }]);
+  const [lines, setLines] = useState<LineItemDraft[]>(
+    editContext?.lineItems ?? [{ ...EMPTY_LINE }],
+  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
@@ -169,7 +173,9 @@ export function ManualInvoiceForm({
       router.push(`/accounting/invoices/${invoiceId}`);
       router.refresh();
     } catch {
-      setError(`Failed to ${isEdit ? 'update' : 'create'} invoice -- check your connection and try again.`);
+      setError(
+        `Failed to ${isEdit ? 'update' : 'create'} invoice -- check your connection and try again.`,
+      );
     } finally {
       setSubmitting(false);
     }
@@ -279,18 +285,28 @@ export function ManualInvoiceForm({
               className={inputClass}
             />
             {fieldErrors.dueDate?.length ? (
-              <p className="mt-1 text-light-statusOverdue dark:text-dark-statusOverdue">{fieldErrors.dueDate[0]}</p>
+              <p className="mt-1 text-light-statusOverdue dark:text-dark-statusOverdue">
+                {fieldErrors.dueDate[0]}
+              </p>
             ) : null}
           </label>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block text-xs">
-            <span className="text-light-textMuted dark:text-dark-textMuted">Reference (optional)</span>
-            <input value={reference} onChange={(e) => setReference(e.target.value)} className={inputClass} />
+            <span className="text-light-textMuted dark:text-dark-textMuted">
+              Reference (optional)
+            </span>
+            <input
+              value={reference}
+              onChange={(e) => setReference(e.target.value)}
+              className={inputClass}
+            />
           </label>
           <label className="block text-xs">
-            <span className="text-light-textMuted dark:text-dark-textMuted">Description (optional)</span>
+            <span className="text-light-textMuted dark:text-dark-textMuted">
+              Description (optional)
+            </span>
             <input
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -308,7 +324,11 @@ export function ManualInvoiceForm({
             {lines.map((line, i) => (
               <div key={i} className="grid grid-cols-[1fr_5rem_6rem_5rem_auto] items-end gap-2">
                 <label className="block text-xs">
-                  {i === 0 ? <span className="text-light-textMuted dark:text-dark-textMuted">Description</span> : null}
+                  {i === 0 ? (
+                    <span className="text-light-textMuted dark:text-dark-textMuted">
+                      Description
+                    </span>
+                  ) : null}
                   <input
                     value={line.description}
                     onChange={(e) => updateLine(i, { description: e.target.value })}
@@ -316,7 +336,9 @@ export function ManualInvoiceForm({
                   />
                 </label>
                 <label className="block text-xs">
-                  {i === 0 ? <span className="text-light-textMuted dark:text-dark-textMuted">Qty</span> : null}
+                  {i === 0 ? (
+                    <span className="text-light-textMuted dark:text-dark-textMuted">Qty</span>
+                  ) : null}
                   <input
                     type="number"
                     min="0"
@@ -327,7 +349,9 @@ export function ManualInvoiceForm({
                   />
                 </label>
                 <label className="block text-xs">
-                  {i === 0 ? <span className="text-light-textMuted dark:text-dark-textMuted">Rate</span> : null}
+                  {i === 0 ? (
+                    <span className="text-light-textMuted dark:text-dark-textMuted">Rate</span>
+                  ) : null}
                   <input
                     type="number"
                     min="0"
@@ -340,7 +364,12 @@ export function ManualInvoiceForm({
                 <p className="tabular py-2 text-xs text-light-textPrimary dark:text-dark-textPrimary">
                   {currency((Number(line.quantity) || 0) * (Number(line.unitPrice) || 0))}
                 </p>
-                <Button type="button" size="sm" onClick={() => removeLine(i)} disabled={lines.length === 1}>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => removeLine(i)}
+                  disabled={lines.length === 1}
+                >
                   Remove
                 </Button>
               </div>
@@ -353,7 +382,12 @@ export function ManualInvoiceForm({
 
         <label className="block text-xs">
           <span className="text-light-textMuted dark:text-dark-textMuted">Notes (optional)</span>
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className={inputClass} />
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={3}
+            className={inputClass}
+          />
         </label>
 
         <div className="flex items-center justify-between border-t border-light-border pt-4 dark:border-dark-border">

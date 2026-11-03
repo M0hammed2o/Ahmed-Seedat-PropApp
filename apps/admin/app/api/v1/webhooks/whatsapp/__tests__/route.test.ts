@@ -139,7 +139,9 @@ describeIfSupabase('POST /api/v1/webhooks/whatsapp (real route, real Meta payloa
   });
 
   it('rejects a request with no signature header at all', async () => {
-    const res = await POST(postRequest(metaStatusPayload('wamid.nosig', 'sent'), { signature: '' }));
+    const res = await POST(
+      postRequest(metaStatusPayload('wamid.nosig', 'sent'), { signature: '' }),
+    );
     expect(res.status).toBe(401);
   });
 
@@ -254,8 +256,12 @@ describeIfSupabase('POST /api/v1/webhooks/whatsapp (real route, real Meta payloa
     const idB = `wamid.same-org-b-${crypto.randomUUID()}`;
     createdEventIds.push(idA, idB);
 
-    expect((await POST(postRequest(metaInboundPayload(metaFrom(phoneA), 'from A', idA)))).status).toBe(200);
-    expect((await POST(postRequest(metaInboundPayload(metaFrom(phoneB), 'from B', idB)))).status).toBe(200);
+    expect(
+      (await POST(postRequest(metaInboundPayload(metaFrom(phoneA), 'from A', idA)))).status,
+    ).toBe(200);
+    expect(
+      (await POST(postRequest(metaInboundPayload(metaFrom(phoneB), 'from B', idB)))).status,
+    ).toBe(200);
 
     const { data: msgA } = await serviceClient
       .from('whatsapp_messages')

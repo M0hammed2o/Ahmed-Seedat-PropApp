@@ -118,8 +118,20 @@ describeIfSupabase(
       createdOrgIds.push(orgId);
 
       await serviceClient.from('organization_members').insert([
-        { org_id: orgId, user_id: principalId, role: 'principal', status: 'active', joined_at: new Date().toISOString() },
-        { org_id: orgId, user_id: managerId, role: 'manager', status: 'active', joined_at: new Date().toISOString() },
+        {
+          org_id: orgId,
+          user_id: principalId,
+          role: 'principal',
+          status: 'active',
+          joined_at: new Date().toISOString(),
+        },
+        {
+          org_id: orgId,
+          user_id: managerId,
+          role: 'manager',
+          status: 'active',
+          joined_at: new Date().toISOString(),
+        },
       ]);
 
       principalToken = await passwordGrantToken(principalEmail, TEST_PASSWORD);
@@ -146,17 +158,23 @@ describeIfSupabase(
       createdUserIds.length = 0;
     });
 
-    it('GET .../members: a Manager is denied (403); the Principal is allowed and sees the Manager\'s REAL name, not null or a raw UUID', async () => {
+    it("GET .../members: a Manager is denied (403); the Principal is allowed and sees the Manager's REAL name, not null or a raw UUID", async () => {
       mockAuthorizationHeader = `Bearer ${managerToken}`;
-      const deniedResponse = await getMembers(getRequest(`http://localhost/api/v1/organizations/${orgId}/members`), {
-        params: Promise.resolve({ orgId }),
-      });
+      const deniedResponse = await getMembers(
+        getRequest(`http://localhost/api/v1/organizations/${orgId}/members`),
+        {
+          params: Promise.resolve({ orgId }),
+        },
+      );
       expect(deniedResponse.status).toBe(403);
 
       mockAuthorizationHeader = `Bearer ${principalToken}`;
-      const allowedResponse = await getMembers(getRequest(`http://localhost/api/v1/organizations/${orgId}/members`), {
-        params: Promise.resolve({ orgId }),
-      });
+      const allowedResponse = await getMembers(
+        getRequest(`http://localhost/api/v1/organizations/${orgId}/members`),
+        {
+          params: Promise.resolve({ orgId }),
+        },
+      );
       expect(allowedResponse.status).toBe(200);
       const body = await allowedResponse.json();
       const managerRow = body.members.find((m: { userId: string }) => m.userId === managerId);

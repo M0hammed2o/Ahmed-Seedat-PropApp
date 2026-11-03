@@ -42,7 +42,11 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
       {
         error: {
           code: 'property_fetch_failed',
-          message: safeErrorMessage(fetchError, 'Could not load this property.', 'propertyOwners.fetchProperty'),
+          message: safeErrorMessage(
+            fetchError,
+            'Could not load this property.',
+            'propertyOwners.fetchProperty',
+          ),
         },
       },
       { status: 500 },
@@ -67,7 +71,11 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
       {
         error: {
           code: 'property_owners_list_failed',
-          message: safeErrorMessage(error, 'Could not load owners for this property.', 'propertyOwners.list'),
+          message: safeErrorMessage(
+            error,
+            'Could not load owners for this property.',
+            'propertyOwners.list',
+          ),
         },
       },
       { status: 500 },
@@ -127,7 +135,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       {
         error: {
           code: 'property_fetch_failed',
-          message: safeErrorMessage(fetchError, 'Could not load this property.', 'propertyOwners.fetchProperty'),
+          message: safeErrorMessage(
+            fetchError,
+            'Could not load this property.',
+            'propertyOwners.fetchProperty',
+          ),
         },
       },
       { status: 500 },
@@ -193,7 +205,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       {
         error: {
           code: 'owner_fetch_failed',
-          message: safeErrorMessage(ownerFetchError, 'Could not load this owner.', 'propertyOwners.fetchOwner'),
+          message: safeErrorMessage(
+            ownerFetchError,
+            'Could not load this owner.',
+            'propertyOwners.fetchOwner',
+          ),
         },
       },
       { status: 500 },

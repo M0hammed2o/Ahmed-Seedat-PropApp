@@ -30,12 +30,12 @@ A temporary 16-row fixture was inserted into the **UAT org** (9 overdue invoices
 captures**. Verified afterwards: 0 fixture rows remain, active insights back to **4**, confirmed
 both by direct query and on-device after a cold start.
 
-| Screenshot | What it proves |
-|---|---|
-| `SHOT-1-home-preview.png` | Badge reads **16**; exactly **4** preview rows render; "View all 16" appears; Quick actions and Top properties sit immediately below — no wall of cards |
-| `SHOT-2-needs-attention-all.png` | Full screen: back arrow, badge, horizontally scrolling filter chips, every row with its category and count |
-| `SHOT-3-filter-critical.png` | Critical filter narrows 16 → 3 rows |
-| `SHOT-4-filter-rent-grouped.png` | Rent filter shows the grouped **"9 overdue rent invoices · Rent · 9 items"** row beside the single ungrouped warning |
+| Screenshot                       | What it proves                                                                                                                                          |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SHOT-1-home-preview.png`        | Badge reads **16**; exactly **4** preview rows render; "View all 16" appears; Quick actions and Top properties sit immediately below — no wall of cards |
+| `SHOT-2-needs-attention-all.png` | Full screen: back arrow, badge, horizontally scrolling filter chips, every row with its category and count                                              |
+| `SHOT-3-filter-critical.png`     | Critical filter narrows 16 → 3 rows                                                                                                                     |
+| `SHOT-4-filter-rent-grouped.png` | Rent filter shows the grouped **"9 overdue rent invoices · Rent · 9 items"** row beside the single ungrouped warning                                    |
 
 Also verified live:
 
@@ -61,20 +61,20 @@ walkthrough. The emulator did throw repeated ANRs — every one of them was a Go
 
 ### Fixed and re-verified on-device
 
-| | Defect | Fix |
-|---|---|---|
-| **A** | **Properties list card — text unreadable.** The card's scrim thinned to 0.05 alpha at exactly the height the property name and address sit at, so the no-photo building glyph read straight through the words on every card. | Reshaped the gradient in [`PropertiesListScreen.kt`](apps/android/app/src/main/java/za/co/proplyst/app/ui/properties/PropertiesListScreen.kt) so it reaches a real scrim before the text starts and holds it to the bottom. The Navy Deck stripes and glyph are unchanged — the glyph now sits behind the text as an intended watermark. |
-| **C** | **Save button unreachable on every form.** With the keyboard open, the scroll viewport kept its full height, so the form hit its scroll limit with Notes, Receipt and **Save expense** still hidden and no way to reach them. A user had to dismiss the keyboard first. | Added `imePadding()` to the scroll container on **AddExpense, RecordPayment, CreateMaintenanceTicket, ReportPayment and UtilityCapture**. Only `SignInScreen` had it before. |
-| **D** | **Rent status eyebrow read "Settings"** — wrong on the Home → Quick actions path, which is the primary one. | Now reads "Portfolio", matching the More screen's own section heading. |
+|       | Defect                                                                                                                                                                                                                                                                  | Fix                                                                                                                                                                                                                                                                                                                                      |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A** | **Properties list card — text unreadable.** The card's scrim thinned to 0.05 alpha at exactly the height the property name and address sit at, so the no-photo building glyph read straight through the words on every card.                                            | Reshaped the gradient in [`PropertiesListScreen.kt`](apps/android/app/src/main/java/za/co/proplyst/app/ui/properties/PropertiesListScreen.kt) so it reaches a real scrim before the text starts and holds it to the bottom. The Navy Deck stripes and glyph are unchanged — the glyph now sits behind the text as an intended watermark. |
+| **C** | **Save button unreachable on every form.** With the keyboard open, the scroll viewport kept its full height, so the form hit its scroll limit with Notes, Receipt and **Save expense** still hidden and no way to reach them. A user had to dismiss the keyboard first. | Added `imePadding()` to the scroll container on **AddExpense, RecordPayment, CreateMaintenanceTicket, ReportPayment and UtilityCapture**. Only `SignInScreen` had it before.                                                                                                                                                             |
+| **D** | **Rent status eyebrow read "Settings"** — wrong on the Home → Quick actions path, which is the primary one.                                                                                                                                                             | Now reads "Portfolio", matching the More screen's own section heading.                                                                                                                                                                                                                                                                   |
 
 ### Reported, not changed
 
-| | Finding | Severity | Why it was left |
-|---|---|---|---|
-| **B** | Property detail: scrolling the hero slides the title under the fixed circular back button. | Low–medium | Needs a collapsing-header change, which is more than a verification pass should take on. Avoidable on camera by staying at the top of the screen. |
-| **E** | Bottom nav says "Activity"; the screen it opens is titled "Notifications". | Low | Copy decision — which word is the product's? |
-| **F** | **Home never refetches.** `DashboardViewModel` loads once in `init` and nothing calls its `loadX()` functions again; there is no pull-to-refresh anywhere in the app. Verified live: after deleting 12 insights, Home still showed 16 across a tab switch away and back, and only corrected on a cold start. | Medium | A real behaviour change (record a payment, return to Home, see stale figures). Worth doing, but it is a change to how the dashboard loads, not a visual fix. |
-| **G** | The Record-payment invoice picker shows an unlabelled "R0" — it is the outstanding balance, which the invoice detail screen states clearly. The picker also offers a fully-paid invoice for further payment. | Low | The R0 needs a column label. Whether a paid invoice should accept another payment is financial logic and was left alone deliberately. |
+|       | Finding                                                                                                                                                                                                                                                                                                      | Severity   | Why it was left                                                                                                                                              |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **B** | Property detail: scrolling the hero slides the title under the fixed circular back button.                                                                                                                                                                                                                   | Low–medium | Needs a collapsing-header change, which is more than a verification pass should take on. Avoidable on camera by staying at the top of the screen.            |
+| **E** | Bottom nav says "Activity"; the screen it opens is titled "Notifications".                                                                                                                                                                                                                                   | Low        | Copy decision — which word is the product's?                                                                                                                 |
+| **F** | **Home never refetches.** `DashboardViewModel` loads once in `init` and nothing calls its `loadX()` functions again; there is no pull-to-refresh anywhere in the app. Verified live: after deleting 12 insights, Home still showed 16 across a tab switch away and back, and only corrected on a cold start. | Medium     | A real behaviour change (record a payment, return to Home, see stale figures). Worth doing, but it is a change to how the dashboard loads, not a visual fix. |
+| **G** | The Record-payment invoice picker shows an unlabelled "R0" — it is the outstanding balance, which the invoice detail screen states clearly. The picker also offers a fully-paid invoice for further payment.                                                                                                 | Low        | The R0 needs a column label. Whether a paid invoice should accept another payment is financial logic and was left alone deliberately.                        |
 
 ### Working well
 
@@ -189,7 +189,7 @@ Two parts, both verified:
   and the web invoice page already use. "Outstanding" stays reserved for totals across invoices. A
   settled invoice's R0 is muted; the one genuinely outstanding invoice shows **R8,500** in full
   contrast beside a red **Overdue** chip.
-- **A settled invoice stops asking to be paid.** It still *accepts* a payment — corrections and
+- **A settled invoice stops asking to be paid.** It still _accepts_ a payment — corrections and
   genuine overpayments are real accounting events and the server remains the authority — so no
   calculation and no permission changed. What changed is presentation: on a zero balance the screen
   says "This invoice is fully paid." and the call to action drops to an outlined **Record another
@@ -227,15 +227,15 @@ Home → Operating costs → Budget → Monthly net position → Needs attention
 filters) → Properties → Property detail → Rent status → Invoices → Record payment → Add expense →
 Meter reading → Activity → More.
 
-| Check | Result |
-|---|---|
-| Clipping / overlap | None. The property-card scrim and the new detail header both hold. |
-| Raw errors, localhost references | None. `logcat` shows no `127.0.0.1`/`10.0.2.2`/`localhost` from the app. |
-| Proplyst ANRs or crashes | **None.** The emulator's own Google apps ANR under host load; `logcat \| grep "ANR in"` confirms every one was `googlequicksearchbox`, `gms`, `messaging` or `systemui`. |
-| Keyboard obstruction | Gone on **Add expense** and, this pass, re-verified on **Record payment** — both keep their submit button visible and tappable with the IME open. |
-| Dashboard refresh | Works on tab return and on pull-to-refresh. |
-| Bottom nav / back navigation | Correct throughout; Home keeps its scroll position. |
-| Demo data | Professional. No "UAT", no UUIDs, no developer wording on any recorded screen. |
+| Check                            | Result                                                                                                                                                                   |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Clipping / overlap               | None. The property-card scrim and the new detail header both hold.                                                                                                       |
+| Raw errors, localhost references | None. `logcat` shows no `127.0.0.1`/`10.0.2.2`/`localhost` from the app.                                                                                                 |
+| Proplyst ANRs or crashes         | **None.** The emulator's own Google apps ANR under host load; `logcat \| grep "ANR in"` confirms every one was `googlequicksearchbox`, `gms`, `messaging` or `systemui`. |
+| Keyboard obstruction             | Gone on **Add expense** and, this pass, re-verified on **Record payment** — both keep their submit button visible and tappable with the IME open.                        |
+| Dashboard refresh                | Works on tab return and on pull-to-refresh.                                                                                                                              |
+| Bottom nav / back navigation     | Correct throughout; Home keeps its scroll position.                                                                                                                      |
+| Demo data                        | Professional. No "UAT", no UUIDs, no developer wording on any recorded screen.                                                                                           |
 
 ## 7. What is still not verified
 

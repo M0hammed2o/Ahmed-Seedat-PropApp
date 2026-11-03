@@ -181,7 +181,9 @@ export default async function UnitDetailPage({ params }: RouteParams) {
       .select('tenants(id, full_name)')
       .eq('lease_id', activeLease.id);
     if (ltError) throw new Error(`Failed to load current tenant: ${ltError.message}`);
-    currentTenants = ((leaseTenantRows ?? []) as unknown as { tenants: { id: string; full_name: string } | null }[])
+    currentTenants = (
+      (leaseTenantRows ?? []) as unknown as { tenants: { id: string; full_name: string } | null }[]
+    )
       .map((r) => r.tenants)
       .filter((t): t is NonNullable<typeof t> => t !== null)
       .map((t) => ({ id: t.id, fullName: t.full_name }));
@@ -300,15 +302,24 @@ function UnitDetailView({
             {currentTenants.map((t) => (
               <li key={t.id} className="flex items-center justify-between gap-3">
                 <span className="flex items-center gap-2 text-sm text-light-textPrimary dark:text-dark-textPrimary">
-                  <Users className="h-4 w-4 shrink-0 text-light-textMuted dark:text-dark-textMuted" aria-hidden="true" />
+                  <Users
+                    className="h-4 w-4 shrink-0 text-light-textMuted dark:text-dark-textMuted"
+                    aria-hidden="true"
+                  />
                   {t.fullName}
                 </span>
                 <span className="flex items-center gap-3 text-xs">
-                  <Link href={`/tenants/${t.id}`} className="text-light-accent hover:underline dark:text-dark-accent">
+                  <Link
+                    href={`/tenants/${t.id}`}
+                    className="text-light-accent hover:underline dark:text-dark-accent"
+                  >
                     View tenant
                   </Link>
                   {activeLeaseId ? (
-                    <Link href={`/leases/${activeLeaseId}`} className="text-light-accent hover:underline dark:text-dark-accent">
+                    <Link
+                      href={`/leases/${activeLeaseId}`}
+                      className="text-light-accent hover:underline dark:text-dark-accent"
+                    >
                       View lease
                     </Link>
                   ) : null}

@@ -41,28 +41,61 @@ export interface LevelSource {
 /** Level → percentage (litres need a litre capacity), or null. */
 export function levelPct(source: LevelSource, metric: string, value: number): number | null {
   if (metric.endsWith('_pct')) return value;
-  if (metric === 'tank_level_litres' && source.capacity_unit === 'litres' && source.capacity_value) return (value / source.capacity_value) * 100;
+  if (metric === 'tank_level_litres' && source.capacity_unit === 'litres' && source.capacity_value)
+    return (value / source.capacity_value) * 100;
   return null;
 }
 
 /** Tank low / overflow, battery low, generator fuel low. */
-export function evaluateLevel(source: LevelSource, metric: string, value: number): { rule: string; severity: HybridAlert['severity']; title: string; message: string } | null {
+export function evaluateLevel(
+  source: LevelSource,
+  metric: string,
+  value: number,
+): { rule: string; severity: HybridAlert['severity']; title: string; message: string } | null {
   const pct = levelPct(source, metric, value);
   if (pct === null) return null;
   const p = Math.round(pct * 10) / 10;
   if (source.source_type === 'storage_tank' || source.source_type === 'rainwater') {
     if (pct <= source.low_level_pct) {
-      return { rule: 'tank_low', severity: pct <= source.low_level_pct / 2 ? 'critical' : 'warning', title: `${source.name} is low (${p}%)`, message: `The tank level is at ${p}%, below the ${source.low_level_pct}% threshold. Check supply, pumps and usage.` };
+      return {
+        rule: 'tank_low',
+        severity: pct <= source.low_level_pct / 2 ? 'critical' : 'warning',
+        title: `${source.name} is low (${p}%)`,
+        message: `The tank level is at ${p}%, below the ${source.low_level_pct}% threshold. Check supply, pumps and usage.`,
+      };
     }
     if (pct >= source.high_level_pct) {
-      return { rule: 'tank_overflow', severity: 'warning', title: `${source.name} may overflow (${p}%)`, message: `The tank level is at ${p}%, at or above ${source.high_level_pct}%. Check the float valve or inflow control.` };
+      return {
+        rule: 'tank_overflow',
+        severity: 'warning',
+        title: `${source.name} may overflow (${p}%)`,
+        message: `The tank level is at ${p}%, at or above ${source.high_level_pct}%. Check the float valve or inflow control.`,
+      };
     }
   }
-  if (source.source_type === 'battery' && metric === 'battery_soc_pct' && pct <= source.low_level_pct) {
-    return { rule: 'battery_issue', severity: 'warning', title: `${source.name} charge is low (${p}%)`, message: `Battery state of charge is ${p}%, below ${source.low_level_pct}%. Expect reduced backup during load-shedding.` };
+  if (
+    source.source_type === 'battery' &&
+    metric === 'battery_soc_pct' &&
+    pct <= source.low_level_pct
+  ) {
+    return {
+      rule: 'battery_issue',
+      severity: 'warning',
+      title: `${source.name} charge is low (${p}%)`,
+      message: `Battery state of charge is ${p}%, below ${source.low_level_pct}%. Expect reduced backup during load-shedding.`,
+    };
   }
-  if (source.source_type === 'generator' && metric === 'fuel_level_pct' && pct <= source.low_level_pct) {
-    return { rule: 'generator_abnormal', severity: 'warning', title: `${source.name} fuel is low (${p}%)`, message: `Generator fuel is at ${p}%. Refuel before the next outage.` };
+  if (
+    source.source_type === 'generator' &&
+    metric === 'fuel_level_pct' &&
+    pct <= source.low_level_pct
+  ) {
+    return {
+      rule: 'generator_abnormal',
+      severity: 'warning',
+      title: `${source.name} fuel is low (${p}%)`,
+      message: `Generator fuel is at ${p}%. Refuel before the next outage.`,
+    };
   }
   return null;
 }
@@ -76,7 +109,11 @@ export function median(values: (number | null)[]): number | null {
 }
 
 /** Solar far below its recent median (generation), or a pump far above its recent median (pump energy). */
-export function evaluateDaily(kind: 'generation' | 'pump_energy', yesterday: number | null, history: (number | null)[]) {
+export function evaluateDaily(
+  kind: 'generation' | 'pump_energy',
+  yesterday: number | null,
+  history: (number | null)[],
+) {
   const m = median(history);
   if (yesterday === null || m === null) return null;
   if (kind === 'generation' && m >= 1 && yesterday < m * 0.25) {
@@ -89,15 +126,23 @@ export function evaluateDaily(kind: 'generation' | 'pump_energy', yesterday: num
 }
 
 export function evaluateRunHours(hours: number, expected: number | null): boolean {
-  return expected !== null && expected > 0 ? hours > expected * 1.5 && hours - expected >= 1 : false;
+  return expected !== null && expected > 0
+    ? hours > expected * 1.5 && hours - expected >= 1
+    : false;
 }
 
 const PAGE = 1000;
 
 /** Every row of an ordered query (responses are capped at 1,000 rows); a query error fails the job step instead of
  * silently looking like "no alerts". */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function pageAll(label: string, page: (from: number, to: number) => PromiseLike<{ data: any[] | null; error: { message: string } | null }>) {
+async function pageAll(
+  label: string,
+  page: (
+    from: number,
+    to: number,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ) => PromiseLike<{ data: any[] | null; error: { message: string } | null }>,
+) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rows: any[] = [];
   for (let from = 0; ; from += PAGE) {
@@ -132,7 +177,9 @@ export async function runHybridAlerts(
   const sources = await pageAll('supply sources', (f, t) =>
     serviceClient
       .from('utility_supply_sources')
-      .select('id, org_id, property_id, name, source_type, utility_type, low_level_pct, high_level_pct, capacity_value, capacity_unit, expected_daily_run_hours, unit_id')
+      .select(
+        'id, org_id, property_id, name, source_type, utility_type, low_level_pct, high_level_pct, capacity_value, capacity_unit, expected_daily_run_hours, unit_id',
+      )
       .eq('active', true)
       .order('id')
       .range(f, t),
@@ -163,7 +210,12 @@ export async function runHybridAlerts(
       const s = sourceById.get(r.source_id)!;
       evaluated += 1;
       const hit = evaluateLevel(
-        { ...s, low_level_pct: Number(s.low_level_pct), high_level_pct: Number(s.high_level_pct), capacity_value: s.capacity_value === null ? null : Number(s.capacity_value) },
+        {
+          ...s,
+          low_level_pct: Number(s.low_level_pct),
+          high_level_pct: Number(s.high_level_pct),
+          capacity_value: s.capacity_value === null ? null : Number(s.capacity_value),
+        },
         r.metric,
         Number(r.value),
       );
@@ -184,18 +236,25 @@ export async function runHybridAlerts(
       });
     }
     // Generator run hours logged for yesterday vs expected.
-    const generators = sources.filter((s) => s.source_type === 'generator' && s.expected_daily_run_hours !== null);
+    const generators = sources.filter(
+      (s) => s.source_type === 'generator' && s.expected_daily_run_hours !== null,
+    );
     if (generators.length) {
       const { data: logs, error: logsError } = await serviceClient
         .from('utility_source_logs')
         .select('source_id, quantity')
         .eq('log_type', 'run_hours')
-        .in('source_id', generators.map((g) => g.id))
+        .in(
+          'source_id',
+          generators.map((g) => g.id),
+        )
         .gte('occurred_at', dayStart.toISOString())
         .lt('occurred_at', dayEnd.toISOString());
       if (logsError) throw new Error(`generator logs failed: ${logsError.message}`);
       for (const g of generators) {
-        const hours = (logs ?? []).filter((l) => l.source_id === g.id).reduce((a, l) => a + Number(l.quantity ?? 0), 0);
+        const hours = (logs ?? [])
+          .filter((l) => l.source_id === g.id)
+          .reduce((a, l) => a + Number(l.quantity ?? 0), 0);
         evaluated += 1;
         if (!evaluateRunHours(hours, Number(g.expected_daily_run_hours))) continue;
         alerts.push({
@@ -231,11 +290,27 @@ export async function runHybridAlerts(
   )) as SmartMeterRow[];
   if (km.length) {
     const histStart = new Date(dayStart.getTime() - 14 * 86_400_000);
-    const points = await loadPoints(serviceClient, km.map((m) => m.id), new Date(histStart.getTime() - 86_400_000), new Date(dayEnd.getTime() + 3_600_000));
+    const points = await loadPoints(
+      serviceClient,
+      km.map((m) => m.id),
+      new Date(histStart.getTime() - 86_400_000),
+      new Date(dayEnd.getTime() + 3_600_000),
+    );
     for (const m of km) {
-      const days = bucketConsumption(points.get(m.id) ?? [], histStart, dayEnd, 1440, { registerDigits: m.register_digits }, 30).map((b) => b.consumption);
+      const days = bucketConsumption(
+        points.get(m.id) ?? [],
+        histStart,
+        dayEnd,
+        1440,
+        { registerDigits: m.register_digits },
+        30,
+      ).map((b) => b.consumption);
       evaluated += 1;
-      const hit = evaluateDaily(m.measurement_kind as 'generation' | 'pump_energy', days[days.length - 1] ?? null, days.slice(0, -1));
+      const hit = evaluateDaily(
+        m.measurement_kind as 'generation' | 'pump_energy',
+        days[days.length - 1] ?? null,
+        days.slice(0, -1),
+      );
       if (!hit) continue;
       const label = m.location || m.meter_number || 'meter';
       alerts.push({
@@ -247,7 +322,10 @@ export async function runHybridAlerts(
         utility_type: 'electricity',
         rule: hit.rule,
         severity: 'warning',
-        title: hit.rule === 'solar_issue' ? `Solar output low on ${dayKey} (${label})` : `Borehole pump energy high on ${dayKey} (${label})`,
+        title:
+          hit.rule === 'solar_issue'
+            ? `Solar output low on ${dayKey} (${label})`
+            : `Borehole pump energy high on ${dayKey} (${label})`,
         message:
           hit.rule === 'solar_issue'
             ? `Generation was ${Math.round(hit.ratio * 100)}% of the recent daily median (${hit.median.toFixed(1)} kWh). Heavy cloud can cause this; if the sky was clear, check the inverter, isolators and panels.`
@@ -265,7 +343,9 @@ export async function runHybridAlerts(
   const connected = await pageAll('connected meters', (f, t) =>
     serviceClient
       .from('utility_meters')
-      .select('id, org_id, property_id, unit_id, utility_type, expected_interval_minutes, meter_number, location, health_status')
+      .select(
+        'id, org_id, property_id, unit_id, utility_type, expected_interval_minutes, meter_number, location, health_status',
+      )
       .eq('active', true)
       .neq('connectivity', 'manual')
       .not('expected_interval_minutes', 'is', null)
@@ -278,12 +358,16 @@ export async function runHybridAlerts(
     const counts = new Map<string, number>();
     const ids = connected.map((m) => m.id as string);
     for (let i = 0; i < ids.length; i += 500) {
-      const { data: rows, error: countError } = await serviceClient.rpc('utility_reading_counts_since', {
-        p_since: new Date(now.getTime() - 86_400_000).toISOString(),
-        p_meter_ids: ids.slice(i, i + 500),
-      });
+      const { data: rows, error: countError } = await serviceClient.rpc(
+        'utility_reading_counts_since',
+        {
+          p_since: new Date(now.getTime() - 86_400_000).toISOString(),
+          p_meter_ids: ids.slice(i, i + 500),
+        },
+      );
       if (countError) throw new Error(`reading counts failed: ${countError.message}`);
-      for (const r of (rows ?? []) as { meter_id: string; readings: number }[]) counts.set(r.meter_id, Number(r.readings));
+      for (const r of (rows ?? []) as { meter_id: string; readings: number }[])
+        counts.set(r.meter_id, Number(r.readings));
     }
     for (const m of connected) {
       const expected = Math.floor(1440 / Number(m.expected_interval_minutes));
@@ -319,9 +403,17 @@ export async function runHybridAlerts(
       .order('id')
       .range(f, t),
   );
-  const draftByProp = new Map<string, { org: string; count: number; amount: number; utility: 'water' | 'electricity' }>();
+  const draftByProp = new Map<
+    string,
+    { org: string; count: number; amount: number; utility: 'water' | 'electricity' }
+  >();
   for (const d of drafts) {
-    const cur = draftByProp.get(d.property_id) ?? { org: d.org_id, count: 0, amount: 0, utility: d.utility_type };
+    const cur = draftByProp.get(d.property_id) ?? {
+      org: d.org_id,
+      count: 0,
+      amount: 0,
+      utility: d.utility_type,
+    };
     cur.count += 1;
     cur.amount += Number(d.total_amount);
     draftByProp.set(d.property_id, cur);
@@ -370,7 +462,11 @@ export async function runHybridAlerts(
       .lt('period', overdueBefore);
     if (invError) throw new Error(`utility invoices failed: ${invError.message}`);
     for (const inv of invs ?? []) {
-      const paid = ((inv.invoice_payments ?? []) as { amount: number; reversed_at: string | null }[]).filter((p) => !p.reversed_at).reduce((a, p) => a + Number(p.amount), 0);
+      const paid = (
+        (inv.invoice_payments ?? []) as { amount: number; reversed_at: string | null }[]
+      )
+        .filter((p) => !p.reversed_at)
+        .reduce((a, p) => a + Number(p.amount), 0);
       const outstanding = Math.round((Number(inv.amount) - paid) * 100) / 100;
       evaluated += 1;
       if (outstanding <= 0) continue;
@@ -396,14 +492,27 @@ export async function runHybridAlerts(
 
   // 6. Hybrid balance gap for the previous calendar month (evaluated on the 1st–3rd; deduped per month).
   if (today.day <= 3 && sources.length) {
-    const prevMonthStart = sastInstant(today.month === 1 ? today.year - 1 : today.year, today.month === 1 ? 12 : today.month - 1, 1);
+    const prevMonthStart = sastInstant(
+      today.month === 1 ? today.year - 1 : today.year,
+      today.month === 1 ? 12 : today.month - 1,
+      1,
+    );
     const from = sastDateString(prevMonthStart);
     const to = sastDateString(sastInstant(today.year, today.month, 1));
-    const settings = await fetchAll<{ property_id: string; discrepancy_threshold_pct: number }>((f, t) =>
-      serviceClient.from('utility_alert_settings').select('property_id, discrepancy_threshold_pct').order('id').range(f, t),
+    const settings = await fetchAll<{ property_id: string; discrepancy_threshold_pct: number }>(
+      (f, t) =>
+        serviceClient
+          .from('utility_alert_settings')
+          .select('property_id, discrepancy_threshold_pct')
+          .order('id')
+          .range(f, t),
     );
-    const threshold = new Map(settings.map((s) => [s.property_id, Number(s.discrepancy_threshold_pct)]));
-    const hybridProps = [...new Map(sources.map((s) => [s.property_id as string, s.org_id as string])).entries()];
+    const threshold = new Map(
+      settings.map((s) => [s.property_id, Number(s.discrepancy_threshold_pct)]),
+    );
+    const hybridProps = [
+      ...new Map(sources.map((s) => [s.property_id as string, s.org_id as string])).entries(),
+    ];
     for (const [propertyId, orgId] of hybridProps) {
       const dash = await loadHybridDashboard(serviceClient, propertyId, { from, to });
       for (const [utility, pct, variance, unit] of [
@@ -411,7 +520,8 @@ export async function runHybridAlerts(
         ['water', dash.water.variancePct, dash.water.variance.value, 'kL'],
       ] as const) {
         evaluated += 1;
-        if (pct === null || variance === null || Math.abs(pct) <= (threshold.get(propertyId) ?? 15)) continue;
+        if (pct === null || variance === null || Math.abs(pct) <= (threshold.get(propertyId) ?? 15))
+          continue;
         alerts.push({
           org_id: orgId,
           property_id: propertyId,

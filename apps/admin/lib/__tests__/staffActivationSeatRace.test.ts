@@ -88,7 +88,9 @@ describeIfSupabase(
         plan_id: plan!.id,
         billing_cycle: 'monthly',
         current_period_start: new Date().toISOString().slice(0, 10),
-        current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+        current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .slice(0, 10),
         status: 'active',
       });
 
@@ -130,7 +132,7 @@ describeIfSupabase(
       createdUserIds.length = 0;
     });
 
-    it('two concurrent activations for the org\'s one remaining seat: exactly one wins, one loses with staff_seat_limit_reached, no over-allocation, no partial property_access', async () => {
+    it("two concurrent activations for the org's one remaining seat: exactly one wins, one loses with staff_seat_limit_reached, no over-allocation, no partial property_access", async () => {
       const principalClient = await signedInClient(principalEmail, TEST_PASSWORD);
 
       const email1 = `seatrace-hire1-${randomUUID()}@test.propertyvault.example`;

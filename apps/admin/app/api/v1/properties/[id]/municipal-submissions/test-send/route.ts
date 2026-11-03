@@ -3,8 +3,21 @@ import { getServiceRoleClient } from '@/lib/supabase/server';
 import { dispatchEmail } from '@/lib/emailDispatch';
 import { rateLimitOrRespond } from '@/lib/rateLimit';
 import { writeAuditEvent } from '@/lib/audit';
-import { canWriteUtilities, forbidden, jsonError, loadReadableProperty, notFound, requireUser, serverError, utilitiesDisabled } from '@/lib/smartUtility/http';
-import { renderReportCsv, reportCsvFilename, reportPdfFilename } from '@/lib/smartUtility/municipalReport';
+import {
+  canWriteUtilities,
+  forbidden,
+  jsonError,
+  loadReadableProperty,
+  notFound,
+  requireUser,
+  serverError,
+  utilitiesDisabled,
+} from '@/lib/smartUtility/http';
+import {
+  renderReportCsv,
+  reportCsvFilename,
+  reportPdfFilename,
+} from '@/lib/smartUtility/municipalReport';
 import { buildPreview, renderPreviewPdf } from '@/lib/smartUtility/preview';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -45,8 +58,16 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       relatedEntityId: testId,
       actorUserId: auth.user.id,
       files: [
-        { filename: reportPdfFilename(p.report), contentBase64: pdf.toString('base64'), contentType: 'application/pdf' },
-        { filename: reportCsvFilename(p.report), contentBase64: Buffer.from(renderReportCsv(p.report)).toString('base64'), contentType: 'text/csv' },
+        {
+          filename: reportPdfFilename(p.report),
+          contentBase64: pdf.toString('base64'),
+          contentType: 'application/pdf',
+        },
+        {
+          filename: reportCsvFilename(p.report),
+          contentBase64: Buffer.from(renderReportCsv(p.report)).toString('base64'),
+          contentType: 'text/csv',
+        },
         ...p.files,
       ],
     });
@@ -67,6 +88,11 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
         : 'Email delivery is not configured on this server, so nothing left it (mock provider).',
     });
   } catch (error) {
-    return serverError('test_send_failed', 'Could not send the test.', 'municipal_test_send', error);
+    return serverError(
+      'test_send_failed',
+      'Could not send the test.',
+      'municipal_test_send',
+      error,
+    );
   }
 }

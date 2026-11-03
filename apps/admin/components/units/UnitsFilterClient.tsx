@@ -90,7 +90,11 @@ export function UnitsFilterClient({
         </div>
       </div>
 
-      <UnitsTable data={filtered} showProperty={showProperty} emptyMessage="No units match this filter" />
+      <UnitsTable
+        data={filtered}
+        showProperty={showProperty}
+        emptyMessage="No units match this filter"
+      />
 
       <p className="text-[12px] text-muted-foreground">
         Showing {filtered.length} of {units.length} units

@@ -17,21 +17,29 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
   if ('response' in auth) return auth.response;
   const { data: r } = await auth.supabase
     .from('meter_telemetry_readings')
-    .select('id, org_id, property_id, meter_id, read_at, value, source, verification_status, verified_by, verified_at, verification_note, recorded_by, document_id, notes')
+    .select(
+      'id, org_id, property_id, meter_id, read_at, value, source, verification_status, verified_by, verified_at, verification_note, recorded_by, document_id, notes',
+    )
     .eq('id', id)
     .maybeSingle();
-  if (!r || !(await canReadUtilities(auth.supabase, r.org_id, r.property_id))) return notFound('Reading');
+  if (!r || !(await canReadUtilities(auth.supabase, r.org_id, r.property_id)))
+    return notFound('Reading');
   try {
     const service = getServiceRoleClient();
     const [{ data: meter }, { data: property }] = await Promise.all([
-      service.from('utility_meters').select('utility_type, meter_number, serial_number, meter_role, unit_id, location').eq('id', r.meter_id).single(),
+      service
+        .from('utility_meters')
+        .select('utility_type, meter_number, serial_number, meter_role, unit_id, location')
+        .eq('id', r.meter_id)
+        .single(),
       service.from('properties').select('nickname, full_address').eq('id', r.property_id).single(),
     ]);
     const people = [r.recorded_by, r.verified_by].filter((x): x is string => !!x);
     const { data: profiles } = people.length
       ? await service.from('profiles').select('id, display_name').in('id', people)
       : { data: [] as { id: string; display_name: string | null }[] };
-    const name = (uid: string | null) => (uid ? (profiles ?? []).find((p) => p.id === uid)?.display_name ?? 'A team member' : null);
+    const name = (uid: string | null) =>
+      uid ? ((profiles ?? []).find((p) => p.id === uid)?.display_name ?? 'A team member') : null;
 
     let image: Buffer | null = null;
     let imageCaption = 'No photo was attached to this reading.';
@@ -44,7 +52,10 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
         .is('deleted_at', null)
         .maybeSingle();
       if (doc && (doc.mime_type === 'image/jpeg' || doc.mime_type === 'image/png')) {
-        const read = await downloadProtectedObject(service, { orgId: r.org_id, storagePath: doc.storage_path });
+        const read = await downloadProtectedObject(service, {
+          orgId: r.org_id,
+          storagePath: doc.storage_path,
+        });
         if (read.ok) {
           image = Buffer.from(await read.value.arrayBuffer());
           imageCaption = `Original photo: ${doc.original_file_name ?? 'meter photo'} (uploaded ${new Date(doc.created_at).toISOString().slice(0, 10)})`;
@@ -81,6 +92,11 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
       },
     });
   } catch (error) {
-    return serverError('evidence_report_failed', 'Could not build the evidence report.', 'meter_readings.evidence', error);
+    return serverError(
+      'evidence_report_failed',
+      'Could not build the evidence report.',
+      'meter_readings.evidence',
+      error,
+    );
   }
 }

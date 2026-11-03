@@ -5,7 +5,14 @@ import { Panel } from '@/components/ui/Panel';
 import { StatTile } from '@/components/cemetery/StatTile';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { getCemeteryContext } from '@/lib/cemetery/access';
-import { loadCemeteries, loadPayments, loadPurchasers, loadSales, loadSites, withBalances } from '@/lib/cemetery/data';
+import {
+  loadCemeteries,
+  loadPayments,
+  loadPurchasers,
+  loadSales,
+  loadSites,
+  withBalances,
+} from '@/lib/cemetery/data';
 import { formatDate, formatZar, tenureTerms } from '@/lib/cemetery/terms';
 
 export const dynamic = 'force-dynamic';
@@ -50,16 +57,27 @@ export default async function CemeterySalesPage({ searchParams }: SearchParams) 
         subtitle="Every sale with what has been paid and what is still owed."
         actions={
           ctx.canManage ? (
-            <Link href="/cemetery/sales/new" className="flex h-9 items-center rounded-xl bg-primary px-3.5 text-[13px] font-semibold text-primary-foreground">
+            <Link
+              href="/cemetery/sales/new"
+              className="flex h-9 items-center rounded-xl bg-primary px-3.5 text-[13px] font-semibold text-primary-foreground"
+            >
               {terms.sellAction}
             </Link>
           ) : undefined
         }
       />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <StatTile label="Sales value" value={formatZar(total('price'))} foot={`${all.length} active`} />
+        <StatTile
+          label="Sales value"
+          value={formatZar(total('price'))}
+          foot={`${all.length} active`}
+        />
         <StatTile label="Payments received" value={formatZar(total('paid'))} />
-        <StatTile label="Outstanding" value={formatZar(total('balance'))} foot={`${all.filter((s) => s.balance > 0).length} with a balance`} />
+        <StatTile
+          label="Outstanding"
+          value={formatZar(total('balance'))}
+          foot={`${all.filter((s) => s.balance > 0).length} with a balance`}
+        />
       </div>
       <nav className="flex gap-2" aria-label="Filter sales">
         {[
@@ -101,27 +119,50 @@ export default async function CemeterySalesPage({ searchParams }: SearchParams) 
                 {rows.map((s) => (
                   <tr key={s.id} className="hover:bg-surface">
                     <td className="px-5 py-2.5">
-                      <Link href={`/cemetery/sales/${s.id}`} className="font-medium text-primary hover:underline">
+                      <Link
+                        href={`/cemetery/sales/${s.id}`}
+                        className="font-medium text-primary hover:underline"
+                      >
                         {s.sale_number}
                       </Link>
-                      {s.is_demo ? <span className="ml-2 text-[10px] uppercase text-muted-foreground">demo</span> : null}
+                      {s.is_demo ? (
+                        <span className="ml-2 text-[10px] uppercase text-muted-foreground">
+                          demo
+                        </span>
+                      ) : null}
                     </td>
                     <td className="px-3 py-2.5">
-                      <Link href={`/cemetery/sites/${s.site_id}`} className="text-foreground hover:underline">
+                      <Link
+                        href={`/cemetery/sites/${s.site_id}`}
+                        className="text-foreground hover:underline"
+                      >
                         {siteRef.get(s.site_id) ?? '—'}
                       </Link>
-                      {cemeteries.length > 1 ? <span className="block text-[11px] text-muted-foreground">{cemeteryName.get(s.cemetery_id)}</span> : null}
+                      {cemeteries.length > 1 ? (
+                        <span className="block text-[11px] text-muted-foreground">
+                          {cemeteryName.get(s.cemetery_id)}
+                        </span>
+                      ) : null}
                     </td>
                     <td className="px-3 py-2.5">
-                      <Link href={`/cemetery/purchasers/${s.purchaser_id}`} className="text-foreground hover:underline">
+                      <Link
+                        href={`/cemetery/purchasers/${s.purchaser_id}`}
+                        className="text-foreground hover:underline"
+                      >
                         {holder.get(s.purchaser_id) ?? '—'}
                       </Link>
                     </td>
                     <td className="px-3 py-2.5 text-muted-foreground">{formatDate(s.sale_date)}</td>
                     <td className="tabular px-3 py-2.5 text-right">{formatZar(s.price)}</td>
                     <td className="tabular px-3 py-2.5 text-right">{formatZar(s.paid)}</td>
-                    <td className={`tabular px-5 py-2.5 text-right font-semibold ${s.balance > 0 ? 'text-destructive' : 'text-success'}`}>
-                      {s.status === 'cancelled' ? 'Cancelled' : s.balance > 0 ? formatZar(s.balance) : 'Paid'}
+                    <td
+                      className={`tabular px-5 py-2.5 text-right font-semibold ${s.balance > 0 ? 'text-destructive' : 'text-success'}`}
+                    >
+                      {s.status === 'cancelled'
+                        ? 'Cancelled'
+                        : s.balance > 0
+                          ? formatZar(s.balance)
+                          : 'Paid'}
                     </td>
                   </tr>
                 ))}

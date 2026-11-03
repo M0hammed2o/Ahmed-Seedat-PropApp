@@ -45,7 +45,9 @@ describe('CommercialSetupView', () => {
     const feeLabel = `R${TRIAL_ACTIVATION_CARD_VERIFICATION_FEE_ZAR.toFixed(2)}`;
 
     // Explanatory disclosure text, not just a bare number.
-    expect(screen.getByText(new RegExp(`once-off ${feeLabel} card verification fee`, 'i'))).toBeTruthy();
+    expect(
+      screen.getByText(new RegExp(`once-off ${feeLabel} card verification fee`, 'i')),
+    ).toBeTruthy();
 
     // Summary panel shows the fee and the R0 trial charge as two SEPARATE line items.
     expect(screen.getByText('Card verification fee')).toBeTruthy();
@@ -59,10 +61,18 @@ describe('CommercialSetupView', () => {
     expect(screen.getByText(/R699\/mo/)).toBeTruthy();
 
     // CTA is explicit about what's being charged right now.
-    expect(screen.getByRole('button', { name: new RegExp(`Pay ${feeLabel} & start 30-day free trial`, 'i') })).toBeTruthy();
+    expect(
+      screen.getByRole('button', {
+        name: new RegExp(`Pay ${feeLabel} & start 30-day free trial`, 'i'),
+      }),
+    ).toBeTruthy();
 
     // Consent text names the once-off charge explicitly, not just "store this payment method".
-    expect(screen.getByText(new RegExp(`I authorize the once-off ${feeLabel} card verification charge`, 'i'))).toBeTruthy();
+    expect(
+      screen.getByText(
+        new RegExp(`I authorize the once-off ${feeLabel} card verification charge`, 'i'),
+      ),
+    ).toBeTruthy();
   });
 
   it('switching plan tier updates the recurring subscription line but not the fixed verification fee', () => {

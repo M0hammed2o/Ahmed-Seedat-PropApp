@@ -225,7 +225,9 @@ export function TenantForm({ mode, orgId, tenant, properties = [], units = [] }:
                     disabled={!propertyId}
                     className={inputClass}
                   >
-                    <option value="">{propertyId ? 'Select a unit…' : 'Choose a property first'}</option>
+                    <option value="">
+                      {propertyId ? 'Select a unit…' : 'Choose a property first'}
+                    </option>
                     {unitsForProperty.map((u) => (
                       <option key={u.id} value={u.id}>
                         {u.unitLabel} ({UNIT_STATUS_HINT[u.status]})

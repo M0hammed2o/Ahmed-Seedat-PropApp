@@ -66,7 +66,8 @@ export async function POST(request: NextRequest) {
         {
           error: {
             code: 'missing_token',
-            message: 'This activation link is missing its token. Ask your administrator to resend it.',
+            message:
+              'This activation link is missing its token. Ask your administrator to resend it.',
           },
         },
         { status: 400 },

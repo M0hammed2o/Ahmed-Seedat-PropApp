@@ -79,7 +79,8 @@ export function analyseDay(input: DayAnalysisInput): AlertCandidate[] {
 
   // --- Night flow (water) / night base load (electricity): needs hourly resolution.
   const night = input.hourly.slice(NIGHT_HOURS.start, NIGHT_HOURS.end);
-  const nightKnown = night.length === NIGHT_HOURS.end - NIGHT_HOURS.start && night.every((v) => v !== null);
+  const nightKnown =
+    night.length === NIGHT_HOURS.end - NIGHT_HOURS.start && night.every((v) => v !== null);
   if (nightKnown) {
     const nightValues = night as number[];
     if (utilityType === 'water') {
@@ -95,7 +96,12 @@ export function analyseDay(input: DayAnalysisInput): AlertCandidate[] {
             'Continuous overnight flow often indicates a leak or a running toilet/geyser overflow, but can also be legitimate use. Please check on site.',
           // Flow that never stopped overnight, extrapolated to 24 h, is the plausible daily loss.
           excessConsumption: minHour * 24,
-          details: { nightHourly: nightValues, minHour, nightTotal, thresholdPerHour: thresholds.nightFlowLitresPerHour },
+          details: {
+            nightHourly: nightValues,
+            minHour,
+            nightTotal,
+            thresholdPerHour: thresholds.nightFlowLitresPerHour,
+          },
         });
       }
     } else {
@@ -116,8 +122,13 @@ export function analyseDay(input: DayAnalysisInput): AlertCandidate[] {
             `Average use between 00:00 and 05:00 was ${fmt(nightMean, 'electricity')} per hour, ` +
             `${Math.round((nightMean / dayMean) * 100)}% of the daytime average. ` +
             'This can indicate equipment left on (geyser, pool pump, heaters) or a fault. Please check on site.',
-          excessConsumption: (nightMean - BASE_LOAD_FLOOR_KWH_PER_HOUR) * (NIGHT_HOURS.end - NIGHT_HOURS.start),
-          details: { nightMeanKwhPerHour: nightMean, dayMeanKwhPerHour: dayMean, ratio: thresholds.nightBaseLoadRatio },
+          excessConsumption:
+            (nightMean - BASE_LOAD_FLOOR_KWH_PER_HOUR) * (NIGHT_HOURS.end - NIGHT_HOURS.start),
+          details: {
+            nightMeanKwhPerHour: nightMean,
+            dayMeanKwhPerHour: dayMean,
+            ratio: thresholds.nightBaseLoadRatio,
+          },
         });
       }
     }
@@ -141,13 +152,19 @@ export function analyseDay(input: DayAnalysisInput): AlertCandidate[] {
         `Yesterday's use was ${fmt(input.dayTotal, utilityType)}, against a typical ${fmt(med, utilityType)} per day ` +
         `(median of the previous ${Math.min(hist.length, 14)} days).`,
       excessConsumption: input.dayTotal - med,
-      details: { dayTotal: input.dayTotal, trailingMedian: med, spikeMultiple: thresholds.spikeMultiple },
+      details: {
+        dayTotal: input.dayTotal,
+        trailingMedian: med,
+        spikeMultiple: thresholds.spikeMultiple,
+      },
     });
   }
 
   // --- Vacant unit consumption.
   const vacantFloor =
-    utilityType === 'water' ? thresholds.vacantWaterLitresPerDay : thresholds.vacantElectricityKwhPerDay;
+    utilityType === 'water'
+      ? thresholds.vacantWaterLitresPerDay
+      : thresholds.vacantElectricityKwhPerDay;
   if (input.unitVacant && input.dayTotal !== null && input.dayTotal > vacantFloor) {
     out.push({
       rule: 'vacant_unit_consumption',

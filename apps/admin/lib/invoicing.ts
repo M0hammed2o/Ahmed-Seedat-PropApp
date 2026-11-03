@@ -12,7 +12,8 @@ import { getServiceRoleClient } from './supabase/server';
 // R4,000 outstanding while invoice says R0") -- balance is the single source of truth for
 // paid/unpaid, schedule status only breaks the tie between "unpaid, not yet overdue" (Issued) and
 // "unpaid, overdue" (Overdue).
-export type InvoiceDisplayStatus = 'Draft' | 'Issued' | 'Partially paid' | 'Paid' | 'Overdue' | 'Void';
+export type InvoiceDisplayStatus =
+  'Draft' | 'Issued' | 'Partially paid' | 'Paid' | 'Overdue' | 'Void';
 
 export function computeInvoiceDisplayStatus(input: {
   invoiceStatus: 'draft' | 'issued' | 'paid';
@@ -73,7 +74,10 @@ export const LEASE_ID_CHUNK_SIZE = 100;
 type PagedResult<T> = PromiseLike<{ data: T[] | null; error: { message: string } | null }>;
 
 /** Every row of a paged read. Any error throws: a failed read is never treated as "no rows". */
-async function readAllPages<T>(label: string, page: (from: number, to: number) => PagedResult<T>): Promise<T[]> {
+async function readAllPages<T>(
+  label: string,
+  page: (from: number, to: number) => PagedResult<T>,
+): Promise<T[]> {
   const rows: T[] = [];
   for (let from = 0; ; from += INVOICE_PAGE_SIZE) {
     const { data, error } = await page(from, from + INVOICE_PAGE_SIZE - 1);
@@ -154,7 +158,9 @@ export async function loadInvoicesWithBalances(
 
   // Schedule status is still needed for display purposes (the Overdue/Issued tie-break below), but
   // NOT for paid/balance -- that comes from invoice_payments alone.
-  const leaseIds = [...new Set(invoiceRows.filter((r) => r.source !== 'manual').map((r) => r.lease_id))];
+  const leaseIds = [
+    ...new Set(invoiceRows.filter((r) => r.source !== 'manual').map((r) => r.lease_id)),
+  ];
   const schedules: { id: string; lease_id: string; due_date: string; status: string }[] = [];
   for (let i = 0; i < leaseIds.length; i += LEASE_ID_CHUNK_SIZE) {
     const chunk = leaseIds.slice(i, i + LEASE_ID_CHUNK_SIZE);
@@ -180,14 +186,20 @@ export async function loadInvoicesWithBalances(
   return invoiceRows.map((row) => {
     const lease = row.leases as unknown as {
       unit_id: string;
-      units: { unit_label: string; property_id: string; properties: { nickname: string } | null } | null;
+      units: {
+        unit_label: string;
+        property_id: string;
+        properties: { nickname: string } | null;
+      } | null;
     } | null;
     const unit = lease?.units;
     const property = unit?.properties;
     const tenant = row.tenants as unknown as { full_name: string } | null;
 
     const isManual = row.source === 'manual';
-    const schedule = isManual ? undefined : scheduleByLeasePeriod.get(`${row.lease_id}:${row.period}`);
+    const schedule = isManual
+      ? undefined
+      : scheduleByLeasePeriod.get(`${row.lease_id}:${row.period}`);
     // ONE source, for every invoice regardless of source -- confirm_bank_transaction_match() and
     // confirm_cash_receipt_deposit() (migration 159) now create their own invoice_payments
     // allocation row, so a rent invoice's bank/cash-derived payments are already counted here.
@@ -309,7 +321,9 @@ export async function loadTenantPaymentLedger(
       amount: Number(row.amount),
       recordedByName: row.recorded_by ? (nameByUserId.get(row.recorded_by) ?? null) : null,
       reversedAt: row.reversed_at,
-      reversedByName: row.reversed_by_user_id ? (nameByUserId.get(row.reversed_by_user_id) ?? null) : null,
+      reversedByName: row.reversed_by_user_id
+        ? (nameByUserId.get(row.reversed_by_user_id) ?? null)
+        : null,
       reversalReason: row.reversal_reason,
     };
   });

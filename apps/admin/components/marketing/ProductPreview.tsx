@@ -1,5 +1,13 @@
 import type { ComponentType } from 'react';
-import { Building2, FileText, Users, Wallet, Wrench, LayoutGrid, type LucideProps } from 'lucide-react';
+import {
+  Building2,
+  FileText,
+  Users,
+  Wallet,
+  Wrench,
+  LayoutGrid,
+  type LucideProps,
+} from 'lucide-react';
 
 const NAV_ITEMS: { icon: ComponentType<LucideProps>; label: string; active?: boolean }[] = [
   { icon: LayoutGrid, label: 'Dashboard', active: true },

@@ -25,7 +25,9 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     );
   }
 
-  const { data, error } = await supabase.rpc('acknowledge_lease_review', { p_lease_id: id }).single();
+  const { data, error } = await supabase
+    .rpc('acknowledge_lease_review', { p_lease_id: id })
+    .single();
   if (error) {
     return NextResponse.json(
       { error: { code: 'lease_review_failed', message: error.message } },

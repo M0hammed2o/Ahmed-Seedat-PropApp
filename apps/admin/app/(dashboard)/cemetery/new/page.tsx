@@ -10,7 +10,10 @@ export default async function NewCemeteryPage() {
   if (!ctx || !ctx.canManage) notFound();
   return (
     <div className="space-y-5 animate-rise">
-      <PageHeader title="Set up a cemetery" subtitle="Cemetery → sections / blocks → grave sites. Sites are numbered per section (A-001, A-002…)." />
+      <PageHeader
+        title="Set up a cemetery"
+        subtitle="Cemetery → sections / blocks → grave sites. Sites are numbered per section (A-001, A-002…)."
+      />
       <CemeterySetupForm />
     </div>
   );

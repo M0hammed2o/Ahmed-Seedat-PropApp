@@ -132,10 +132,16 @@ export type ReferralPartnerUpdateInput = z.infer<typeof referralPartnerUpdateSch
 // correction may set a resolved partner, clear it back to null, set/replace the fallback name, or
 // clear it -- whatever combination the admin actually intends is exactly what's written.
 export const referralAttributionCorrectionSchema = z.object({
-  referralPartnerId: z.string().uuid('referralPartnerId must be a valid UUID').nullable().optional(),
+  referralPartnerId: z
+    .string()
+    .uuid('referralPartnerId must be a valid UUID')
+    .nullable()
+    .optional(),
   fallbackReferrerName: z.string().max(200).nullable().optional(),
 });
-export type ReferralAttributionCorrectionInput = z.infer<typeof referralAttributionCorrectionSchema>;
+export type ReferralAttributionCorrectionInput = z.infer<
+  typeof referralAttributionCorrectionSchema
+>;
 
 export const planCreateSchema = z.object({
   code: z.string().min(1).max(40),

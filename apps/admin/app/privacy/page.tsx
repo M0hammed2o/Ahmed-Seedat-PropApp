@@ -47,11 +47,10 @@ export default function PrivacyPage() {
       </p>
 
       <p className="mt-6 text-light-textSecondary dark:text-dark-textSecondary">
-        {branding.productName} is property-management software for landlords and property owners.
-        It is a product of{' '}
-        {platformBillingEntity.legalEntityName ?? 'the company operating it'}, which is the
-        responsible party for the personal information described here. This policy explains what we
-        collect, why we collect it, and what you can do about it. It covers the{' '}
+        {branding.productName} is property-management software for landlords and property owners. It
+        is a product of {platformBillingEntity.legalEntityName ?? 'the company operating it'}, which
+        is the responsible party for the personal information described here. This policy explains
+        what we collect, why we collect it, and what you can do about it. It covers the{' '}
         {branding.productName} website at proplyst.co.za and the {branding.productName} Android
         application.
       </p>

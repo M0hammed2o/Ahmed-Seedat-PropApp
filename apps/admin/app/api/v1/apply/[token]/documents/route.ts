@@ -43,7 +43,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   };
   if (!app.valid || !app.org_id || !app.property_id) {
     return NextResponse.json(
-      { error: { code: app.error_code ?? 'invalid_token', message: 'This link is no longer valid.' } },
+      {
+        error: {
+          code: app.error_code ?? 'invalid_token',
+          message: 'This link is no longer valid.',
+        },
+      },
       { status: 410 },
     );
   }
@@ -53,7 +58,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     form = await request.formData();
   } catch {
     return NextResponse.json(
-      { error: { code: 'invalid_form_data', message: 'Request body must be multipart/form-data.' } },
+      {
+        error: { code: 'invalid_form_data', message: 'Request body must be multipart/form-data.' },
+      },
       { status: 400 },
     );
   }
@@ -137,7 +144,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   if (!row.success) {
     await removeProtectedObjects([storagePath]);
     return NextResponse.json(
-      { error: { code: row.error_code ?? 'document_record_failed', message: 'Could not record this upload.' } },
+      {
+        error: {
+          code: row.error_code ?? 'document_record_failed',
+          message: 'Could not record this upload.',
+        },
+      },
       { status: 400 },
     );
   }

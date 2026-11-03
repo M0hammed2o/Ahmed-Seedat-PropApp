@@ -83,7 +83,9 @@ describe('TaxPackClient', () => {
 
     render(<TaxPackClient orgId="org-1" advancedReportingEnabled={false} />);
 
-    await waitFor(() => expect(screen.getByText(/CSV export is available on Professional/)).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByText(/CSV export is available on Professional/)).toBeTruthy(),
+    );
     expect(screen.queryByText('Download CSV')).toBeNull();
   });
 

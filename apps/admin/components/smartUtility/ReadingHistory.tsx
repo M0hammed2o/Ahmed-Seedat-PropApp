@@ -2,7 +2,16 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/Button';
-import { api, Badge, errorMessage, fmtDateTime, fmtNumber, meterLabel, type MeterSummary, type Overview } from './shared';
+import {
+  api,
+  Badge,
+  errorMessage,
+  fmtDateTime,
+  fmtNumber,
+  meterLabel,
+  type MeterSummary,
+  type Overview,
+} from './shared';
 
 // Per-meter reading history with evidence review (docs/SMART_UTILITIES_PROGRESS.md §8). Person-entered
 // readings stay "unverified" until someone with utilities rights checks the photo/dial; rejected
@@ -21,10 +30,30 @@ interface ReadingRow {
   verificationNote: string | null;
 }
 
-const VERIFY_TONE = { not_required: 'neutral', unverified: 'warn', verified: 'good', rejected: 'bad' } as const;
-const VERIFY_LABEL = { not_required: 'Device reading', unverified: 'Unverified', verified: 'Verified', rejected: 'Rejected' } as const;
+const VERIFY_TONE = {
+  not_required: 'neutral',
+  unverified: 'warn',
+  verified: 'good',
+  rejected: 'bad',
+} as const;
+const VERIFY_LABEL = {
+  not_required: 'Device reading',
+  unverified: 'Unverified',
+  verified: 'Verified',
+  rejected: 'Rejected',
+} as const;
 
-export function ReadingHistory({ data, meter, canManage, onClose }: { data: Overview; meter: MeterSummary; canManage: boolean; onClose: () => void }) {
+export function ReadingHistory({
+  data,
+  meter,
+  canManage,
+  onClose,
+}: {
+  data: Overview;
+  meter: MeterSummary;
+  canManage: boolean;
+  onClose: () => void;
+}) {
   const [rows, setRows] = useState<ReadingRow[] | null>(null);
   const [unit, setUnit] = useState(meter.displayUnit);
   const [error, setError] = useState<string | null>(null);
@@ -51,8 +80,12 @@ export function ReadingHistory({ data, meter, canManage, onClose }: { data: Over
   return (
     <div className="mb-4 space-y-2 rounded-md border border-light-border p-4 dark:border-dark-border">
       <div className="flex items-center justify-between">
-        <div className="text-sm font-medium text-foreground">Readings — {meterLabel(meter, data.units)}</div>
-        <Button size="sm" variant="secondary" onClick={onClose}>Close</Button>
+        <div className="text-sm font-medium text-foreground">
+          Readings — {meterLabel(meter, data.units)}
+        </div>
+        <Button size="sm" variant="secondary" onClick={onClose}>
+          Close
+        </Button>
       </div>
       {error ? <p className="text-xs text-light-danger dark:text-dark-danger">{error}</p> : null}
       {!rows ? (
@@ -74,27 +107,63 @@ export function ReadingHistory({ data, meter, canManage, onClose }: { data: Over
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.id} className="border-t border-light-border align-top dark:border-dark-border">
+                <tr
+                  key={r.id}
+                  className="border-t border-light-border align-top dark:border-dark-border"
+                >
                   <td className="py-1 pr-2">{fmtDateTime(r.readAt)}</td>
                   <td className="py-1 pr-2">{fmtNumber(r.reading, 3)}</td>
-                  <td className="py-1 pr-2">{r.source === 'manual' ? 'Entered by hand' : r.source === 'simulator' ? 'Simulated (demo)' : 'Device'}</td>
+                  <td className="py-1 pr-2">
+                    {r.source === 'manual'
+                      ? 'Entered by hand'
+                      : r.source === 'simulator'
+                        ? 'Simulated (demo)'
+                        : 'Device'}
+                  </td>
                   <td className="py-1 pr-2">
                     {r.documentId ? 'Photo' : '—'}
                     {r.source === 'manual' ? (
-                      <a className="ml-1 underline" href={`/api/v1/meter-readings/${r.id}/evidence`} target="_blank" rel="noreferrer">PDF</a>
+                      <a
+                        className="ml-1 underline"
+                        href={`/api/v1/meter-readings/${r.id}/evidence`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        PDF
+                      </a>
                     ) : null}
                   </td>
                   <td className="py-1 pr-2">
-                    <Badge tone={VERIFY_TONE[r.verificationStatus]}>{VERIFY_LABEL[r.verificationStatus]}</Badge>
-                    {r.status === 'suspect' ? <div className="text-[11px] text-muted-foreground">Flagged: {r.statusReason}</div> : null}
-                    {r.verificationNote ? <div className="text-[11px] text-muted-foreground">{r.verificationNote}</div> : null}
+                    <Badge tone={VERIFY_TONE[r.verificationStatus]}>
+                      {VERIFY_LABEL[r.verificationStatus]}
+                    </Badge>
+                    {r.status === 'suspect' ? (
+                      <div className="text-[11px] text-muted-foreground">
+                        Flagged: {r.statusReason}
+                      </div>
+                    ) : null}
+                    {r.verificationNote ? (
+                      <div className="text-[11px] text-muted-foreground">{r.verificationNote}</div>
+                    ) : null}
                   </td>
                   {canManage ? (
                     <td className="py-1">
                       {r.verificationStatus === 'unverified' ? (
                         <div className="flex gap-1">
-                          <Button size="sm" variant="secondary" onClick={() => void review(r.id, 'verified')}>Verify</Button>
-                          <Button size="sm" variant="secondary" onClick={() => void review(r.id, 'rejected')}>Reject</Button>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => void review(r.id, 'verified')}
+                          >
+                            Verify
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => void review(r.id, 'rejected')}
+                          >
+                            Reject
+                          </Button>
                         </div>
                       ) : null}
                     </td>
@@ -105,7 +174,10 @@ export function ReadingHistory({ data, meter, canManage, onClose }: { data: Over
           </table>
         </div>
       )}
-      <p className="text-[11px] text-muted-foreground">Verify only after checking the photo or the meter dial. Rejected readings are excluded from consumption, reports and charges.</p>
+      <p className="text-[11px] text-muted-foreground">
+        Verify only after checking the photo or the meter dial. Rejected readings are excluded from
+        consumption, reports and charges.
+      </p>
     </div>
   );
 }

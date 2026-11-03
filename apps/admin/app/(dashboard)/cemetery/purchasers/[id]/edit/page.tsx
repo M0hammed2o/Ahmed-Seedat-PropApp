@@ -15,7 +15,10 @@ export default async function EditPurchaserPage({ params }: { params: Promise<{ 
   const { id } = await params;
   if (!UUID.test(id)) notFound();
   const supabase = await getServerSupabaseClient();
-  const [{ data }, cemeteries] = await Promise.all([supabase.from('cemetery_purchasers').select('*').eq('id', id).maybeSingle(), loadCemeteries(supabase)]);
+  const [{ data }, cemeteries] = await Promise.all([
+    supabase.from('cemetery_purchasers').select('*').eq('id', id).maybeSingle(),
+    loadCemeteries(supabase),
+  ]);
   if (!data) notFound();
   const p = data as PurchaserRow;
   const terms = tenureTerms(cemeteries[0]?.tenure_model ?? 'burial_rights');

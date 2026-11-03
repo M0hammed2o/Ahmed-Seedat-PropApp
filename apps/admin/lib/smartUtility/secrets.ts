@@ -13,7 +13,9 @@ const VERSION = 'v1';
 
 export class CredentialsKeyMissingError extends Error {
   constructor() {
-    super('SMART_UTILITY_CREDENTIALS_KEY is not configured; integration credentials cannot be stored or read.');
+    super(
+      'SMART_UTILITY_CREDENTIALS_KEY is not configured; integration credentials cannot be stored or read.',
+    );
     this.name = 'CredentialsKeyMissingError';
   }
 }
@@ -22,7 +24,8 @@ function key(): Buffer {
   const raw = process.env.SMART_UTILITY_CREDENTIALS_KEY;
   if (!raw) throw new CredentialsKeyMissingError();
   const buf = Buffer.from(raw, 'base64');
-  if (buf.length !== 32) throw new Error('SMART_UTILITY_CREDENTIALS_KEY must be 32 bytes, base64-encoded.');
+  if (buf.length !== 32)
+    throw new Error('SMART_UTILITY_CREDENTIALS_KEY must be 32 bytes, base64-encoded.');
   return buf;
 }
 
@@ -41,12 +44,18 @@ export function encryptCredentials(value: Record<string, string>, aad: string): 
   // AAD binds the ciphertext to its integration row: a ciphertext copied onto another row fails.
   cipher.setAAD(Buffer.from(aad, 'utf8'));
   const ct = Buffer.concat([cipher.update(JSON.stringify(value), 'utf8'), cipher.final()]);
-  return [VERSION, iv.toString('base64'), cipher.getAuthTag().toString('base64'), ct.toString('base64')].join(':');
+  return [
+    VERSION,
+    iv.toString('base64'),
+    cipher.getAuthTag().toString('base64'),
+    ct.toString('base64'),
+  ].join(':');
 }
 
 export function decryptCredentials(envelope: string, aad: string): Record<string, string> {
   const [version, ivB64, tagB64, ctB64] = envelope.split(':');
-  if (version !== VERSION || !ivB64 || !tagB64 || !ctB64) throw new Error('Unsupported credentials envelope');
+  if (version !== VERSION || !ivB64 || !tagB64 || !ctB64)
+    throw new Error('Unsupported credentials envelope');
   const decipher = crypto.createDecipheriv('aes-256-gcm', key(), Buffer.from(ivB64, 'base64'));
   decipher.setAAD(Buffer.from(aad, 'utf8'));
   decipher.setAuthTag(Buffer.from(tagB64, 'base64'));

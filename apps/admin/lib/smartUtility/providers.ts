@@ -58,7 +58,12 @@ export interface ProviderDescriptor {
   /** Push: payload → readings. `query` carries URL query params (ChirpStack's ?event=up). */
   parsePush?: (body: unknown, receivedAt: Date, query: URLSearchParams) => NormalisedReading[];
   verifyConnection?: (ctx: PollContext) => Promise<{ ok: boolean; message: string }>;
-  poll?: (ctx: PollContext, devices: PollDevice[], since: Date, until: Date) => Promise<NormalisedReading[]>;
+  poll?: (
+    ctx: PollContext,
+    devices: PollDevice[],
+    since: Date,
+    until: Date,
+  ) => Promise<NormalisedReading[]>;
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -85,7 +90,13 @@ function readingsFromDecoded(
   for (const [key, val] of Object.entries(decoded)) {
     const n = finite(val);
     if (n === null || typeof val === 'boolean') continue;
-    out.push({ externalDeviceId: deviceId, channel: key, readAt: at, rawValue: n, eventId: `${eventBase}:${key}` });
+    out.push({
+      externalDeviceId: deviceId,
+      channel: key,
+      readAt: at,
+      rawValue: n,
+      eventId: `${eventBase}:${key}`,
+    });
   }
   return out;
 }
@@ -102,7 +113,11 @@ function parseTime(v: unknown): Date | null {
  * api/proto/integration/integration.proto UplinkEvent: deduplicationId, time, deviceInfo.devEui,
  * fCnt, fPort, data (base64), object (only when a device-profile codec is configured).
  */
-export function parseChirpStack(body: unknown, receivedAt: Date, query: URLSearchParams): NormalisedReading[] {
+export function parseChirpStack(
+  body: unknown,
+  receivedAt: Date,
+  query: URLSearchParams,
+): NormalisedReading[] {
   const event = query.get('event');
   if (event && event !== 'up') return [];
   if (!isRecord(body)) throw new AdapterError('ChirpStack event must be a JSON object');
@@ -114,7 +129,9 @@ export function parseChirpStack(body: unknown, receivedAt: Date, query: URLSearc
   const deviceId = devEui.toUpperCase();
   const at = parseTime(body.time) ?? receivedAt;
   const base =
-    typeof body.deduplicationId === 'string' ? `cs:${body.deduplicationId}` : `cs:${deviceId}:${body.fCnt ?? ''}:${at.toISOString()}`;
+    typeof body.deduplicationId === 'string'
+      ? `cs:${body.deduplicationId}`
+      : `cs:${deviceId}:${body.fCnt ?? ''}:${at.toISOString()}`;
   if (isRecord(body.object)) {
     const out = readingsFromDecoded(deviceId, body.object, at, base);
     if (out.length > 0) return out;
@@ -123,10 +140,20 @@ export function parseChirpStack(body: unknown, receivedAt: Date, query: URLSearc
     // No codec: EM300-DI frames are recognised by their published channel layout.
     const decoded = decodeEm300Di(Uint8Array.from(Buffer.from(body.data, 'base64')));
     if (decoded.pulse !== undefined) {
-      return [{ externalDeviceId: deviceId, channel: 'pulse', readAt: at, rawValue: decoded.pulse, eventId: `${base}:pulse` }];
+      return [
+        {
+          externalDeviceId: deviceId,
+          channel: 'pulse',
+          readAt: at,
+          rawValue: decoded.pulse,
+          eventId: `${base}:pulse`,
+        },
+      ];
     }
   }
-  throw new AdapterError(`ChirpStack uplink from ${deviceId} has no decoded numeric fields (configure a device-profile codec)`);
+  throw new AdapterError(
+    `ChirpStack uplink from ${deviceId} has no decoded numeric fields (configure a device-profile codec)`,
+  );
 }
 
 /**
@@ -153,10 +180,20 @@ export function parseTts(body: unknown, receivedAt: Date): NormalisedReading[] {
   if (typeof up.frm_payload === 'string' && up.frm_payload.length > 0) {
     const decoded = decodeEm300Di(Uint8Array.from(Buffer.from(up.frm_payload, 'base64')));
     if (decoded.pulse !== undefined) {
-      return [{ externalDeviceId: deviceId, channel: 'pulse', readAt: at, rawValue: decoded.pulse, eventId: `${base}:pulse` }];
+      return [
+        {
+          externalDeviceId: deviceId,
+          channel: 'pulse',
+          readAt: at,
+          rawValue: decoded.pulse,
+          eventId: `${base}:pulse`,
+        },
+      ];
     }
   }
-  throw new AdapterError(`The Things Stack uplink from ${deviceId} has no decoded numeric fields (configure a payload formatter)`);
+  throw new AdapterError(
+    `The Things Stack uplink from ${deviceId} has no decoded numeric fields (configure a payload formatter)`,
+  );
 }
 
 // ---------------------------------------------------------------- ThingsBoard (poll)
@@ -171,13 +208,21 @@ export function validateBaseUrl(raw: unknown, allowInsecureLocal = false): URL {
     throw new AdapterError('The server address is not a valid URL.');
   }
   const host = url.hostname.toLowerCase();
-  const isLocal = host === 'localhost' || host.endsWith('.localhost') || host === '127.0.0.1' || host === '::1' || host === '[::1]';
+  const isLocal =
+    host === 'localhost' ||
+    host.endsWith('.localhost') ||
+    host === '127.0.0.1' ||
+    host === '::1' ||
+    host === '[::1]';
   if (isLocal && allowInsecureLocal) return url;
   if (url.protocol !== 'https:') throw new AdapterError('The server address must use https.');
   if (isLocal) throw new AdapterError('Local addresses are not allowed.');
-  if (isPrivateAddress(host)) throw new AdapterError('Private or reserved IP addresses are not allowed.');
-  if (host.startsWith('[') || host.includes(':')) throw new AdapterError('IPv6 literal addresses are not allowed.');
-  if (url.username || url.password) throw new AdapterError('Put credentials in the credential fields, not the address.');
+  if (isPrivateAddress(host))
+    throw new AdapterError('Private or reserved IP addresses are not allowed.');
+  if (host.startsWith('[') || host.includes(':'))
+    throw new AdapterError('IPv6 literal addresses are not allowed.');
+  if (url.username || url.password)
+    throw new AdapterError('Put credentials in the credential fields, not the address.');
   return url;
 }
 
@@ -189,7 +234,9 @@ export function isPrivateAddress(address: string): boolean {
   if (v4) {
     const [a, b] = [Number(v4[1]), Number(v4[2])];
     return (
-      a === 10 || a === 127 || a === 0 ||
+      a === 10 ||
+      a === 127 ||
+      a === 0 ||
       (a === 169 && b === 254) ||
       (a === 172 && b >= 16 && b <= 31) ||
       (a === 192 && b === 168) ||
@@ -200,7 +247,14 @@ export function isPrivateAddress(address: string): boolean {
     );
   }
   if (a6.includes(':')) {
-    return a6 === '::' || a6 === '::1' || /^f[cd]/.test(a6) || /^fe[89ab]/.test(a6) || a6.startsWith('ff') || a6.startsWith('64:ff9b:');
+    return (
+      a6 === '::' ||
+      a6 === '::1' ||
+      /^f[cd]/.test(a6) ||
+      /^fe[89ab]/.test(a6) ||
+      a6.startsWith('ff') ||
+      a6.startsWith('64:ff9b:')
+    );
   }
   return false;
 }
@@ -215,17 +269,26 @@ async function systemLookup(hostname: string): Promise<string[]> {
  * before each request. Residual risk: DNS rebinding between this check and the connection (documented; pinning the
  * address needs a custom agent or an egress proxy).
  */
-export async function assertResolvesPublic(base: URL, lookupImpl?: (hostname: string) => Promise<string[]>): Promise<void> {
+export async function assertResolvesPublic(
+  base: URL,
+  lookupImpl?: (hostname: string) => Promise<string[]>,
+): Promise<void> {
   const host = base.hostname.replace(/^\[|\]$/g, '');
-  if (allowLocal() && (host === 'localhost' || host.endsWith('.localhost') || host === '127.0.0.1' || host === '::1')) return;
+  if (
+    allowLocal() &&
+    (host === 'localhost' || host.endsWith('.localhost') || host === '127.0.0.1' || host === '::1')
+  )
+    return;
   let addresses: string[];
   try {
     addresses = await (lookupImpl ?? systemLookup)(host);
   } catch {
     throw new AdapterError(`The server address ${host} could not be resolved.`);
   }
-  if (addresses.length === 0) throw new AdapterError(`The server address ${host} could not be resolved.`);
-  if (addresses.some(isPrivateAddress)) throw new AdapterError('The server address resolves to a private or reserved network address.');
+  if (addresses.length === 0)
+    throw new AdapterError(`The server address ${host} could not be resolved.`);
+  if (addresses.some(isPrivateAddress))
+    throw new AdapterError('The server address resolves to a private or reserved network address.');
 }
 
 async function tbAuthHeader(ctx: PollContext, base: URL): Promise<string> {
@@ -235,7 +298,10 @@ async function tbAuthHeader(ctx: PollContext, base: URL): Promise<string> {
     const res = await ctx.fetchImpl(new URL('/api/auth/login', base), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: ctx.credentials.username, password: ctx.credentials.password }),
+      body: JSON.stringify({
+        username: ctx.credentials.username,
+        password: ctx.credentials.password,
+      }),
       redirect: 'error', // never follow a redirect to an unvalidated host
       signal: AbortSignal.timeout(10_000),
     });
@@ -261,7 +327,8 @@ export const thingsboardVerify = async (ctx: PollContext) => {
       redirect: 'error', // never follow a redirect to an unvalidated host
       signal: AbortSignal.timeout(10_000),
     });
-    if (res.status === 401 || res.status === 403) return { ok: false, message: 'ThingsBoard rejected the credentials.' };
+    if (res.status === 401 || res.status === 403)
+      return { ok: false, message: 'ThingsBoard rejected the credentials.' };
     if (!res.ok) return { ok: false, message: `ThingsBoard responded HTTP ${res.status}.` };
     return { ok: true, message: 'Connected to ThingsBoard.' };
   } catch (err) {
@@ -276,7 +343,12 @@ export const thingsboardVerify = async (ctx: PollContext) => {
 const TB_PAGE_LIMIT = 1000;
 const TB_MAX_PAGES = 50;
 
-export const thingsboardPoll = async (ctx: PollContext, devices: PollDevice[], since: Date, until: Date) => {
+export const thingsboardPoll = async (
+  ctx: PollContext,
+  devices: PollDevice[],
+  since: Date,
+  until: Date,
+) => {
   const base = validateBaseUrl(ctx.config.baseUrl, allowLocal());
   await assertResolvesPublic(base, ctx.lookupImpl);
   const auth = await tbAuthHeader(ctx, base);
@@ -289,13 +361,16 @@ export const thingsboardPoll = async (ctx: PollContext, devices: PollDevice[], s
   }
   const out: NormalisedReading[] = [];
   for (const [deviceId, keys] of byDevice) {
-    if (!/^[0-9a-f-]{36}$/i.test(deviceId)) throw new AdapterError(`ThingsBoard device id ${deviceId} is not a UUID`);
+    if (!/^[0-9a-f-]{36}$/i.test(deviceId))
+      throw new AdapterError(`ThingsBoard device id ${deviceId} is not a UUID`);
     // Page by timestamp: ThingsBoard returns at most `limit` points per key per request. Never skip a page — a
     // backfill longer than one page used to drop the rest while the sync cursor still moved forward.
     let startTs = since.getTime();
     for (let page = 0; ; page += 1) {
       if (page >= TB_MAX_PAGES) {
-        throw new AdapterError(`ThingsBoard returned more than ${TB_MAX_PAGES * TB_PAGE_LIMIT} points for ${deviceId}; sync stopped so no data is skipped. Shorten the backfill window.`);
+        throw new AdapterError(
+          `ThingsBoard returned more than ${TB_MAX_PAGES * TB_PAGE_LIMIT} points for ${deviceId}; sync stopped so no data is skipped. Shorten the backfill window.`,
+        );
       }
       const url = new URL(`/api/plugins/telemetry/DEVICE/${deviceId}/values/timeseries`, base);
       url.searchParams.set('keys', [...keys].join(','));
@@ -303,9 +378,15 @@ export const thingsboardPoll = async (ctx: PollContext, devices: PollDevice[], s
       url.searchParams.set('endTs', String(until.getTime()));
       url.searchParams.set('limit', String(TB_PAGE_LIMIT));
       url.searchParams.set('orderBy', 'ASC');
-      const res = await ctx.fetchImpl(url, { headers: { 'X-Authorization': auth }, redirect: 'error', // never follow a redirect to an unvalidated host
-        signal: AbortSignal.timeout(15_000) });
-      if (!res.ok) throw new AdapterError(`ThingsBoard telemetry request failed for ${deviceId} (HTTP ${res.status})`);
+      const res = await ctx.fetchImpl(url, {
+        headers: { 'X-Authorization': auth },
+        redirect: 'error', // never follow a redirect to an unvalidated host
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!res.ok)
+        throw new AdapterError(
+          `ThingsBoard telemetry request failed for ${deviceId} (HTTP ${res.status})`,
+        );
       const body = (await res.json()) as Record<string, { ts: number; value: string | number }[]>;
       // Next page starts after the EARLIEST last point among keys that filled their page (a key that did not fill
       // its page returned everything; re-fetching some of it is harmless — inserts are idempotent).
@@ -314,18 +395,31 @@ export const thingsboardPoll = async (ctx: PollContext, devices: PollDevice[], s
         const pts = body[key] ?? [];
         if (pts.length >= TB_PAGE_LIMIT) {
           const last = pts[pts.length - 1]?.ts;
-          if (typeof last === 'number' && (nextStart === null || last < nextStart)) nextStart = last;
+          if (typeof last === 'number' && (nextStart === null || last < nextStart))
+            nextStart = last;
         }
         for (const p of pts) {
           const v = finite(p.value);
           if (v === null || typeof p.ts !== 'number') continue;
-          out.push({ externalDeviceId: deviceId, channel: key, readAt: new Date(p.ts), rawValue: v, eventId: `tb:${deviceId}:${key}:${p.ts}` });
+          out.push({
+            externalDeviceId: deviceId,
+            channel: key,
+            readAt: new Date(p.ts),
+            rawValue: v,
+            eventId: `tb:${deviceId}:${key}:${p.ts}`,
+          });
         }
       }
       if (nextStart === null) break;
-      if (nextStart < startTs) throw new AdapterError(`ThingsBoard returned out-of-order points for ${deviceId}; sync stopped so no data is skipped.`);
+      if (nextStart < startTs)
+        throw new AdapterError(
+          `ThingsBoard returned out-of-order points for ${deviceId}; sync stopped so no data is skipped.`,
+        );
       // Same-millisecond points straddling a page boundary are re-requested from nextStart (not +1) so none are lost.
-      if (nextStart === startTs) throw new AdapterError(`More than ${TB_PAGE_LIMIT} points share one timestamp for ${deviceId}; cannot page safely.`);
+      if (nextStart === startTs)
+        throw new AdapterError(
+          `More than ${TB_PAGE_LIMIT} points share one timestamp for ${deviceId}; cannot page safely.`,
+        );
       startTs = nextStart;
     }
   }
@@ -381,7 +475,8 @@ export const PROVIDERS: Record<ProviderId, ProviderDescriptor> = {
     verification: 'needs_hardware_testing',
     docsUrl: 'https://shelly-api-docs.shelly.cloud/gen2/ComponentsAndServices/EMData',
     deviceIdLabel: 'Shelly device id (e.g. shellypro3em-a0b1c2d3e4f5)',
-    channelHelp: 'total / a / b / c (Pro 3EM), em1:0 / em1:1 (Pro EM-50, EM Gen3), input:0 (Plus Uni pulses).',
+    channelHelp:
+      'total / a / b / c (Pro 3EM), em1:0 / em1:1 (Pro EM-50, EM Gen3), input:0 (Plus Uni pulses).',
     credentialFields: [],
     configFields: [],
     parsePush: (b, at) => parseShelly(b, at),
@@ -393,7 +488,8 @@ export const PROVIDERS: Record<ProviderId, ProviderDescriptor> = {
     label: 'Proplyst JSON (any device or gateway)',
     mode: 'push',
     verification: 'verified',
-    docsUrl: '/docs/SMART_UTILITY_ARCHITECTURE.md#123-modbus-gateways-teltonika-trb246-waveshare-esphome--proplyst',
+    docsUrl:
+      '/docs/SMART_UTILITY_ARCHITECTURE.md#123-modbus-gateways-teltonika-trb246-waveshare-esphome--proplyst',
     deviceIdLabel: 'Device id as sent by the gateway',
     channelHelp: 'Channel as sent by the gateway (e.g. kwh).',
     credentialFields: [],
@@ -419,13 +515,16 @@ export const PROVIDERS: Record<ProviderId, ProviderDescriptor> = {
     verification: 'needs_hardware_testing',
     docsUrl: 'https://thingsboard.io/docs/reference/rest-api/',
     deviceIdLabel: 'ThingsBoard device id (UUID)',
-    channelHelp: 'The telemetry key holding the cumulative register (e.g. "energy" or "pulseCount").',
+    channelHelp:
+      'The telemetry key holding the cumulative register (e.g. "energy" or "pulseCount").',
     credentialFields: [
       { key: 'apiKey', label: 'API key (recommended)', secret: true, optional: true },
       { key: 'username', label: 'Username (legacy login)', secret: false, optional: true },
       { key: 'password', label: 'Password (legacy login)', secret: true, optional: true },
     ],
-    configFields: [{ key: 'baseUrl', label: 'Server address', placeholder: 'https://thingsboard.example.com' }],
+    configFields: [
+      { key: 'baseUrl', label: 'Server address', placeholder: 'https://thingsboard.example.com' },
+    ],
     verifyConnection: thingsboardVerify,
     poll: thingsboardPoll,
   },

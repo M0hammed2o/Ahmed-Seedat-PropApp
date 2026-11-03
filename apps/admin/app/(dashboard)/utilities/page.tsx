@@ -8,7 +8,10 @@ import { UtilitiesPortfolio } from '@/components/smartUtility/UtilitiesPortfolio
 export default function UtilitiesPage() {
   return (
     <div className="space-y-4">
-      <PageHeader title="Utilities" subtitle="Water and electricity across your portfolio: alerts, charges waiting for approval and unpaid utility invoices" />
+      <PageHeader
+        title="Utilities"
+        subtitle="Water and electricity across your portfolio: alerts, charges waiting for approval and unpaid utility invoices"
+      />
       <UtilitiesPortfolio />
     </div>
   );

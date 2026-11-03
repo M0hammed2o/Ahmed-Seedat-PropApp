@@ -39,15 +39,25 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   const year = yearParam ? Number(yearParam) : NaN;
   if (!Number.isInteger(year) || year < 2000 || year > 2100) {
     return NextResponse.json(
-      { error: { code: 'validation_failed', message: 'A valid ?year=YYYY query parameter is required.' } },
+      {
+        error: {
+          code: 'validation_failed',
+          message: 'A valid ?year=YYYY query parameter is required.',
+        },
+      },
       { status: 400 },
     );
   }
 
-  const months = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}-01`);
+  const months = Array.from(
+    { length: 12 },
+    (_, i) => `${year}-${String(i + 1).padStart(2, '0')}-01`,
+  );
   const results = await Promise.all(
     months.map((month) =>
-      supabase.rpc('owner_portfolio_financial_summary', { p_org_id: orgId, p_month: month }).maybeSingle(),
+      supabase
+        .rpc('owner_portfolio_financial_summary', { p_org_id: orgId, p_month: month })
+        .maybeSingle(),
     ),
   );
 
@@ -60,7 +70,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           code: 'portfolio_annual_budget_failed',
           message: forbidden
             ? "You do not have permission to view this organization's budget."
-            : safeErrorMessage(firstError, 'Could not load the annual portfolio budget.', 'owner_portfolio_financial_summary'),
+            : safeErrorMessage(
+                firstError,
+                'Could not load the annual portfolio budget.',
+                'owner_portfolio_financial_summary',
+              ),
         },
       },
       { status: forbidden ? 403 : 500 },

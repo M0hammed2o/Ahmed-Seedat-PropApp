@@ -5,15 +5,15 @@
 Created 2026-09-10 for the first Play release. It did not exist before; the repository had no
 signing configuration and every previous release build was unsigned.
 
-| | |
-|---|---|
-| Keystore | `C:\Users\junsm\.proplyst-release\proplyst-upload.jks` |
-| Credentials | `C:\Users\junsm\.proplyst-release\keystore.properties` |
-| Alias | `proplyst-upload` |
-| Algorithm | 4096-bit RSA, SHA384withRSA |
-| Valid until | 2054-01-26 (Play requires at least 2033-10-22) |
-| SHA-1 | `49:92:D4:8F:1D:95:9A:1A:7D:82:31:5A:F5:88:A2:C3:92:EE:BC:4E` |
-| SHA-256 | `4B:F6:79:98:10:A9:86:0F:48:AC:B2:65:C5:8A:A3:38:56:BA:4D:66:65:C6:A9:35:D9:E1:4F:94:D8:3A:63:E3` |
+|             |                                                                                                   |
+| ----------- | ------------------------------------------------------------------------------------------------- |
+| Keystore    | `C:\Users\junsm\.proplyst-release\proplyst-upload.jks`                                            |
+| Credentials | `C:\Users\junsm\.proplyst-release\keystore.properties`                                            |
+| Alias       | `proplyst-upload`                                                                                 |
+| Algorithm   | 4096-bit RSA, SHA384withRSA                                                                       |
+| Valid until | 2054-01-26 (Play requires at least 2033-10-22)                                                    |
+| SHA-1       | `49:92:D4:8F:1D:95:9A:1A:7D:82:31:5A:F5:88:A2:C3:92:EE:BC:4E`                                     |
+| SHA-256     | `4B:F6:79:98:10:A9:86:0F:48:AC:B2:65:C5:8A:A3:38:56:BA:4D:66:65:C6:A9:35:D9:E1:4F:94:D8:3A:63:E3` |
 
 **Both files live outside the git repository on purpose.** Nothing about the key — the keystore, the
 passwords, or the path — is committed. `app/build.gradle.kts` reads the properties file by absolute
@@ -43,24 +43,26 @@ Never commit them. Never send them over chat or email.
 Enrol when creating the app in Play Console — it is the default and is required for new apps.
 
 Google then holds the **app signing key** and re-signs every download. The key above becomes only
-the *upload* key: it proves uploads come from you, and is not the certificate users' devices see.
+the _upload_ key: it proves uploads come from you, and is not the certificate users' devices see.
 
 **This matters for App Links.** `https://proplyst.co.za/.well-known/assetlinks.json` currently
 returns `[]`, so the `autoVerify` intent filter in `AndroidManifest.xml` never verifies and Proplyst
 links open in the browser instead of the app. To fix it, use the **app signing certificate**
-SHA-256 from *Play Console → Setup → App signing* — **not** the upload SHA-256 above. That page
+SHA-256 from _Play Console → Setup → App signing_ — **not** the upload SHA-256 above. That page
 shows the certificate only after the first bundle is uploaded. Set it as
 `ANDROID_APP_SHA256_FINGERPRINTS` in Render. The route then serves:
 
 ```json
-[{
-  "relation": ["delegate_permission/common.handle_all_urls"],
-  "target": {
-    "namespace": "android_app",
-    "package_name": "za.co.genbridge.proplyst",
-    "sha256_cert_fingerprints": ["<Play app signing SHA-256>"]
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "za.co.genbridge.proplyst",
+      "sha256_cert_fingerprints": ["<Play app signing SHA-256>"]
+    }
   }
-}]
+]
 ```
 
 `package_name` comes from `androidPackageName` in `packages/config/src/branding.ts`. It must equal
@@ -76,11 +78,11 @@ App Links are a post-launch improvement, not a release blocker — the app works
 an app it recognises, which means an **Android OAuth client** must exist in the same Google Cloud
 project as the Web client Supabase is configured with:
 
-| Field | Value |
-|---|---|
-| Application type | Android |
-| Package name | `za.co.genbridge.proplyst` |
-| SHA-1 | The certificate of whichever build is being signed in — see the table below |
+| Field            | Value                                                                       |
+| ---------------- | --------------------------------------------------------------------------- |
+| Application type | Android                                                                     |
+| Package name     | `za.co.genbridge.proplyst`                                                  |
+| SHA-1            | The certificate of whichever build is being signed in — see the table below |
 
 **Created 2026-09-16.** An Android OAuth client now exists in the same Google Cloud project as the
 "Proplyst PWA" Web client. The Web client is what Supabase is configured with and must not be
@@ -92,11 +94,11 @@ A Google ID token is only issued to an app whose package **and signing certifica
 registered Android client. The three certificates differ, so register each build you intend to sign
 in from:
 
-| Build | Signed by | SHA-1 | Needed for |
-|---|---|---|---|
-| Installed from Play (Internal Testing, production) | Play app signing key | `BE:B7:2B:77:7E:7B:0E:E8:DC:9C:14:D3:6D:2F:82:F0:47:E6:97:0A` | **Required** — this is what testers and users run |
-| Release APK built here and sideloaded | Upload key (`proplyst-upload`) | `49:92:D4:8F:1D:95:9A:1A:7D:82:31:5A:F5:88:A2:C3:92:EE:BC:4E` | Optional — only to test a sideloaded release APK |
-| Debug build from Android Studio / `assembleDebug` | `~/.android/debug.keystore` (alias `androiddebugkey`, password `android`) | `6D:0E:1C:41:E6:2C:60:E9:5D:FC:DE:32:19:B0:C8:61:B6:BF:BC:55` | Optional — only to test Google sign-in in a debug build |
+| Build                                              | Signed by                                                                 | SHA-1                                                         | Needed for                                              |
+| -------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------- |
+| Installed from Play (Internal Testing, production) | Play app signing key                                                      | `BE:B7:2B:77:7E:7B:0E:E8:DC:9C:14:D3:6D:2F:82:F0:47:E6:97:0A` | **Required** — this is what testers and users run       |
+| Release APK built here and sideloaded              | Upload key (`proplyst-upload`)                                            | `49:92:D4:8F:1D:95:9A:1A:7D:82:31:5A:F5:88:A2:C3:92:EE:BC:4E` | Optional — only to test a sideloaded release APK        |
+| Debug build from Android Studio / `assembleDebug`  | `~/.android/debug.keystore` (alias `androiddebugkey`, password `android`) | `6D:0E:1C:41:E6:2C:60:E9:5D:FC:DE:32:19:B0:C8:61:B6:BF:BC:55` | Optional — only to test Google sign-in in a debug build |
 
 All three are public certificate fingerprints, not secrets. Several SHA-1s can sit on one Android
 OAuth client, or you can create one client per certificate.

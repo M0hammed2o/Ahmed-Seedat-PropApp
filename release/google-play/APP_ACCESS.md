@@ -13,12 +13,12 @@ instruction set with the values below.
 
 ## Values to enter
 
-| Field | Value |
-|---|---|
-| Name | `Owner / landlord account` |
-| Username | `demo-owner@proplyst-demo.local` |
-| Password | **Do not type from memory — see below** |
-| Any other information | The 483-character block below |
+| Field                 | Value                                   |
+| --------------------- | --------------------------------------- |
+| Name                  | `Owner / landlord account`              |
+| Username              | `demo-owner@proplyst-demo.local`        |
+| Password              | **Do not type from memory — see below** |
+| Any other information | The 483-character block below           |
 
 ### Where to get the password
 
@@ -47,22 +47,22 @@ The same login works at https://proplyst.co.za.
 
 ## Why this account is safe to hand over — audited, not assumed
 
-| Question | Answer | Evidence |
-|---|---|---|
-| Is it a real, existing account? | Yes — reused, not newly created | Provisioned earlier for the marketing portfolio |
-| Organisation | A dedicated demonstration organisation | Separate org row; no real customer shares it |
-| Role | Owner **of that organisation only** | Not a platform super-admin — see below |
-| Can it see other customers' data? | No | RLS scopes every read to the caller's org via `has_org_role()` |
-| Synthetic data? | Yes — entirely | Portfolio was seeded; no real tenant or landlord records |
-| Does the password expire? | No expiry mechanism exists | No rotation or max-age logic in the auth layer |
-| OTP / email confirmation? | Neither | Password sign-in only |
-| Two-factor (MFA)? | **Never in the Android app** | V1 policy (`apps/admin/lib/mfaPolicy.ts`): the Android app has no MFA screen and its routes are allowed at password-only sign-in; this account has no factor enrolled anyway. Platform administration always requires MFA and is not reachable from the app |
-| Privacy Policy / Terms? | In the app | More → Legal → Privacy Policy / Terms of Service (tenant accounts: Profile) |
-| Sign out? | This device only | More → Sign out ends only this device's session, so a sign-out never signs anyone else out of this shared account |
-| Google Sign-In required? | No, and it cannot be used | `googleSignInAvailable = BuildConfig.GOOGLE_WEB_CLIENT_ID.isNotBlank()`, and that property is unset, so the button is inert |
-| Biometric skippable? | Yes — opt-in, default off | `BiometricLockPreferences`: `getBoolean(KEY_ENABLED, false)` |
-| Paywall or purchase gate? | None found | No subscription check blocks navigation in the app or middleware |
-| Works on Android? | Yes | Same credentials as the web; the app authenticates against the same backend |
+| Question                          | Answer                                 | Evidence                                                                                                                                                                                                                                                    |
+| --------------------------------- | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Is it a real, existing account?   | Yes — reused, not newly created        | Provisioned earlier for the marketing portfolio                                                                                                                                                                                                             |
+| Organisation                      | A dedicated demonstration organisation | Separate org row; no real customer shares it                                                                                                                                                                                                                |
+| Role                              | Owner **of that organisation only**    | Not a platform super-admin — see below                                                                                                                                                                                                                      |
+| Can it see other customers' data? | No                                     | RLS scopes every read to the caller's org via `has_org_role()`                                                                                                                                                                                              |
+| Synthetic data?                   | Yes — entirely                         | Portfolio was seeded; no real tenant or landlord records                                                                                                                                                                                                    |
+| Does the password expire?         | No expiry mechanism exists             | No rotation or max-age logic in the auth layer                                                                                                                                                                                                              |
+| OTP / email confirmation?         | Neither                                | Password sign-in only                                                                                                                                                                                                                                       |
+| Two-factor (MFA)?                 | **Never in the Android app**           | V1 policy (`apps/admin/lib/mfaPolicy.ts`): the Android app has no MFA screen and its routes are allowed at password-only sign-in; this account has no factor enrolled anyway. Platform administration always requires MFA and is not reachable from the app |
+| Privacy Policy / Terms?           | In the app                             | More → Legal → Privacy Policy / Terms of Service (tenant accounts: Profile)                                                                                                                                                                                 |
+| Sign out?                         | This device only                       | More → Sign out ends only this device's session, so a sign-out never signs anyone else out of this shared account                                                                                                                                           |
+| Google Sign-In required?          | No, and it cannot be used              | `googleSignInAvailable = BuildConfig.GOOGLE_WEB_CLIENT_ID.isNotBlank()`, and that property is unset, so the button is inert                                                                                                                                 |
+| Biometric skippable?              | Yes — opt-in, default off              | `BiometricLockPreferences`: `getBoolean(KEY_ENABLED, false)`                                                                                                                                                                                                |
+| Paywall or purchase gate?         | None found                             | No subscription check blocks navigation in the app or middleware                                                                                                                                                                                            |
+| Works on Android?                 | Yes                                    | Same credentials as the web; the app authenticates against the same backend                                                                                                                                                                                 |
 
 ### The deliberate limits — read before changing anything here
 

@@ -1,7 +1,17 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { utilityTariffV2Schema } from '@propvault/validation';
 import { z } from 'zod';
-import { canWriteUtilities, forbidden, jsonError, loadReadableProperty, notFound, parseJson, requireUser, serverError, utilitiesDisabled } from '@/lib/smartUtility/http';
+import {
+  canWriteUtilities,
+  forbidden,
+  jsonError,
+  loadReadableProperty,
+  notFound,
+  parseJson,
+  requireUser,
+  serverError,
+  utilitiesDisabled,
+} from '@/lib/smartUtility/http';
 import { createTariff, tariffProblem } from '@/lib/smartUtility/tariffAdmin';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -19,7 +29,8 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     .select(TARIFF_LIST_COLUMNS)
     .eq('property_id', id)
     .order('effective_from', { ascending: false });
-  if (error) return serverError('tariffs_failed', 'Could not load tariffs.', 'utility_tariffs.list', error);
+  if (error)
+    return serverError('tariffs_failed', 'Could not load tariffs.', 'utility_tariffs.list', error);
   return NextResponse.json({ tariffs: data ?? [] });
 }
 
@@ -41,17 +52,31 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   const problem = tariffProblem(parsed.data);
   if (problem) return jsonError(400, 'invalid_tariff', problem);
   try {
-    const tariffId = await createTariff(auth.supabase, parsed.data, property.org_id, property.id, auth.user.id);
+    const tariffId = await createTariff(
+      auth.supabase,
+      parsed.data,
+      property.org_id,
+      property.id,
+      auth.user.id,
+    );
     return NextResponse.json({ tariffId }, { status: 201 });
   } catch (error) {
-    return serverError('tariff_create_failed', 'Could not save the tariff.', 'utility_tariffs.insert', error);
+    return serverError(
+      'tariff_create_failed',
+      'Could not save the tariff.',
+      'utility_tariffs.insert',
+      error,
+    );
   }
 }
 
 const patchSchema = z.object({
   tariffId: z.string().uuid(),
   action: z.enum(['mark_reviewed', 'end']),
-  effectiveTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  effectiveTo: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
 });
 
 /** PATCH — mark a tariff reviewed, or end it on a date. Rates themselves are never edited: add a new version. */
@@ -65,7 +90,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   if (!property) return notFound();
   if (!property.utilities_enabled) return utilitiesDisabled();
   if (!(await canWriteUtilities(auth.supabase, property.org_id, property.id))) return forbidden();
-  if (parsed.data.action === 'end' && !parsed.data.effectiveTo) return jsonError(400, 'validation_failed', 'Provide effectiveTo.');
+  if (parsed.data.action === 'end' && !parsed.data.effectiveTo)
+    return jsonError(400, 'validation_failed', 'Provide effectiveTo.');
   const patch =
     parsed.data.action === 'mark_reviewed'
       ? { requires_review: false, reviewed_by: auth.user.id, reviewed_at: new Date().toISOString() }
@@ -77,7 +103,13 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     .eq('property_id', property.id)
     .select('id')
     .maybeSingle();
-  if (error) return serverError('tariff_update_failed', 'Could not update the tariff.', 'utility_tariffs.update', error);
+  if (error)
+    return serverError(
+      'tariff_update_failed',
+      'Could not update the tariff.',
+      'utility_tariffs.update',
+      error,
+    );
   if (!data) return notFound('Tariff');
   return NextResponse.json({ ok: true });
 }

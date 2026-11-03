@@ -74,11 +74,21 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     );
   }
 
-  const row = data as { success: boolean; error_code: string | null; application_id: string | null };
+  const row = data as {
+    success: boolean;
+    error_code: string | null;
+    application_id: string | null;
+  };
   if (!row.success) {
-    const status = row.error_code === 'consent_required' || row.error_code === 'name_required' ? 400 : 410;
+    const status =
+      row.error_code === 'consent_required' || row.error_code === 'name_required' ? 400 : 410;
     return NextResponse.json(
-      { error: { code: row.error_code ?? 'submission_refused', message: 'Your application could not be submitted.' } },
+      {
+        error: {
+          code: row.error_code ?? 'submission_refused',
+          message: 'Your application could not be submitted.',
+        },
+      },
       { status },
     );
   }
@@ -88,7 +98,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const serviceClient = getServiceRoleClient();
     const { data: application } = await serviceClient
       .from('applications')
-      .select('org_id, organizations(trading_name, legal_name), units(unit_label, properties(nickname))')
+      .select(
+        'org_id, organizations(trading_name, legal_name), units(unit_label, properties(nickname))',
+      )
       .eq('id', row.application_id)
       .maybeSingle();
     const app = application as unknown as {
@@ -102,7 +114,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         toAddress: parsed.data.applicantEmail,
         templateName: 'application_submitted',
         templateVars: {
-          orgName: app.organizations?.trading_name ?? app.organizations?.legal_name ?? 'The landlord',
+          orgName:
+            app.organizations?.trading_name ?? app.organizations?.legal_name ?? 'The landlord',
           propertyLabel: app.units?.properties?.nickname
             ? `${app.units.properties.nickname} — ${app.units.unit_label}`
             : (app.units?.unit_label ?? 'your rental'),

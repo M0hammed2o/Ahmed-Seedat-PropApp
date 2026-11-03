@@ -224,10 +224,20 @@ export function consumptionForPeriod(
     endAt = curve.pts[idx]!.at;
     quality = 'partial';
   }
-  if (startC === null || endC === null || !startAt || !endAt || endAt.getTime() <= startAt.getTime()) return empty;
+  if (
+    startC === null ||
+    endC === null ||
+    !startAt ||
+    !endAt ||
+    endAt.getTime() <= startAt.getTime()
+  )
+    return empty;
 
   const resetInPeriod = curve.intervals.some(
-    (iv) => iv.kind === 'reset' && iv.end.getTime() > startAt!.getTime() && iv.start.getTime() < endAt!.getTime(),
+    (iv) =>
+      iv.kind === 'reset' &&
+      iv.end.getTime() > startAt!.getTime() &&
+      iv.start.getTime() < endAt!.getTime(),
   );
 
   // Report the actual register values nearest each boundary (for the municipal pack's
@@ -285,7 +295,10 @@ export function consumptionForChain(
     };
   }
   const rank: Record<ConsumptionQuality, number> = { complete: 0, partial: 1, insufficient: 2 };
-  const worst = parts.reduce((w, p) => (rank[p.quality] > rank[w] ? p.quality : w), 'complete' as ConsumptionQuality);
+  const worst = parts.reduce(
+    (w, p) => (rank[p.quality] > rank[w] ? p.quality : w),
+    'complete' as ConsumptionQuality,
+  );
   return {
     consumption: round4(parts.reduce((s, p) => s + (p.consumption ?? 0), 0)),
     // A multi-meter chain inside one period is never "complete": the swap itself loses whatever
@@ -360,7 +373,10 @@ export function billingPeriodContaining(at: Date, billingDay: number): { start: 
 }
 
 /** The most recent billing period that has fully ended at `now`. */
-export function lastCompleteBillingPeriod(now: Date, billingDay: number): { start: Date; end: Date } {
+export function lastCompleteBillingPeriod(
+  now: Date,
+  billingDay: number,
+): { start: Date; end: Date } {
   const current = billingPeriodContaining(now, billingDay);
   return billingPeriodContaining(new Date(current.start.getTime() - 1), billingDay);
 }

@@ -1,9 +1,19 @@
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
-const { evaluateDaily, evaluateLevel, evaluateRunHours, levelPct, median } = await import('../hybridAlerts');
+const { evaluateDaily, evaluateLevel, evaluateRunHours, levelPct, median } =
+  await import('../hybridAlerts');
 
-const tank = { id: 't', name: 'JoJo 5 000 L', source_type: 'storage_tank', utility_type: 'water' as const, low_level_pct: 20, high_level_pct: 98, capacity_value: 5000, capacity_unit: 'litres' };
+const tank = {
+  id: 't',
+  name: 'JoJo 5 000 L',
+  source_type: 'storage_tank',
+  utility_type: 'water' as const,
+  low_level_pct: 20,
+  high_level_pct: 98,
+  capacity_value: 5000,
+  capacity_unit: 'litres',
+};
 
 describe('level rules', () => {
   it('converts litres to % only when the capacity is in litres', () => {
@@ -11,15 +21,39 @@ describe('level rules', () => {
     expect(levelPct({ ...tank, capacity_unit: null }, 'tank_level_litres', 1000)).toBeNull();
   });
   it('raises tank low (critical at half the threshold) and overflow, nothing in between', () => {
-    expect(evaluateLevel(tank, 'tank_level_pct', 18)).toMatchObject({ rule: 'tank_low', severity: 'warning' });
-    expect(evaluateLevel(tank, 'tank_level_litres', 400)).toMatchObject({ rule: 'tank_low', severity: 'critical' }); // 8 %
+    expect(evaluateLevel(tank, 'tank_level_pct', 18)).toMatchObject({
+      rule: 'tank_low',
+      severity: 'warning',
+    });
+    expect(evaluateLevel(tank, 'tank_level_litres', 400)).toMatchObject({
+      rule: 'tank_low',
+      severity: 'critical',
+    }); // 8 %
     expect(evaluateLevel(tank, 'tank_level_pct', 99)).toMatchObject({ rule: 'tank_overflow' });
     expect(evaluateLevel(tank, 'tank_level_pct', 60)).toBeNull();
   });
   it('flags a low battery and low generator fuel, but not a battery on a tank metric', () => {
-    expect(evaluateLevel({ ...tank, source_type: 'battery', utility_type: 'electricity' }, 'battery_soc_pct', 15)).toMatchObject({ rule: 'battery_issue' });
-    expect(evaluateLevel({ ...tank, source_type: 'generator', utility_type: 'electricity' }, 'fuel_level_pct', 10)).toMatchObject({ rule: 'generator_abnormal' });
-    expect(evaluateLevel({ ...tank, source_type: 'battery', utility_type: 'electricity' }, 'tank_level_pct', 10)).toBeNull();
+    expect(
+      evaluateLevel(
+        { ...tank, source_type: 'battery', utility_type: 'electricity' },
+        'battery_soc_pct',
+        15,
+      ),
+    ).toMatchObject({ rule: 'battery_issue' });
+    expect(
+      evaluateLevel(
+        { ...tank, source_type: 'generator', utility_type: 'electricity' },
+        'fuel_level_pct',
+        10,
+      ),
+    ).toMatchObject({ rule: 'generator_abnormal' });
+    expect(
+      evaluateLevel(
+        { ...tank, source_type: 'battery', utility_type: 'electricity' },
+        'tank_level_pct',
+        10,
+      ),
+    ).toBeNull();
   });
 });
 
@@ -35,7 +69,9 @@ describe('daily ratio rules', () => {
     expect(evaluateDaily('generation', null, sunnyWeek)).toBeNull(); // missing data is not "zero output"
   });
   it('flags a borehole pump running far above normal', () => {
-    expect(evaluateDaily('pump_energy', 30, [8, 9, 10, 8, 9, 11, 10])).toMatchObject({ rule: 'pump_abnormal' });
+    expect(evaluateDaily('pump_energy', 30, [8, 9, 10, 8, 9, 11, 10])).toMatchObject({
+      rule: 'pump_abnormal',
+    });
     expect(evaluateDaily('pump_energy', 15, [8, 9, 10, 8, 9, 11, 10])).toBeNull();
   });
   it('flags generator run hours well above expected', () => {

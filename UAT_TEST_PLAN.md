@@ -10,17 +10,17 @@ environment, before deployment.
 
 Create exactly one clean UAT organisation, clearly labelled as test data throughout:
 
-| Entity | Value |
-| --- | --- |
-| Organisation | **Proplyst UAT Property Management** |
-| Property | **Example Apartments** (a real, valid South African address for OCR/Google Maps testing) |
-| Units | **Unit 1**, **Unit 2** |
-| Owner | **UAT Test Owner** (a real email/phone Mohammed controls, so owner-portal and WhatsApp/email delivery can actually be checked) |
-| Tenant | **UAT Test Tenant** (a real email/phone Mohammed controls) |
-| Lease | One-year lease, Unit 1, realistic rent (e.g. R9,500/month), start date = today |
-| Rent | The lease's own rent amount above — let the rent-schedule job generate real `rent_schedules` rows, don't hand-insert them |
-| Maintenance | One **normal**-priority ticket (e.g. "Squeaky door hinge"), one **urgent**-priority ticket (e.g. "No hot water") |
-| Documents | One real **lease** PDF, one real **bill/invoice** PDF, one real **levy statement** PDF, one real **receipt** image/PDF — see §3 (OCR checklist) for what each one can actually test |
+| Entity       | Value                                                                                                                                                                               |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Organisation | **Proplyst UAT Property Management**                                                                                                                                                |
+| Property     | **Example Apartments** (a real, valid South African address for OCR/Google Maps testing)                                                                                            |
+| Units        | **Unit 1**, **Unit 2**                                                                                                                                                              |
+| Owner        | **UAT Test Owner** (a real email/phone Mohammed controls, so owner-portal and WhatsApp/email delivery can actually be checked)                                                      |
+| Tenant       | **UAT Test Tenant** (a real email/phone Mohammed controls)                                                                                                                          |
+| Lease        | One-year lease, Unit 1, realistic rent (e.g. R9,500/month), start date = today                                                                                                      |
+| Rent         | The lease's own rent amount above — let the rent-schedule job generate real `rent_schedules` rows, don't hand-insert them                                                           |
+| Maintenance  | One **normal**-priority ticket (e.g. "Squeaky door hinge"), one **urgent**-priority ticket (e.g. "No hot water")                                                                    |
+| Documents    | One real **lease** PDF, one real **bill/invoice** PDF, one real **levy statement** PDF, one real **receipt** image/PDF — see §3 (OCR checklist) for what each one can actually test |
 
 **Why owner/tenant need real, Mohammed-controlled contact details**: email delivery (Part 15) and
 WhatsApp outbound (Part 21) can only be verified against a real inbox/phone — a fake
@@ -31,12 +31,12 @@ WhatsApp outbound (Part 21) can only be verified against a real inbox/phone — 
 Live-audited this pass, not assumed. Do not expect more than what's listed here — the gaps below
 are real and disclosed, not oversights to work around silently.
 
-| Document type | Upload | Real OCR runs | Correction step before saving | Notes |
-| --- | --- | --- | --- | --- |
-| **Bill/invoice** | Documents module, `documentType: bill` | Yes (Google Document AI, once configured — see §4) | **No** — read-only field display + a "Confirm reviewed" button only; there is no way to edit an extracted value before confirming | Upload a real municipal bill or utility invoice; check the extracted supplier/amount/due date look right, but know you cannot correct a wrong value in the UI today |
-| **Receipt** | Documents module, `documentType: receipt` | **No — blocked outright** (`extraction_not_supported`) | N/A | Do not expect the OCR panel to even appear for a receipt upload — this is by design (never invent support for a document type the backend does not understand), not a bug to report |
-| **Levy statement** | Property page → Levy Statements panel | Yes (Google Document AI text OCR + a heuristic line-item parser) | **Yes** — a real editable line-item table, "Save corrections", "Mark reviewed" | The one document type with a genuine correction workflow. If extraction fails, a warning banner with a Retry button now appears (fixed this pass — previously failed silently) |
-| **Lease agreement** | **No upload UI exists** — the backend route works if called directly, but nothing in the product actually calls it | N/A from the UI | N/A | Do not attempt to test lease OCR from the UI — there is nothing to click. This is a known, disclosed gap, not something to hunt for |
+| Document type       | Upload                                                                                                             | Real OCR runs                                                    | Correction step before saving                                                                                                     | Notes                                                                                                                                                                               |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Bill/invoice**    | Documents module, `documentType: bill`                                                                             | Yes (Google Document AI, once configured — see §4)               | **No** — read-only field display + a "Confirm reviewed" button only; there is no way to edit an extracted value before confirming | Upload a real municipal bill or utility invoice; check the extracted supplier/amount/due date look right, but know you cannot correct a wrong value in the UI today                 |
+| **Receipt**         | Documents module, `documentType: receipt`                                                                          | **No — blocked outright** (`extraction_not_supported`)           | N/A                                                                                                                               | Do not expect the OCR panel to even appear for a receipt upload — this is by design (never invent support for a document type the backend does not understand), not a bug to report |
+| **Levy statement**  | Property page → Levy Statements panel                                                                              | Yes (Google Document AI text OCR + a heuristic line-item parser) | **Yes** — a real editable line-item table, "Save corrections", "Mark reviewed"                                                    | The one document type with a genuine correction workflow. If extraction fails, a warning banner with a Retry button now appears (fixed this pass — previously failed silently)      |
+| **Lease agreement** | **No upload UI exists** — the backend route works if called directly, but nothing in the product actually calls it | N/A from the UI                                                  | N/A                                                                                                                               | Do not attempt to test lease OCR from the UI — there is nothing to click. This is a known, disclosed gap, not something to hunt for                                                 |
 
 **What to actually check per document, in order**: (1) upload succeeds and the file appears in the
 document list; (2) for bill/levy, trigger extraction and confirm the extracted fields are
@@ -83,12 +83,12 @@ assistant to record a payment, change a lease, or send a message; if it appears 
 is a bug, not the intended experience.
 
 1. Web, owner side: sign in as the UAT owner, open the chat bubble (bottom-right of any dashboard
-   page), ask: *"What's overdue?"*, *"Which leases expire soon?"*, *"What is my occupancy?"*,
-   *"What should I pay attention to today?"* — each answer should cite the real UAT data you
+   page), ask: _"What's overdue?"_, _"Which leases expire soon?"_, _"What is my occupancy?"_,
+   _"What should I pay attention to today?"_ — each answer should cite the real UAT data you
    created (real amounts, real tenant name), never an invented number.
 2. Web, tenant side: sign in as the UAT tenant, open the same chat bubble in the tenant portal,
-   ask: *"How much do I owe?"*, *"When is my next rent due?"*, *"What is the status of my
-   maintenance request?"* — again, only real data for that specific tenant, never another
+   ask: _"How much do I owe?"_, _"When is my next rent due?"_, _"What is the status of my
+   maintenance request?"_ — again, only real data for that specific tenant, never another
    tenant's or another org's.
 3. Confirm a tenant asking about billing/subscription management gets no such option — the
    assistant has no tool for that, by design.
@@ -142,6 +142,7 @@ No new Render Cron Job was created — job 6 was added to the existing one.
 ## 9. Full end-to-end UAT sequence
 
 ### Owner journey
+
 1. Create/log in to the Proplyst UAT owner account.
 2. Create the **Proplyst UAT Property Management** organisation.
 3. Add **Example Apartments**, then **Unit 1** and **Unit 2**.
@@ -162,6 +163,7 @@ No new Render Cron Job was created — job 6 was added to the existing one.
 18. View billing/subscription/invoice display for the UAT org (Proplyst's own SaaS billing, not landlord accounting).
 
 ### Tenant journey
+
 1. Accept the invitation email, activate the account.
 2. Sign in on web.
 3. Sign in on Android (§10 — install the candidate build first).
@@ -177,12 +179,14 @@ No new Render Cron Job was created — job 6 was added to the existing one.
 13. Ask the AI Assistant 2–3 real questions (§5) on web.
 
 ### Communication cross-check
+
 Run through §6 (email) and §7 (WhatsApp) for at least the tenant invitation and one payment-related
 event, confirming in-app/email/WhatsApp each fire appropriately and not redundantly for the same
 low-value event (Part 17 — see the final report's channel-consistency section for what was
 already verified in code).
 
 ### Android
+
 1. Install the candidate APK/AAB on a **physical device** (§10 — this cannot be skipped by an
    emulator; release-signing behaviour specifically needs real hardware).
 2. Log in, confirm session persists across app restarts and survives a token refresh.
@@ -198,6 +202,7 @@ already verified in code).
 ## 10. Physical / external items — cannot be performed from this environment, listed for Mohammed
 
 **Android**
+
 - Release signing: generate/confirm the real release keystore, obtain its SHA-256 fingerprint
   (`keytool -list -v -keystore <path>`, or Play Console → App signing).
 - Update `/.well-known/assetlinks.json`'s production config with that real fingerprint.
@@ -211,19 +216,23 @@ already verified in code).
   guessing in this pass.
 
 **WhatsApp**
+
 - Confirm the newest code is deployed.
 - Perform one real authorised outbound test send (§7) and confirm sent/delivered/read status in
   Meta's own dashboard.
 
 **Google Document AI**
+
 - Upload real representative documents (§2/§3) and manually compare the extracted fields against
   the source document — this pass could not do this (no real Google Cloud project/service account
   exists in the development environment).
 
 **Email**
+
 - Send real representative messages to Mohammed's own inbox (§6) and inspect on both desktop Gmail
   and a phone client — HTML rendering across real clients cannot be verified from this environment.
 
 **PayFast**
+
 - Remains externally blocked until a real PayFast merchant account exists (unchanged from prior
   passes) — no real payment was or should be attempted.

@@ -65,7 +65,10 @@ export function GettingStartedChecklist({ orgId, progress, defaultExpanded = fal
         {expanded ? (
           <ChevronUp size={18} className="shrink-0 text-light-textMuted dark:text-dark-textMuted" />
         ) : (
-          <ChevronDown size={18} className="shrink-0 text-light-textMuted dark:text-dark-textMuted" />
+          <ChevronDown
+            size={18}
+            className="shrink-0 text-light-textMuted dark:text-dark-textMuted"
+          />
         )}
       </button>
 

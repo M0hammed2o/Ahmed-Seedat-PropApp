@@ -6,6 +6,7 @@ burial records, a per-site history, an interactive schematic layout, monthly rep
 the dashboard.
 
 Introduced 2026-10-26:
+
 - migration `20260101000184_cemetery_management.sql`, rollback `supabase/rollback/20260101000184_cemetery_down.sql`;
 - pgTAP `supabase/tests/cemetery_management.test.sql` (68 assertions).
 
@@ -14,13 +15,13 @@ described [below](#invoice-numbering-fix-migration-185).
 
 ## Who sees it
 
-| | Module off (every organisation by default) | Module on |
-| --- | --- | --- |
-| Navigation | unchanged | adds a **Cemetery** section (register, sales, rights holders, burial register, reports) |
-| Dashboard | unchanged | adds **Cemetery operations** and **Income streams** panels |
-| Pages `/cemetery/**` | 404 | principal, manager, accountant |
-| API `/api/v1/cemetery/**` | 403 | writes: principal, manager; payments: also accountant |
-| Database (RLS) | no rows, no writes | read: accountant+; write: manager+; payments: accountant+; history: read-only |
+|                           | Module off (every organisation by default) | Module on                                                                               |
+| ------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------------- |
+| Navigation                | unchanged                                  | adds a **Cemetery** section (register, sales, rights holders, burial register, reports) |
+| Dashboard                 | unchanged                                  | adds **Cemetery operations** and **Income streams** panels                              |
+| Pages `/cemetery/**`      | 404                                        | principal, manager, accountant                                                          |
+| API `/api/v1/cemetery/**` | 403                                        | writes: principal, manager; payments: also accountant                                   |
+| Database (RLS)            | no rows, no writes                         | read: accountant+; write: manager+; payments: accountant+; history: read-only           |
 
 Agents, viewers, owners, tenants and platform support sessions never see cemetery records: purchaser, next-of-kin
 and burial details are personal information.
@@ -35,25 +36,27 @@ Switching it off hides everything again and keeps the records.
 
 ## Data model
 
-| Table | Purpose |
-| --- | --- |
-| `cemeteries` | name, address, `tenure_model` (`burial_rights` default, or `land_sale`), optional `rights_term_years`, `is_demo` |
-| `cemetery_sections` | code (`A`), name, order, `sites_per_row` (schematic grid only) |
-| `cemetery_sites` | `reference` (`A-001`), section/row/plot, dimensions, `site_type`, `max_interments`, `list_price`, **`sale_status`** and **`burial_status`** (separate), reservation, withdrawal reason, notes |
-| `cemetery_purchasers` | rights holder / purchaser: name, phone, e-mail, address, next of kin / authorised contact, notes. **Not a tenant**: no login, no portal, no messages |
-| `cemetery_sales` | `GS-000001`, site, purchaser, price, date, `tenure_model` snapshot, `status` (`active` / `cancelled`), cancellation date and reason, `is_demo` |
-| `cemetery_payments` | `GR-000001` receipts, amount, date, method, reference, `is_deposit`, `is_demo`; append-only |
-| `cemetery_burials` | deceased, dates, interment number, burial order number, undertaker |
-| `cemetery_site_events` | **site history**: reserved, reservation released, sold, sale cancelled, withdrawn, returned to sale, burial — each with its effective date |
-| `cemetery_site_documents` | supporting-document register (title, type, reference) |
-| `cemetery_sale_balances` (view) | price, amount paid, balance due per sale (a cancelled sale owes nothing) |
+| Table                           | Purpose                                                                                                                                                                                       |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cemeteries`                    | name, address, `tenure_model` (`burial_rights` default, or `land_sale`), optional `rights_term_years`, `is_demo`                                                                              |
+| `cemetery_sections`             | code (`A`), name, order, `sites_per_row` (schematic grid only)                                                                                                                                |
+| `cemetery_sites`                | `reference` (`A-001`), section/row/plot, dimensions, `site_type`, `max_interments`, `list_price`, **`sale_status`** and **`burial_status`** (separate), reservation, withdrawal reason, notes |
+| `cemetery_purchasers`           | rights holder / purchaser: name, phone, e-mail, address, next of kin / authorised contact, notes. **Not a tenant**: no login, no portal, no messages                                          |
+| `cemetery_sales`                | `GS-000001`, site, purchaser, price, date, `tenure_model` snapshot, `status` (`active` / `cancelled`), cancellation date and reason, `is_demo`                                                |
+| `cemetery_payments`             | `GR-000001` receipts, amount, date, method, reference, `is_deposit`, `is_demo`; append-only                                                                                                   |
+| `cemetery_burials`              | deceased, dates, interment number, burial order number, undertaker                                                                                                                            |
+| `cemetery_site_events`          | **site history**: reserved, reservation released, sold, sale cancelled, withdrawn, returned to sale, burial — each with its effective date                                                    |
+| `cemetery_site_documents`       | supporting-document register (title, type, reference)                                                                                                                                         |
+| `cemetery_sale_balances` (view) | price, amount paid, balance due per sale (a cancelled sale owes nothing)                                                                                                                      |
 
 Status models:
+
 - **Sale / allocation:** Available, Reserved, Sold, Unavailable.
 - **Burial / occupancy:** Unused, Occupied.
 - **Burial rules:** `max_interments` per site (for example 2 for a double-depth grave). A burial needs an active sale.
 
 Terminology follows `tenure_model`:
+
 - `burial_rights`: "Grant of Right of Interment", "Rights holder", "Rights fee". The record states that the land is
   not transferred.
 - `land_sale`: "Grave Plot Sale Agreement", "Purchaser", "Selling price".
@@ -83,6 +86,7 @@ Terminology follows `tenure_model`:
   records say "DEMONSTRATION — not a real transaction".
 
 The workflow functions are `SECURITY INVOKER`, so they run under the caller's RLS:
+
 - `cemetery_generate_sites` (idempotent);
 - `cemetery_reserve_site(…, p_reserved_on)`, `cemetery_release_reservation(…, p_released_on)`,
   `cemetery_set_site_unavailable(…, p_effective_on)`;
@@ -93,6 +97,7 @@ The history is written by `SECURITY DEFINER` triggers. Users have no INSERT priv
 ## Accounting separation
 
 Grave-site sales and payments never write invoices, rent schedules, journals, owner statements or the trial balance:
+
 - rental figures are untouched;
 - the dashboard shows rental income and grave-site payments as separate lines;
 - grave-site money is not in the general ledger yet (TD-74).
@@ -107,17 +112,17 @@ pgTAP checks that no purchaser or deceased name reaches `audit_events`.
 
 ## Screens
 
-| Route | What it does |
-| --- | --- |
-| `/cemetery` | metrics; interactive layout (colour = sale status, marker = occupied; search by site, holder or deceased; filter by section, status or burial status; click a site for its details); recent sales; balances |
-| `/cemetery/reports` | last 12 months or a calendar year. Per month: sites sold, sales value, cancellations, deposits, instalments, payments collected, outstanding at month end, reservations, burials, site status at month end. Chart of sales against collections; totals; **drill-down** into a month's sales, receipts, reservations, cancellations and burials |
-| `/cemetery/sites/[id]` | site record, **site history**, actions (sell/grant, reserve, release, withdraw, return to sale, record burial, edit, add document) |
-| `/cemetery/sales` (`?filter=outstanding\|paid\|cancelled&month=YYYY-MM`) | sales register with balances |
-| `/cemetery/sales/new` | the sale workflow |
-| `/cemetery/sales/[id]` | printable sale record with payment history; record-payment form; **cancel** |
-| `/cemetery/receipts/[id]` | printable receipt with the balance after that payment |
-| `/cemetery/purchasers` … | rights holders: contact and next of kin, linked sites, agreements, payment history, outstanding |
-| `/cemetery/burials` | burial register |
+| Route                                                                    | What it does                                                                                                                                                                                                                                                                                                                                   |
+| ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/cemetery`                                                              | metrics; interactive layout (colour = sale status, marker = occupied; search by site, holder or deceased; filter by section, status or burial status; click a site for its details); recent sales; balances                                                                                                                                    |
+| `/cemetery/reports`                                                      | last 12 months or a calendar year. Per month: sites sold, sales value, cancellations, deposits, instalments, payments collected, outstanding at month end, reservations, burials, site status at month end. Chart of sales against collections; totals; **drill-down** into a month's sales, receipts, reservations, cancellations and burials |
+| `/cemetery/sites/[id]`                                                   | site record, **site history**, actions (sell/grant, reserve, release, withdraw, return to sale, record burial, edit, add document)                                                                                                                                                                                                             |
+| `/cemetery/sales` (`?filter=outstanding\|paid\|cancelled&month=YYYY-MM`) | sales register with balances                                                                                                                                                                                                                                                                                                                   |
+| `/cemetery/sales/new`                                                    | the sale workflow                                                                                                                                                                                                                                                                                                                              |
+| `/cemetery/sales/[id]`                                                   | printable sale record with payment history; record-payment form; **cancel**                                                                                                                                                                                                                                                                    |
+| `/cemetery/receipts/[id]`                                                | printable receipt with the balance after that payment                                                                                                                                                                                                                                                                                          |
+| `/cemetery/purchasers` …                                                 | rights holders: contact and next of kin, linked sites, agreements, payment history, outstanding                                                                                                                                                                                                                                                |
+| `/cemetery/burials`                                                      | burial register                                                                                                                                                                                                                                                                                                                                |
 
 The layout is a **schematic grid** (section, row, plot), not a surveyed or cadastral map. All pages work at phone width;
 Playwright asserts that there is no horizontal page scroll.
@@ -125,10 +130,12 @@ Playwright asserts that there is no horizontal page scroll.
 Changes to existing property reporting (available to every organisation):
 
 **Dashboard:**
+
 - new period options: **Last 12 months**, a **month** picker and a **year** picker;
 - the income-against-collections chart now covers 12 months.
 
 **Reports:**
+
 - a 12-month income and expense chart;
 - a **Monthly performance** table showing rent billed, cash received, outstanding at month end, expenses, net cash and
   occupancy;
@@ -138,6 +145,7 @@ Changes to existing property reporting (available to every organisation):
 
 **Plan:** `apps/admin/scripts/cemetery-demo/plan.ts` defines the year 1 November 2025 to 31 October 2026 as data.
 Nothing is ever dated after the day the plan runs. Unit tests in `__tests__/plan.test.ts` replay the plan and prove:
+
 - it is chronological;
 - no site is sold twice;
 - there is no overpayment;
@@ -148,13 +156,14 @@ Nothing is ever dated after the day the plan runs. Unit tests in `__tests__/plan
 **Provisioner:** `provision.demo.ts` replays the plan through the app's own database functions, signed in as the demo
 login (an admin magic-link token, so no e-mail is sent and the password is not used):
 
-| Records | Functions used |
-| --- | --- |
-| Rent | `invoice_rent_schedule` (journal on the due date), `record_invoice_payment` (journal on the payment date), `recompute_rent_schedule_status` |
-| Expenses | `post_journal_entry` on the expense date |
-| Cemetery | the `cemetery_*` functions, with effective dates |
+| Records  | Functions used                                                                                                                              |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Rent     | `invoice_rent_schedule` (journal on the due date), `record_invoice_payment` (journal on the payment date), `recompute_rent_schedule_status` |
+| Expenses | `post_journal_entry` on the expense date                                                                                                    |
+| Cemetery | the `cemetery_*` functions, with effective dates                                                                                            |
 
 Before it finishes it **asserts that the books reconcile**:
+
 - invoices equal the accounts-receivable journals;
 - rent received equals the bank journals;
 - expenses equal the expense journals;
@@ -167,6 +176,7 @@ What it creates. Figures come from the local run on 2026-10-26; they grow by dat
 **Properties**
 
 Riverside Heights Apartments (12 units) and Northgate Business Centre (6 units):
+
 - 19 tenants and 23 leases, including:
   - 4 renewals with escalations;
   - a tenant change (Unit 106);
@@ -200,12 +210,14 @@ Riverside Heights Apartments (12 units) and Northgate Business Centre (6 units):
   R79,686.66 outstanding.
 
 Every person, business and amount is fictional:
+
 - tenants have no e-mail or phone, so no reminder or WhatsApp can reach anyone;
 - rights holders use `.invalid` e-mail addresses;
 - notes say "fictional";
 - the cemetery is `is_demo`, so receipts say "DEMONSTRATION".
 
 Guards:
+
 - The target must be the local stack, or production with `CEMDEMO_CONFIRM_PRODUCTION=yes`.
 - It refuses to adopt an account or organisation it did not create.
 - It never re-passwords an existing account.
@@ -226,6 +238,7 @@ the password: Supabase dashboard → Authentication → the user → set passwor
 
 Found while preparing the demo, 2026-10-26. In production `invoice_number_seq` stood at **3** while invoice numbers up
 to **INV-002296** existed:
+
 - the marketing demo portfolio (432 invoices) was copied in **with** its invoice numbers by
   `scripts/provision-production-demo-portfolio.mjs`, which copies every column except `id` and never advances the
   sequence;
@@ -235,6 +248,7 @@ The next generated number, INV-000004, therefore already existed. Every new rent
 have failed on the unique invoice-number constraint; no invoice had been created since 2026-09-08.
 
 Migration 185:
+
 1. moves the sequence past the highest number in use, never backwards;
 2. makes `set_invoice_number()` skip any generated number that is already taken.
 

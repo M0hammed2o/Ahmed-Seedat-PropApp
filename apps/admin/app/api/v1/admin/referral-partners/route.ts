@@ -25,7 +25,11 @@ export async function GET() {
       {
         error: {
           code: 'referral_partners_list_failed',
-          message: safeErrorMessage(error, 'Could not load referral partners.', 'referralPartners.list'),
+          message: safeErrorMessage(
+            error,
+            'Could not load referral partners.',
+            'referralPartners.list',
+          ),
         },
       },
       { status: 500 },
@@ -43,7 +47,11 @@ export async function GET() {
       {
         error: {
           code: 'referral_partners_list_failed',
-          message: safeErrorMessage(attributionsError, 'Could not load referral partners.', 'referralPartners.list.attributions'),
+          message: safeErrorMessage(
+            attributionsError,
+            'Could not load referral partners.',
+            'referralPartners.list.attributions',
+          ),
         },
       },
       { status: 500 },

@@ -35,7 +35,8 @@ function customLabel(from: string, to: string): string {
   const start = new Date(`${from}T00:00:00`);
   const monthEnd = new Date(start.getFullYear(), start.getMonth() + 1, 0);
   if (start.getDate() === 1 && toIsoDate(monthEnd) === to) return monthLabel(start);
-  if (from.endsWith('-01-01') && to.endsWith('-12-31') && from.slice(0, 4) === to.slice(0, 4)) return from.slice(0, 4);
+  if (from.endsWith('-01-01') && to.endsWith('-12-31') && from.slice(0, 4) === to.slice(0, 4))
+    return from.slice(0, 4);
   return `${from} to ${to}`;
 }
 

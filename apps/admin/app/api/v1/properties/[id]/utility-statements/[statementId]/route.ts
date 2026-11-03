@@ -1,7 +1,17 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { statementActionSchema } from '@propvault/validation';
 import { getServiceRoleClient } from '@/lib/supabase/server';
-import { canWriteUtilities, forbidden, jsonError, loadReadableProperty, notFound, parseJson, requireUser, serverError, utilitiesDisabled } from '@/lib/smartUtility/http';
+import {
+  canWriteUtilities,
+  forbidden,
+  jsonError,
+  loadReadableProperty,
+  notFound,
+  parseJson,
+  requireUser,
+  serverError,
+  utilitiesDisabled,
+} from '@/lib/smartUtility/http';
 import { renderStatementPdf, statementAction, StatementError } from '@/lib/smartUtility/statements';
 
 type RouteParams = { params: Promise<{ id: string; statementId: string }> };
@@ -21,10 +31,18 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     .eq('id', statementId)
     .eq('property_id', id)
     .maybeSingle();
-  if (error) return serverError('statement_failed', 'Could not load the statement.', 'utility_statements.get', error);
+  if (error)
+    return serverError(
+      'statement_failed',
+      'Could not load the statement.',
+      'utility_statements.get',
+      error,
+    );
   if (!s) return notFound('Statement');
   try {
-    const pdf = await renderStatementPdf(s.snapshot as Parameters<typeof renderStatementPdf>[0], { draft: s.status === 'draft' });
+    const pdf = await renderStatementPdf(s.snapshot as Parameters<typeof renderStatementPdf>[0], {
+      draft: s.status === 'draft',
+    });
     return new NextResponse(new Uint8Array(pdf), {
       headers: {
         'content-type': 'application/pdf',
@@ -33,7 +51,12 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
       },
     });
   } catch (err) {
-    return serverError('statement_pdf_failed', 'Could not render the statement.', 'utility_statements.pdf', err);
+    return serverError(
+      'statement_pdf_failed',
+      'Could not render the statement.',
+      'utility_statements.pdf',
+      err,
+    );
   }
 }
 
@@ -50,10 +73,20 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   if (!(await canWriteUtilities(auth.supabase, property.org_id, property.id))) return forbidden();
   try {
     return NextResponse.json(
-      await statementAction(getServiceRoleClient(), { statementId, propertyId: property.id, action: parsed.data.action, actorUserId: auth.user.id }),
+      await statementAction(getServiceRoleClient(), {
+        statementId,
+        propertyId: property.id,
+        action: parsed.data.action,
+        actorUserId: auth.user.id,
+      }),
     );
   } catch (error) {
     if (error instanceof StatementError) return jsonError(409, 'statement_rejected', error.message);
-    return serverError('statement_action_failed', 'Could not complete that action.', 'utility_statements.action', error);
+    return serverError(
+      'statement_action_failed',
+      'Could not complete that action.',
+      'utility_statements.action',
+      error,
+    );
   }
 }

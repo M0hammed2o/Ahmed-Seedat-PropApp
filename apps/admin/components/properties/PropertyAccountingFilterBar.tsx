@@ -17,7 +17,11 @@ const PERIOD_OPTIONS: { value: DashboardPeriod; label: string }[] = [
 const selectClass =
   'h-9 rounded-xl border border-border bg-card px-3 text-[13px] text-foreground outline-none focus:border-primary/40';
 
-export function PropertyAccountingFilterBar({ selectedPeriod }: { selectedPeriod: DashboardPeriod }) {
+export function PropertyAccountingFilterBar({
+  selectedPeriod,
+}: {
+  selectedPeriod: DashboardPeriod;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();

@@ -141,7 +141,10 @@ export async function getOrganizationEntitlements(
  * enforced unbypassably by the owners_insert_agent_plus_capacity RLS policy (migration
  * 20260101000112); this is the "friendlier message at the API layer" wrapper, same split every
  * other canUse-/mayCreate-style helper in this file already establishes. */
-export async function mayAddExternalOwner(supabase: SupabaseClient, orgId: string): Promise<boolean> {
+export async function mayAddExternalOwner(
+  supabase: SupabaseClient,
+  orgId: string,
+): Promise<boolean> {
   const { data, error } = await supabase.rpc('available_owner_slots', { p_org_id: orgId });
   if (error) throw new Error(`available_owner_slots RPC failed: ${error.message}`);
   return data === null || Number(data) > 0;

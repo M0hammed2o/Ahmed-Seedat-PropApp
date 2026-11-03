@@ -2,7 +2,16 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { submissionGenerateSchema } from '@propvault/validation';
 import { getServiceRoleClient } from '@/lib/supabase/server';
 import { billingPeriodContaining, sastInstant } from '@/lib/smartUtility/consumption';
-import { canWriteUtilities, forbidden, loadReadableProperty, notFound, parseJson, requireUser, serverError, utilitiesDisabled } from '@/lib/smartUtility/http';
+import {
+  canWriteUtilities,
+  forbidden,
+  loadReadableProperty,
+  notFound,
+  parseJson,
+  requireUser,
+  serverError,
+  utilitiesDisabled,
+} from '@/lib/smartUtility/http';
 import { generateSubmission } from '@/lib/smartUtility/submissions';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -37,9 +46,18 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       const billingDay = settings?.billing_day ?? 1;
       period = billingPeriodContaining(sastInstant(y!, m!, d!, 12), billingDay);
     }
-    const result = await generateSubmission(service, { propertyId: property.id, period, actorUserId: auth.user.id });
+    const result = await generateSubmission(service, {
+      propertyId: property.id,
+      period,
+      actorUserId: auth.user.id,
+    });
     return NextResponse.json(result, { status: result.created ? 201 : 200 });
   } catch (error) {
-    return serverError('submission_generate_failed', 'Could not prepare the reading pack.', 'municipal_submissions.generate', error);
+    return serverError(
+      'submission_generate_failed',
+      'Could not prepare the reading pack.',
+      'municipal_submissions.generate',
+      error,
+    );
   }
 }

@@ -8,6 +8,7 @@ and says nothing, so the newest months were dropped: November's Expected/Collect
 chart lost October and November. The original marketing demo (1,153) had the same symptom.
 
 **Fix:**
+
 - `lib/pagedRead.ts` `fetchAllPages`: pages of 1,000 ordered by a unique key; any page error throws, so a failed read
   never shows as a smaller total. Used by the dashboard, reports, accounting overview, Rent Due (due date then id,
   oldest first), property cards and the sidebar collection health. Property cards and collection health read by
@@ -28,6 +29,7 @@ chart lost October and November. The original marketing demo (1,153) had the sam
   marked every demo meter offline (`last_reading_at` was null after seeding).
 
 **Evidence (before deploy):**
+
 - New unit tests: paging (2,345 / 1,155 / 1,000 / 431 / 0 rows, ties across pages, error on page 2), SAST
   boundaries, collection/balance maths with reconciliation, invoice-payment loader past 1,000 invoices with
   void/reversed/manual/other-org exclusions, KPI split, simulator (grid, shape, determinism, 14-day cap, guards).
@@ -48,6 +50,7 @@ temporary login leaves an immutable audit row naming it, so that login cannot be
 (no membership, no sessions) and the template re-attributed to the org principal.
 
 **Follow-up commit (same day):**
+
 - Utilities: monthly snapshot labels and "Last period" use the SAST month (a period starting 1 Oct 00:00 SAST is
   stored as 30 Sep 22:00Z and was shown as September).
 - Demo simulator: when no reading is due yet, it still sets the meter's last-reading bookkeeping from the latest
@@ -60,12 +63,14 @@ temporary login leaves an immutable audit row naming it, so that login cannot be
 Module reference: `docs/CEMETERY_MANAGEMENT.md`. Approval plan: `docs/CEMETERY_DEPLOYMENT_PLAN_2026-10-26.md`.
 
 **Where the work lives:**
+
 - Branch `feature/cemetery-management`, in a separate worktree (`C:\Users\junsm\Downloads\PropValt-cemetery`) created
   from `main` `0e0df7f`. The `ios/native-app` checkout and its uncommitted files were not touched.
 - It is pushed only as `staging/cemetery-management`.
 - **Production is unchanged:** head 183, no demo organisation.
 
 **Built:**
+
 - **Migration 184, Cemetery Management.**
   - Off for every organisation by default; RLS requires the module switch.
   - Accountant+ can read, manager+ can write. Agents, viewers, owners, tenants and support sessions see nothing.
@@ -93,6 +98,7 @@ Module reference: `docs/CEMETERY_MANAGEMENT.md`. Approval plan: `docs/CEMETERY_D
   - It is idempotent: CI runs it twice, and the second run must change nothing.
 
 **Defects found by testing (all fixed):**
+
 - **Privacy:** the generic audit trigger would have copied purchaser and burial details into `audit_events`, which
   every member (viewer+) can read. Cemetery tables now use a field-whitelisting audit trigger, guarded by a pgTAP
   check.
@@ -109,6 +115,7 @@ Module reference: `docs/CEMETERY_MANAGEMENT.md`. Approval plan: `docs/CEMETERY_D
   - the cemetery chart's animation was captured mid-draw.
 
 **Production defect found (read-only), fix ready as migration 185:**
+
 - `invoice_number_seq` = 3 while INV-001865 to INV-002296 exist. The marketing-demo copy script copied
   `invoice_number`, and the UAT portfolio holds INV-000003 to INV-000007.
 - The next rent invoice for any organisation would fail; none has been created since 2026-09-08.
@@ -117,18 +124,19 @@ Module reference: `docs/CEMETERY_MANAGEMENT.md`. Approval plan: `docs/CEMETERY_D
 
 **Verification:**
 
-| Where | What ran | Result |
-| --- | --- | --- |
-| Disposable stack (production-data copy) | migrations 184 + 185 apply, 184 rollback, re-apply | rollback schema identical to pre-184 except 185's intended change |
-| Disposable stack | pgTAP | 68/68 (cemetery) and 3/3 (invoice numbering) |
-| Disposable stack | provisioner | reconciles: rent R2,896,250 invoiced = AR journals; R2,779,575 received = bank journals; expenses R783,924 = journals; cemetery R985,863.34 = per-sale totals. Second run: no changes |
-| Local | unit tests | plan 7, reports 3, metrics 4, periods 3, KPI 13 |
-| CI | static | lint, typecheck, build: pass |
-| CI | pgTAP | 106 files / 1,724 assertions: pass |
-| CI | vitest | 222 files: 1,618 tests pass, 3 skipped |
-| CI | Playwright, final run `40406265182` (2026-10-26) | whole app **93/93**, no retries: cemetery journey + isolation, and the 4 demo-year specs as the demo login |
+| Where                                   | What ran                                           | Result                                                                                                                                                                                |
+| --------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Disposable stack (production-data copy) | migrations 184 + 185 apply, 184 rollback, re-apply | rollback schema identical to pre-184 except 185's intended change                                                                                                                     |
+| Disposable stack                        | pgTAP                                              | 68/68 (cemetery) and 3/3 (invoice numbering)                                                                                                                                          |
+| Disposable stack                        | provisioner                                        | reconciles: rent R2,896,250 invoiced = AR journals; R2,779,575 received = bank journals; expenses R783,924 = journals; cemetery R985,863.34 = per-sale totals. Second run: no changes |
+| Local                                   | unit tests                                         | plan 7, reports 3, metrics 4, periods 3, KPI 13                                                                                                                                       |
+| CI                                      | static                                             | lint, typecheck, build: pass                                                                                                                                                          |
+| CI                                      | pgTAP                                              | 106 files / 1,724 assertions: pass                                                                                                                                                    |
+| CI                                      | vitest                                             | 222 files: 1,618 tests pass, 3 skipped                                                                                                                                                |
+| CI                                      | Playwright, final run `40406265182` (2026-10-26)   | whole app **93/93**, no retries: cemetery journey + isolation, and the 4 demo-year specs as the demo login                                                                            |
 
 **Not verified:**
+
 - No local browser run: this laptop has about 400 MB free, and Docker Desktop crashed once under load. It was
   restarted, along with the 5 containers of other projects that had been running.
 - Nothing has been run against production except read-only queries.
@@ -141,12 +149,14 @@ Full report: `docs/UTILITIES_PHASE3_VALIDATION_REPORT.md`. GO/NO-GO: `docs/UTILI
 
 **Scale benchmark:** 300 properties, 6,600 meters, 1.25 M readings (`scripts/utilities-scale/`). It found two P1
 defects, both fixed:
+
 - per-row RLS made a manager's meter list take 24.6 s (portfolio timed out). Migration 183 rewrites the policies
   set-based: same visibility, 0.72 s;
 - the API's 1,000-row cap silently truncated unpaged queries: the daily job analysed 1,000 of 6,601 meters and
   snapshots missed 5,611. Fixed with `fetchAll`/`fetchAllIn`.
 
 **Other fixes:**
+
 - a busy sensor hid other sources' latest level (fixed; the test fails on the old code);
 - **tenant utility disputes** (new endpoint).
 
@@ -161,6 +171,7 @@ change, replacement, shared electricity, void/regenerate) — all matched.
 The 7 restore errors were investigated: 5 expected seed duplicates and 2 local schema drift from migration 173.
 
 **Regression:**
+
 - pgTAP 1,653/1,653;
 - vitest 1,600/1,604 (1 gateway flake that passes alone; 3 skipped);
 - tsc, build and Android (359 tests) pass.
@@ -175,6 +186,7 @@ The main local DB was never reset. Nothing was deployed or sent.
 Full report: `docs/UTILITIES_STAGING_READINESS_REPORT.md`.
 
 **Browser tests:** investigated all 8 Playwright failures.
+
 - Fixed 2 real UI defects: the invoices list lost its "Sent" label; company and trust owners both showed as
   "Entity / Company".
 - Updated 6 tests left stale by deliberate product changes.
@@ -191,6 +203,7 @@ rollback now covers 175–182.
 "PropertyVault".
 
 **Regression:**
+
 - pgTAP 1,646/1,646;
 - vitest 1,593/1,594 (ClamAV first-scan timeout under load; passes alone);
 - tsc, build and Android (359 tests) pass;
@@ -203,6 +216,7 @@ The main local DB was never reset (2,725 orgs, head 171). Nothing was deployed o
 ## 2026-10-11 — Utilities Phase 3: production hardening, staging readiness, pilot validation (autonomous)
 
 Full report: `docs/UTILITIES_PHASE3_COMPLETION_REPORT.md`.
+
 - **Security:** pinned-address poll client (TD-66), constant-time cron secret (TD-68), Playwright never sees live keys
   (TD-59); pgTAP proves tenants cannot touch tariffs, arrangements, charges or credits.
 - **Performance and consistency** (migration 181): batch telemetry insert; opt-in retention (≥ 400 days); Android and
@@ -216,6 +230,7 @@ Full report: `docs/UTILITIES_PHASE3_COMPLETION_REPORT.md`.
   (snapshot prices; nothing purchased).
 
 Regression on a fresh disposable stack:
+
 - pgTAP 1,645/1,645;
 - vitest 1,589 passed / 3 skipped;
 - build, tsc and Android (359 tests) pass;
@@ -310,7 +325,7 @@ design are in `docs/SMART_UTILITY_HARDWARE_RESEARCH.md`, `docs/SMART_UTILITY_ARC
 Lite-Glo, UtilityPal, Haultron, Enway, ComX …); several retailer pages were unreadable (403/429) and are recorded as
 Unknown, not zero. Every SA prepaid/submetering vendor checked is portal- or partner-only. Municipal channels verified
 on official pages for eThekwini, CoJ/City Power, Cape Town, Tshwane, Ekurhuleni, Mangaung, Msunduzi, Stellenbosch,
-NMB; none offers an API; all that accept emailed readings say they *may* use them.
+NMB; none offers an API; all that accept emailed readings say they _may_ use them.
 
 **Codebase audit found a real access-control gap**: migration 163 gave `utility_meters`/`utility_readings` org-role-only
 RLS, justified as matching the financial tables — but expenses moved to property-access RLS in 068. A selected-mode
@@ -327,6 +342,7 @@ provider: inline `files` attachments are now actually sent by Resend (previously
 no-op). Ingest path added to `CSRF_EXEMPT_PATHS` and explicitly exempted in `mfaPolicy.ts` (device token, no user).
 
 **Bugs found by testing, fixed (named, not silently absorbed):**
+
 1. Generic `log_audit_event_trigger()` requires an `id` column — the two settings tables keyed by `property_id` made
    inserts fail (`entity_id` not-null). Added `id` columns.
 2. Pulse counters start at 0 while the dial does not — device-derived municipal readings would have shown the counter,
@@ -341,6 +357,7 @@ no-op). Ingest path added to `CSRF_EXEMPT_PATHS` and explicitly exempted in `mfa
    submission's org.
 
 **Verification (local dev only; nothing deployed).**
+
 - pgTAP: `smart_utility_metering.test.sql` 34/34; migration 163's own suite 23/23 with 175 applied (both run inside a
   rolled-back transaction on the main local DB). Full pgTAP suite on a throwaway stack migrated from zero through 175:
   **99 files / 1,560 tests, PASS**.
@@ -471,6 +488,7 @@ build's effective applicationId was `za.co.proplyst.app`, hard-coded in `build.g
 flavour or suffix. That was a real mismatch, not a stale reference.
 
 **Changed:**
+
 - `applicationId` is now `za.co.genbridge.proplyst`. The **namespace stays `za.co.proplyst.app`**, so
   the R, BuildConfig and Kotlin packages are unchanged and no source file moved.
 - The FileProvider authority is now `${applicationId}.fileprovider`. Before this, the manifest
@@ -485,6 +503,7 @@ flavour or suffix. That was a real mismatch, not a stale reference.
 - versionCode stays 1: no bundle was ever uploaded to this Play app.
 
 **No package dependency found:**
+
 - Google Sign-In: not implemented on Android (no library, no client ID, button hidden).
 - Firebase/FCM: not used.
 - Supabase auth: password grant, no mobile redirect.
@@ -492,6 +511,7 @@ flavour or suffix. That was a real mismatch, not a stale reference.
 - Backend, CI and scripts: no package checks.
 
 **Verified:**
+
 - `aapt2` shows the release and debug APKs as `za.co.genbridge.proplyst`, versionCode 1, authority
   `za.co.genbridge.proplyst.fileprovider`. BuildConfig.APPLICATION_ID matches.
 - 326 unit tests pass; lint has 0 errors; the release build (R8) succeeds.
@@ -531,6 +551,7 @@ removal. `ASSETS.md` records that Pixel 7 captures (1080×2400, 2.22:1) exceed P
 limit.
 
 **Verified:**
+
 - Android: 325 unit tests, 0 failures; lintRelease 0 errors; R8 release build. Release APK dump:
   INTERNET, USE_BIOMETRIC, USE_FINGERPRINT and the AndroidX-internal receiver permission only; not
   debuggable; allowBackup false. A secret scan found only the public anon key.
@@ -541,6 +562,7 @@ limit.
   pgTAP 1,494 passed; tsc clean; `next build` OK.
 
 **Not verified:**
+
 - Tenant acceptance: the production demo org's 36 tenants have no portal login, and creating one
   would change production data.
 - Play Console versionCode history.
@@ -584,7 +606,6 @@ lintRelease 0 errors / 43 warnings, and the rebuilt AAB is **byte-identical** to
 Live URLs confirmed unauthenticated: `/privacy` and `/delete-account` both HTTP 200 with no
 redirect, policy version `v1.0-2026-09-11` rendering, and zero occurrences of the old placeholder.
 
-
 ## 2026-09-11 (Google Play release preparation) — signed AAB built, commits pushed
 
 `origin/main` 446524b -> ac57987. Full package in `release/google-play/`.
@@ -626,7 +647,6 @@ content rating, final submit), the `/privacy` page which is still an explicit pl
 a real support email (`branding.supportEmail` is still the documented `support@proplyst.example`),
 and the 1024x500 feature graphic.
 
-
 ## 2026-09-08 (final Android polish) — dashboard refresh, 4 UX fixes, a real insights bug, demo portfolio rebuilt
 
 Full detail in `VISUAL_QA_REPORT.md` ("Final Android polish pass"); recording plan in
@@ -650,7 +670,7 @@ stated, not glossed). The invoice picker's bare amount is now labelled **Balance
 invoice detail and the web invoice page already use, with "Outstanding" reserved for cross-invoice
 totals — settled rows muted, the overdue one bold beside a red chip. A settled invoice still accepts
 a payment (corrections and overpayments are real events, and no calculation or permission changed)
-but stops asking for one: "This invoice is fully paid." plus an outlined *Record another payment*.
+but stops asking for one: "This invoice is fully paid." plus an outlined _Record another payment_.
 And the Activity tab's screen is now titled **Activity**, matching the tab and Home's own "Recent
 activity" whose View-all opens it; the gear stays "Notification settings" because that really is
 about notifications.
@@ -691,17 +711,17 @@ navigation, and the ≤ 4 case where the "View all" link correctly disappears.
 
 **Four defects found and fixed, each re-verified on-device.**
 
-- *Properties list card text was unreadable.* Not a z-order bug as it first appeared: the card's
+- _Properties list card text was unreadable._ Not a z-order bug as it first appeared: the card's
   scrim thinned to 0.05 alpha at exactly the height the name and address sit at, so the no-photo
   building glyph read straight through the words. Reshaped the gradient; Navy Deck stripes and glyph
   unchanged, the glyph now reads as the watermark it was meant to be. A first attempt that moved the
   glyph instead was reverted — the card has pills at the top and text at the bottom, so there is no
   band to move a 64 dp glyph into, and the scrim was the actual defect.
-- *Save was unreachable on every form with the keyboard open.* The scroll viewport kept its full
+- _Save was unreachable on every form with the keyboard open._ The scroll viewport kept its full
   height under the IME, so the form hit its scroll limit with Save still hidden. `imePadding()` was
   applied only in `SignInScreen`; it is now on AddExpense, RecordPayment, CreateMaintenanceTicket,
   ReportPayment and UtilityCapture too.
-- *Rent status eyebrow read "Settings"* — wrong on the Home → Quick actions path. Now "Portfolio".
+- _Rent status eyebrow read "Settings"_ — wrong on the Home → Quick actions path. Now "Portfolio".
 
 **Reported rather than changed,** because each is a behaviour or copy decision rather than a visual
 fix: the property-detail title slides under the fixed back button on scroll; the nav says "Activity"
@@ -1026,13 +1046,13 @@ always valid, different payload dialect) a green run would prove nothing.
 
 **The webhook route itself had no tests at all** — only the function beneath it. Added 12 covering
 what only exists at that boundary, driven with real Meta shapes and HMACs. The first draft used the
-mock and *passed its status assertions while silently writing rows under random ids*; that is
+mock and _passed its status assertions while silently writing rows under random ids_; that is
 precisely the hollow green the real provider avoids.
 
 **Preferences are enforced server-side, per channel.** Six tests prove the property that matters:
 disabling WhatsApp for a category does not mute email for it, and vice versa — a shared "notify me"
 flag dressed as per-channel controls would pass a naive test and fail these. Org-level and
-user-level both covered, cross-category leakage checked, and the UAT override confirmed *not* to
+user-level both covered, cross-category leakage checked, and the UAT override confirmed _not_ to
 bypass suppression. **Push is not asserted on: nothing anywhere sends a push.** `push_enabled` is
 stored and returned by the preferences API, and `device-push-tokens` only registers tokens — there
 is no dispatcher to enforce it against.
@@ -1138,6 +1158,7 @@ intermittent `SocketTimeoutException` on the ADB-tunnelled connection under that
 consistent with this dev machine's already-documented bursty-contention characteristic.
 
 **Part B -- closed the three disclosed owner-app gaps**:
+
 - New **Utility Overview** screen (`ui/utilities/UtilityOverviewScreen.kt`/`ViewModel.kt`): property
   selector, Water/Electricity sections built directly on the existing `UtilitiesRepository.getMeters()`/
   `getReadingHistory()` calls (no new API surface) -- responsibility label, last/current/previous
@@ -1365,9 +1386,10 @@ concept and should never be implied for a whole-building owner. The setup-summar
 overview demo figures were updated to match (levies now R0/"unit-or-none" throughout, the removed
 R750 rolled into `otherExpenses` so `totalExpenses` and the budget-used figures already visually
 verified stay unchanged). A second demo property for the sectional-title scenario (unit-level rates
-+ levy) was scoped out of this pass -- out of proportion, given the existing demo-mode architecture
-hardcodes each property's fixtures across three separate files rather than one shared source, to the
-remaining time budget; disclosed rather than silently dropped.
+
+- levy) was scoped out of this pass -- out of proportion, given the existing demo-mode architecture
+  hardcodes each property's fixtures across three separate files rather than one shared source, to the
+  remaining time budget; disclosed rather than silently dropped.
 
 **Security note (the most consequential event of this pass)**: while reproducing PRIORITY 0, found
 `.env.local` pointed at the real linked production Supabase project, not local, and had already run
@@ -1497,7 +1519,7 @@ directly (server components, not a self-fetch over HTTP), returning the exact `O
 the two API routes already produce. Never re-derives a total in the browser -- single source of truth.
 
 **New month resolution**: `resolveSummaryMonth()` (`lib/dashboardKpis.ts`) anchors the RPCs' month-granular
-call to whichever month the dashboard's own period filter's resolved range *ends* in (`this_month`/
+call to whichever month the dashboard's own period filter's resolved range _ends_ in (`this_month`/
 `last_month` land exactly; `ytd`/`custom` anchor to the end month, never January) -- and the UI always
 labels which month it's showing, so a ytd/custom selection never silently disagrees with what's on screen.
 4 new unit tests.
@@ -1552,7 +1574,7 @@ regression. Documented rather than dismissed or silently re-run to a false green
 
 **Scope decisions, disclosed rather than silently made**: `rates_and_levies_expense` remains one combined
 actual figure (the SQL migration groups it that way; not touched, per the explicit "do not rebuild those
-systems" instruction) -- the *expected/configured* rates-vs-levy split still comes from
+systems" instruction) -- the _expected/configured_ rates-vs-levy split still comes from
 `RecurringPropertyCost` on the property/unit Finances panels, unchanged from the prior pass. The Reports
 page (`app/(dashboard)/reports/page.tsx`) still computes its own figures independently of the RPCs, same
 gap the migration's own doc comment already flagged as unaddressed -- left alone this pass (not named in
@@ -1799,9 +1821,10 @@ this pass is presentation-layer + navigation only, per its own explicit scope.
 handoff's exact token values (`ProplystLightPalette`/`ProplystDarkPalette`, a `ProplystColorTokens`
 data class exposed via `ProplystTheme.colors`/`.type` alongside a fully-populated M3 `ColorScheme`
 so built-in components and custom composables never disagree). New `ThemeMode` (System/Light/Dark)
-+ `AppearancePreferences` (plain SharedPreferences + live StateFlow, same shape as the existing
-`BiometricLockPreferences`), wired into `MainActivity`/`ProplystTheme`; setting lives under
-More/Profile > Appearance (new `AppearanceScreen`).
+
+- `AppearancePreferences` (plain SharedPreferences + live StateFlow, same shape as the existing
+  `BiometricLockPreferences`), wired into `MainActivity`/`ProplystTheme`; setting lives under
+  More/Profile > Appearance (new `AppearanceScreen`).
 
 **Real bug fix, not cosmetic**: the old `Shapes.extraLarge = RoundedCornerShape(999.dp)` was the
 actual cause of the circular-clipped `DatePickerDialog`/sign-out `AlertDialog` observed and
@@ -1987,7 +2010,7 @@ confirmed working end-to-end this way (sign-in, sign-out, re-sign-in with no stu
 `MockAuthRepository.signIn()` unconditionally returns an org membership (`role = "principal"`)
 with an empty tenancies list, so mock-mode login always resolves to `OWNER_ROOT`
 (`RootNavGraph.destinationForRole`); there is no mock-mode toggle for a tenant-only account. This
-is a real gap in the *mock test fixture*, not in the shipped auth logic, and not something this
+is a real gap in the _mock test fixture_, not in the shipped auth logic, and not something this
 pass fabricated a workaround for. Biometric prompt, screen rotation, and dark mode were not
 exercised (time-boxed after the extended boot troubleshooting above). One rendering anomaly
 observed and disclosed, not fixed: both the Material3 `DatePickerDialog` (Record Payment) and the
@@ -2007,6 +2030,7 @@ matching the standing "do not touch the successful web release unless a genuine 
 instruction; none was found).
 
 **Found and fixed, both real, both previously undisclosed:**
+
 - `AuthRepository.signOut()` existed at every layer (repository, `RootAuthViewModel`) but had
   **zero UI call site anywhere in the app** (grepped, confirmed) -- there was no way for a user to
   sign out of the Android app at all. Built `AccountScreen`/`AccountViewModel` (sign out with a
@@ -2016,7 +2040,7 @@ instruction; none was found).
   -- the in-memory `AuthState` a currently-visible screen observes was never updated, so a session
   that died mid-use kept showing authenticated screens (with every subsequent API call silently
   401ing) until the next cold launch, not immediately. Added `AuthRepository
-  .forceSignOutLocally()` (synchronous, flips `AuthState` to `Unauthenticated` directly, injected
+.forceSignOutLocally()` (synchronous, flips `AuthState` to `Unauthenticated` directly, injected
   into `TokenAuthenticator` via the same lazy-`Provider` cycle-breaking pattern already used for
   `SupabaseAuthApi`) and a top-level `authState` observer in `RootNavGraph` (not scoped inside
   just the splash screen's own `LaunchedEffect`) that navigates back to sign-in from anywhere the
@@ -2041,7 +2065,7 @@ instruction; none was found).
   inside `BiometricGateViewModel`'s own `init{}` threw at construction time in this project's
   pure-JVM (no Robolectric) unit tests -- confirmed live (`RuntimeException`, all 6 new tests
   failing identically). Fixed by injecting `Lifecycle` via a new `LifecycleModule` (`@Provides
-  fun provideProcessLifecycle(): Lifecycle = ProcessLifecycleOwner.get().lifecycle`) rather than
+fun provideProcessLifecycle(): Lifecycle = ProcessLifecycleOwner.get().lifecycle`) rather than
   the ViewModel fetching it internally -- production Hilt wiring still calls the real
   `ProcessLifecycleOwner.get()` exactly once, safely, on the real Android runtime; a unit test now
   supplies a mocked `Lifecycle` instead. The same lesson was applied proactively to the iOS
@@ -2090,6 +2114,7 @@ Autonomous overnight completion pass, continuing the invoice-payment-ledger arch
 asserts the resolved Supabase host is genuinely local before starting anything).
 
 **Found and fixed, both real, both previously undisclosed:**
+
 - `invoices_select_tenant_self`/`invoice_line_items_select_tenant_self` RLS (migration
   `20260101000049`) had no `status` filter at all -- a tenant could SELECT (and via
   `GET /api/v1/invoices/:id/pdf`, download) a DRAFT invoice belonging to them. Fixed via migration
@@ -2111,15 +2136,15 @@ asserts the resolved Supabase host is genuinely local before starting anything).
 - TD-43's disclosed gap (no production ClamAV target configured, `MockMalwareScanProvider` fails
   open) was real and unaddressed -- rather than block the whole release on infrastructure that
   doesn't exist yet, `lib/uploadScan.ts`'s `scanUploadOrRespond()` now takes a `{ sensitive?:
-  boolean }` option, defaulting to `true` (secure by default -- a caller must opt OUT). A sensitive
+boolean }` option, defaulting to `true` (secure by default -- a caller must opt OUT). A sensitive
   upload with no real scanner configured now fails CLOSED with a professional 503
   (`"Document uploads are temporarily unavailable while secure file scanning is being
-  configured."`, no ClamAV/internal details) instead of silently falling back to the always-clean
+configured."`, no ClamAV/internal details) instead of silently falling back to the always-clean
   mock. Audited all 7 call sites: 6 (documents, proof-of-payment via `invoice_payment_id`, lease
   templates, lease documents, applicant documents, tenant maintenance-ticket attachments) kept the
   default -- all accept PDF via `ALLOWED_MIME_TYPES`, several from untrusted/least-trusted
   uploaders (applicants, tenants), one via a service-role RLS bypass where the route's own
-  validation is the *only* remaining boundary. One (`properties/[id]/photos`, marketing photos,
+  validation is the _only_ remaining boundary. One (`properties/[id]/photos`, marketing photos,
   image-only `ALLOWED_PHOTO_MIME_TYPES`, no PDF) explicitly opts out (`{ sensitive: false }`) --
   preserves its existing behaviour rather than regressing an unrelated, lower-risk feature on the
   same missing-infrastructure gap. Existing documents remain fully readable; this only gates new
@@ -2133,6 +2158,7 @@ asserts the resolved Supabase host is genuinely local before starting anything).
   correctly propagates a scan rejection.
 
 **Verified, not just assumed:**
+
 - Tenant invoice PDF authorization boundary, live in a real browser against local Supabase: own
   issued invoice -> 200 (renders); own draft -> 404; a genuinely different org's invoice -> 404;
   nonexistent id -> 404; unauthenticated -> 401. All four negative cases return the identical 404
@@ -2171,12 +2197,13 @@ asserts the resolved Supabase host is genuinely local before starting anything).
 `f32e209cf27dd96e3808af84036baeba26e15a74`) pushed to `main`, confirmed matching on `origin/main`.
 
 **Production deployment, executed and verified this pass:**
+
 - Backup taken first (`.production-backups/release-158-162-20260901T110955Z/` -- schema.sql,
   data.sql, full-schema-public-auth-storage.sql, sha256 checksums, gitignored, never committed),
   matching the exact process two prior, previously-undocumented backups
   (`release-148-150-.../`, `release-151-157-.../`) already established.
 - Production migration head confirmed `20260101000157` before touching anything (`supabase
-  migration list --linked`), matching the expected baseline exactly.
+migration list --linked`), matching the expected baseline exactly.
 - `supabase db push --linked --dry-run` confirmed exactly migrations 158-162 pending, nothing
   else; applied for real, all 5 succeeded; head re-verified as `20260101000162`.
 - Read-only post-migration check: dumped the live production schema and confirmed
@@ -2223,6 +2250,7 @@ migration, no deploy, no real email/WhatsApp send, no commit/push. Full PASS/FAI
 in-conversation; summary for future sessions:
 
 **Audit findings that shaped scope (read before building):**
+
 - Property edit already had full backend support (`PATCH /api/v1/properties/:id`) -- only the UI
   was missing. Property archive (`DELETE` = archive, never hard-delete, `API_SPEC.md` §3) also
   already existed, missing only the active-lease-blocks-archive guard and any hard-delete path.
@@ -2238,6 +2266,7 @@ in-conversation; summary for future sessions:
   internal (no-portal, no-email) tenant model just shipped.
 
 **Built:**
+
 - Migration `20260101000148`: `unit_status` gains `'archived'`; `invoices` gains a real
   `invoice_number` column (`INV-######`, sequence-backed); `get_property_deletion_blockers()`/
   `hard_delete_property()`/`get_unit_deletion_blockers()`/`hard_delete_unit()`/`archive_unit()`/
@@ -2248,7 +2277,7 @@ in-conversation; summary for future sessions:
   active-lease-blocks-archive guard from inline TypeScript (the original route) into SQL, matching
   `archive_unit()`'s shape exactly and making it independently RPC-testable; preserves the required
   exact user-facing message (`"<nickname> cannot be archived because Unit <label> has an active
-  lease..."`).
+lease..."`).
 - New API routes: property `restore`/`hard-delete`/`deletion-eligibility`; unit
   `archive`/`restore`/`hard-delete`/`deletion-eligibility`; `POST /api/v1/invoices/:id/send` (the
   ONE place that ever emails a tenant an invoice, separate from issuance -- an internal tenant with
@@ -2315,7 +2344,7 @@ build, and the full property-lease-workflow.spec.ts e2e suite all pass):**
   signed copy) -- explicitly labelled as acknowledgement, never as a certified e-signature.
 - **Two real bugs found and fixed by the pgTAP suite itself, not by inspection:**
   1. `leases_select_tenant_self` had no status filter at all -- since approval now assigns the
-     tenant to a *draft* lease immediately (this same day's earlier fix), a tenant could read that
+     tenant to a _draft_ lease immediately (this same day's earlier fix), a tenant could read that
      draft's placeholder terms before staff ever reviewed or sent it. Fixed (migration
      `20260101000136`) to require the lease be non-draft or actually sent.
   2. That fix itself caused **infinite RLS recursion** (`leases` <-> `lease_preparations` policies
@@ -2327,7 +2356,7 @@ build, and the full property-lease-workflow.spec.ts e2e suite all pass):**
      suite run after that point with the corrected pattern.
   3. Root-caused and fixed a **pre-existing, unrelated E2E environment gap**: every test in
      `property-lease-workflow.spec.ts` failed at property creation with `403
-     commercial_setup_required` -- reproduced identically on the file's own unmodified version via
+commercial_setup_required` -- reproduced identically on the file's own unmodified version via
      `git stash`, confirming it predates this work. Fixed by having the `setUpOrg()` fixture call
      `activate_trial_after_payment()` (the same RPC the real PayFast webhook calls) via the
      service-role key the fixture already uses for test-user setup.
@@ -2386,12 +2415,12 @@ build all pass):**
   one-active-per-application, same posture as `tenant_invitations` but deliberately NOT tied to a
   real `auth.users` account -- the applicant never signs up); `application_document_requirements`
   (built-in V1 default 3-item checklist: ID, proof of income, proof of address); `documents.
-  application_id`; and four SECURITY DEFINER RPCs (`create_application_access_token`,
+application_id`; and four SECURITY DEFINER RPCs (`create_application_access_token`,
   `get_application_by_token`, `submit_application_by_token`, `record_application_document_upload`,
   `get_application_document_requirements_by_token`) that are the ONLY way an anonymous
   token-holding caller ever touches this data -- direct table RLS grants zero access to `anon`.
   Wired up the HTTP layer: `POST /applications/:id/access-tokens` (staff), `GET`/`POST /apply/
-  :token(/submit|/documents)` (public, token-scoped; document upload uses the service-role client
+:token(/submit|/documents)` (public, token-scoped; document upload uses the service-role client
   for the storage write only after independent token validation, storage path server-constructed).
   New pgTAP suite `applicant_self_service.test.sql` (27 assertions) -- caught and fixed one real
   test-harness bug of its own (a stale `request.jwt.claim.sub` GUC surviving a `SET ROLE anon`
@@ -2400,7 +2429,7 @@ build all pass):**
 - Applicant-fillable fields added to `applications` (date of birth, current address, employment,
   income, household size, applicant's own notes, `submitted_at`) -- deliberately no plaintext ID
   number column, matching this codebase's existing "no write path yet" stance on `tenants.
-  id_number_ref`.
+id_number_ref`.
 
 **NOT completed this pass (real, disclosed gap -- not attempted, not silently dropped):** the
 applicant-facing intake UI page itself (backend/API only, no page built yet), OCR pipeline extension
@@ -2541,6 +2570,7 @@ fix changes is that new, higher-resolution uploads get properly-sized, non-upsca
 derivatives instead of always shipping (and rendering) the raw original at every size.
 
 **Fix, commit pending (local only):**
+
 - Migration `20260101000127_property_photo_derivatives.sql`: `property_photos` gains
   `hero_storage_path`/`card_storage_path`/`width`/`height` (all nullable -- a pre-existing photo
   or one whose derivative generation failed still renders, at its original resolution). Also fixes
@@ -2713,10 +2743,11 @@ duplicate row appeared. Not empirically re-triggered live to confirm (would cost
 flagged as a confirmed-by-code-review, not confirmed-by-live-reproduction, consequence.
 
 **Fix, commit pending (local only):**
+
 - Migration `20260101000126_subscription_current_row_integrity.sql`: adds a `, created_at desc`
   tiebreaker to all 10 SQL functions' current-row resolution, then adds
   `organization_subscriptions_one_current_per_org`, a partial unique index on `(org_id) where status
-  in ('trial','active')` — the real, DB-enforced "at most one commercially-current row per org"
+in ('trial','active')` — the real, DB-enforced "at most one commercially-current row per org"
   guarantee. Preceded by a `do $$ ... raise exception ... $$` guard that refuses to create the index
   (and, since the whole file runs as one migration transaction, refuses to apply ANY of this
   migration) if any org still has more than one current-status row — this migration cannot succeed
@@ -2859,7 +2890,6 @@ real-integration tests timed out under full-suite load and were independently re
 in isolation -- same pre-existing environmental pattern already documented earlier this session,
 not a regression). Committed as `3e94e2a`, not deployed.
 
-
 ## 2026-08-23 (continued) — Staff security + audit hardening: CONTROLLED PRODUCTION DEPLOYMENT
 
 Deployed `74fbad2` (migration `20260101000125`) to production. Pre/post migration snapshots
@@ -2884,7 +2914,7 @@ Role-aware dashboard confirmed correct for both real accounts via a **real cooki
 `proxy.ts`'s `PROTECTED_ROUTE_PREFIXES` gate runs its own cookie-only Supabase client ahead of the
 page, a pre-existing middleware property unrelated to this pass (confirmed via direct code read,
 not assumed). `/organization/staff|billing|activity` aren't in that prefix list, so bearer worked
-fine for those. Nav-dropdown *link* presence itself couldn't be confirmed via raw HTML (client-
+fine for those. Nav-dropdown _link_ presence itself couldn't be confirmed via raw HTML (client-
 rendered, not in the server response) -- disclosed as a tooling limitation, not a pass/fail claim;
 the authoritative server-side page/API gates were fully verified live for both roles either way.
 
@@ -2910,7 +2940,6 @@ byte-for-byte unchanged throughout. QA cleanup: all QA staff memberships revoked
 +cancelled; 2 of 5 QA identities (accountant, viewer -- never an audited actor) hard-deleted
 cleanly, the other 3 (principal, manager, agent) blocked by the same `audit_events` FK immutability
 already documented in earlier sessions, left in place rather than forced.
-
 
 ## 2026-08-23 (continued) — Staff security + audit hardening pass (not yet deployed)
 
@@ -2988,7 +3017,6 @@ matches this project's own previously-documented flake pattern). `tsc`/`eslint`/
 clean. Committed locally only -- migration `20260101000125` not applied to production, nothing
 pushed, no deploy performed.
 
-
 ## 2026-08-23 (continued) — Provisioned-staff model: CONTROLLED PRODUCTION DEPLOYMENT executed
 
 Deployed `3699e1f` (on top of `adba1be`) to production following the approved 13-phase plan.
@@ -3008,6 +3036,7 @@ account or Mo's Properties**: a QA principal + QA org were created via the Admin
 entire feature was driven through the REAL deployed HTTP routes (bearer auth for org-scoped
 actions, real cookie-jar sessions with the required `Origin` header for the CSRF-protected
 cookie-based routes) --
+
 1. Brand-new hire: add -> real `awaiting_activation` row, 0 seats consumed, real Resend dispatch
    (`emailDeliveryConfigured:true`) -> `/api/v1/staff/activate` (real password set) -> hit
    `/staff/activate` unauthenticated-then-authenticated and watched the real 307 redirects through
@@ -3051,6 +3080,7 @@ Full production result: every phase of the approved plan passed. No production e
 HEAD `3699e1f`, production migration head now `20260101000124`.
 
 ## 2026-08-23 (continued) — Provisioned-staff predeploy hardening: closed all 4 flagged test gaps
+
 ## 2026-08-23 (continued) — Provisioned-staff predeploy hardening: closed all 4 flagged test gaps
 
 Closed every test gap the prior pass's own implementation report disclosed (`adba1be`), per an
@@ -3080,7 +3110,7 @@ behaviour (three earlier attempts failed on test-authoring bugs, not product def
    `audit_events` history survives the whole lifecycle intact.
 4. **Password reset after activation** (`app/api/v1/auth/password-reset/__tests__/staffActivationRecovery.test.ts`)
    -- a brand-new hire runs the full `generateLink -> verifyOtp -> set password ->
-   activate_staff_provision()` chain, then the real, unmodified `POST /api/v1/auth/password-reset`
+activate_staff_provision()` chain, then the real, unmodified `POST /api/v1/auth/password-reset`
    route + a real GoTrue recovery token round-trip through it. Confirmed: old password stops
    working, new password works, org membership/role/property access are untouched, and no
    staff-specific password mechanism exists anywhere (deliberately not built, per instruction).
@@ -3089,7 +3119,7 @@ behaviour (three earlier attempts failed on test-authoring bugs, not product def
 first attempt pre-created both "hires" via `admin.createUser({email_confirm:true})` with no
 `password` field, and empirically discovered (via a direct `docker exec` check) that GoTrue's
 Admin API generates a REAL random password anyway when none is supplied -- this silently flipped
-both employees onto the existing-password-user branch, consuming the seat at *provisioning* time
+both employees onto the existing-password-user branch, consuming the seat at _provisioning_ time
 and never reaching the race the test existed to prove; fixed by letting `provisionStaffMember()`
 itself create the (genuinely passwordless) identity via `generateLink()`, exactly matching how a
 real brand-new hire's identity comes to exist. (b) The revoke/re-add route test initially sent a
@@ -3237,7 +3267,7 @@ brand-new invitee never has yet) before ever considering `mayCreatePortfolio()`.
 never affects a user who later creates their own org.
 
 **Fix 3** -- closed a real gap found during the audit: `accept_organization_invite()` only ever
-validated staff-seat capacity at invite-*creation* time, never at *acceptance*. Migration
+validated staff-seat capacity at invite-_creation_ time, never at _acceptance_. Migration
 `20260101000123` adds a concurrency-safe re-check inside the RPC itself (locks the org row, not
 just the invite row, so two different invitations for the same org serialize against each other);
 rejects atomically with nothing partially created if no seat remains. Verified against a REAL race,

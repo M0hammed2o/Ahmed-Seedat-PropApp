@@ -54,7 +54,9 @@ export async function setAddonCapacity(
     .limit(1)
     .single();
   if (subError || !sub)
-    throw new Error(subError?.message ?? 'no_subscription: organization has no subscription on record');
+    throw new Error(
+      subError?.message ?? 'no_subscription: organization has no subscription on record',
+    );
 
   const { data: plan, error: planError } = await serviceClient
     .from('plans')
@@ -105,7 +107,9 @@ export async function setAddonCapacity(
   // 20260101000122) independently enforce -- kept in sync deliberately, not duplicated logic
   // trusted instead of the database's own check, which still re-validates unconditionally below.
   const currentQuantity =
-    input.resourceType === 'property' ? sub.purchased_extra_properties : sub.purchased_extra_owner_slots;
+    input.resourceType === 'property'
+      ? sub.purchased_extra_properties
+      : sub.purchased_extra_owner_slots;
   if (input.targetQuantity < currentQuantity && !input.keepIds) {
     const table = input.resourceType === 'property' ? 'properties' : 'owners';
     const baseLimitKey = input.resourceType === 'property' ? 'maxProperties' : 'includedOwners';
@@ -132,7 +136,8 @@ export async function setAddonCapacity(
   // Only NOW, after the gateway amendment itself has succeeded, does capacity actually change --
   // never on browser-return alone. The RPC re-validates plan support and over-limit removal
   // independently; this call never trusts its own earlier checks as sufficient.
-  const rpcName = input.resourceType === 'property' ? 'set_property_addon_capacity' : 'set_owner_addon_capacity';
+  const rpcName =
+    input.resourceType === 'property' ? 'set_property_addon_capacity' : 'set_owner_addon_capacity';
   const rpcArgs =
     input.resourceType === 'property'
       ? {

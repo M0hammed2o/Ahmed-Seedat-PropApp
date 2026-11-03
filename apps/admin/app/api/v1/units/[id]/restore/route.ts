@@ -35,7 +35,11 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       {
         error: {
           code: 'unit_fetch_failed',
-          message: safeErrorMessage(visibilityError, 'Could not load this unit.', 'units/[id]/restore.visibility'),
+          message: safeErrorMessage(
+            visibilityError,
+            'Could not load this unit.',
+            'units/[id]/restore.visibility',
+          ),
         },
       },
       { status: 500 },
@@ -54,7 +58,11 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       {
         error: {
           code: 'unit_restore_failed',
-          message: safeErrorMessage(error, 'Could not restore this unit.', 'units/[id]/restore.rpc'),
+          message: safeErrorMessage(
+            error,
+            'Could not restore this unit.',
+            'units/[id]/restore.rpc',
+          ),
         },
       },
       { status: 409 },

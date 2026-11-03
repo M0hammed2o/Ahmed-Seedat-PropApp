@@ -57,7 +57,12 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     .maybeSingle();
   if (fetchError) {
     return NextResponse.json(
-      { error: { code: 'requirement_fetch_failed', message: 'Could not load this document requirement.' } },
+      {
+        error: {
+          code: 'requirement_fetch_failed',
+          message: 'Could not load this document requirement.',
+        },
+      },
       { status: 500 },
     );
   }
@@ -69,7 +74,12 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   }
   if (!existing.document_id) {
     return NextResponse.json(
-      { error: { code: 'no_document', message: 'Nothing has been uploaded for this requirement yet.' } },
+      {
+        error: {
+          code: 'no_document',
+          message: 'Nothing has been uploaded for this requirement yet.',
+        },
+      },
       { status: 409 },
     );
   }
@@ -80,14 +90,20 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       status: parsed.data.status,
       reviewed_by: user.id,
       reviewed_at: new Date().toISOString(),
-      rejection_reason: parsed.data.status === 'rejected' ? (parsed.data.rejectionReason ?? null) : null,
+      rejection_reason:
+        parsed.data.status === 'rejected' ? (parsed.data.rejectionReason ?? null) : null,
     })
     .eq('id', requirementId)
     .select('org_id')
     .single();
   if (updateError) {
     return NextResponse.json(
-      { error: { code: 'requirement_update_failed', message: 'Could not update this document requirement.' } },
+      {
+        error: {
+          code: 'requirement_update_failed',
+          message: 'Could not update this document requirement.',
+        },
+      },
       { status: 500 },
     );
   }
@@ -96,7 +112,10 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     orgId: updated.org_id,
     actorUserId: user.id,
     actorType: 'user',
-    action: parsed.data.status === 'accepted' ? 'application.document_accepted' : 'application.document_reviewed',
+    action:
+      parsed.data.status === 'accepted'
+        ? 'application.document_accepted'
+        : 'application.document_reviewed',
     entityType: 'application_document_requirements',
     entityId: requirementId,
     after: { requirementKey: existing.requirement_key, status: parsed.data.status },

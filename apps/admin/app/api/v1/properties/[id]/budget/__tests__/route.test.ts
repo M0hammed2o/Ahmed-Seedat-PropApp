@@ -15,10 +15,12 @@ const mockCookieJar = new Map<string, string>();
 
 vi.mock('next/headers', () => ({
   headers: async () => ({
-    get: (name: string) => (name.toLowerCase() === 'authorization' ? mockAuthorizationHeader : null),
+    get: (name: string) =>
+      name.toLowerCase() === 'authorization' ? mockAuthorizationHeader : null,
   }),
   cookies: async () => ({
-    get: (name: string) => (mockCookieJar.has(name) ? { value: mockCookieJar.get(name) } : undefined),
+    get: (name: string) =>
+      mockCookieJar.has(name) ? { value: mockCookieJar.get(name) } : undefined,
     set: (name: string, value: string) => {
       mockCookieJar.set(name, value);
     },
@@ -78,7 +80,6 @@ function getRequest(propertyId: string, month: string | null) {
   });
 }
 
-
 describeIfSupabase('GET /api/v1/properties/:id/budget (real local Supabase integration)', () => {
   const serviceClient: SupabaseClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY!, {
     auth: { autoRefreshToken: false, persistSession: false },
@@ -130,12 +131,15 @@ describeIfSupabase('GET /api/v1/properties/:id/budget (real local Supabase integ
       .select('id')
       .single();
     propertyId = property!.id;
-    await serviceClient
-      .from('property_access')
-      .upsert(
-        { property_id: propertyId, user_id: managerId, property_role: 'administrator', granted_by: managerId },
-        { onConflict: 'property_id,user_id' },
-      );
+    await serviceClient.from('property_access').upsert(
+      {
+        property_id: propertyId,
+        user_id: managerId,
+        property_role: 'administrator',
+        granted_by: managerId,
+      },
+      { onConflict: 'property_id,user_id' },
+    );
   });
 
   afterEach(async () => {

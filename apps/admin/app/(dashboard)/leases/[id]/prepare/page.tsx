@@ -28,7 +28,11 @@ export default async function PrepareLeasePage({ params }: RouteParams) {
   if (!lease) notFound();
 
   const { units, ...leaseRow } = lease as typeof lease & {
-    units: { unit_label: string; property_id: string; properties: { nickname: string } | null } | null;
+    units: {
+      unit_label: string;
+      property_id: string;
+      properties: { nickname: string } | null;
+    } | null;
   };
 
   const membership = findActiveMembership(session, leaseRow.org_id);

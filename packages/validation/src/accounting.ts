@@ -181,7 +181,14 @@ export type ManualInvoiceUpdateInput = z.infer<typeof manualInvoiceUpdateSchema>
 // check constraint; reference is first-class (not folded into notes); there is no
 // allowOverpayment escape hatch anywhere -- the RPC refuses any payment that would exceed the
 // outstanding balance, full stop.
-export const invoicePaymentMethodSchema = z.enum(['eft', 'cash', 'card', 'debit_order', 'bank_deposit', 'other']);
+export const invoicePaymentMethodSchema = z.enum([
+  'eft',
+  'cash',
+  'card',
+  'debit_order',
+  'bank_deposit',
+  'other',
+]);
 export type InvoicePaymentMethod = z.infer<typeof invoicePaymentMethodSchema>;
 
 export const invoicePaymentCreateSchema = z.object({
@@ -192,7 +199,11 @@ export const invoicePaymentCreateSchema = z.object({
   notes: z.string().max(2000).optional().nullable(),
   // Optionally ties this recorded payment to a real, already-imported bank transaction (never
   // independently reusable for rent-matching or another invoice once linked).
-  bankTransactionId: z.string().uuid('bankTransactionId must be a valid UUID').optional().nullable(),
+  bankTransactionId: z
+    .string()
+    .uuid('bankTransactionId must be a valid UUID')
+    .optional()
+    .nullable(),
 });
 export type InvoicePaymentCreateInput = z.infer<typeof invoicePaymentCreateSchema>;
 
@@ -209,4 +220,6 @@ export type InvoiceVoidInput = z.infer<typeof invoiceVoidSchema>;
 export const invoicePaymentLinkBankTransactionSchema = z.object({
   bankTransactionId: z.string().uuid('bankTransactionId must be a valid UUID'),
 });
-export type InvoicePaymentLinkBankTransactionInput = z.infer<typeof invoicePaymentLinkBankTransactionSchema>;
+export type InvoicePaymentLinkBankTransactionInput = z.infer<
+  typeof invoicePaymentLinkBankTransactionSchema
+>;

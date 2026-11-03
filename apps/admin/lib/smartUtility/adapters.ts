@@ -57,11 +57,13 @@ export function decodeEm300Di(bytes: Uint8Array): {
   battery?: number;
   history: { timestamp: number; pulse: number }[];
 } {
-  const out: { pulse?: number; battery?: number; history: { timestamp: number; pulse: number }[] } = {
-    history: [],
-  };
-  const u32 = (i: number) => (bytes[i]! | (bytes[i + 1]! << 8) | (bytes[i + 2]! << 16)) + bytes[i + 3]! * 0x1000000;
-  for (let i = 0; i + 1 < bytes.length; ) {
+  const out: { pulse?: number; battery?: number; history: { timestamp: number; pulse: number }[] } =
+    {
+      history: [],
+    };
+  const u32 = (i: number) =>
+    (bytes[i]! | (bytes[i + 1]! << 8) | (bytes[i + 2]! << 16)) + bytes[i + 3]! * 0x1000000;
+  for (let i = 0; i + 1 < bytes.length;) {
     const id = bytes[i++]!;
     const type = bytes[i++]!;
     if (id === 0x01 && type === 0x75) {
@@ -193,7 +195,8 @@ export function parseShelly(body: unknown, receivedAt: Date): NormalisedReading[
       push(key, val.counts.total);
     }
   }
-  if (out.length === 0) throw new AdapterError(`Shelly payload from ${src} carries no energy/pulse counters`);
+  if (out.length === 0)
+    throw new AdapterError(`Shelly payload from ${src} carries no energy/pulse counters`);
   return out;
 }
 
@@ -216,7 +219,8 @@ export function parseGenericJson(body: unknown, receivedAt: Date): NormalisedRea
       throw new AdapterError(`readings[${idx}].deviceId is required`);
     }
     const value = finiteNonNegative(r.value);
-    if (value === null) throw new AdapterError(`readings[${idx}].value must be a non-negative number`);
+    if (value === null)
+      throw new AdapterError(`readings[${idx}].value must be a non-negative number`);
     const at = parseTime(r.readAt) ?? (r.readAt === undefined ? receivedAt : null);
     if (!at) throw new AdapterError(`readings[${idx}].readAt is not a valid timestamp`);
     const channel = typeof r.channel === 'string' ? r.channel.slice(0, 40) : '';

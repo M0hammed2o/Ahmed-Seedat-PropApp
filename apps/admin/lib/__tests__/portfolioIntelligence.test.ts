@@ -366,7 +366,13 @@ describeIfSupabase('reconcilePortfolioInsights (real local Supabase integration)
     });
     const { data: expense } = await serviceClient
       .from('expenses')
-      .insert({ org_id: orgId, property_id: propertyId, category: 'Levies', amount: 850, invoice_date: monthIso })
+      .insert({
+        org_id: orgId,
+        property_id: propertyId,
+        category: 'Levies',
+        amount: 850,
+        invoice_date: monthIso,
+      })
       .select('id')
       .single();
 
@@ -528,8 +534,22 @@ describeIfSupabase('reconcilePortfolioInsights (real local Supabase integration)
     const partialId = await issue(`PI-PARTIAL-${Date.now()}`, 5000);
 
     await serviceClient.from('invoice_payments').insert([
-      { org_id: orgId, invoice_id: settledId, tenant_id: tenant!.id, amount: 5000, paid_at: '2026-01-05', method: 'eft' },
-      { org_id: orgId, invoice_id: partialId, tenant_id: tenant!.id, amount: 2000, paid_at: '2026-01-05', method: 'eft' },
+      {
+        org_id: orgId,
+        invoice_id: settledId,
+        tenant_id: tenant!.id,
+        amount: 5000,
+        paid_at: '2026-01-05',
+        method: 'eft',
+      },
+      {
+        org_id: orgId,
+        invoice_id: partialId,
+        tenant_id: tenant!.id,
+        amount: 2000,
+        paid_at: '2026-01-05',
+        method: 'eft',
+      },
     ]);
 
     await reconcilePortfolioInsights(serviceClient, orgId);
@@ -550,8 +570,8 @@ describeIfSupabase('reconcilePortfolioInsights (real local Supabase integration)
     // And it reports what is actually still owed, not the original invoice total.
     const partialInsight = (insights ?? []).find(
       (row) =>
-        (row.data_source as { triggering_records?: { id: string }[] }).triggering_records?.[0]?.id ===
-        partialId,
+        (row.data_source as { triggering_records?: { id: string }[] }).triggering_records?.[0]
+          ?.id === partialId,
     );
     expect(partialInsight?.message).toContain('3000');
   });

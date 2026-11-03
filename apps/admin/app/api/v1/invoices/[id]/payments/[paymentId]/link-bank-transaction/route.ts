@@ -35,18 +35,35 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     .maybeSingle();
   if (fetchError) {
     return NextResponse.json(
-      { error: { code: 'invoice_payment_fetch_failed', message: safeErrorMessage(fetchError, 'Could not load this payment.', 'invoices/[id]/payments/[paymentId]/link-bank-transaction.fetch') } },
+      {
+        error: {
+          code: 'invoice_payment_fetch_failed',
+          message: safeErrorMessage(
+            fetchError,
+            'Could not load this payment.',
+            'invoices/[id]/payments/[paymentId]/link-bank-transaction.fetch',
+          ),
+        },
+      },
       { status: 500 },
     );
   }
   if (!existing || existing.invoice_id !== id) {
-    return NextResponse.json({ error: { code: 'not_found', message: 'Payment not found.' } }, { status: 404 });
+    return NextResponse.json(
+      { error: { code: 'not_found', message: 'Payment not found.' } },
+      { status: 404 },
+    );
   }
 
   const canWrite = await requireOrgRole(supabase, existing.org_id, 'accountant');
   if (!canWrite) {
     return NextResponse.json(
-      { error: { code: 'forbidden', message: 'You do not have permission to link bank transactions for this organization.' } },
+      {
+        error: {
+          code: 'forbidden',
+          message: 'You do not have permission to link bank transactions for this organization.',
+        },
+      },
       { status: 403 },
     );
   }
@@ -84,7 +101,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       {
         error: {
           code: 'invoice_payment_link_failed',
-          message: safeErrorMessage(rpcError, 'Could not link this bank transaction.', 'invoices/[id]/payments/[paymentId]/link-bank-transaction'),
+          message: safeErrorMessage(
+            rpcError,
+            'Could not link this bank transaction.',
+            'invoices/[id]/payments/[paymentId]/link-bank-transaction',
+          ),
         },
       },
       { status: 400 },
@@ -98,7 +119,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     .single();
   if (reloadError) {
     return NextResponse.json(
-      { error: { code: 'invoice_payment_fetch_failed', message: 'Bank transaction was linked, but the payment could not be reloaded. Please refresh.' } },
+      {
+        error: {
+          code: 'invoice_payment_fetch_failed',
+          message:
+            'Bank transaction was linked, but the payment could not be reloaded. Please refresh.',
+        },
+      },
       { status: 500 },
     );
   }

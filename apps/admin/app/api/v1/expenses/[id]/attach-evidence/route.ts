@@ -89,7 +89,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       {
         error: {
           code: 'forbidden',
-          message: 'You do not have permission to attach evidence to expenses for this organization.',
+          message:
+            'You do not have permission to attach evidence to expenses for this organization.',
         },
       },
       { status: 403 },

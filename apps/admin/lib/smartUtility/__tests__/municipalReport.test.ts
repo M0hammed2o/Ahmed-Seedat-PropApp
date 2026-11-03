@@ -1,12 +1,33 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { buildMunicipalReport, renderReportCsv, renderReportPdf, reportTextLines, type ReportPoint } from '../municipalReport';
-import { duePeriod, effectiveMode, nextRetryAt, rollupStatus, MAX_DELIVERY_ATTEMPTS } from '../submissions';
+import {
+  buildMunicipalReport,
+  renderReportCsv,
+  renderReportPdf,
+  reportTextLines,
+  type ReportPoint,
+} from '../municipalReport';
+import {
+  duePeriod,
+  effectiveMode,
+  nextRetryAt,
+  rollupStatus,
+  MAX_DELIVERY_ATTEMPTS,
+} from '../submissions';
 import { sastDateString, sastInstant } from '../consumption';
 import { MUNICIPALITIES } from '../catalog';
 import { renderEmailTemplate } from '../../emailDispatch';
 
 function p(iso: string, value: number, extra: Partial<ReportPoint> = {}): ReportPoint {
-  return { readAt: iso, rawValue: value, value, multiplier: 1, status: 'valid', source: 'manual', documentId: null, ...extra };
+  return {
+    readAt: iso,
+    rawValue: value,
+    value,
+    multiplier: 1,
+    status: 'valid',
+    source: 'manual',
+    documentId: null,
+    ...extra,
+  };
 }
 
 const periodStart = sastInstant(2026, 9, 25);
@@ -21,7 +42,16 @@ function build(points: ReportPoint[], registerDigits: number | null = null) {
     municipalAccountNumber: '5001234567',
     periodStart,
     periodEnd,
-    meters: [{ meterId: 'm1', utilityType: 'water', meterNumber: 'W-123', serialNumber: 'SN9', registerDigits, points }],
+    meters: [
+      {
+        meterId: 'm1',
+        utilityType: 'water',
+        meterNumber: 'W-123',
+        serialNumber: 'SN9',
+        registerDigits,
+        points,
+      },
+    ],
     now: new Date('2026-10-21T08:00:00Z'),
   });
 }
@@ -44,14 +74,21 @@ describe('municipal report snapshot', () => {
   });
 
   it('labels device-derived readings and asks for dial verification', () => {
-    const r = build([p('2026-09-24T10:00:00Z', 1000, { source: 'device' }), p('2026-10-20T10:00:00Z', 3000, { source: 'device' })]);
+    const r = build([
+      p('2026-09-24T10:00:00Z', 1000, { source: 'device' }),
+      p('2026-10-20T10:00:00Z', 3000, { source: 'device' }),
+    ]);
     expect(r.meters[0]!.verification).toBe('device_derived');
     expect(r.notes.join(' ')).toMatch(/checked against the meter dial/);
   });
 
   it('never invents a reading: a meter with no in-period reading is "missing"', () => {
     const r = build([p('2026-09-24T10:00:00Z', 1000)]);
-    expect(r.meters[0]).toMatchObject({ verification: 'missing', currentReading: null, consumption: null });
+    expect(r.meters[0]).toMatchObject({
+      verification: 'missing',
+      currentReading: null,
+      consumption: null,
+    });
     expect(r.notes.join(' ')).toMatch(/no reading/);
   });
 
@@ -80,7 +117,12 @@ describe('municipal report snapshot', () => {
     const r = build([p('2026-09-24T10:00:00Z', 1000), p('2026-10-20T10:00:00Z', 2000)]);
     const email = renderEmailTemplate(
       'municipal_meter_reading_report',
-      { subject: 'Meter readings', heading: 'Meter readings', textLines: reportTextLines(r), preparedFor: 'Acme Properties' },
+      {
+        subject: 'Meter readings',
+        heading: 'Meter readings',
+        textLines: reportTextLines(r),
+        preparedFor: 'Acme Properties',
+      },
       'https://app.example',
     );
     expect(email.bodyText).toContain('Municipal account number: 5001234567');

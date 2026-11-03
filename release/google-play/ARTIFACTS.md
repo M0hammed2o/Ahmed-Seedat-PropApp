@@ -8,17 +8,17 @@ Adds "Continue with Google" to the Android sign-in screen. Built from the Google
 C:\Users\junsm\Downloads\Proplyst-Play-Release-1.0.1-vc2\proplyst-1.0.1-vc2-release.aab
 ```
 
-| | |
-|---|---|
-| Size | 7,911,341 bytes (7.5 MiB) |
-| SHA-256 | `1a00273aac325efa80eef1169b5cfd6bcb2d7b45d624509e902b16186045fe66` |
-| Application ID | `za.co.genbridge.proplyst` |
-| Version code | 2 |
-| Version name | 1.0.1 |
-| Min / target SDK | 26 / 36 |
-| Debuggable | No |
-| Signature | `jar verified`, upload certificate SHA-256 `4B:F6:79:…:63:E3` |
-| Permissions | Unchanged from 1.0.0 — INTERNET, USE_BIOMETRIC, USE_FINGERPRINT, and the AndroidX-internal receiver permission |
+|                  |                                                                                                                |
+| ---------------- | -------------------------------------------------------------------------------------------------------------- |
+| Size             | 7,911,341 bytes (7.5 MiB)                                                                                      |
+| SHA-256          | `1a00273aac325efa80eef1169b5cfd6bcb2d7b45d624509e902b16186045fe66`                                             |
+| Application ID   | `za.co.genbridge.proplyst`                                                                                     |
+| Version code     | 2                                                                                                              |
+| Version name     | 1.0.1                                                                                                          |
+| Min / target SDK | 26 / 36                                                                                                        |
+| Debuggable       | No                                                                                                             |
+| Signature        | `jar verified`, upload certificate SHA-256 `4B:F6:79:…:63:E3`                                                  |
+| Permissions      | Unchanged from 1.0.0 — INTERNET, USE_BIOMETRIC, USE_FINGERPRINT, and the AndroidX-internal receiver permission |
 
 Verified from the artefact with `bundletool validate`, `bundletool dump manifest`, `jarsigner
 -verify` and `keytool -printcert -jarfile`.
@@ -61,16 +61,16 @@ folder into a folder named `…NOT-FOR-UPLOAD` and are never uploaded.
 apps/android/app/build/outputs/bundle/release/app-release.aab
 ```
 
-| | |
-|---|---|
-| Size | 7,490,900 bytes (7.1 MiB) |
-| SHA-256 | `7fd957c9d884dd66cf566ef6c7a290f013bae3aa400f43b7c0206fb100fd904a` |
-| Signature | `jar verified` |
-| Application ID | `za.co.proplyst.app` (old ID; not the Play Console package) |
-| Version name | 1.0.0 |
-| Version code | 1 |
-| Target SDK | 36 |
-| Min SDK | 26 |
+|                |                                                                    |
+| -------------- | ------------------------------------------------------------------ |
+| Size           | 7,490,900 bytes (7.1 MiB)                                          |
+| SHA-256        | `7fd957c9d884dd66cf566ef6c7a290f013bae3aa400f43b7c0206fb100fd904a` |
+| Signature      | `jar verified`                                                     |
+| Application ID | `za.co.proplyst.app` (old ID; not the Play Console package)        |
+| Version name   | 1.0.0                                                              |
+| Version code   | 1                                                                  |
+| Target SDK     | 36                                                                 |
+| Min SDK        | 26                                                                 |
 
 ### Release APK — for sideload checks only, not for Play (superseded)
 
@@ -78,11 +78,11 @@ apps/android/app/build/outputs/bundle/release/app-release.aab
 apps/android/app/build/outputs/apk/release/app-release.apk
 ```
 
-| | |
-|---|---|
-| Size | 4,217,984 bytes (4.0 MiB) |
-| SHA-256 | `c4a44e0e780e1e96e5b2e900eb26e6e3ce4024c89bc61b71a9ba78826f903049` |
-| Signature scheme | v2, one signer |
+|                  |                                                                    |
+| ---------------- | ------------------------------------------------------------------ |
+| Size             | 4,217,984 bytes (4.0 MiB)                                          |
+| SHA-256          | `c4a44e0e780e1e96e5b2e900eb26e6e3ce4024c89bc61b71a9ba78826f903049` |
+| Signature scheme | v2, one signer                                                     |
 
 ## Signing certificate (upload key)
 

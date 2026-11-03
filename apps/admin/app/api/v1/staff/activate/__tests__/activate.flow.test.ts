@@ -141,7 +141,9 @@ describeIfSupabase('staff activation flow (real local Supabase integration)', ()
     const { error: updateError } = await employeeClient.auth.updateUser({ password: NEW_PASSWORD });
     expect(updateError).toBeNull();
 
-    const { data: rpcResult, error: rpcError } = await employeeClient.rpc('activate_staff_provision');
+    const { data: rpcResult, error: rpcError } = await employeeClient.rpc(
+      'activate_staff_provision',
+    );
     expect(rpcError).toBeNull();
     expect(rpcResult).toBe(orgId);
 
@@ -161,7 +163,7 @@ describeIfSupabase('staff activation flow (real local Supabase integration)', ()
     expect(whoami.user?.id).toBe(provision.auth_user_id);
   }, 20000);
 
-  it('a second verifyOtp() with the SAME already-consumed token_hash fails -- single-use, matching the API route\'s own retry-without-token design', async () => {
+  it("a second verifyOtp() with the SAME already-consumed token_hash fails -- single-use, matching the API route's own retry-without-token design", async () => {
     const principalClient = await signedInClient(principalEmail, TEST_PASSWORD);
     const email = `staffactivate-vitest-singleuse-${randomUUID()}@test.propertyvault.example`;
 

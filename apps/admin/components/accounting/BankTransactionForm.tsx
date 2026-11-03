@@ -218,7 +218,11 @@ export function BankTransactionForm({
           {propertyId ? (
             <label className="mt-4 block text-xs">
               <span className="text-light-textMuted dark:text-dark-textMuted">Unit</span>
-              <select value={unitId} onChange={(e) => setUnitId(e.target.value)} className={inputClass}>
+              <select
+                value={unitId}
+                onChange={(e) => setUnitId(e.target.value)}
+                className={inputClass}
+              >
                 <option value="">Not specified</option>
                 {unitsForProperty.map((u) => (
                   <option key={u.id} value={u.id}>
@@ -231,7 +235,11 @@ export function BankTransactionForm({
 
           <label className="mt-4 block text-xs">
             <span className="text-light-textMuted dark:text-dark-textMuted">Tenant</span>
-            <select value={tenantId} onChange={(e) => setTenantId(e.target.value)} className={inputClass}>
+            <select
+              value={tenantId}
+              onChange={(e) => setTenantId(e.target.value)}
+              className={inputClass}
+            >
               <option value="">Not specified</option>
               {tenants.map((t) => (
                 <option key={t.id} value={t.id}>
@@ -243,7 +251,11 @@ export function BankTransactionForm({
 
           <label className="mt-4 block text-xs">
             <span className="text-light-textMuted dark:text-dark-textMuted">Vendor</span>
-            <select value={vendorId} onChange={(e) => setVendorId(e.target.value)} className={inputClass}>
+            <select
+              value={vendorId}
+              onChange={(e) => setVendorId(e.target.value)}
+              className={inputClass}
+            >
               <option value="">Not specified</option>
               {vendors.map((v) => (
                 <option key={v.id} value={v.id}>

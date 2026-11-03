@@ -77,13 +77,25 @@ describe('mfaRuleForApiRequest', () => {
 
   it('the meter-gateway ingest endpoint (device token, no user) is exempt, but only that exact path', () => {
     expect(
-      mfaRuleForApiRequest({ channel: 'mobile_bearer', method: 'POST', pathname: '/api/v1/integrations/meters/ingest' }),
+      mfaRuleForApiRequest({
+        channel: 'mobile_bearer',
+        method: 'POST',
+        pathname: '/api/v1/integrations/meters/ingest',
+      }),
     ).toBe('route_manages_own_aal');
     expect(
-      mfaRuleForApiRequest({ channel: 'web_session', method: 'POST', pathname: '/api/v1/integrations/meters/ingest/x' }),
+      mfaRuleForApiRequest({
+        channel: 'web_session',
+        method: 'POST',
+        pathname: '/api/v1/integrations/meters/ingest/x',
+      }),
     ).toBe('step_up_if_enrolled');
     expect(
-      mfaRuleForApiRequest({ channel: 'web_session', method: 'GET', pathname: '/api/v1/properties/x/smart-utility' }),
+      mfaRuleForApiRequest({
+        channel: 'web_session',
+        method: 'GET',
+        pathname: '/api/v1/properties/x/smart-utility',
+      }),
     ).toBe('step_up_if_enrolled');
   });
 

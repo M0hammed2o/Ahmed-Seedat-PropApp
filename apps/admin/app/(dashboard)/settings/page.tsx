@@ -47,7 +47,8 @@ export default async function SettingsPage() {
 
   const session = await resolvePortalSession();
   const activeOrg = session?.organizations.find((m) => m.status === 'active');
-  const membership = session && activeOrg ? findActiveMembership(session, activeOrg.orgId) : undefined;
+  const membership =
+    session && activeOrg ? findActiveMembership(session, activeOrg.orgId) : undefined;
   const isPrincipal = membership?.role === 'principal';
 
   return (

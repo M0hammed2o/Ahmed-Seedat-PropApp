@@ -3,7 +3,16 @@ import { smartMeterCreateSchema } from '@propvault/validation';
 import { meterInsertRow, meterWriteError } from '@/lib/smartUtility/meters';
 import { getServiceRoleClient } from '@/lib/supabase/server';
 import { writeAuditEvent } from '@/lib/audit';
-import { canWriteUtilities, forbidden, loadReadableProperty, notFound, parseJson, requireUser, serverError, utilitiesDisabled } from '@/lib/smartUtility/http';
+import {
+  canWriteUtilities,
+  forbidden,
+  loadReadableProperty,
+  notFound,
+  parseJson,
+  requireUser,
+  serverError,
+  utilitiesDisabled,
+} from '@/lib/smartUtility/http';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -27,7 +36,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   if (error) {
     return (
       meterWriteError(error) ??
-      serverError('smart_meter_create_failed', 'Could not add this meter.', 'smart_meters.insert', error)
+      serverError(
+        'smart_meter_create_failed',
+        'Could not add this meter.',
+        'smart_meters.insert',
+        error,
+      )
     );
   }
   await writeAuditEvent(getServiceRoleClient(), {
@@ -37,7 +51,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     action: 'smart_meter.create',
     entityType: 'utility_meters',
     entityId: data.id,
-    after: { utilityType: parsed.data.utilityType, meterRole: parsed.data.meterRole, connectivity: parsed.data.connectivity },
+    after: {
+      utilityType: parsed.data.utilityType,
+      meterRole: parsed.data.meterRole,
+      connectivity: parsed.data.connectivity,
+    },
   });
   return NextResponse.json({ meterId: data.id }, { status: 201 });
 }

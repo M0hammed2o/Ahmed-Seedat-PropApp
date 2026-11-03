@@ -168,7 +168,13 @@ const DEMO_TICKETS: MaintenanceTicket[] = [
 ];
 
 const DEMO_TENANTS: PropertyTenant[] = [
-  { id: 'demo-tenant-1', fullName: 'Naledi Khumalo', unitLabel: 'Unit 1', rentAmount: 12500, leaseStatus: 'active' },
+  {
+    id: 'demo-tenant-1',
+    fullName: 'Naledi Khumalo',
+    unitLabel: 'Unit 1',
+    rentAmount: 12500,
+    leaseStatus: 'active',
+  },
 ];
 
 // "Property A" demo scenario (WORKLOG.md this date, property/unit financial setup pass): a
@@ -398,7 +404,15 @@ async function loadPropertyAccountingDetail(
           .from('rent_schedules')
           .select('id, lease_id, amount, status, due_date')
           .in('lease_id', leaseIds)
-      : Promise.resolve({ data: [] as { id: string; lease_id: string; amount: number; status: string; due_date: string }[] }),
+      : Promise.resolve({
+          data: [] as {
+            id: string;
+            lease_id: string;
+            amount: number;
+            status: string;
+            due_date: string;
+          }[],
+        }),
     supabase
       .from('expenses')
       .select('amount, status, created_at')
@@ -527,44 +541,44 @@ async function loadSetupProgress(
   const unitIds = units.map((u) => u.id);
   const [ownersResult, applicationsResult, leasesResult, documentsResult, financialSetupResult] =
     await Promise.all([
-    supabase
-      .from('property_owners')
-      .select('owner_id', { count: 'exact', head: true })
-      .eq('property_id', propertyId),
-    unitIds.length > 0
-      ? supabase
-          .from('applications')
-          .select('id', { count: 'exact', head: true })
-          .in('unit_id', unitIds)
-      : Promise.resolve({ count: 0 }),
-    // Launch-hardening pass (WORKLOG.md 2026-08-26), Section 13: unfiltered lease count marked
-    // this checklist item done the instant an application was approved (a draft lease, same root
-    // cause as loadPropertyTenants() above) -- "Lease" should mean a real, in-force tenancy, not
-    // a row in the leases table.
-    unitIds.length > 0
-      ? supabase
-          .from('leases')
-          .select('id', { count: 'exact', head: true })
-          .in('unit_id', unitIds)
-          .eq('status', 'active')
-      : Promise.resolve({ count: 0 }),
-    supabase
-      .from('documents')
-      .select('id', { count: 'exact', head: true })
-      .eq('property_id', propertyId)
-      .is('deleted_at', null),
-    // Web property financial setup pass (WORKLOG.md this date): "financial setup" means at least
-    // one of rates/levies, utility responsibility, or a budget has been configured -- property- or
-    // unit-level, matching FinancialSetupGuide's own "nothing configured yet" condition so this
-    // checklist item and that guide agree on what "done" means. Computed live, same rule this
-    // function's own header comment already states for every other step -- never a new completion
-    // column.
-    supabase
-      .from('recurring_property_costs')
-      .select('id', { count: 'exact', head: true })
-      .eq('property_id', propertyId)
-      .is('effective_to', null),
-  ]);
+      supabase
+        .from('property_owners')
+        .select('owner_id', { count: 'exact', head: true })
+        .eq('property_id', propertyId),
+      unitIds.length > 0
+        ? supabase
+            .from('applications')
+            .select('id', { count: 'exact', head: true })
+            .in('unit_id', unitIds)
+        : Promise.resolve({ count: 0 }),
+      // Launch-hardening pass (WORKLOG.md 2026-08-26), Section 13: unfiltered lease count marked
+      // this checklist item done the instant an application was approved (a draft lease, same root
+      // cause as loadPropertyTenants() above) -- "Lease" should mean a real, in-force tenancy, not
+      // a row in the leases table.
+      unitIds.length > 0
+        ? supabase
+            .from('leases')
+            .select('id', { count: 'exact', head: true })
+            .in('unit_id', unitIds)
+            .eq('status', 'active')
+        : Promise.resolve({ count: 0 }),
+      supabase
+        .from('documents')
+        .select('id', { count: 'exact', head: true })
+        .eq('property_id', propertyId)
+        .is('deleted_at', null),
+      // Web property financial setup pass (WORKLOG.md this date): "financial setup" means at least
+      // one of rates/levies, utility responsibility, or a budget has been configured -- property- or
+      // unit-level, matching FinancialSetupGuide's own "nothing configured yet" condition so this
+      // checklist item and that guide agree on what "done" means. Computed live, same rule this
+      // function's own header comment already states for every other step -- never a new completion
+      // column.
+      supabase
+        .from('recurring_property_costs')
+        .select('id', { count: 'exact', head: true })
+        .eq('property_id', propertyId)
+        .is('effective_to', null),
+    ]);
 
   const [utilitySettingsCount, budgetCount] = await Promise.all([
     supabase
@@ -695,21 +709,23 @@ async function loadPropertyTenants(
   const rentByLease = new Map(leases.map((l) => [l.id, l.rent_amount]));
   const statusByLease = new Map(leases.map((l) => [l.id, l.status as 'active' | 'draft']));
 
-  return (leaseTenants ?? [])
-    .map((lt) => {
-      const unitId = unitByLease.get(lt.lease_id);
-      return {
-        id: lt.tenant_id,
-        fullName: tenantNameById.get(lt.tenant_id) ?? 'Unknown tenant',
-        unitLabel: (unitId && unitLabelById.get(unitId)) || '—',
-        rentAmount: Number(rentByLease.get(lt.lease_id) ?? 0),
-        leaseStatus: statusByLease.get(lt.lease_id) ?? 'draft',
-      };
-    })
-    .filter((t, i, arr) => arr.findIndex((x) => x.id === t.id) === i)
-    // Active occupants first, pending tenants after -- matches "current occupant" being the
-    // primary thing a landlord looks for on this tab.
-    .sort((a, b) => (a.leaseStatus === b.leaseStatus ? 0 : a.leaseStatus === 'active' ? -1 : 1));
+  return (
+    (leaseTenants ?? [])
+      .map((lt) => {
+        const unitId = unitByLease.get(lt.lease_id);
+        return {
+          id: lt.tenant_id,
+          fullName: tenantNameById.get(lt.tenant_id) ?? 'Unknown tenant',
+          unitLabel: (unitId && unitLabelById.get(unitId)) || '—',
+          rentAmount: Number(rentByLease.get(lt.lease_id) ?? 0),
+          leaseStatus: statusByLease.get(lt.lease_id) ?? 'draft',
+        };
+      })
+      .filter((t, i, arr) => arr.findIndex((x) => x.id === t.id) === i)
+      // Active occupants first, pending tenants after -- matches "current occupant" being the
+      // primary thing a landlord looks for on this tab.
+      .sort((a, b) => (a.leaseStatus === b.leaseStatus ? 0 : a.leaseStatus === 'active' ? -1 : 1))
+  );
 }
 
 // Real year-to-date income/expenses for this property's own leases -- income from paid
@@ -997,8 +1013,9 @@ function PropertyDetailView({
                       <dt className="text-muted-foreground">Water</dt>
                       <dd className="mt-0.5 text-foreground">
                         {financialSetupSummary.waterResponsibility
-                          ? UTILITY_RESPONSIBILITY_SUMMARY_LABELS[financialSetupSummary.waterResponsibility] ??
-                            financialSetupSummary.waterResponsibility
+                          ? (UTILITY_RESPONSIBILITY_SUMMARY_LABELS[
+                              financialSetupSummary.waterResponsibility
+                            ] ?? financialSetupSummary.waterResponsibility)
                           : 'Not configured'}
                       </dd>
                     </div>
@@ -1006,9 +1023,9 @@ function PropertyDetailView({
                       <dt className="text-muted-foreground">Electricity</dt>
                       <dd className="mt-0.5 text-foreground">
                         {financialSetupSummary.electricityResponsibility
-                          ? UTILITY_RESPONSIBILITY_SUMMARY_LABELS[
+                          ? (UTILITY_RESPONSIBILITY_SUMMARY_LABELS[
                               financialSetupSummary.electricityResponsibility
-                            ] ?? financialSetupSummary.electricityResponsibility
+                            ] ?? financialSetupSummary.electricityResponsibility)
                           : 'Not configured'}
                       </dd>
                     </div>
@@ -1242,7 +1259,9 @@ function PropertyDetailView({
                     </p>
                   </Panel>
                   <Panel bodyClassName="p-5">
-                    <p className="text-[11px] text-muted-foreground">Payments awaiting confirmation</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Payments awaiting confirmation
+                    </p>
                     <p className="tabular mt-1 font-display text-xl font-bold text-light-statusNeedsReview dark:text-dark-statusNeedsReview">
                       {currency(accountingDetail.paymentsAwaitingConfirmation)}
                     </p>
@@ -1257,9 +1276,13 @@ function PropertyDetailView({
                   ) : (
                     <ul className="divide-y divide-light-border dark:divide-dark-border">
                       {accountingDetail.recentTransactions.map((t) => (
-                        <li key={t.id} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0 text-sm">
+                        <li
+                          key={t.id}
+                          className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0 text-sm"
+                        >
                           <span className="min-w-0 truncate text-foreground">
-                            {t.description ?? (t.kind === 'rent' ? 'Rent payment' : 'Expense payment')}
+                            {t.description ??
+                              (t.kind === 'rent' ? 'Rent payment' : 'Expense payment')}
                           </span>
                           <span className="shrink-0 text-[12px] text-muted-foreground">
                             {new Date(t.transactionDate).toLocaleDateString('en-ZA')}

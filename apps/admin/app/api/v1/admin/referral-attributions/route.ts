@@ -30,7 +30,11 @@ export async function GET() {
       {
         error: {
           code: 'referral_attributions_list_failed',
-          message: safeErrorMessage(error, 'Could not load referral attributions.', 'referralAttributions.list'),
+          message: safeErrorMessage(
+            error,
+            'Could not load referral attributions.',
+            'referralAttributions.list',
+          ),
         },
       },
       { status: 500 },
@@ -40,7 +44,10 @@ export async function GET() {
   return NextResponse.json({
     attributions: (data ?? []).map((row) => {
       const org = row.organizations as unknown as { legal_name: string } | null;
-      const partner = row.referral_partners as unknown as { name: string; referral_code: string } | null;
+      const partner = row.referral_partners as unknown as {
+        name: string;
+        referral_code: string;
+      } | null;
       return {
         orgId: row.org_id,
         orgLegalName: org?.legal_name ?? null,

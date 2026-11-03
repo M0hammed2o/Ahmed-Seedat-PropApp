@@ -202,7 +202,11 @@ async function loadPropertyCards(properties: Property[]): Promise<PropertyCardDa
     fetchAllPagesResult<{ id: string; unit_id: string; rent_amount: number; status: string }>(
       'leases',
       (from, to) =>
-        supabase.from('leases').select('id, unit_id, rent_amount, status').order('id').range(from, to),
+        supabase
+          .from('leases')
+          .select('id, unit_id, rent_amount, status')
+          .order('id')
+          .range(from, to),
     ),
     resolveCoverPhotoRowsByProperty(supabase, propertyIds),
   ]);
@@ -254,10 +258,10 @@ async function loadPropertyCards(properties: Property[]): Promise<PropertyCardDa
   }
 
   const coverUrlEntries = await Promise.all(
-    [...coverRowsByProperty.entries()].map(async ([propertyId, row]) => [
-      propertyId,
-      await signCoverPhotoUrl(supabase, row, 'card'),
-    ] as const),
+    [...coverRowsByProperty.entries()].map(
+      async ([propertyId, row]) =>
+        [propertyId, await signCoverPhotoUrl(supabase, row, 'card')] as const,
+    ),
   );
   const coverUrlByProperty = new Map(coverUrlEntries);
 

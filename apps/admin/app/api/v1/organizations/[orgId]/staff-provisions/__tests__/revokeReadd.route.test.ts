@@ -32,9 +32,8 @@ process.env.SUPABASE_SERVICE_ROLE_KEY =
 const { POST: postStaffProvisions } = await import('../route');
 const { POST: postActivate } = await import('@/app/api/v1/staff/activate/route');
 const { POST: postActivateFinish } = await import('@/app/api/v1/staff/activate/finish/route');
-const { POST: postMemberRevoke } = await import(
-  '@/app/api/v1/organizations/[orgId]/members/[userId]/revoke/route'
-);
+const { POST: postMemberRevoke } =
+  await import('@/app/api/v1/organizations/[orgId]/members/[userId]/revoke/route');
 
 const SUPABASE_URL = 'http://127.0.0.1:54321';
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -254,9 +253,12 @@ describeIfSupabase(
       );
       expect(grantsAfterRevoke.length).toBe(0);
 
-      const seatCountAfterRevoke = await adminFetch(`/rest/v1/rpc/org_active_billable_staff_count`, {
-        p_org_id: orgId,
-      });
+      const seatCountAfterRevoke = await adminFetch(
+        `/rest/v1/rpc/org_active_billable_staff_count`,
+        {
+          p_org_id: orgId,
+        },
+      );
       expect(seatCountAfterRevoke).toBe(0);
 
       // 5) Principal re-adds the SAME email, this time with ALL-properties access and a

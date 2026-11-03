@@ -10,8 +10,10 @@
 
 import type { ProviderId } from './providers';
 
-export type CatalogueStatus = 'verified_ready' | 'needs_hardware_testing' | 'supplier_approval' | 'unsupported';
-export type CatalogueConnection = 'manual' | 'lorawan' | 'wifi' | 'modbus_gateway' | 'nbiot' | 'cloud' | 'any_http';
+export type CatalogueStatus =
+  'verified_ready' | 'needs_hardware_testing' | 'supplier_approval' | 'unsupported';
+export type CatalogueConnection =
+  'manual' | 'lorawan' | 'wifi' | 'modbus_gateway' | 'nbiot' | 'cloud' | 'any_http';
 
 export interface CataloguePrice {
   amountZar: number;
@@ -83,7 +85,8 @@ export const METER_CATALOGUE: CatalogueEntry[] = [
     manufacturer: 'Any',
     model: 'Traditional water meter (manual readings + photo)',
     utilityType: 'water',
-    description: 'Read the dial yourself (or have a caretaker do it) and upload a photo as evidence.',
+    description:
+      'Read the dial yourself (or have a caretaker do it) and upload a photo as evidence.',
     roles: ['main', 'check', 'submeter'],
     connection: 'manual',
     providers: [],
@@ -99,7 +102,10 @@ export const METER_CATALOGUE: CatalogueEntry[] = [
     multiplierNote: 'Readings are entered in kilolitres as shown on the dial.',
     defaultChannel: '',
     channels: [],
-    setupSteps: ['Add the meter.', 'Use "Reading" to record the dial value and attach a clear photo showing the meter number and digits.'],
+    setupSteps: [
+      'Add the meter.',
+      'Use "Reading" to record the dial value and attach a clear photo showing the meter number and digits.',
+    ],
     caveats: ['Person-entered readings are shown as unverified until a reviewer checks the photo.'],
   },
   {
@@ -152,14 +158,17 @@ export const METER_CATALOGUE: CatalogueEntry[] = [
       'Send POST requests with the token to the address shown.',
       'Add the meter with the deviceId your device sends.',
     ],
-    caveats: ['Verified against Proplyst\'s own contract; your device\'s accuracy is your responsibility.'],
+    caveats: [
+      "Verified against Proplyst's own contract; your device's accuracy is your responsibility.",
+    ],
   },
   {
     id: 'proplyst-json-electricity',
     manufacturer: 'Any',
     model: 'Device or gateway sending Proplyst JSON (electricity)',
     utilityType: 'electricity',
-    description: 'Any device, script or gateway that can POST {"readings":[…]} with cumulative kWh.',
+    description:
+      'Any device, script or gateway that can POST {"readings":[…]} with cumulative kWh.',
     roles: ['main', 'check', 'submeter'],
     connection: 'any_http',
     providers: ['generic_json'],
@@ -175,7 +184,11 @@ export const METER_CATALOGUE: CatalogueEntry[] = [
     multiplierNote: '1 if the device sends kWh; 0.001 if it sends Wh.',
     defaultChannel: 'kwh',
     channels: [{ value: 'kwh', label: 'kwh' }],
-    setupSteps: ['Create a "Proplyst JSON (any device or gateway)" connection.', 'POST cumulative kWh with the token.', 'Add the meter with the same deviceId/channel.'],
+    setupSteps: [
+      'Create a "Proplyst JSON (any device or gateway)" connection.',
+      'POST cumulative kWh with the token.',
+      'Add the meter with the same deviceId/channel.',
+    ],
     caveats: [
       "Verified against Proplyst's own contract (automated tests), not with a physical device; your device's accuracy is your responsibility.",
       'Monitoring-grade unless the device is an approved billing meter.',
@@ -187,23 +200,39 @@ export const METER_CATALOGUE: CatalogueEntry[] = [
     manufacturer: 'Milesight',
     model: 'EM300-DI pulse counter + pulse-output water meter',
     utilityType: 'water',
-    description: 'Battery LoRaWAN counter strapped to a pulse-output meter; ~5-year battery, stores 1,000 readings if the gateway is offline.',
+    description:
+      'Battery LoRaWAN counter strapped to a pulse-output meter; ~5-year battery, stores 1,000 readings if the gateway is offline.',
     roles: ['main', 'check', 'submeter'],
     connection: 'lorawan',
     providers: ['milesight_lorawan', 'chirpstack_v4', 'tts_v3'],
     meterConnectivity: 'lorawan',
     status: 'needs_hardware_testing',
     billingGrade: false,
-    price: { amountZar: 1350, vat: 'incl', supplier: 'FirstShop', url: 'https://www.firstshop.co.za/products/milesight-em300-ip67-pulse-counter-em300-di-868m-188289', seenOn: SEEN },
-    gateway: { required: true, note: 'LoRaWAN gateway, e.g. Milesight UG63-LTE R4,384.95 or UG65 R8,888.35 (MiRO, incl VAT).' },
+    price: {
+      amountZar: 1350,
+      vat: 'incl',
+      supplier: 'FirstShop',
+      url: 'https://www.firstshop.co.za/products/milesight-em300-ip67-pulse-counter-em300-di-868m-188289',
+      seenOn: SEEN,
+    },
+    gateway: {
+      required: true,
+      note: 'LoRaWAN gateway, e.g. Milesight UG63-LTE R4,384.95 or UG65 R8,888.35 (MiRO, incl VAT).',
+    },
     recurringCost: 'None for the device; LTE data or broadband for the gateway',
     availability: 'in_stock',
     docsUrl: 'https://github.com/Milesight-IoT/SensorDecoders',
     defaultMultiplier: 0.5,
-    multiplierNote: 'Litres per pulse of your water meter (0.5 L for the SA pulse-ready meters researched).',
+    multiplierNote:
+      'Litres per pulse of your water meter (0.5 L for the SA pulse-ready meters researched).',
     defaultChannel: '',
-    channels: [{ value: '', label: 'Pulse counter (Milesight gateway)' }, { value: 'pulse', label: 'pulse (ChirpStack / The Things Stack)' }],
-    setupSteps: LORA_STEPS('With a Milesight gateway no codec is needed; with ChirpStack/TTS either add the Milesight codec or leave it off — Proplyst decodes the raw EM300-DI frame.'),
+    channels: [
+      { value: '', label: 'Pulse counter (Milesight gateway)' },
+      { value: 'pulse', label: 'pulse (ChirpStack / The Things Stack)' },
+    ],
+    setupSteps: LORA_STEPS(
+      'With a Milesight gateway no codec is needed; with ChirpStack/TTS either add the Milesight codec or leave it off — Proplyst decodes the raw EM300-DI frame.',
+    ),
     caveats: [
       'Confirm with your meter supplier that its pulse output is a dry contact and how many litres per pulse.',
       'A pulse-ready meter costs from R605.48 (The Water Company, incl VAT); fitting needs a registered plumber.',
@@ -222,8 +251,14 @@ export const METER_CATALOGUE: CatalogueEntry[] = [
     meterConnectivity: 'wifi',
     status: 'needs_hardware_testing',
     billingGrade: false,
-    price: { amountZar: 489, vat: 'unknown', supplier: 'Untamed Tech', url: 'https://untamedtech.co.za/product/shelly-plus-uni/', seenOn: SEEN },
-    gateway: { required: false, note: 'Uses the property\'s Wi-Fi.' },
+    price: {
+      amountZar: 489,
+      vat: 'unknown',
+      supplier: 'Untamed Tech',
+      url: 'https://untamedtech.co.za/product/shelly-plus-uni/',
+      seenOn: SEEN,
+    },
+    gateway: { required: false, note: "Uses the property's Wi-Fi." },
     recurringCost: 'None',
     availability: 'in_stock',
     docsUrl: 'https://shelly-api-docs.shelly.cloud/gen2/ComponentsAndServices/Input',
@@ -253,7 +288,13 @@ export const METER_CATALOGUE: CatalogueEntry[] = [
     meterConnectivity: 'lorawan',
     status: 'needs_hardware_testing',
     billingGrade: false,
-    price: { amountZar: 2020, vat: 'unknown', supplier: 'iotshop.co.za (DN20)', url: 'https://iotshop.co.za/products/sw3l-lb-ls-lorawan-outdoor-flow-sensor', seenOn: SEEN2 },
+    price: {
+      amountZar: 2020,
+      vat: 'unknown',
+      supplier: 'iotshop.co.za (DN20)',
+      url: 'https://iotshop.co.za/products/sw3l-lb-ls-lorawan-outdoor-flow-sensor',
+      seenOn: SEEN2,
+    },
     gateway: { required: true, note: 'LoRaWAN gateway, e.g. Dragino LPS8v2 R4,815 (iotshop).' },
     recurringCost: 'Network server (ChirpStack free/self-hosted, or a TTS plan)',
     availability: 'in_stock',
@@ -262,8 +303,13 @@ export const METER_CATALOGUE: CatalogueEntry[] = [
     multiplierNote: 'Depends on the decoder field you choose (litres or pulses).',
     defaultChannel: '',
     channels: [],
-    setupSteps: LORA_STEPS('A ChirpStack/TTS payload decoder for the SW3L-LB was not found in Dragino\'s repository; you need one that outputs a cumulative counter field.'),
-    caveats: ['Not a SANS 1529-1 meter: monitoring only.', 'Decoder for the LoRaWAN variant unverified.'],
+    setupSteps: LORA_STEPS(
+      "A ChirpStack/TTS payload decoder for the SW3L-LB was not found in Dragino's repository; you need one that outputs a cumulative counter field.",
+    ),
+    caveats: [
+      'Not a SANS 1529-1 meter: monitoring only.',
+      'Decoder for the LoRaWAN variant unverified.',
+    ],
   },
   {
     id: 'kamstrup-flowiq-2200-lorawan',
@@ -277,17 +323,29 @@ export const METER_CATALOGUE: CatalogueEntry[] = [
     meterConnectivity: 'lorawan',
     status: 'needs_hardware_testing',
     billingGrade: true,
-    price: { amountZar: 2500, vat: 'incl', supplier: 'UtilityPal (variant/size not shown)', url: 'https://www.utilitypal.co.za/product-page/kamstrup-flowiq-2200-ultrasonic-water-meter-wireless-m-bus', seenOn: SEEN },
+    price: {
+      amountZar: 2500,
+      vat: 'incl',
+      supplier: 'UtilityPal (variant/size not shown)',
+      url: 'https://www.utilitypal.co.za/product-page/kamstrup-flowiq-2200-ultrasonic-water-meter-wireless-m-bus',
+      seenOn: SEEN,
+    },
     gateway: { required: true, note: 'Any LoRaWAN gateway.' },
     recurringCost: 'Network server',
     availability: 'unknown',
-    docsUrl: 'https://www.thethingsnetwork.org/device-repository/devices/kamstrup/flowiq2200-02k73a',
+    docsUrl:
+      'https://www.thethingsnetwork.org/device-repository/devices/kamstrup/flowiq2200-02k73a',
     defaultMultiplier: 1,
-    multiplierNote: 'Set per the codec\'s volume field unit.',
+    multiplierNote: "Set per the codec's volume field unit.",
     defaultChannel: '',
     channels: [],
-    setupSteps: LORA_STEPS('Use the published TTN codec for 02K73A; payloads are encrypted, so the meter\'s keys are required.'),
-    caveats: ['SA stock of the LoRaWAN variant is unconfirmed; ask the supplier.', 'Encryption keys come from Kamstrup.'],
+    setupSteps: LORA_STEPS(
+      "Use the published TTN codec for 02K73A; payloads are encrypted, so the meter's keys are required.",
+    ),
+    caveats: [
+      'SA stock of the LoRaWAN variant is unconfirmed; ask the supplier.',
+      'Encryption keys come from Kamstrup.',
+    ],
   },
   // ------------------------------------------------------------------ electricity, needs hardware testing
   {
@@ -302,7 +360,13 @@ export const METER_CATALOGUE: CatalogueEntry[] = [
     meterConnectivity: 'wifi',
     status: 'needs_hardware_testing',
     billingGrade: false,
-    price: { amountZar: 3029, vat: 'incl', supplier: 'tech.co.za (EFT price)', url: 'https://tech.co.za/product/shelly-pro-3em-120a-relay/', seenOn: SEEN },
+    price: {
+      amountZar: 3029,
+      vat: 'incl',
+      supplier: 'tech.co.za (EFT price)',
+      url: 'https://tech.co.za/product/shelly-pro-3em-120a-relay/',
+      seenOn: SEEN,
+    },
     gateway: { required: false, note: 'LAN or Wi-Fi at the distribution board.' },
     recurringCost: 'None',
     availability: 'in_stock',
@@ -335,7 +399,13 @@ export const METER_CATALOGUE: CatalogueEntry[] = [
     meterConnectivity: 'wifi',
     status: 'needs_hardware_testing',
     billingGrade: false,
-    price: { amountZar: 1989, vat: 'incl', supplier: 'tech.co.za (Pro EM-50, EFT price)', url: 'https://tech.co.za/product/shelly-pro-em-50-din-rail-mountable-two-channel-single-phase-energy-meter/', seenOn: SEEN },
+    price: {
+      amountZar: 1989,
+      vat: 'incl',
+      supplier: 'tech.co.za (Pro EM-50, EFT price)',
+      url: 'https://tech.co.za/product/shelly-pro-em-50-din-rail-mountable-two-channel-single-phase-energy-meter/',
+      seenOn: SEEN,
+    },
     gateway: { required: false, note: 'LAN or Wi-Fi.' },
     recurringCost: 'None',
     availability: 'in_stock',
@@ -347,7 +417,11 @@ export const METER_CATALOGUE: CatalogueEntry[] = [
       { value: 'em1:0', label: 'Channel 0' },
       { value: 'em1:1', label: 'Channel 1' },
     ],
-    setupSteps: ['Electrician install + CoC.', 'Create a Shelly connection and install the push script.', 'Add one meter per channel.'],
+    setupSteps: [
+      'Electrician install + CoC.',
+      'Create a Shelly connection and install the push script.',
+      'Add one meter per channel.',
+    ],
     caveats: ['Monitoring-grade: not for tenant billing.'],
   },
   {
@@ -355,15 +429,25 @@ export const METER_CATALOGUE: CatalogueEntry[] = [
     manufacturer: 'Eastron',
     model: 'SDM120M / SDM630 (Modbus) via Teltonika or Waveshare gateway',
     utilityType: 'electricity',
-    description: 'MID-certified DIN-rail kWh meters on an RS485 bus, read by a gateway that posts Proplyst JSON.',
+    description:
+      'MID-certified DIN-rail kWh meters on an RS485 bus, read by a gateway that posts Proplyst JSON.',
     roles: ['main', 'check', 'submeter'],
     connection: 'modbus_gateway',
     providers: ['generic_json'],
     meterConnectivity: 'modbus_gateway',
     status: 'needs_hardware_testing',
     billingGrade: true,
-    price: { amountZar: 1070, vat: 'unknown', supplier: 'UtilityPal (derived from box of 100, R106,999)', url: 'https://www.utilitypal.co.za/eastron', seenOn: SEEN },
-    gateway: { required: true, note: 'Modbus→HTTP gateway, e.g. Teltonika TRB246 R3,770 (ComX, out of stock when checked).' },
+    price: {
+      amountZar: 1070,
+      vat: 'unknown',
+      supplier: 'UtilityPal (derived from box of 100, R106,999)',
+      url: 'https://www.utilitypal.co.za/eastron',
+      seenOn: SEEN,
+    },
+    gateway: {
+      required: true,
+      note: 'Modbus→HTTP gateway, e.g. Teltonika TRB246 R3,770 (ComX, out of stock when checked).',
+    },
     recurringCost: 'LTE SIM for the gateway (amount unknown)',
     availability: 'on_order',
     docsUrl: 'https://esphome.io/components/sensor/sdm_meter/',
@@ -390,16 +474,27 @@ export const METER_CATALOGUE: CatalogueEntry[] = [
     meterConnectivity: 'modbus_gateway',
     status: 'needs_hardware_testing',
     billingGrade: true,
-    price: { amountZar: 1725, vat: 'incl', supplier: 'Lite-Glo (DDSU666)', url: 'https://www.liteglo.co.za/shop/chint-ddsu666-single-phase-din-rail-kilowatt-meter/', seenOn: SEEN },
+    price: {
+      amountZar: 1725,
+      vat: 'incl',
+      supplier: 'Lite-Glo (DDSU666)',
+      url: 'https://www.liteglo.co.za/shop/chint-ddsu666-single-phase-din-rail-kilowatt-meter/',
+      seenOn: SEEN,
+    },
     gateway: { required: true, note: 'Modbus→HTTP gateway.' },
     recurringCost: 'Gateway connectivity',
     availability: 'on_order',
-    docsUrl: 'https://aggsoft.com/serial-data-logger/tutorials/modbus-data-logging/chint-instrument-ddsu666-h.htm',
+    docsUrl:
+      'https://aggsoft.com/serial-data-logger/tutorials/modbus-data-logging/chint-instrument-ddsu666-h.htm',
     defaultMultiplier: 1,
     multiplierNote: 'Gateway sends kWh.',
     defaultChannel: 'kwh',
     channels: [{ value: 'kwh', label: 'Import kWh' }],
-    setupSteps: ['Electrician install + CoC.', 'Gateway polls kWh and posts Proplyst JSON.', 'Add the meter.'],
+    setupSteps: [
+      'Electrician install + CoC.',
+      'Gateway polls kWh and posts Proplyst JSON.',
+      'Add the meter.',
+    ],
     caveats: ['Official CHINT register map not found; third-party map used.'],
   },
   {
@@ -414,7 +509,13 @@ export const METER_CATALOGUE: CatalogueEntry[] = [
     meterConnectivity: 'lorawan',
     status: 'needs_hardware_testing',
     billingGrade: true,
-    price: { amountZar: 1475, vat: 'unknown', supplier: 'iotshop.co.za (RS485-LN)', url: 'https://iotshop.co.za/products/rs485-ln-rs485-modbus-to-lorawan-converter', seenOn: SEEN2 },
+    price: {
+      amountZar: 1475,
+      vat: 'unknown',
+      supplier: 'iotshop.co.za (RS485-LN)',
+      url: 'https://iotshop.co.za/products/rs485-ln-rs485-modbus-to-lorawan-converter',
+      seenOn: SEEN2,
+    },
     gateway: { required: true, note: 'LoRaWAN gateway + network server.' },
     recurringCost: 'Network server',
     availability: 'in_stock',
@@ -423,7 +524,9 @@ export const METER_CATALOGUE: CatalogueEntry[] = [
     multiplierNote: 'Per your decoder field.',
     defaultChannel: '',
     channels: [],
-    setupSteps: LORA_STEPS('RS485-LB decoders exist for ChirpStack/TTN; configure one that outputs the kWh register as a numeric field.'),
+    setupSteps: LORA_STEPS(
+      'RS485-LB decoders exist for ChirpStack/TTN; configure one that outputs the kWh register as a numeric field.',
+    ),
     caveats: ['Billing grade comes from the Modbus meter, not the converter.'],
   },
   {
@@ -438,7 +541,13 @@ export const METER_CATALOGUE: CatalogueEntry[] = [
     meterConnectivity: 'lorawan',
     status: 'needs_hardware_testing',
     billingGrade: false,
-    price: { amountZar: 2297.7, vat: 'incl', supplier: 'MiRO', url: 'https://miro.co.za/4-iot---smart-home-milesight-milesight-sensors/7488-milesight-smart-current-transformer-mls-snsr-ct101-6976274567461.html', seenOn: SEEN2 },
+    price: {
+      amountZar: 2297.7,
+      vat: 'incl',
+      supplier: 'MiRO',
+      url: 'https://miro.co.za/4-iot---smart-home-milesight-milesight-sensors/7488-milesight-smart-current-transformer-mls-snsr-ct101-6976274567461.html',
+      seenOn: SEEN2,
+    },
     gateway: { required: true, note: 'LoRaWAN gateway.' },
     recurringCost: 'Gateway connectivity',
     availability: 'in_stock',
@@ -447,8 +556,13 @@ export const METER_CATALOGUE: CatalogueEntry[] = [
     multiplierNote: 'Per your decoder field (cumulative energy field required).',
     defaultChannel: '',
     channels: [],
-    setupSteps: LORA_STEPS('Use the Milesight CT101 codec in ChirpStack/TTS and bind the cumulative energy field.'),
-    caveats: ['Monitoring-grade.', 'With a Milesight gateway this device needs a codec configured; the built-in Proplyst decoder only knows the EM300-DI.'],
+    setupSteps: LORA_STEPS(
+      'Use the Milesight CT101 codec in ChirpStack/TTS and bind the cumulative energy field.',
+    ),
+    caveats: [
+      'Monitoring-grade.',
+      'With a Milesight gateway this device needs a codec configured; the built-in Proplyst decoder only knows the EM300-DI.',
+    ],
   },
   {
     id: 'thingsboard-device',
@@ -463,7 +577,10 @@ export const METER_CATALOGUE: CatalogueEntry[] = [
     status: 'needs_hardware_testing',
     billingGrade: false,
     price: null,
-    gateway: { required: false, note: 'Your ThingsBoard server (4.4+ is BSL-licensed; commercial use above 100 devices needs a licence).' },
+    gateway: {
+      required: false,
+      note: 'Your ThingsBoard server (4.4+ is BSL-licensed; commercial use above 100 devices needs a licence).',
+    },
     recurringCost: 'Your ThingsBoard hosting/licence',
     availability: 'unknown',
     docsUrl: 'https://thingsboard.io/docs/reference/rest-api/',
@@ -492,7 +609,10 @@ export const METER_CATALOGUE: CatalogueEntry[] = [
     status: 'supplier_approval',
     billingGrade: true,
     price: null,
-    gateway: { required: true, note: 'READy Concentrator (R20,114 on UtilityPal; VAT unconfirmed) or wM-Bus receiver.' },
+    gateway: {
+      required: true,
+      note: 'READy Concentrator (R20,114 on UtilityPal; VAT unconfirmed) or wM-Bus receiver.',
+    },
     recurringCost: 'READy subscription (partner terms)',
     availability: 'unknown',
     docsUrl: 'https://www.kamstrup.com/insights/api-access',
@@ -501,14 +621,17 @@ export const METER_CATALOGUE: CatalogueEntry[] = [
     defaultChannel: '',
     channels: [],
     setupSteps: [],
-    caveats: ['READy "API Access" is available only to Kamstrup-hosted READy customers.', 'Per-meter AES keys from Kamstrup.'],
+    caveats: [
+      'READy "API Access" is available only to Kamstrup-hosted READy customers.',
+      'Per-meter AES keys from Kamstrup.',
+    ],
   },
   {
     id: 'shelly-cloud-integrator',
     manufacturer: 'Shelly',
     model: 'Shelly Cloud (Integrator API)',
     utilityType: 'electricity',
-    description: 'Reading Shelly devices through Shelly\'s cloud instead of a push script.',
+    description: "Reading Shelly devices through Shelly's cloud instead of a push script.",
     roles: ['main', 'submeter'],
     connection: 'cloud',
     providers: [],
@@ -525,7 +648,9 @@ export const METER_CATALOGUE: CatalogueEntry[] = [
     defaultChannel: '',
     channels: [],
     setupSteps: [],
-    caveats: ['Licences for personal use are not provided; approval by Shelly required. Use the push script instead.'],
+    caveats: [
+      'Licences for personal use are not provided; approval by Shelly required. Use the push script instead.',
+    ],
   },
   // ------------------------------------------------------------------ unsupported
   {
@@ -533,7 +658,7 @@ export const METER_CATALOGUE: CatalogueEntry[] = [
     manufacturer: 'Citiq / Recharger / Conlog / Hexing / Landis+Gyr',
     model: 'Prepaid / vendor-managed submeters',
     utilityType: 'electricity',
-    description: 'Prepaid systems managed in the vendor\'s own portal.',
+    description: "Prepaid systems managed in the vendor's own portal.",
     roles: ['submeter'],
     connection: 'cloud',
     providers: [],
@@ -574,7 +699,9 @@ export const METER_CATALOGUE: CatalogueEntry[] = [
     defaultChannel: '',
     channels: [],
     setupSteps: [],
-    caveats: ['No SA retailer found; radio payload not published. A 620 with an HRI pulse unit can use the EM300-DI path instead.'],
+    caveats: [
+      'No SA retailer found; radio payload not published. A 620 with an HRI pulse unit can use the EM300-DI path instead.',
+    ],
   },
 ];
 

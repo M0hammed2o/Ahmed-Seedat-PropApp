@@ -79,9 +79,19 @@ export async function GET(request: NextRequest) {
   const propertiesWithCards = await Promise.all(
     properties.map(async (property) => {
       const coverRow = coverPhotoRows.get(property.id);
-      const coverPhotoUrl = coverRow ? await signCoverPhotoUrl(supabase, coverRow, 'card').catch(() => null) : null;
-      const occupancy = occupancyByProperty.get(property.id) ?? { unitCount: 0, occupiedUnitCount: 0 };
-      return { ...property, coverPhotoUrl, unitCount: occupancy.unitCount, occupiedUnitCount: occupancy.occupiedUnitCount };
+      const coverPhotoUrl = coverRow
+        ? await signCoverPhotoUrl(supabase, coverRow, 'card').catch(() => null)
+        : null;
+      const occupancy = occupancyByProperty.get(property.id) ?? {
+        unitCount: 0,
+        occupiedUnitCount: 0,
+      };
+      return {
+        ...property,
+        coverPhotoUrl,
+        unitCount: occupancy.unitCount,
+        occupiedUnitCount: occupancy.occupiedUnitCount,
+      };
     }),
   );
 
@@ -245,7 +255,11 @@ export async function POST(request: NextRequest) {
       {
         error: {
           code: 'property_fetch_failed',
-          message: safeErrorMessage(error, 'Could not load this property.', 'properties.fetchAfterCreate'),
+          message: safeErrorMessage(
+            error,
+            'Could not load this property.',
+            'properties.fetchAfterCreate',
+          ),
         },
       },
       { status: 500 },

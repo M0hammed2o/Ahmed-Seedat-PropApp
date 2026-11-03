@@ -144,8 +144,8 @@ export function UnitActionsPanel({
       {isPrincipal && eligibility && !eligibility.eligible ? (
         <div className="w-full text-[12px] text-muted-foreground">
           <p>
-            This unit has historical activity and cannot be permanently deleted. Archive it
-            instead to keep its records intact.
+            This unit has historical activity and cannot be permanently deleted. Archive it instead
+            to keep its records intact.
           </p>
           <ul className="mt-1 list-disc space-y-0.5 pl-4">
             {eligibility.blockers.map((blocker) => (

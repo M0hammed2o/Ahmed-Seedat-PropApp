@@ -22,7 +22,11 @@ const base: TariffV2 = {
   vatRate: 15,
   prorateBlocks: true,
 };
-const OCT = { segmentStart: sastInstant(2026, 9, 25), segmentEnd: sastInstant(2026, 10, 25), periodDays: 30 };
+const OCT = {
+  segmentStart: sastInstant(2026, 9, 25),
+  segmentEnd: sastInstant(2026, 10, 25),
+  periodDays: 30,
+};
 
 describe('money (decimal-safe)', () => {
   it('parses decimals exactly and rounds half-up', () => {
@@ -57,19 +61,29 @@ describe('block tariffs', () => {
     expect(r.ok).toBe(true);
     expect(r.lines.map((l) => l.exclCents)).toEqual([15_072, 16_416, 7_766]);
     expect(r.totals.exclCents).toBe(39_254);
-    expect(r.totals.vatCents).toBe(Math.round(15_072 * 0.15) + Math.round(16_416 * 0.15) + Math.round(7_766 * 0.15));
+    expect(r.totals.vatCents).toBe(
+      Math.round(15_072 * 0.15) + Math.round(16_416 * 0.15) + Math.round(7_766 * 0.15),
+    );
     expect(r.totals.inclCents).toBe(r.totals.exclCents + r.totals.vatCents);
   });
 
   it('treats VAT-inclusive rates as gross and backs VAT out', () => {
-    const r = computeTariffCharge({ ...base, vatInclusive: true, blocks: [{ upTo: null, rate: 28.75 }] }, { ...OCT, consumption: 10 });
+    const r = computeTariffCharge(
+      { ...base, vatInclusive: true, blocks: [{ upTo: null, rate: 28.75 }] },
+      { ...OCT, consumption: 10 },
+    );
     expect(r.totals).toEqual({ exclCents: 25_000, vatCents: 3_750, inclCents: 28_750 });
   });
 
   it('prorates fixed charge and block limits for a move-in part-way through the period', () => {
     const t = { ...base, fixedCharge: 90 };
     // 10 of 30 days: fixed R30; first block becomes 2 kL, second up to 3.5 kL
-    const r = computeTariffCharge(t, { segmentStart: sastInstant(2026, 10, 15), segmentEnd: sastInstant(2026, 10, 25), periodDays: 30, consumption: 4 });
+    const r = computeTariffCharge(t, {
+      segmentStart: sastInstant(2026, 10, 15),
+      segmentEnd: sastInstant(2026, 10, 25),
+      periodDays: 30,
+      consumption: 4,
+    });
     expect(r.prorationFactor).toBeCloseTo(1 / 3, 6);
     const fixed = r.lines.find((l) => l.kind === 'fixed')!;
     expect(fixed.exclCents).toBe(3_000);
@@ -78,7 +92,10 @@ describe('block tariffs', () => {
   });
 
   it('applies an included allowance before the blocks', () => {
-    const r = computeTariffCharge({ ...base, blocks: [{ upTo: null, rate: 30 }] }, { ...OCT, consumption: 8, allowanceQuantity: 6 });
+    const r = computeTariffCharge(
+      { ...base, blocks: [{ upTo: null, rate: 30 }] },
+      { ...OCT, consumption: 8, allowanceQuantity: 6 },
+    );
     expect(r.lines.find((l) => l.kind === 'allowance')!.quantity).toBe(6);
     expect(r.totals.exclCents).toBe(6_000); // 2 kL × R30
   });
@@ -115,14 +132,28 @@ describe('block tariffs', () => {
   });
 
   it('flags cost recovery for contractual and regulatory review', () => {
-    const r = computeTariffCharge({ ...base, kind: 'cost_recovery', utilityType: 'electricity', blocks: [{ upTo: null, rate: 2.1 }] }, { ...OCT, consumption: 100 });
+    const r = computeTariffCharge(
+      {
+        ...base,
+        kind: 'cost_recovery',
+        utilityType: 'electricity',
+        blocks: [{ upTo: null, rate: 2.1 }],
+      },
+      { ...OCT, consumption: 100 },
+    );
     expect(r.flags).toContain('cost_recovery_requires_contract_and_regulatory_review');
     expect(r.totals.exclCents).toBe(21_000);
   });
 
   it('charges nothing for prepaid pass-through and only the fixed part for fixed-only', () => {
-    expect(computeTariffCharge({ ...base, kind: 'prepaid_passthrough' }, { ...OCT, consumption: 99 }).totals.inclCents).toBe(0);
-    const f = computeTariffCharge({ ...base, kind: 'fixed_only', fixedCharge: 115, vatInclusive: true }, { ...OCT, consumption: null });
+    expect(
+      computeTariffCharge({ ...base, kind: 'prepaid_passthrough' }, { ...OCT, consumption: 99 })
+        .totals.inclCents,
+    ).toBe(0);
+    const f = computeTariffCharge(
+      { ...base, kind: 'fixed_only', fixedCharge: 115, vatInclusive: true },
+      { ...OCT, consumption: null },
+    );
     expect(f.ok).toBe(true);
     expect(f.totals.inclCents).toBe(11_500);
   });
@@ -136,9 +167,36 @@ describe('time-of-use tariffs', () => {
     utilityType: 'electricity',
     blocks: [],
     touPeriods: [
-      { name: 'Peak', rate: 5, windows: [{ days: 'weekday', from: '07:00', to: '10:00' }, { days: 'weekday', from: '18:00', to: '20:00' }] },
-      { name: 'Standard', rate: 3, windows: [{ days: 'weekday', from: '06:00', to: '07:00' }, { days: 'weekday', from: '10:00', to: '18:00' }, { days: 'weekday', from: '20:00', to: '22:00' }, { days: 'saturday', from: '07:00', to: '12:00' }, { days: 'saturday', from: '18:00', to: '20:00' }] },
-      { name: 'Off-peak', rate: 1, windows: [{ days: 'weekday', from: '22:00', to: '06:00' }, { days: 'saturday', from: '00:00', to: '07:00' }, { days: 'saturday', from: '12:00', to: '18:00' }, { days: 'saturday', from: '20:00', to: '00:00' }, { days: 'sunday', from: '00:00', to: '00:00' }] },
+      {
+        name: 'Peak',
+        rate: 5,
+        windows: [
+          { days: 'weekday', from: '07:00', to: '10:00' },
+          { days: 'weekday', from: '18:00', to: '20:00' },
+        ],
+      },
+      {
+        name: 'Standard',
+        rate: 3,
+        windows: [
+          { days: 'weekday', from: '06:00', to: '07:00' },
+          { days: 'weekday', from: '10:00', to: '18:00' },
+          { days: 'weekday', from: '20:00', to: '22:00' },
+          { days: 'saturday', from: '07:00', to: '12:00' },
+          { days: 'saturday', from: '18:00', to: '20:00' },
+        ],
+      },
+      {
+        name: 'Off-peak',
+        rate: 1,
+        windows: [
+          { days: 'weekday', from: '22:00', to: '06:00' },
+          { days: 'saturday', from: '00:00', to: '07:00' },
+          { days: 'saturday', from: '12:00', to: '18:00' },
+          { days: 'saturday', from: '20:00', to: '00:00' },
+          { days: 'sunday', from: '00:00', to: '00:00' },
+        ],
+      },
     ],
   };
 
@@ -150,7 +208,10 @@ describe('time-of-use tariffs', () => {
 
   it('prices hourly consumption by SAST weekday/weekend windows', () => {
     // Monday 2026-10-12 SAST: 1 kWh at 08:00 (peak), 1 kWh at 12:00 (standard), 1 kWh at 23:00 (off-peak); Sunday 1 kWh at 08:00 (off-peak)
-    const h = (y: number, m: number, d: number, hour: number) => ({ start: sastInstant(y, m, d, hour), value: 1 });
+    const h = (y: number, m: number, d: number, hour: number) => ({
+      start: sastInstant(y, m, d, hour),
+      value: 1,
+    });
     const r = computeTariffCharge(tou, {
       segmentStart: sastInstant(2026, 10, 11),
       segmentEnd: sastInstant(2026, 10, 13),
@@ -158,7 +219,11 @@ describe('time-of-use tariffs', () => {
       consumption: 4,
       hourly: [h(2026, 10, 12, 8), h(2026, 10, 12, 12), h(2026, 10, 12, 23), h(2026, 10, 11, 8)],
     });
-    expect(Object.fromEntries(r.lines.map((l) => [l.label, l.quantity]))).toEqual({ Peak: 1, Standard: 1, 'Off-peak': 2 });
+    expect(Object.fromEntries(r.lines.map((l) => [l.label, l.quantity]))).toEqual({
+      Peak: 1,
+      Standard: 1,
+      'Off-peak': 2,
+    });
     expect(r.totals.exclCents).toBe(500 + 300 + 200);
   });
 
@@ -171,7 +236,13 @@ describe('time-of-use tariffs', () => {
   it('applies seasonal TOU rates (high-demand winter months)', () => {
     const seasonal: TariffV2 = {
       ...tou,
-      seasons: [{ name: 'High-demand', months: [6, 7, 8], touPeriods: tou.touPeriods.map((p) => ({ ...p, rate: p.rate * 3 })) }],
+      seasons: [
+        {
+          name: 'High-demand',
+          months: [6, 7, 8],
+          touPeriods: tou.touPeriods.map((p) => ({ ...p, rate: p.rate * 3 })),
+        },
+      ],
     };
     const r = computeTariffCharge(seasonal, {
       segmentStart: sastInstant(2026, 7, 13),

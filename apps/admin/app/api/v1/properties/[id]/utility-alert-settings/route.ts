@@ -1,6 +1,15 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { utilityAlertSettingsSchema } from '@propvault/validation';
-import { canWriteUtilities, forbidden, loadReadableProperty, notFound, parseJson, requireUser, serverError, utilitiesDisabled } from '@/lib/smartUtility/http';
+import {
+  canWriteUtilities,
+  forbidden,
+  loadReadableProperty,
+  notFound,
+  parseJson,
+  requireUser,
+  serverError,
+  utilitiesDisabled,
+} from '@/lib/smartUtility/http';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -29,6 +38,12 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     },
     { onConflict: 'property_id' },
   );
-  if (error) return serverError('alert_settings_failed', 'Could not save the thresholds.', 'utility_alert_settings.upsert', error);
+  if (error)
+    return serverError(
+      'alert_settings_failed',
+      'Could not save the thresholds.',
+      'utility_alert_settings.upsert',
+      error,
+    );
   return NextResponse.json({ saved: true });
 }

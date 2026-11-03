@@ -7,8 +7,27 @@ import { SiteActions } from '@/components/cemetery/SiteActions';
 import { DemoNotice } from '@/components/cemetery/StatTile';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { getCemeteryContext } from '@/lib/cemetery/access';
-import { loadPayments, loadPurchasers, loadSiteEvents, withBalances, type BurialRow, type SiteEventRow, type CemeteryRow, type SaleRow, type SiteDocumentRow, type SiteRow } from '@/lib/cemetery/data';
-import { BURIAL_STATUS_LABEL, PAYMENT_METHOD_LABEL, SALE_STATUS_LABEL, SALE_STATUS_PILL, formatDate, formatZar, tenureTerms } from '@/lib/cemetery/terms';
+import {
+  loadPayments,
+  loadPurchasers,
+  loadSiteEvents,
+  withBalances,
+  type BurialRow,
+  type SiteEventRow,
+  type CemeteryRow,
+  type SaleRow,
+  type SiteDocumentRow,
+  type SiteRow,
+} from '@/lib/cemetery/data';
+import {
+  BURIAL_STATUS_LABEL,
+  PAYMENT_METHOD_LABEL,
+  SALE_STATUS_LABEL,
+  SALE_STATUS_PILL,
+  formatDate,
+  formatZar,
+  tenureTerms,
+} from '@/lib/cemetery/terms';
 import { UUID } from '@/lib/cemetery/http';
 
 export const dynamic = 'force-dynamic';
@@ -34,15 +53,35 @@ export default async function GraveSitePage({ params }: RouteParams) {
   if (!UUID.test(id)) notFound();
   const supabase = await getServerSupabaseClient();
 
-  const { data: siteData } = await supabase.from('cemetery_sites').select('*').eq('id', id).maybeSingle();
+  const { data: siteData } = await supabase
+    .from('cemetery_sites')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
   if (!siteData) notFound();
   const site = siteData as SiteRow;
-  const [{ data: cemeteryData }, { data: section }, { data: salesData }, { data: burialsData }, { data: docsData }, purchasers, events] = await Promise.all([
+  const [
+    { data: cemeteryData },
+    { data: section },
+    { data: salesData },
+    { data: burialsData },
+    { data: docsData },
+    purchasers,
+    events,
+  ] = await Promise.all([
     supabase.from('cemeteries').select('*').eq('id', site.cemetery_id).single(),
     supabase.from('cemetery_sections').select('code, name').eq('id', site.section_id).single(),
-    supabase.from('cemetery_sales').select('*').eq('site_id', id).order('created_at', { ascending: false }),
+    supabase
+      .from('cemetery_sales')
+      .select('*')
+      .eq('site_id', id)
+      .order('created_at', { ascending: false }),
     supabase.from('cemetery_burials').select('*').eq('site_id', id).order('interment_number'),
-    supabase.from('cemetery_site_documents').select('*').eq('site_id', id).order('created_at', { ascending: false }),
+    supabase
+      .from('cemetery_site_documents')
+      .select('*')
+      .eq('site_id', id)
+      .order('created_at', { ascending: false }),
     loadPurchasers(supabase),
     loadSiteEvents(supabase, { siteId: id }),
   ]);
@@ -57,17 +96,26 @@ export default async function GraveSitePage({ params }: RouteParams) {
   const saleNumber = new Map(sales.map((x) => [x.id, x.sale_number]));
   const purchaserById = new Map(purchasers.map((p) => [p.id, p]));
   const holder = active ? purchaserById.get(active.purchaser_id) : null;
-  const reservedFor = site.reserved_for_purchaser_id ? purchaserById.get(site.reserved_for_purchaser_id) : null;
-  const statusLabel = site.sale_status === 'sold' ? terms.sold : SALE_STATUS_LABEL[site.sale_status];
+  const reservedFor = site.reserved_for_purchaser_id
+    ? purchaserById.get(site.reserved_for_purchaser_id)
+    : null;
+  const statusLabel =
+    site.sale_status === 'sold' ? terms.sold : SALE_STATUS_LABEL[site.sale_status];
 
   return (
     <div className="space-y-5 animate-rise">
       <div>
-        <Link href={`/cemetery?cemeteryId=${cemetery.id}`} className="text-xs text-muted-foreground hover:underline">
+        <Link
+          href={`/cemetery?cemeteryId=${cemetery.id}`}
+          className="text-xs text-muted-foreground hover:underline"
+        >
           ← {cemetery.name}
         </Link>
         <div className="mt-2">
-          <PageHeader title={`Grave site ${site.reference}`} subtitle={`${section?.name ?? 'Section'} · ${site.row_label ?? '—'} · plot ${site.plot_position ?? '—'}`} />
+          <PageHeader
+            title={`Grave site ${site.reference}`}
+            subtitle={`${section?.name ?? 'Section'} · ${site.row_label ?? '—'} · plot ${site.plot_position ?? '—'}`}
+          />
         </div>
       </div>
       {cemetery.is_demo ? <DemoNotice /> : null}
@@ -110,17 +158,39 @@ export default async function GraveSitePage({ params }: RouteParams) {
           <dl className="grid grid-cols-2 gap-x-4 gap-y-4 text-sm">
             <Item label="Reference" value={site.reference} />
             <Item label="Cemetery / section" value={`${cemetery.name} · ${section?.code ?? ''}`} />
-            <Item label="Plot location (schematic)" value={`${site.row_label ?? '—'}, plot ${site.plot_position ?? '—'}`} />
-            <Item label="Dimensions" value={site.length_m && site.width_m ? `${Number(site.length_m)} m × ${Number(site.width_m)} m` : '—'} />
-            <Item label="Site type" value={`${site.site_type} · ${site.max_interments} interment${site.max_interments === 1 ? '' : 's'} allowed`} />
-            <Item label="List price" value={site.list_price != null ? formatZar(Number(site.list_price)) : '—'} />
+            <Item
+              label="Plot location (schematic)"
+              value={`${site.row_label ?? '—'}, plot ${site.plot_position ?? '—'}`}
+            />
+            <Item
+              label="Dimensions"
+              value={
+                site.length_m && site.width_m
+                  ? `${Number(site.length_m)} m × ${Number(site.width_m)} m`
+                  : '—'
+              }
+            />
+            <Item
+              label="Site type"
+              value={`${site.site_type} · ${site.max_interments} interment${site.max_interments === 1 ? '' : 's'} allowed`}
+            />
+            <Item
+              label="List price"
+              value={site.list_price != null ? formatZar(Number(site.list_price)) : '—'}
+            />
             {site.sale_status === 'reserved' ? (
               <>
-                <Item label="Reserved for" value={reservedFor ? reservedFor.full_name : '—'} href={reservedFor ? `/cemetery/purchasers/${reservedFor.id}` : undefined} />
+                <Item
+                  label="Reserved for"
+                  value={reservedFor ? reservedFor.full_name : '—'}
+                  href={reservedFor ? `/cemetery/purchasers/${reservedFor.id}` : undefined}
+                />
                 <Item label="Reserved until" value={formatDate(site.reserved_until)} />
               </>
             ) : null}
-            {site.sale_status === 'unavailable' ? <Item label="Why unavailable" value={site.unavailable_reason ?? '—'} wide /> : null}
+            {site.sale_status === 'unavailable' ? (
+              <Item label="Why unavailable" value={site.unavailable_reason ?? '—'} wide />
+            ) : null}
             <Item label="Internal notes" value={site.notes ?? '—'} wide />
           </dl>
         </Panel>
@@ -128,18 +198,39 @@ export default async function GraveSitePage({ params }: RouteParams) {
         <Panel title={terms.holder}>
           {active && holder ? (
             <dl className="grid grid-cols-2 gap-x-4 gap-y-4 text-sm">
-              <Item label="Name" value={holder.full_name} href={`/cemetery/purchasers/${holder.id}`} />
+              <Item
+                label="Name"
+                value={holder.full_name}
+                href={`/cemetery/purchasers/${holder.id}`}
+              />
               <Item label="Contact number" value={holder.phone ?? '—'} />
               <Item label="E-mail" value={holder.email ?? '—'} />
-              <Item label="Next of kin" value={holder.next_of_kin_name ? `${holder.next_of_kin_name}${holder.next_of_kin_relationship ? ` (${holder.next_of_kin_relationship})` : ''}` : '—'} />
-              <Item label={`${terms.sale} no.`} value={active.sale_number} href={`/cemetery/sales/${active.id}`} />
+              <Item
+                label="Next of kin"
+                value={
+                  holder.next_of_kin_name
+                    ? `${holder.next_of_kin_name}${holder.next_of_kin_relationship ? ` (${holder.next_of_kin_relationship})` : ''}`
+                    : '—'
+                }
+              />
+              <Item
+                label={`${terms.sale} no.`}
+                value={active.sale_number}
+                href={`/cemetery/sales/${active.id}`}
+              />
               <Item label="Date" value={formatDate(active.sale_date)} />
               <Item label={terms.price} value={formatZar(active.price, { cents: true })} />
               <Item label="Deposit / paid" value={formatZar(active.paid, { cents: true })} />
-              <Item label="Outstanding balance" value={formatZar(active.balance, { cents: true })} emphasis={active.balance > 0} />
+              <Item
+                label="Outstanding balance"
+                value={formatZar(active.balance, { cents: true })}
+                emphasis={active.balance > 0}
+              />
             </dl>
           ) : (
-            <p className="text-sm text-muted-foreground">No {terms.holderLower} — this site has not been sold.</p>
+            <p className="text-sm text-muted-foreground">
+              No {terms.holderLower} — this site has not been sold.
+            </p>
           )}
         </Panel>
       </div>
@@ -162,15 +253,26 @@ export default async function GraveSitePage({ params }: RouteParams) {
                 {payments.map((p) => (
                   <tr key={p.id}>
                     <td className="px-5 py-2">
-                      <Link href={`/cemetery/receipts/${p.id}`} className="font-medium text-primary hover:underline">
+                      <Link
+                        href={`/cemetery/receipts/${p.id}`}
+                        className="font-medium text-primary hover:underline"
+                      >
                         {p.receipt_number}
                       </Link>
-                      {p.is_deposit ? <span className="ml-2 text-[11px] text-muted-foreground">deposit</span> : null}
-                      {p.is_demo ? <span className="ml-2 text-[11px] text-warning-foreground">demo</span> : null}
+                      {p.is_deposit ? (
+                        <span className="ml-2 text-[11px] text-muted-foreground">deposit</span>
+                      ) : null}
+                      {p.is_demo ? (
+                        <span className="ml-2 text-[11px] text-warning-foreground">demo</span>
+                      ) : null}
                     </td>
                     <td className="px-3 py-2 text-muted-foreground">{formatDate(p.paid_on)}</td>
-                    <td className="px-3 py-2 text-muted-foreground">{PAYMENT_METHOD_LABEL[p.method]}</td>
-                    <td className="tabular px-3 py-2 text-right font-medium text-foreground">{formatZar(p.amount, { cents: true })}</td>
+                    <td className="px-3 py-2 text-muted-foreground">
+                      {PAYMENT_METHOD_LABEL[p.method]}
+                    </td>
+                    <td className="tabular px-3 py-2 text-right font-medium text-foreground">
+                      {formatZar(p.amount, { cents: true })}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -188,11 +290,15 @@ export default async function GraveSitePage({ params }: RouteParams) {
               {burials.map((b) => (
                 <li key={b.id} className="rounded-lg border border-border p-3">
                   <p className="font-semibold text-foreground">
-                    {b.deceased_full_name} <span className="font-normal text-muted-foreground">· interment {b.interment_number}</span>
+                    {b.deceased_full_name}{' '}
+                    <span className="font-normal text-muted-foreground">
+                      · interment {b.interment_number}
+                    </span>
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     {b.date_of_birth ? `Born ${formatDate(b.date_of_birth)} · ` : ''}
-                    {b.date_of_death ? `Died ${formatDate(b.date_of_death)} · ` : ''}Buried {formatDate(b.burial_date)}
+                    {b.date_of_death ? `Died ${formatDate(b.date_of_death)} · ` : ''}Buried{' '}
+                    {formatDate(b.burial_date)}
                   </p>
                   {b.burial_order_number || b.funeral_undertaker ? (
                     <p className="mt-1 text-xs text-muted-foreground">
@@ -210,7 +316,10 @@ export default async function GraveSitePage({ params }: RouteParams) {
           <ul className="space-y-2 text-sm">
             {active ? (
               <li>
-                <Link href={`/cemetery/sales/${active.id}`} className="font-medium text-primary hover:underline">
+                <Link
+                  href={`/cemetery/sales/${active.id}`}
+                  className="font-medium text-primary hover:underline"
+                >
                   {terms.recordTitle} {active.sale_number}
                 </Link>{' '}
                 <span className="text-xs text-muted-foreground">· generated by Proplyst</span>
@@ -218,7 +327,10 @@ export default async function GraveSitePage({ params }: RouteParams) {
             ) : null}
             {payments.map((p) => (
               <li key={p.id}>
-                <Link href={`/cemetery/receipts/${p.id}`} className="font-medium text-primary hover:underline">
+                <Link
+                  href={`/cemetery/receipts/${p.id}`}
+                  className="font-medium text-primary hover:underline"
+                >
                   Receipt {p.receipt_number}
                 </Link>{' '}
                 <span className="text-xs text-muted-foreground">· generated by Proplyst</span>
@@ -233,27 +345,46 @@ export default async function GraveSitePage({ params }: RouteParams) {
                 </span>
               </li>
             ))}
-            {!active && payments.length === 0 && docs.length === 0 ? <li className="text-muted-foreground">No documents.</li> : null}
+            {!active && payments.length === 0 && docs.length === 0 ? (
+              <li className="text-muted-foreground">No documents.</li>
+            ) : null}
           </ul>
         </Panel>
       </div>
 
-      <Panel title="Site history" description="Every status change with its effective date (oldest first)" bodyClassName="p-0">
+      <Panel
+        title="Site history"
+        description="Every status change with its effective date (oldest first)"
+        bodyClassName="p-0"
+      >
         {events.length === 0 ? (
-          <p className="px-5 py-5 text-sm text-muted-foreground">No history yet — the site has been available since it was set up.</p>
+          <p className="px-5 py-5 text-sm text-muted-foreground">
+            No history yet — the site has been available since it was set up.
+          </p>
         ) : (
           <ol className="divide-y divide-border">
             {events.map((e) => (
-              <li key={e.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-5 py-2.5 text-sm">
-                <span className="w-24 shrink-0 tabular text-xs text-muted-foreground">{formatDate(e.event_date)}</span>
+              <li
+                key={e.id}
+                className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-5 py-2.5 text-sm"
+              >
+                <span className="w-24 shrink-0 tabular text-xs text-muted-foreground">
+                  {formatDate(e.event_date)}
+                </span>
                 <span className="font-medium text-foreground">{EVENT_LABEL[e.event_type]}</span>
                 {e.purchaser_id && purchaserById.get(e.purchaser_id) ? (
-                  <Link href={`/cemetery/purchasers/${e.purchaser_id}`} className="text-xs text-primary hover:underline">
+                  <Link
+                    href={`/cemetery/purchasers/${e.purchaser_id}`}
+                    className="text-xs text-primary hover:underline"
+                  >
                     {purchaserById.get(e.purchaser_id)!.full_name}
                   </Link>
                 ) : null}
                 {e.sale_id ? (
-                  <Link href={`/cemetery/sales/${e.sale_id}`} className="text-xs text-muted-foreground hover:underline">
+                  <Link
+                    href={`/cemetery/sales/${e.sale_id}`}
+                    className="text-xs text-muted-foreground hover:underline"
+                  >
                     {saleNumber.get(e.sale_id) ?? 'sale'}
                   </Link>
                 ) : null}
@@ -267,7 +398,19 @@ export default async function GraveSitePage({ params }: RouteParams) {
   );
 }
 
-function Item({ label, value, href, wide, emphasis }: { label: string; value: string; href?: string; wide?: boolean; emphasis?: boolean }) {
+function Item({
+  label,
+  value,
+  href,
+  wide,
+  emphasis,
+}: {
+  label: string;
+  value: string;
+  href?: string;
+  wide?: boolean;
+  emphasis?: boolean;
+}) {
   return (
     <div className={wide ? 'col-span-2' : ''}>
       <dt className="text-xs text-muted-foreground">{label}</dt>

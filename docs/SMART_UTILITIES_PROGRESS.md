@@ -13,31 +13,31 @@ municipal packs (email/CSV/PDF, authorised recipients, retries), property → Ut
 
 ## Gap analysis: 2026-10-10 brief vs Phase 1
 
-| Brief item | Phase 1 state | Work this session |
-| --- | --- | --- |
-| §2 catalogue doc with 4-level classification | research doc, no classification | `SA_SMART_METER_CATALOGUE.md` |
-| §3 universal engine: auth, registration, verification, sync, health, retries, encrypted credentials | push-only parse functions; no credential store (TD-52) | provider interface + registry; AES-256-GCM credential encryption; poll sync with back-off; ChirpStack v4 + The Things Stack push adapters; ThingsBoard poll adapter |
-| §4 structure | done | — |
-| §5 Add Smart Meter catalogue experience, guided setup, test connection, first reading, integration requests | single form | catalogue wizard + request-integration |
-| §6 dashboard: daily/weekly/monthly, unit comparison, missing readings, estimated labelling, alert config | daily 30-day chart, totals, alerts | granularity switch, unit comparison, missing readings, threshold settings UI |
-| §7 municipal: CC, account holder, custom message, template editor, field toggles, preview, test send, approve template, enable schedule, statuses incl. scheduled | settings + recipients + approve per pack | all of these + rendered-email snapshot audit trail |
-| §8 meter evidence: verification status, evidence report PDF, example report | photo upload only | verification workflow, evidence PDF, example report |
-| §9 jobs: sync, snapshots, reminders | health/anomalies/packs/retries | poll sync, monthly snapshots, approval reminders |
-| §10 billing: tariffs, fixed charges, unit allocation, review, invoice lines, history | none | tariffs (block + fixed), draft→approved→invoiced charges, draft invoices via `create_manual_invoice()` |
+| Brief item                                                                                                                                                        | Phase 1 state                                          | Work this session                                                                                                                                                   |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| §2 catalogue doc with 4-level classification                                                                                                                      | research doc, no classification                        | `SA_SMART_METER_CATALOGUE.md`                                                                                                                                       |
+| §3 universal engine: auth, registration, verification, sync, health, retries, encrypted credentials                                                               | push-only parse functions; no credential store (TD-52) | provider interface + registry; AES-256-GCM credential encryption; poll sync with back-off; ChirpStack v4 + The Things Stack push adapters; ThingsBoard poll adapter |
+| §4 structure                                                                                                                                                      | done                                                   | —                                                                                                                                                                   |
+| §5 Add Smart Meter catalogue experience, guided setup, test connection, first reading, integration requests                                                       | single form                                            | catalogue wizard + request-integration                                                                                                                              |
+| §6 dashboard: daily/weekly/monthly, unit comparison, missing readings, estimated labelling, alert config                                                          | daily 30-day chart, totals, alerts                     | granularity switch, unit comparison, missing readings, threshold settings UI                                                                                        |
+| §7 municipal: CC, account holder, custom message, template editor, field toggles, preview, test send, approve template, enable schedule, statuses incl. scheduled | settings + recipients + approve per pack               | all of these + rendered-email snapshot audit trail                                                                                                                  |
+| §8 meter evidence: verification status, evidence report PDF, example report                                                                                       | photo upload only                                      | verification workflow, evidence PDF, example report                                                                                                                 |
+| §9 jobs: sync, snapshots, reminders                                                                                                                               | health/anomalies/packs/retries                         | poll sync, monthly snapshots, approval reminders                                                                                                                    |
+| §10 billing: tariffs, fixed charges, unit allocation, review, invoice lines, history                                                                              | none                                                   | tariffs (block + fixed), draft→approved→invoiced charges, draft invoices via `create_manual_invoice()`                                                              |
 
 ## Milestones
 
-| # | Milestone | Status |
-| --- | --- | --- |
-| M0 | Commit Phase 1; continuity docs | Completed |
-| M1 | Migration 176 (credentials, sync state, integration requests, evidence verification, template/approval, scheduled status, snapshots, tariffs, charges) + pgTAP; 177 (meter location) | Completed (`3badd96`, `751524f`) |
-| M2 | Provider engine + new adapters + credential encryption + sync job | Completed (`3badd96`) |
-| M3 | Catalogue + Add Smart Meter wizard + integration requests | Completed (`751524f`) |
-| M4 | Dashboard extensions | Completed (`751524f`) |
-| M5 | Municipal template editor, preview, test send, approval, scheduling | Completed (`b03d436`) |
-| M6 | Evidence verification + evidence report + example | Completed (`d2b8b3e`) |
-| M7 | Billing: tariffs, charges, invoice drafts | Completed (`81f2db8`) |
-| M8 | Jobs tests, browser walk-through, regression, review fixes, docs | Completed (`9143f7c`, `6b40f66`) |
+| #   | Milestone                                                                                                                                                                            | Status                           |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------- |
+| M0  | Commit Phase 1; continuity docs                                                                                                                                                      | Completed                        |
+| M1  | Migration 176 (credentials, sync state, integration requests, evidence verification, template/approval, scheduled status, snapshots, tariffs, charges) + pgTAP; 177 (meter location) | Completed (`3badd96`, `751524f`) |
+| M2  | Provider engine + new adapters + credential encryption + sync job                                                                                                                    | Completed (`3badd96`)            |
+| M3  | Catalogue + Add Smart Meter wizard + integration requests                                                                                                                            | Completed (`751524f`)            |
+| M4  | Dashboard extensions                                                                                                                                                                 | Completed (`751524f`)            |
+| M5  | Municipal template editor, preview, test send, approval, scheduling                                                                                                                  | Completed (`b03d436`)            |
+| M6  | Evidence verification + evidence report + example                                                                                                                                    | Completed (`d2b8b3e`)            |
+| M7  | Billing: tariffs, charges, invoice drafts                                                                                                                                            | Completed (`81f2db8`)            |
+| M8  | Jobs tests, browser walk-through, regression, review fixes, docs                                                                                                                     | Completed (`9143f7c`, `6b40f66`) |
 
 ## Checkpoint (2026-10-10, end of session)
 

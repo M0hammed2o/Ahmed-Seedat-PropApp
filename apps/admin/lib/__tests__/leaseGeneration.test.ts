@@ -36,13 +36,15 @@ const FULL_FIELDS: LeaseMergeFields = {
   unit_label: 'Unit 601',
   monthly_rent: 'R 12,500',
   lease_start_date: '2026-09-01',
-  landlord_name: 'Mo\'s Properties',
-  organisation_name: 'Mo\'s Properties (Pty) Ltd',
+  landlord_name: "Mo's Properties",
+  organisation_name: "Mo's Properties (Pty) Ltd",
 };
 
 describe('mergeLeaseTemplate', () => {
   it('merges known placeholders into the document', () => {
-    const template = buildTemplate(paragraph('Tenant: {{tenant_full_name}}, Rent: {{monthly_rent}}'));
+    const template = buildTemplate(
+      paragraph('Tenant: {{tenant_full_name}}, Rent: {{monthly_rent}}'),
+    );
     const result = mergeLeaseTemplate(template, FULL_FIELDS);
     expect(result.ok).toBe(true);
     if (result.ok) {
@@ -54,7 +56,9 @@ describe('mergeLeaseTemplate', () => {
   });
 
   it('renders an unknown/unfilled optional placeholder as blank, never invented text', () => {
-    const template = buildTemplate(paragraph('Parking: {{parking}} Special: {{special_conditions}}'));
+    const template = buildTemplate(
+      paragraph('Parking: {{parking}} Special: {{special_conditions}}'),
+    );
     const result = mergeLeaseTemplate(template, FULL_FIELDS);
     expect(result.ok).toBe(true);
     if (result.ok) {

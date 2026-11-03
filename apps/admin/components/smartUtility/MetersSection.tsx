@@ -5,7 +5,11 @@ import { Button } from '@/components/ui/Button';
 import { Panel } from '@/components/ui/Panel';
 import { AddMeterWizard } from './AddMeterWizard';
 import { ReadingHistory } from './ReadingHistory';
-import { DEVICE_MODELS, INTERVALS_BY_CONNECTIVITY, intervalLabel } from '@/lib/smartUtility/catalog';
+import {
+  DEVICE_MODELS,
+  INTERVALS_BY_CONNECTIVITY,
+  intervalLabel,
+} from '@/lib/smartUtility/catalog';
 import {
   api,
   Badge,
@@ -61,21 +65,59 @@ export function MetersSection({
     <Panel
       title="Meters"
       description="Main meters, building check meters and unit meters"
-      actions={canManage ? <Button size="sm" onClick={() => setAdding((v) => !v)}>{adding ? 'Close' : 'Add meter'}</Button> : null}
+      actions={
+        canManage ? (
+          <Button size="sm" onClick={() => setAdding((v) => !v)}>
+            {adding ? 'Close' : 'Add meter'}
+          </Button>
+        ) : null
+      }
     >
-      {adding ? <AddMeterWizard data={data} onDone={() => { setAdding(false); onChanged(); }} /> : null}
-      {replacing ? (
-        <MeterForm data={data} replacing={replacing} onDone={() => { setReplacing(null); onChanged(); }} />
+      {adding ? (
+        <AddMeterWizard
+          data={data}
+          onDone={() => {
+            setAdding(false);
+            onChanged();
+          }}
+        />
       ) : null}
-      {historyFor ? <ReadingHistory data={data} meter={historyFor} canManage={canManage} onClose={() => { setHistoryFor(null); onChanged(); }} /> : null}
+      {replacing ? (
+        <MeterForm
+          data={data}
+          replacing={replacing}
+          onDone={() => {
+            setReplacing(null);
+            onChanged();
+          }}
+        />
+      ) : null}
+      {historyFor ? (
+        <ReadingHistory
+          data={data}
+          meter={historyFor}
+          canManage={canManage}
+          onClose={() => {
+            setHistoryFor(null);
+            onChanged();
+          }}
+        />
+      ) : null}
       {readingFor ? (
-        <ManualReadingForm data={data} meter={readingFor} onDone={() => { setReadingFor(null); onChanged(); }} />
+        <ManualReadingForm
+          data={data}
+          meter={readingFor}
+          onDone={() => {
+            setReadingFor(null);
+            onChanged();
+          }}
+        />
       ) : null}
 
       {ordered.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          No meters yet. Add the municipal (main) meter first, then any unit meters. Meters without smart hardware can still
-          be read by hand.
+          No meters yet. Add the municipal (main) meter first, then any unit meters. Meters without
+          smart hardware can still be read by hand.
         </p>
       ) : (
         <div className="overflow-x-auto">
@@ -92,7 +134,10 @@ export function MetersSection({
             </thead>
             <tbody>
               {ordered.map((m) => (
-                <tr key={m.id} className="border-t border-light-border align-top dark:border-dark-border">
+                <tr
+                  key={m.id}
+                  className="border-t border-light-border align-top dark:border-dark-border"
+                >
                   <td className="py-2 pr-3">
                     <div className="font-medium text-foreground">{meterLabel(m, data.units)}</div>
                     <div className="text-xs text-muted-foreground">
@@ -104,36 +149,59 @@ export function MetersSection({
                   <td className="py-2 pr-3 capitalize">{m.meterRole}</td>
                   <td className="py-2 pr-3">
                     {fmtNumber(m.lastReading, 3)} {m.displayUnit}
-                    <div className="text-xs text-muted-foreground">{fmtDateTime(m.lastReadingAt)}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {fmtDateTime(m.lastReadingAt)}
+                    </div>
                   </td>
                   <td className="py-2 pr-3">
                     {fmtNumber(m.periodToDate.consumption, 3)} {m.displayUnit}
-                    {m.periodToDate.quality === 'partial' ? <span className="ml-1 text-xs text-muted-foreground">(partial)</span> : null}
+                    {m.periodToDate.quality === 'partial' ? (
+                      <span className="ml-1 text-xs text-muted-foreground">(partial)</span>
+                    ) : null}
                     {m.estimatedCostToDate !== null ? (
-                      <div className="text-xs text-muted-foreground">≈ {fmtRand(m.estimatedCostToDate)}</div>
+                      <div className="text-xs text-muted-foreground">
+                        ≈ {fmtRand(m.estimatedCostToDate)}
+                      </div>
                     ) : null}
                   </td>
                   <td className="py-2 pr-3">
-                    <Badge tone={HEALTH_TONE[m.healthStatus] ?? 'neutral'}>{HEALTH_LABEL[m.healthStatus] ?? m.healthStatus}</Badge>
+                    <Badge tone={HEALTH_TONE[m.healthStatus] ?? 'neutral'}>
+                      {HEALTH_LABEL[m.healthStatus] ?? m.healthStatus}
+                    </Badge>
                     {m.readingsLast24h.missing ? (
                       <div className="mt-1 text-[11px] text-light-warning dark:text-dark-warning">
-                        {m.readingsLast24h.missing} of {m.readingsLast24h.expected} readings missing (24 h)
+                        {m.readingsLast24h.missing} of {m.readingsLast24h.expected} readings missing
+                        (24 h)
                       </div>
                     ) : null}
-                    {m.latestReadingStatus === 'suspect' ? <div className="mt-1 text-[11px] text-muted-foreground">Latest reading flagged</div> : null}
+                    {m.latestReadingStatus === 'suspect' ? (
+                      <div className="mt-1 text-[11px] text-muted-foreground">
+                        Latest reading flagged
+                      </div>
+                    ) : null}
                   </td>
                   {canManage ? (
                     <td className="py-2">
                       <div className="flex flex-wrap gap-1">
-                        <Button size="sm" variant="secondary" onClick={() => setHistoryFor(m)}>History</Button>
-                        <Button size="sm" variant="secondary" onClick={() => setReadingFor(m)}>Reading</Button>
-                        <Button size="sm" variant="secondary" onClick={() => setReplacing(m)}>Replace</Button>
-                        <Button size="sm" variant="secondary" onClick={() => decommission(m)}>Retire</Button>
+                        <Button size="sm" variant="secondary" onClick={() => setHistoryFor(m)}>
+                          History
+                        </Button>
+                        <Button size="sm" variant="secondary" onClick={() => setReadingFor(m)}>
+                          Reading
+                        </Button>
+                        <Button size="sm" variant="secondary" onClick={() => setReplacing(m)}>
+                          Replace
+                        </Button>
+                        <Button size="sm" variant="secondary" onClick={() => decommission(m)}>
+                          Retire
+                        </Button>
                       </div>
                     </td>
                   ) : (
                     <td className="py-2">
-                      <Button size="sm" variant="secondary" onClick={() => setHistoryFor(m)}>History</Button>
+                      <Button size="sm" variant="secondary" onClick={() => setHistoryFor(m)}>
+                        History
+                      </Button>
                     </td>
                   )}
                 </tr>
@@ -151,13 +219,30 @@ export function MetersSection({
   );
 }
 
-function MeterForm({ data, replacing, onDone }: { data: Overview; replacing?: MeterSummary; onDone: () => void }) {
-  const [utilityType, setUtilityType] = useState<'water' | 'electricity'>(replacing?.utilityType ?? 'water');
-  const models = useMemo(() => DEVICE_MODELS.filter((m) => m.utilityType === utilityType), [utilityType]);
+function MeterForm({
+  data,
+  replacing,
+  onDone,
+}: {
+  data: Overview;
+  replacing?: MeterSummary;
+  onDone: () => void;
+}) {
+  const [utilityType, setUtilityType] = useState<'water' | 'electricity'>(
+    replacing?.utilityType ?? 'water',
+  );
+  const models = useMemo(
+    () => DEVICE_MODELS.filter((m) => m.utilityType === utilityType),
+    [utilityType],
+  );
   const [modelIdx, setModelIdx] = useState(0);
   const model = models[modelIdx] ?? models[0]!;
-  const [meterRole, setMeterRole] = useState<'main' | 'submeter' | 'check'>(replacing?.meterRole ?? 'main');
-  const [ownership, setOwnership] = useState<'municipal' | 'private'>(replacing?.ownership ?? 'municipal');
+  const [meterRole, setMeterRole] = useState<'main' | 'submeter' | 'check'>(
+    replacing?.meterRole ?? 'main',
+  );
+  const [ownership, setOwnership] = useState<'municipal' | 'private'>(
+    replacing?.ownership ?? 'municipal',
+  );
   const [unitId, setUnitId] = useState(replacing?.unitId ?? '');
   const [parentMeterId, setParentMeterId] = useState(replacing?.parentMeterId ?? '');
   const [integrationId, setIntegrationId] = useState('');
@@ -166,15 +251,29 @@ function MeterForm({ data, replacing, onDone }: { data: Overview; replacing?: Me
   const [multiplier, setMultiplier] = useState(String(model.defaultMultiplier));
   const [startReading, setStartReading] = useState('');
   const [registerDigits, setRegisterDigits] = useState('');
-  const [readInterval, setReadInterval] = useState(String(INTERVALS_BY_CONNECTIVITY[model.connectivity][1] ?? ''));
+  const [readInterval, setReadInterval] = useState(
+    String(INTERVALS_BY_CONNECTIVITY[model.connectivity][1] ?? ''),
+  );
   const [tariff, setTariff] = useState('');
   const [meterNumber, setMeterNumber] = useState('');
   const [serialNumber, setSerialNumber] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const integrations = data.integrations.filter((i) => i.status === 'active' && (!model.provider || i.provider === model.provider || i.provider === 'simulator' || (model.provider === 'generic_json' && i.provider === 'generic_json')));
-  const parents = data.meters.filter((m) => m.active && m.utilityType === utilityType && (m.meterRole === 'main' || m.meterRole === 'check'));
+  const integrations = data.integrations.filter(
+    (i) =>
+      i.status === 'active' &&
+      (!model.provider ||
+        i.provider === model.provider ||
+        i.provider === 'simulator' ||
+        (model.provider === 'generic_json' && i.provider === 'generic_json')),
+  );
+  const parents = data.meters.filter(
+    (m) =>
+      m.active &&
+      m.utilityType === utilityType &&
+      (m.meterRole === 'main' || m.meterRole === 'check'),
+  );
   const connected = model.connectivity !== 'manual';
 
   function pickModel(i: number) {
@@ -182,14 +281,22 @@ function MeterForm({ data, replacing, onDone }: { data: Overview; replacing?: Me
     const m = models[i]!;
     setMultiplier(String(m.defaultMultiplier));
     setExternalChannel(m.channels[0]?.value ?? '');
-    setReadInterval(String(INTERVALS_BY_CONNECTIVITY[m.connectivity][1] ?? INTERVALS_BY_CONNECTIVITY[m.connectivity][0] ?? ''));
+    setReadInterval(
+      String(
+        INTERVALS_BY_CONNECTIVITY[m.connectivity][1] ??
+          INTERVALS_BY_CONNECTIVITY[m.connectivity][0] ??
+          '',
+      ),
+    );
   }
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const offsetBase = startReading ? Number(startReading) * (utilityType === 'water' ? 1000 : 1) : 0;
+    const offsetBase = startReading
+      ? Number(startReading) * (utilityType === 'water' ? 1000 : 1)
+      : 0;
     const body = {
       utilityType,
       meterRole,
@@ -221,22 +328,39 @@ function MeterForm({ data, replacing, onDone }: { data: Overview; replacing?: Me
   }
 
   return (
-    <form onSubmit={submit} className="mb-4 space-y-3 rounded-md border border-light-border p-4 dark:border-dark-border">
+    <form
+      onSubmit={submit}
+      className="mb-4 space-y-3 rounded-md border border-light-border p-4 dark:border-dark-border"
+    >
       <div className="text-sm font-medium text-foreground">
-        {replacing ? `Replace ${meterLabel(replacing, data.units)} (history is kept)` : 'Add a meter'}
+        {replacing
+          ? `Replace ${meterLabel(replacing, data.units)} (history is kept)`
+          : 'Add a meter'}
       </div>
       {error ? <div className={errorClass}>{error}</div> : null}
       <div className="grid gap-3 sm:grid-cols-3">
         <label className={labelClass}>
           Utility
-          <select className={inputClass} value={utilityType} disabled={!!replacing} onChange={(e) => { setUtilityType(e.target.value as 'water' | 'electricity'); setModelIdx(0); }}>
+          <select
+            className={inputClass}
+            value={utilityType}
+            disabled={!!replacing}
+            onChange={(e) => {
+              setUtilityType(e.target.value as 'water' | 'electricity');
+              setModelIdx(0);
+            }}
+          >
             <option value="water">Water</option>
             <option value="electricity">Electricity</option>
           </select>
         </label>
         <label className={labelClass}>
           Meter type
-          <select className={inputClass} value={meterRole} onChange={(e) => setMeterRole(e.target.value as typeof meterRole)}>
+          <select
+            className={inputClass}
+            value={meterRole}
+            onChange={(e) => setMeterRole(e.target.value as typeof meterRole)}
+          >
             <option value="main">Main property meter</option>
             <option value="check">Building check meter</option>
             <option value="submeter">Unit meter (submeter)</option>
@@ -244,7 +368,11 @@ function MeterForm({ data, replacing, onDone }: { data: Overview; replacing?: Me
         </label>
         <label className={labelClass}>
           Who owns it
-          <select className={inputClass} value={ownership} onChange={(e) => setOwnership(e.target.value as typeof ownership)}>
+          <select
+            className={inputClass}
+            value={ownership}
+            onChange={(e) => setOwnership(e.target.value as typeof ownership)}
+          >
             <option value="municipal">Municipality (official meter)</option>
             <option value="private">Private (installed by the owner)</option>
           </select>
@@ -253,94 +381,211 @@ function MeterForm({ data, replacing, onDone }: { data: Overview; replacing?: Me
           <>
             <label className={labelClass}>
               Unit
-              <select className={inputClass} value={unitId} onChange={(e) => setUnitId(e.target.value)} required>
+              <select
+                className={inputClass}
+                value={unitId}
+                onChange={(e) => setUnitId(e.target.value)}
+                required
+              >
                 <option value="">Choose a unit</option>
-                {data.units.map((u) => <option key={u.id} value={u.id}>{u.unit_label}</option>)}
+                {data.units.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.unit_label}
+                  </option>
+                ))}
               </select>
             </label>
             <label className={labelClass}>
               Fed by (main/check meter)
-              <select className={inputClass} value={parentMeterId} onChange={(e) => setParentMeterId(e.target.value)}>
+              <select
+                className={inputClass}
+                value={parentMeterId}
+                onChange={(e) => setParentMeterId(e.target.value)}
+              >
                 <option value="">Not specified</option>
-                {parents.map((m) => <option key={m.id} value={m.id}>{meterLabel(m, data.units)}</option>)}
+                {parents.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {meterLabel(m, data.units)}
+                  </option>
+                ))}
               </select>
             </label>
           </>
         ) : null}
         <label className={labelClass}>
           Meter number (as on the meter / account)
-          <input className={inputClass} value={meterNumber} onChange={(e) => setMeterNumber(e.target.value)} maxLength={100} />
+          <input
+            className={inputClass}
+            value={meterNumber}
+            onChange={(e) => setMeterNumber(e.target.value)}
+            maxLength={100}
+          />
         </label>
         <label className={labelClass}>
           Serial number
-          <input className={inputClass} value={serialNumber} onChange={(e) => setSerialNumber(e.target.value)} maxLength={100} />
+          <input
+            className={inputClass}
+            value={serialNumber}
+            onChange={(e) => setSerialNumber(e.target.value)}
+            maxLength={100}
+          />
         </label>
         <label className={`${labelClass} sm:col-span-2`}>
           Hardware
-          <select className={inputClass} value={modelIdx} onChange={(e) => pickModel(Number(e.target.value))}>
-            {models.map((m, i) => <option key={`${m.manufacturer}-${m.model}`} value={i}>{m.manufacturer === 'Other' ? m.model : `${m.manufacturer} ${m.model}`}</option>)}
+          <select
+            className={inputClass}
+            value={modelIdx}
+            onChange={(e) => pickModel(Number(e.target.value))}
+          >
+            {models.map((m, i) => (
+              <option key={`${m.manufacturer}-${m.model}`} value={i}>
+                {m.manufacturer === 'Other' ? m.model : `${m.manufacturer} ${m.model}`}
+              </option>
+            ))}
           </select>
         </label>
       </div>
-      <p className={noteClass}>{model.note}{model.billingGrade ? '' : ' Not a billing-grade meter on its own.'}</p>
+      <p className={noteClass}>
+        {model.note}
+        {model.billingGrade ? '' : ' Not a billing-grade meter on its own.'}
+      </p>
 
       {connected ? (
         <div className="grid gap-3 sm:grid-cols-3">
           <label className={labelClass}>
             Connection
-            <select className={inputClass} value={integrationId} onChange={(e) => setIntegrationId(e.target.value)} required>
-              <option value="">{integrations.length ? 'Choose a gateway / connection' : 'Create a connection first (Hardware connections)'}</option>
-              {integrations.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
+            <select
+              className={inputClass}
+              value={integrationId}
+              onChange={(e) => setIntegrationId(e.target.value)}
+              required
+            >
+              <option value="">
+                {integrations.length
+                  ? 'Choose a gateway / connection'
+                  : 'Create a connection first (Hardware connections)'}
+              </option>
+              {integrations.map((i) => (
+                <option key={i.id} value={i.id}>
+                  {i.name}
+                </option>
+              ))}
             </select>
           </label>
           <label className={labelClass}>
             Device ID {model.provider === 'milesight_lorawan' ? '(DevEUI, 16 hex characters)' : ''}
-            <input className={inputClass} value={externalDeviceId} onChange={(e) => setExternalDeviceId(e.target.value)} required maxLength={100} />
+            <input
+              className={inputClass}
+              value={externalDeviceId}
+              onChange={(e) => setExternalDeviceId(e.target.value)}
+              required
+              maxLength={100}
+            />
           </label>
           <label className={labelClass}>
             Channel
-            <select className={inputClass} value={externalChannel} onChange={(e) => setExternalChannel(e.target.value)}>
-              {model.channels.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+            <select
+              className={inputClass}
+              value={externalChannel}
+              onChange={(e) => setExternalChannel(e.target.value)}
+            >
+              {model.channels.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
             </select>
           </label>
           <label className={labelClass}>
             Multiplier
-            <input className={inputClass} type="number" step="any" min="0" value={multiplier} onChange={(e) => setMultiplier(e.target.value)} />
+            <input
+              className={inputClass}
+              type="number"
+              step="any"
+              min="0"
+              value={multiplier}
+              onChange={(e) => setMultiplier(e.target.value)}
+            />
             <span className="mt-1 block text-[11px]">{model.multiplierNote}</span>
           </label>
           <label className={labelClass}>
             Dial reading when the device was fitted ({utilityType === 'water' ? 'kL' : 'kWh'})
-            <input className={inputClass} type="number" step="any" min="0" value={startReading} onChange={(e) => setStartReading(e.target.value)} />
-            <span className="mt-1 block text-[11px]">Aligns the device count with the meter dial.</span>
+            <input
+              className={inputClass}
+              type="number"
+              step="any"
+              min="0"
+              value={startReading}
+              onChange={(e) => setStartReading(e.target.value)}
+            />
+            <span className="mt-1 block text-[11px]">
+              Aligns the device count with the meter dial.
+            </span>
           </label>
           <label className={labelClass}>
             Reading frequency
-            <select className={inputClass} value={readInterval} onChange={(e) => setReadInterval(e.target.value)}>
-              {INTERVALS_BY_CONNECTIVITY[model.connectivity].map((m) => <option key={m} value={m}>{intervalLabel(m)}</option>)}
+            <select
+              className={inputClass}
+              value={readInterval}
+              onChange={(e) => setReadInterval(e.target.value)}
+            >
+              {INTERVALS_BY_CONNECTIVITY[model.connectivity].map((m) => (
+                <option key={m} value={m}>
+                  {intervalLabel(m)}
+                </option>
+              ))}
             </select>
-            <span className="mt-1 block text-[11px]">Set the same interval on the device or gateway.</span>
+            <span className="mt-1 block text-[11px]">
+              Set the same interval on the device or gateway.
+            </span>
           </label>
         </div>
       ) : null}
       <div className="grid gap-3 sm:grid-cols-3">
         <label className={labelClass}>
           Tariff for cost estimates (R per {utilityType === 'water' ? 'kL' : 'kWh'})
-          <input className={inputClass} type="number" step="any" min="0" value={tariff} onChange={(e) => setTariff(e.target.value)} />
+          <input
+            className={inputClass}
+            type="number"
+            step="any"
+            min="0"
+            value={tariff}
+            onChange={(e) => setTariff(e.target.value)}
+          />
         </label>
         <label className={labelClass}>
           Register digits (optional, for rollover)
-          <input className={inputClass} type="number" min="3" max="12" value={registerDigits} onChange={(e) => setRegisterDigits(e.target.value)} />
+          <input
+            className={inputClass}
+            type="number"
+            min="3"
+            max="12"
+            value={registerDigits}
+            onChange={(e) => setRegisterDigits(e.target.value)}
+          />
         </label>
       </div>
       <div className="flex gap-2">
-        <Button type="submit" disabled={busy}>{busy ? 'Saving…' : replacing ? 'Replace meter' : 'Add meter'}</Button>
-        <Button type="button" variant="secondary" onClick={onDone}>Cancel</Button>
+        <Button type="submit" disabled={busy}>
+          {busy ? 'Saving…' : replacing ? 'Replace meter' : 'Add meter'}
+        </Button>
+        <Button type="button" variant="secondary" onClick={onDone}>
+          Cancel
+        </Button>
       </div>
     </form>
   );
 }
 
-function ManualReadingForm({ data, meter, onDone }: { data: Overview; meter: MeterSummary; onDone: () => void }) {
+function ManualReadingForm({
+  data,
+  meter,
+  onDone,
+}: {
+  data: Overview;
+  meter: MeterSummary;
+  onDone: () => void;
+}) {
   const [reading, setReading] = useState('');
   const [when, setWhen] = useState(() => {
     const d = new Date(Date.now() + 2 * 3_600_000);
@@ -374,7 +619,11 @@ function ManualReadingForm({ data, meter, onDone }: { data: Overview; meter: Met
     try {
       const documentId = photo ? await uploadPhoto(photo) : null;
       const readAt = new Date(`${when}:00+02:00`).toISOString();
-      const res = await api(`/api/v1/smart-meters/${meter.id}/telemetry`, 'POST', { readAt, reading: Number(reading), documentId });
+      const res = await api(`/api/v1/smart-meters/${meter.id}/telemetry`, 'POST', {
+        readAt,
+        reading: Number(reading),
+        documentId,
+      });
       if (!res.ok) throw new Error(errorMessage(res.data));
       onDone();
     } catch (err) {
@@ -385,26 +634,58 @@ function ManualReadingForm({ data, meter, onDone }: { data: Overview; meter: Met
   }
 
   return (
-    <form onSubmit={submit} className="mb-4 space-y-3 rounded-md border border-light-border p-4 dark:border-dark-border">
-      <div className="text-sm font-medium text-foreground">Record a reading — {meterLabel(meter, data.units)}</div>
+    <form
+      onSubmit={submit}
+      className="mb-4 space-y-3 rounded-md border border-light-border p-4 dark:border-dark-border"
+    >
+      <div className="text-sm font-medium text-foreground">
+        Record a reading — {meterLabel(meter, data.units)}
+      </div>
       {error ? <div className={errorClass}>{error}</div> : null}
       <div className="grid gap-3 sm:grid-cols-3">
         <label className={labelClass}>
           Reading on the dial ({meter.displayUnit})
-          <input className={inputClass} type="number" step="any" min="0" required value={reading} onChange={(e) => setReading(e.target.value)} />
+          <input
+            className={inputClass}
+            type="number"
+            step="any"
+            min="0"
+            required
+            value={reading}
+            onChange={(e) => setReading(e.target.value)}
+          />
         </label>
         <label className={labelClass}>
           Date and time (SAST)
-          <input className={inputClass} type="datetime-local" required value={when} onChange={(e) => setWhen(e.target.value)} />
+          <input
+            className={inputClass}
+            type="datetime-local"
+            required
+            value={when}
+            onChange={(e) => setWhen(e.target.value)}
+          />
         </label>
         <label className={labelClass}>
-          Photo of the meter {meter.ownership === 'municipal' ? '(recommended for municipal submissions)' : '(optional)'}
-          <input className={inputClass} type="file" accept="image/*" capture="environment" onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} />
+          Photo of the meter{' '}
+          {meter.ownership === 'municipal'
+            ? '(recommended for municipal submissions)'
+            : '(optional)'}
+          <input
+            className={inputClass}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={(e) => setPhoto(e.target.files?.[0] ?? null)}
+          />
         </label>
       </div>
       <div className="flex gap-2">
-        <Button type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save reading'}</Button>
-        <Button type="button" variant="secondary" onClick={onDone}>Cancel</Button>
+        <Button type="submit" disabled={busy}>
+          {busy ? 'Saving…' : 'Save reading'}
+        </Button>
+        <Button type="button" variant="secondary" onClick={onDone}>
+          Cancel
+        </Button>
       </div>
     </form>
   );

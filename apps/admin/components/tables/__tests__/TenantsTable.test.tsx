@@ -68,9 +68,24 @@ describe('TenantsTable', () => {
     render(
       <TenantsTable
         data={[
-          { ...TENANT, id: 't-active', userId: 'user-1', portalStatus: { status: 'active', label: 'Active' } },
-          { ...TENANT, id: 't-pending', tenancy: null, portalStatus: { status: 'pending', label: 'Invitation pending' } },
-          { ...TENANT, id: 't-expired', tenancy: null, portalStatus: { status: 'expired', label: 'Invitation expired' } },
+          {
+            ...TENANT,
+            id: 't-active',
+            userId: 'user-1',
+            portalStatus: { status: 'active', label: 'Active' },
+          },
+          {
+            ...TENANT,
+            id: 't-pending',
+            tenancy: null,
+            portalStatus: { status: 'pending', label: 'Invitation pending' },
+          },
+          {
+            ...TENANT,
+            id: 't-expired',
+            tenancy: null,
+            portalStatus: { status: 'expired', label: 'Invitation expired' },
+          },
         ]}
       />,
     );

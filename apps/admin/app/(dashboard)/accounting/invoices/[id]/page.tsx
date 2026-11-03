@@ -15,7 +15,11 @@ import {
   PrintButton,
 } from '@/components/accounting/InvoiceActions';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
-import { resolvePortalSession, findActiveMembership, canPostAccountingRecords } from '@/lib/orgSession';
+import {
+  resolvePortalSession,
+  findActiveMembership,
+  canPostAccountingRecords,
+} from '@/lib/orgSession';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -24,7 +28,11 @@ function currency(n: number): string {
   return `R${formatSouthAfricanNumber(n)}`;
 }
 function longDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-ZA', { day: '2-digit', month: 'long', year: 'numeric' });
+  return new Date(iso).toLocaleDateString('en-ZA', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  });
 }
 
 /**
@@ -75,7 +83,9 @@ export default async function InvoiceDetailPage({ params }: RouteParams) {
   const supabase = await getServerSupabaseClient();
   const { data: invoice, error } = await supabase
     .from('invoices')
-    .select('*, leases(unit_id, units(id, unit_label, properties(id, nickname, org_id))), tenants(id, full_name, email)')
+    .select(
+      '*, leases(unit_id, units(id, unit_label, properties(id, nickname, org_id))), tenants(id, full_name, email)',
+    )
     .eq('id', id)
     .maybeSingle();
   if (error) throw new Error(`Failed to load invoice: ${error.message}`);
@@ -83,11 +93,19 @@ export default async function InvoiceDetailPage({ params }: RouteParams) {
 
   const lease = invoice.leases as unknown as {
     unit_id: string;
-    units: { id: string; unit_label: string; properties: { id: string; nickname: string; org_id: string } | null } | null;
+    units: {
+      id: string;
+      unit_label: string;
+      properties: { id: string; nickname: string; org_id: string } | null;
+    } | null;
   } | null;
   const unit = lease?.units;
   const property = unit?.properties;
-  const tenant = invoice.tenants as unknown as { id: string; full_name: string; email: string | null } | null;
+  const tenant = invoice.tenants as unknown as {
+    id: string;
+    full_name: string;
+    email: string | null;
+  } | null;
 
   const session = await resolvePortalSession();
   const membership = session ? findActiveMembership(session, invoice.org_id) : undefined;
@@ -100,13 +118,36 @@ export default async function InvoiceDetailPage({ params }: RouteParams) {
     .eq('id', invoice.org_id)
     .maybeSingle();
 
-  const [{ data: lineItemRows }, { data: paymentRows }, { data: proofCategory }] = await Promise.all([
-    supabase.from('invoice_line_items').select('*').eq('invoice_id', id).order('sort_order', { ascending: true }),
-    invoice.status === 'issued'
-      ? supabase.from('invoice_payments').select('*').eq('invoice_id', id).order('paid_at', { ascending: false })
-      : Promise.resolve({ data: [] as { id: string; amount: number; paid_at: string; method: string | null; reference: string | null; reversed_at: string | null; reversal_reason: string | null }[] }),
-    supabase.from('document_categories').select('id').eq('slug', 'proof_of_payment').maybeSingle(),
-  ]);
+  const [{ data: lineItemRows }, { data: paymentRows }, { data: proofCategory }] =
+    await Promise.all([
+      supabase
+        .from('invoice_line_items')
+        .select('*')
+        .eq('invoice_id', id)
+        .order('sort_order', { ascending: true }),
+      invoice.status === 'issued'
+        ? supabase
+            .from('invoice_payments')
+            .select('*')
+            .eq('invoice_id', id)
+            .order('paid_at', { ascending: false })
+        : Promise.resolve({
+            data: [] as {
+              id: string;
+              amount: number;
+              paid_at: string;
+              method: string | null;
+              reference: string | null;
+              reversed_at: string | null;
+              reversal_reason: string | null;
+            }[],
+          }),
+      supabase
+        .from('document_categories')
+        .select('id')
+        .eq('slug', 'proof_of_payment')
+        .maybeSingle(),
+    ]);
 
   const paymentIds = (paymentRows ?? []).map((r) => r.id);
   const { data: proofDocRows } =
@@ -146,7 +187,10 @@ export default async function InvoiceDetailPage({ params }: RouteParams) {
       tenant={tenant ? { id: tenant.id, fullName: tenant.full_name, email: tenant.email } : null}
       property={property ? { id: property.id, nickname: property.nickname } : null}
       unit={unit ? { id: unit.id, unitLabel: unit.unit_label } : null}
-      org={{ legalName: org?.trading_name || org?.legal_name || 'Your organisation', vatNo: org?.vat_no ?? null }}
+      org={{
+        legalName: org?.trading_name || org?.legal_name || 'Your organisation',
+        vatNo: org?.vat_no ?? null,
+      }}
       lineItems={(lineItemRows ?? []).map((r) => ({
         id: r.id,
         description: r.description,
@@ -202,7 +246,13 @@ function InvoiceDetailView({
   property: { id: string; nickname: string } | null;
   unit: { id: string; unitLabel: string } | null;
   org: { legalName: string; vatNo: string | null };
-  lineItems: { id: string; description: string; quantity: number; unitPrice: number; amount: number }[];
+  lineItems: {
+    id: string;
+    description: string;
+    quantity: number;
+    unitPrice: number;
+    amount: number;
+  }[];
   payments: {
     id: string;
     amount: number;
@@ -230,12 +280,23 @@ function InvoiceDetailView({
   const displayLines =
     lineItems.length > 0
       ? lineItems
-      : [{ id: 'virtual', description: invoice.description ?? 'Rent', quantity: 1, unitPrice: invoice.amount, amount: invoice.amount }];
+      : [
+          {
+            id: 'virtual',
+            description: invoice.description ?? 'Rent',
+            quantity: 1,
+            unitPrice: invoice.amount,
+            amount: invoice.amount,
+          },
+        ];
 
   return (
     <div className="space-y-6 animate-rise print:space-y-4">
       <div className="flex items-center justify-between print:hidden">
-        <Link href="/accounting/invoices" className="text-xs text-light-textSecondary hover:underline dark:text-dark-textSecondary">
+        <Link
+          href="/accounting/invoices"
+          className="text-xs text-light-textSecondary hover:underline dark:text-dark-textSecondary"
+        >
           ← All invoices
         </Link>
         <div className="flex flex-wrap items-center gap-2">
@@ -248,8 +309,12 @@ function InvoiceDetailView({
               <Button size="sm">Edit</Button>
             </Link>
           ) : null}
-          {canWrite && isManual && isDraft && !isVoid ? <IssueInvoiceButton invoiceId={invoice.id} /> : null}
-          {canWrite && invoice.status === 'issued' && !isVoid ? <SendInvoiceButton invoiceId={invoice.id} /> : null}
+          {canWrite && isManual && isDraft && !isVoid ? (
+            <IssueInvoiceButton invoiceId={invoice.id} />
+          ) : null}
+          {canWrite && invoice.status === 'issued' && !isVoid ? (
+            <SendInvoiceButton invoiceId={invoice.id} />
+          ) : null}
         </div>
       </div>
 
@@ -257,25 +322,41 @@ function InvoiceDetailView({
 
       <PageHeader
         title={`Invoice ${invoice.invoiceNumber}`}
-        subtitle={isVoid ? 'Voided' : isDraft ? 'Draft -- not yet issued' : `Issued ${invoice.issuedAt ? longDate(invoice.issuedAt) : ''}`}
+        subtitle={
+          isVoid
+            ? 'Voided'
+            : isDraft
+              ? 'Draft -- not yet issued'
+              : `Issued ${invoice.issuedAt ? longDate(invoice.issuedAt) : ''}`
+        }
       />
 
       {isVoid ? (
         <div className="rounded-md border border-light-statusOverdue bg-light-statusOverdue/10 px-4 py-3 text-sm text-light-statusOverdue print:hidden dark:border-dark-statusOverdue dark:bg-dark-statusOverdue/10 dark:text-dark-statusOverdue">
-          This invoice is void{invoice.voidReason ? `: ${invoice.voidReason}` : '.'} It is excluded from
-          outstanding-balance totals and can never receive a new payment.
+          This invoice is void{invoice.voidReason ? `: ${invoice.voidReason}` : '.'} It is excluded
+          from outstanding-balance totals and can never receive a new payment.
         </div>
       ) : null}
 
       <Panel bodyClassName="p-6">
         <div className="flex flex-wrap justify-between gap-6 border-b border-light-border pb-4 dark:border-dark-border">
           <div>
-            <p className="text-xs uppercase tracking-wide text-light-textMuted dark:text-dark-textMuted">From</p>
-            <p className="mt-1 text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">{org.legalName}</p>
-            {org.vatNo ? <p className="text-xs text-light-textMuted dark:text-dark-textMuted">VAT: {org.vatNo}</p> : null}
+            <p className="text-xs uppercase tracking-wide text-light-textMuted dark:text-dark-textMuted">
+              From
+            </p>
+            <p className="mt-1 text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+              {org.legalName}
+            </p>
+            {org.vatNo ? (
+              <p className="text-xs text-light-textMuted dark:text-dark-textMuted">
+                VAT: {org.vatNo}
+              </p>
+            ) : null}
           </div>
           <div>
-            <p className="text-xs uppercase tracking-wide text-light-textMuted dark:text-dark-textMuted">Bill to</p>
+            <p className="text-xs uppercase tracking-wide text-light-textMuted dark:text-dark-textMuted">
+              Bill to
+            </p>
             <p className="mt-1 text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
               {tenant ? (
                 <Link href={`/tenants/${tenant.id}`} className="hover:underline print:no-underline">
@@ -290,16 +371,24 @@ function InvoiceDetailView({
             </p>
           </div>
           <div>
-            <p className="text-xs uppercase tracking-wide text-light-textMuted dark:text-dark-textMuted">Details</p>
-            <p className="mt-1 text-xs text-light-textPrimary dark:text-dark-textPrimary">Due: {longDate(invoice.period)}</p>
+            <p className="text-xs uppercase tracking-wide text-light-textMuted dark:text-dark-textMuted">
+              Details
+            </p>
+            <p className="mt-1 text-xs text-light-textPrimary dark:text-dark-textPrimary">
+              Due: {longDate(invoice.period)}
+            </p>
             {invoice.reference ? (
-              <p className="text-xs text-light-textMuted dark:text-dark-textMuted">Ref: {invoice.reference}</p>
+              <p className="text-xs text-light-textMuted dark:text-dark-textMuted">
+                Ref: {invoice.reference}
+              </p>
             ) : null}
           </div>
         </div>
 
         {invoice.description ? (
-          <p className="mt-4 text-sm text-light-textPrimary dark:text-dark-textPrimary">{invoice.description}</p>
+          <p className="mt-4 text-sm text-light-textPrimary dark:text-dark-textPrimary">
+            {invoice.description}
+          </p>
         ) : null}
 
         <table className="mt-4 w-full text-sm">
@@ -314,10 +403,18 @@ function InvoiceDetailView({
           <tbody>
             {displayLines.map((l) => (
               <tr key={l.id} className="border-b border-light-border/60 dark:border-dark-border/60">
-                <td className="py-2 text-light-textPrimary dark:text-dark-textPrimary">{l.description}</td>
-                <td className="tabular py-2 text-right text-light-textPrimary dark:text-dark-textPrimary">{l.quantity}</td>
-                <td className="tabular py-2 text-right text-light-textPrimary dark:text-dark-textPrimary">{currency(l.unitPrice)}</td>
-                <td className="tabular py-2 text-right text-light-textPrimary dark:text-dark-textPrimary">{currency(l.amount)}</td>
+                <td className="py-2 text-light-textPrimary dark:text-dark-textPrimary">
+                  {l.description}
+                </td>
+                <td className="tabular py-2 text-right text-light-textPrimary dark:text-dark-textPrimary">
+                  {l.quantity}
+                </td>
+                <td className="tabular py-2 text-right text-light-textPrimary dark:text-dark-textPrimary">
+                  {currency(l.unitPrice)}
+                </td>
+                <td className="tabular py-2 text-right text-light-textPrimary dark:text-dark-textPrimary">
+                  {currency(l.amount)}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -327,17 +424,25 @@ function InvoiceDetailView({
           <div className="w-56 space-y-1 text-sm">
             <div className="flex justify-between">
               <span className="text-light-textMuted dark:text-dark-textMuted">Total</span>
-              <span className="tabular font-semibold text-light-textPrimary dark:text-dark-textPrimary">{currency(invoice.amount)}</span>
+              <span className="tabular font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+                {currency(invoice.amount)}
+              </span>
             </div>
             {invoice.status === 'issued' ? (
               <>
                 <div className="flex justify-between">
                   <span className="text-light-textMuted dark:text-dark-textMuted">Paid</span>
-                  <span className="tabular text-light-textPrimary dark:text-dark-textPrimary">{currency(paid)}</span>
+                  <span className="tabular text-light-textPrimary dark:text-dark-textPrimary">
+                    {currency(paid)}
+                  </span>
                 </div>
                 <div className="flex justify-between border-t border-light-border pt-1 dark:border-dark-border">
-                  <span className="font-medium text-light-textPrimary dark:text-dark-textPrimary">Balance</span>
-                  <span className="tabular font-semibold text-light-textPrimary dark:text-dark-textPrimary">{currency(balance)}</span>
+                  <span className="font-medium text-light-textPrimary dark:text-dark-textPrimary">
+                    Balance
+                  </span>
+                  <span className="tabular font-semibold text-light-textPrimary dark:text-dark-textPrimary">
+                    {currency(balance)}
+                  </span>
                 </div>
               </>
             ) : null}
@@ -352,20 +457,39 @@ function InvoiceDetailView({
       </Panel>
 
       {invoice.status === 'issued' ? (
-        <Panel title="Payments" bodyClassName="p-4" className="scroll-mt-4 print:hidden" id="payments">
+        <Panel
+          title="Payments"
+          bodyClassName="p-4"
+          className="scroll-mt-4 print:hidden"
+          id="payments"
+        >
           {payments.length === 0 ? (
-            <p className="px-1 py-1 text-[13px] text-light-textMuted dark:text-dark-textMuted">No payments recorded yet.</p>
+            <p className="px-1 py-1 text-[13px] text-light-textMuted dark:text-dark-textMuted">
+              No payments recorded yet.
+            </p>
           ) : (
             <ul className="mb-3 divide-y divide-light-border dark:divide-dark-border">
               {payments.map((p) => (
                 <li key={p.id} className="px-1 py-2 text-[13px]">
                   <div className="flex items-center justify-between">
-                    <span className={p.reversedAt ? 'text-light-textMuted line-through dark:text-dark-textMuted' : 'text-light-textPrimary dark:text-dark-textPrimary'}>
+                    <span
+                      className={
+                        p.reversedAt
+                          ? 'text-light-textMuted line-through dark:text-dark-textMuted'
+                          : 'text-light-textPrimary dark:text-dark-textPrimary'
+                      }
+                    >
                       {longDate(p.paidAt)}
                       {p.method ? ` · ${p.method}` : ''}
                       {p.reference ? ` · ${p.reference}` : ''}
                     </span>
-                    <span className={p.reversedAt ? 'tabular text-light-textMuted line-through dark:text-dark-textMuted' : 'tabular font-medium text-light-textPrimary dark:text-dark-textPrimary'}>
+                    <span
+                      className={
+                        p.reversedAt
+                          ? 'tabular text-light-textMuted line-through dark:text-dark-textMuted'
+                          : 'tabular font-medium text-light-textPrimary dark:text-dark-textPrimary'
+                      }
+                    >
                       {currency(p.amount)}
                     </span>
                   </div>
@@ -389,7 +513,9 @@ function InvoiceDetailView({
                     </p>
                   ) : (
                     <div className="mt-1 flex items-center gap-3 print:hidden">
-                      {canWrite ? <ReversePaymentButton invoiceId={invoice.id} paymentId={p.id} /> : null}
+                      {canWrite ? (
+                        <ReversePaymentButton invoiceId={invoice.id} paymentId={p.id} />
+                      ) : null}
                       {canWrite && property && proofOfPaymentCategoryId ? (
                         <AttachProofOfPaymentButton
                           orgId={orgId}
@@ -404,7 +530,9 @@ function InvoiceDetailView({
               ))}
             </ul>
           )}
-          {canWrite && !isVoid && balance > 0 ? <RecordPaymentForm invoiceId={invoice.id} balance={balance} /> : null}
+          {canWrite && !isVoid && balance > 0 ? (
+            <RecordPaymentForm invoiceId={invoice.id} balance={balance} />
+          ) : null}
         </Panel>
       ) : null}
 

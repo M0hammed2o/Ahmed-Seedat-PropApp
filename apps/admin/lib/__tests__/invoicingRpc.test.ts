@@ -77,7 +77,11 @@ describeIfSupabase('rent invoicing (real local Supabase integration)', () => {
 
     const { data: org, error: orgError } = await serviceClient
       .from('organizations')
-      .insert({ legal_name: `Invoicing Vitest Org ${suffix}`, org_type: 'agency', status: 'active' })
+      .insert({
+        legal_name: `Invoicing Vitest Org ${suffix}`,
+        org_type: 'agency',
+        status: 'active',
+      })
       .select('id')
       .single();
     if (orgError) throw orgError;
@@ -89,20 +93,41 @@ describeIfSupabase('rent invoicing (real local Supabase integration)', () => {
 
     const { data: orgB, error: orgBError } = await serviceClient
       .from('organizations')
-      .insert({ legal_name: `Invoicing Vitest Org B ${suffix}`, org_type: 'agency', status: 'active' })
+      .insert({
+        legal_name: `Invoicing Vitest Org B ${suffix}`,
+        org_type: 'agency',
+        status: 'active',
+      })
       .select('id')
       .single();
     if (orgBError) throw orgBError;
     orgBId = orgB.id;
 
     await serviceClient.from('organization_members').insert([
-      { org_id: orgId, user_id: principalId, role: 'principal', status: 'active', joined_at: new Date().toISOString() },
-      { org_id: orgId, user_id: viewerId, role: 'viewer', status: 'active', joined_at: new Date().toISOString() },
+      {
+        org_id: orgId,
+        user_id: principalId,
+        role: 'principal',
+        status: 'active',
+        joined_at: new Date().toISOString(),
+      },
+      {
+        org_id: orgId,
+        user_id: viewerId,
+        role: 'viewer',
+        status: 'active',
+        joined_at: new Date().toISOString(),
+      },
     ]);
 
     const { data: property, error: propertyError } = await serviceClient
       .from('properties')
-      .insert({ org_id: orgId, nickname: 'Musgrave Heights', address_line1: '1 Test St', city: 'Durban' })
+      .insert({
+        org_id: orgId,
+        nickname: 'Musgrave Heights',
+        address_line1: '1 Test St',
+        city: 'Durban',
+      })
       .select('id')
       .single();
     if (propertyError) throw propertyError;
@@ -126,13 +151,21 @@ describeIfSupabase('rent invoicing (real local Supabase integration)', () => {
 
     const { data: lease, error: leaseError } = await serviceClient
       .from('leases')
-      .insert({ org_id: orgId, unit_id: unitId, start_date: '2026-01-01', rent_amount: 12000, status: 'active' })
+      .insert({
+        org_id: orgId,
+        unit_id: unitId,
+        start_date: '2026-01-01',
+        rent_amount: 12000,
+        status: 'active',
+      })
       .select('id')
       .single();
     if (leaseError) throw leaseError;
     leaseId = lease.id;
 
-    await serviceClient.from('lease_tenants').insert({ lease_id: leaseId, tenant_id: tenantId, is_primary: true });
+    await serviceClient
+      .from('lease_tenants')
+      .insert({ lease_id: leaseId, tenant_id: tenantId, is_primary: true });
 
     const { data: bankAccount, error: bankAccountError } = await serviceClient
       .from('bank_accounts')
@@ -181,7 +214,11 @@ describeIfSupabase('rent invoicing (real local Supabase integration)', () => {
     });
     expect(error).toBeNull();
 
-    const { data: invoice } = await serviceClient.from('invoices').select('*').eq('id', invoiceId).single();
+    const { data: invoice } = await serviceClient
+      .from('invoices')
+      .select('*')
+      .eq('id', invoiceId)
+      .single();
     expect(invoice.lease_id).toBe(leaseId);
     expect(invoice.tenant_id).toBe(tenantId);
     expect(Number(invoice.amount)).toBe(12000);
@@ -196,7 +233,10 @@ describeIfSupabase('rent invoicing (real local Supabase integration)', () => {
       .eq('org_id', orgId);
     expect(emailsAfter).toBe(emailsBefore);
 
-    const { data: allInvoicesForLease } = await serviceClient.from('invoices').select('id').eq('lease_id', leaseId);
+    const { data: allInvoicesForLease } = await serviceClient
+      .from('invoices')
+      .select('id')
+      .eq('lease_id', leaseId);
     expect(allInvoicesForLease).toHaveLength(1);
   });
 
@@ -206,11 +246,23 @@ describeIfSupabase('rent invoicing (real local Supabase integration)', () => {
     const scheduleB = await insertRentSchedule('2026-10-01', 12000);
     const principalClient = await signedInClient(principalEmail, TEST_PASSWORD);
 
-    const { data: idA } = await principalClient.rpc('invoice_rent_schedule', { p_rent_schedule_id: scheduleA.id });
-    const { data: idB } = await principalClient.rpc('invoice_rent_schedule', { p_rent_schedule_id: scheduleB.id });
+    const { data: idA } = await principalClient.rpc('invoice_rent_schedule', {
+      p_rent_schedule_id: scheduleA.id,
+    });
+    const { data: idB } = await principalClient.rpc('invoice_rent_schedule', {
+      p_rent_schedule_id: scheduleB.id,
+    });
 
-    const { data: invoiceA } = await serviceClient.from('invoices').select('invoice_number').eq('id', idA).single();
-    const { data: invoiceB } = await serviceClient.from('invoices').select('invoice_number').eq('id', idB).single();
+    const { data: invoiceA } = await serviceClient
+      .from('invoices')
+      .select('invoice_number')
+      .eq('id', idA)
+      .single();
+    const { data: invoiceB } = await serviceClient
+      .from('invoices')
+      .select('invoice_number')
+      .eq('id', idB)
+      .single();
     expect(invoiceA!.invoice_number).not.toBe(invoiceB!.invoice_number);
   });
 
@@ -220,13 +272,20 @@ describeIfSupabase('rent invoicing (real local Supabase integration)', () => {
     const schedule = await insertRentSchedule('2026-09-01', 12000);
     const principalClient = await signedInClient(principalEmail, TEST_PASSWORD);
 
-    const { error: firstError } = await principalClient.rpc('invoice_rent_schedule', { p_rent_schedule_id: schedule.id });
+    const { error: firstError } = await principalClient.rpc('invoice_rent_schedule', {
+      p_rent_schedule_id: schedule.id,
+    });
     expect(firstError).toBeNull();
 
-    const { error: secondError } = await principalClient.rpc('invoice_rent_schedule', { p_rent_schedule_id: schedule.id });
+    const { error: secondError } = await principalClient.rpc('invoice_rent_schedule', {
+      p_rent_schedule_id: schedule.id,
+    });
     expect(secondError).not.toBeNull();
 
-    const { data: invoices } = await serviceClient.from('invoices').select('id').eq('lease_id', leaseId);
+    const { data: invoices } = await serviceClient
+      .from('invoices')
+      .select('id')
+      .eq('lease_id', leaseId);
     expect(invoices).toHaveLength(1);
   });
 
@@ -235,10 +294,15 @@ describeIfSupabase('rent invoicing (real local Supabase integration)', () => {
     const schedule = await insertRentSchedule('2026-09-01', 12000);
     const viewerClient = await signedInClient(viewerEmail, TEST_PASSWORD);
 
-    const { error } = await viewerClient.rpc('invoice_rent_schedule', { p_rent_schedule_id: schedule.id });
+    const { error } = await viewerClient.rpc('invoice_rent_schedule', {
+      p_rent_schedule_id: schedule.id,
+    });
     expect(error).not.toBeNull();
 
-    const { data: invoices } = await serviceClient.from('invoices').select('id').eq('lease_id', leaseId);
+    const { data: invoices } = await serviceClient
+      .from('invoices')
+      .select('id')
+      .eq('lease_id', leaseId);
     expect(invoices).toHaveLength(0);
   });
 
@@ -261,7 +325,11 @@ describeIfSupabase('rent invoicing (real local Supabase integration)', () => {
     });
     expect(matchError).toBeNull();
 
-    const { data: updatedSchedule } = await serviceClient.from('rent_schedules').select('status').eq('id', schedule.id).single();
+    const { data: updatedSchedule } = await serviceClient
+      .from('rent_schedules')
+      .select('status')
+      .eq('id', schedule.id)
+      .single();
     expect(updatedSchedule!.status).toBe('paid');
 
     const { data: matched } = await serviceClient
@@ -291,7 +359,11 @@ describeIfSupabase('rent invoicing (real local Supabase integration)', () => {
       p_rent_schedule_id: schedule.id,
     });
 
-    const { data: updatedSchedule } = await serviceClient.from('rent_schedules').select('status, amount').eq('id', schedule.id).single();
+    const { data: updatedSchedule } = await serviceClient
+      .from('rent_schedules')
+      .select('status, amount')
+      .eq('id', schedule.id)
+      .single();
     expect(updatedSchedule!.status).toBe('partial');
     expect(Number(updatedSchedule!.amount) - 8000).toBe(4000);
   });
@@ -302,14 +374,30 @@ describeIfSupabase('rent invoicing (real local Supabase integration)', () => {
     const outsiderId = randomUUID();
     createdUserIds.push(outsiderId);
     const outsiderEmail = `invoicing-outsider-${randomUUID()}@test.propertyvault.example`;
-    await serviceClient.auth.admin.createUser({ id: outsiderId, email: outsiderEmail, email_confirm: true, password: TEST_PASSWORD } as never);
-    await serviceClient.from('organization_members').insert({ org_id: orgBId, user_id: outsiderId, role: 'principal', status: 'active', joined_at: new Date().toISOString() });
+    await serviceClient.auth.admin.createUser({
+      id: outsiderId,
+      email: outsiderEmail,
+      email_confirm: true,
+      password: TEST_PASSWORD,
+    } as never);
+    await serviceClient.from('organization_members').insert({
+      org_id: orgBId,
+      user_id: outsiderId,
+      role: 'principal',
+      status: 'active',
+      joined_at: new Date().toISOString(),
+    });
     const outsiderClient = await signedInClient(outsiderEmail, TEST_PASSWORD);
 
-    const { error } = await outsiderClient.rpc('invoice_rent_schedule', { p_rent_schedule_id: schedule.id });
+    const { error } = await outsiderClient.rpc('invoice_rent_schedule', {
+      p_rent_schedule_id: schedule.id,
+    });
     expect(error).not.toBeNull();
 
-    const { data: invoices } = await serviceClient.from('invoices').select('id').eq('lease_id', leaseId);
+    const { data: invoices } = await serviceClient
+      .from('invoices')
+      .select('id')
+      .eq('lease_id', leaseId);
     expect(invoices).toHaveLength(0);
   });
 
@@ -322,10 +410,18 @@ describeIfSupabase('rent invoicing (real local Supabase integration)', () => {
       .single();
     const { data: internalLease } = await serviceClient
       .from('leases')
-      .insert({ org_id: orgId, unit_id: unitId, start_date: '2026-01-01', rent_amount: 12000, status: 'draft' })
+      .insert({
+        org_id: orgId,
+        unit_id: unitId,
+        start_date: '2026-01-01',
+        rent_amount: 12000,
+        status: 'draft',
+      })
       .select('id')
       .single();
-    await serviceClient.from('lease_tenants').insert({ lease_id: internalLease!.id, tenant_id: internalTenant!.id, is_primary: true });
+    await serviceClient
+      .from('lease_tenants')
+      .insert({ lease_id: internalLease!.id, tenant_id: internalTenant!.id, is_primary: true });
     const { data: schedule } = await serviceClient
       .from('rent_schedules')
       .insert({ org_id: orgId, lease_id: internalLease!.id, due_date: '2026-09-01', amount: 12000 })
@@ -333,10 +429,16 @@ describeIfSupabase('rent invoicing (real local Supabase integration)', () => {
       .single();
 
     const principalClient = await signedInClient(principalEmail, TEST_PASSWORD);
-    const { error } = await principalClient.rpc('invoice_rent_schedule', { p_rent_schedule_id: schedule!.id });
+    const { error } = await principalClient.rpc('invoice_rent_schedule', {
+      p_rent_schedule_id: schedule!.id,
+    });
     expect(error).toBeNull();
 
-    const { data: invoice } = await serviceClient.from('invoices').select('tenant_id').eq('lease_id', internalLease!.id).single();
+    const { data: invoice } = await serviceClient
+      .from('invoices')
+      .select('tenant_id')
+      .eq('lease_id', internalLease!.id)
+      .single();
     expect(invoice!.tenant_id).toBe(internalTenant!.id);
   });
 
@@ -347,7 +449,10 @@ describeIfSupabase('rent invoicing (real local Supabase integration)', () => {
     const principalClient = await signedInClient(principalEmail, TEST_PASSWORD);
     await principalClient.rpc('invoice_rent_schedule', { p_rent_schedule_id: schedule.id });
 
-    const { data: rentInvoices } = await serviceClient.from('invoices').select('id').eq('org_id', orgId);
+    const { data: rentInvoices } = await serviceClient
+      .from('invoices')
+      .select('id')
+      .eq('org_id', orgId);
     expect(rentInvoices).toHaveLength(1);
 
     const { data: subscriptionInvoices } = await serviceClient

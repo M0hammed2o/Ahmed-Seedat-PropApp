@@ -47,12 +47,17 @@ interface DocumentRequirement {
 
 // Which extracted field(s) a given requirement's OCR result can offer to fill into the form, and
 // which top-level form setter each maps to.
-const FIELD_TARGETS: Record<string, { extractionKey: string; formField: FormFieldKey; label: string }[]> = {
+const FIELD_TARGETS: Record<
+  string,
+  { extractionKey: string; formField: FormFieldKey; label: string }[]
+> = {
   id_document: [
     { extractionKey: 'fullName', formField: 'name', label: 'Full name' },
     { extractionKey: 'dateOfBirth', formField: 'dob', label: 'Date of birth' },
   ],
-  proof_of_address: [{ extractionKey: 'residentialAddress', formField: 'address', label: 'Address' }],
+  proof_of_address: [
+    { extractionKey: 'residentialAddress', formField: 'address', label: 'Address' },
+  ],
   proof_of_income: [
     { extractionKey: 'employerName', formField: 'employerName', label: 'Employer' },
     { extractionKey: 'netIncome', formField: 'monthlyIncome', label: 'Monthly income (net)' },
@@ -101,7 +106,8 @@ export function ApplyClient({ token }: { token: string }) {
         dob: prev.dob || app.dateOfBirth || '',
         address: prev.address || app.currentAddress || '',
         employerName: prev.employerName || app.employerName || '',
-        monthlyIncome: prev.monthlyIncome || (app.monthlyIncome != null ? String(app.monthlyIncome) : ''),
+        monthlyIncome:
+          prev.monthlyIncome || (app.monthlyIncome != null ? String(app.monthlyIncome) : ''),
       }));
       setStage('ready');
     } catch {
@@ -121,7 +127,9 @@ export function ApplyClient({ token }: { token: string }) {
   if (stage === 'loading') {
     return (
       <PageShell>
-        <p className="text-center text-sm text-light-textMuted dark:text-dark-textMuted">Loading…</p>
+        <p className="text-center text-sm text-light-textMuted dark:text-dark-textMuted">
+          Loading…
+        </p>
       </PageShell>
     );
   }
@@ -169,8 +177,19 @@ export function ApplyClient({ token }: { token: string }) {
           </div>
         ) : (
           <>
-            <DocumentChecklist token={token} requirements={requirements} onUploaded={load} onApplyField={applyField} />
-            <ApplicationForm token={token} application={application} fields={fields} setFields={setFields} onSaved={load} />
+            <DocumentChecklist
+              token={token}
+              requirements={requirements}
+              onUploaded={load}
+              onApplyField={applyField}
+            />
+            <ApplicationForm
+              token={token}
+              application={application}
+              fields={fields}
+              setFields={setFields}
+              onSaved={load}
+            />
           </>
         )}
 
@@ -202,7 +221,9 @@ function ApplicationForm({
   token: string;
   application: ApplicationData;
   fields: Record<FormFieldKey, string>;
-  setFields: (updater: (prev: Record<FormFieldKey, string>) => Record<FormFieldKey, string>) => void;
+  setFields: (
+    updater: (prev: Record<FormFieldKey, string>) => Record<FormFieldKey, string>,
+  ) => void;
   onSaved: () => void;
 }) {
   const [email, setEmail] = useState(application.applicantEmail ?? '');
@@ -283,11 +304,21 @@ function ApplicationForm({
         </legend>
         <label className="block text-xs">
           <span className="text-light-textMuted dark:text-dark-textMuted">Full legal name</span>
-          <input required value={fields.name} onChange={(e) => set('name')(e.target.value)} className={inputClass} />
+          <input
+            required
+            value={fields.name}
+            onChange={(e) => set('name')(e.target.value)}
+            className={inputClass}
+          />
         </label>
         <label className="block text-xs">
           <span className="text-light-textMuted dark:text-dark-textMuted">Date of birth</span>
-          <input type="date" value={fields.dob} onChange={(e) => set('dob')(e.target.value)} className={inputClass} />
+          <input
+            type="date"
+            value={fields.dob}
+            onChange={(e) => set('dob')(e.target.value)}
+            className={inputClass}
+          />
         </label>
       </fieldset>
 
@@ -297,7 +328,12 @@ function ApplicationForm({
         </legend>
         <label className="block text-xs">
           <span className="text-light-textMuted dark:text-dark-textMuted">Email</span>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} />
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className={inputClass}
+          />
         </label>
         <label className="block text-xs">
           <span className="text-light-textMuted dark:text-dark-textMuted">Phone</span>
@@ -336,7 +372,9 @@ function ApplicationForm({
           />
         </label>
         <label className="block text-xs">
-          <span className="text-light-textMuted dark:text-dark-textMuted">Monthly income (ZAR)</span>
+          <span className="text-light-textMuted dark:text-dark-textMuted">
+            Monthly income (ZAR)
+          </span>
           <input
             type="number"
             min={0}
@@ -353,7 +391,9 @@ function ApplicationForm({
           Household
         </legend>
         <label className="block text-xs">
-          <span className="text-light-textMuted dark:text-dark-textMuted">Number of occupants (including you)</span>
+          <span className="text-light-textMuted dark:text-dark-textMuted">
+            Number of occupants (including you)
+          </span>
           <input
             type="number"
             min={1}
@@ -366,7 +406,12 @@ function ApplicationForm({
           <span className="text-light-textMuted dark:text-dark-textMuted">
             Anything else you'd like us to know (other occupants, pets, etc.)
           </span>
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className={inputClass} />
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={3}
+            className={inputClass}
+          />
         </label>
       </fieldset>
 
@@ -394,7 +439,10 @@ function ApplicationForm({
             onChange={(e) => setWhatsappConsent(e.target.checked)}
             className="mt-0.5"
           />
-          <span>I'd like to receive updates about this application by WhatsApp, at the phone number above.</span>
+          <span>
+            I'd like to receive updates about this application by WhatsApp, at the phone number
+            above.
+          </span>
         </label>
       </fieldset>
 
@@ -428,7 +476,13 @@ function DocumentChecklist({
       </p>
       <ul className="mt-3 space-y-3">
         {requirements.map((r) => (
-          <DocumentRow key={r.requirementKey} token={token} requirement={r} onUploaded={onUploaded} onApplyField={onApplyField} />
+          <DocumentRow
+            key={r.requirementKey}
+            token={token}
+            requirement={r}
+            onUploaded={onUploaded}
+            onApplyField={onApplyField}
+          />
         ))}
       </ul>
     </div>
@@ -473,7 +527,10 @@ function DocumentRow({
       const form = new FormData();
       form.set('requirementKey', requirement.requirementKey);
       form.set('file', file);
-      const response = await fetch(`/api/v1/apply/${token}/documents`, { method: 'POST', body: form });
+      const response = await fetch(`/api/v1/apply/${token}/documents`, {
+        method: 'POST',
+        body: form,
+      });
       const body = await response.json();
       if (!response.ok) {
         setError(body.error?.message ?? 'Upload failed.');
@@ -492,9 +549,12 @@ function DocumentRow({
     setScanning(true);
     setError(null);
     try {
-      const response = await fetch(`/api/v1/apply/${token}/documents/${requirement.documentId}/extract`, {
-        method: 'POST',
-      });
+      const response = await fetch(
+        `/api/v1/apply/${token}/documents/${requirement.documentId}/extract`,
+        {
+          method: 'POST',
+        },
+      );
       const body = await response.json();
       if (!response.ok) {
         setError(body.error?.message ?? 'Could not scan this document.');
@@ -503,7 +563,12 @@ function DocumentRow({
       const raw = body.extractionResult?.rawProviderOutput ?? {};
       const fieldsOnly: Record<string, ExtractedFieldValue> = {};
       for (const [key, val] of Object.entries(raw)) {
-        if (val && typeof val === 'object' && 'value' in (val as object) && 'confidence' in (val as object)) {
+        if (
+          val &&
+          typeof val === 'object' &&
+          'value' in (val as object) &&
+          'confidence' in (val as object)
+        ) {
           fieldsOnly[key] = val as ExtractedFieldValue;
         }
       }
@@ -515,10 +580,18 @@ function DocumentRow({
     }
   }
 
-  async function applyExtractedValue(extractionKey: string, formField: FormFieldKey, rawValue: string) {
+  async function applyExtractedValue(
+    extractionKey: string,
+    formField: FormFieldKey,
+    rawValue: string,
+  ) {
     const finalValue = edits[extractionKey] ?? rawValue;
     onApplyField(formField, finalValue);
-    if (edits[extractionKey] !== undefined && edits[extractionKey] !== rawValue && requirement.documentId) {
+    if (
+      edits[extractionKey] !== undefined &&
+      edits[extractionKey] !== rawValue &&
+      requirement.documentId
+    ) {
       // Record the correction (Phase 3/4 traceability) -- best-effort, never blocks applying the value.
       await fetch(`/api/v1/apply/${token}/documents/${requirement.documentId}/corrections`, {
         method: 'POST',
@@ -570,13 +643,19 @@ function DocumentRow({
                 }}
               />
               <span className="inline-flex items-center rounded-md border border-light-border px-3 py-1.5 text-xs font-medium text-light-textPrimary hover:bg-light-surface dark:border-dark-border dark:text-dark-textPrimary dark:hover:bg-dark-surface">
-                {uploading ? 'Uploading…' : requirement.status === 'rejected' ? 'Replace' : 'Upload'}
+                {uploading
+                  ? 'Uploading…'
+                  : requirement.status === 'rejected'
+                    ? 'Replace'
+                    : 'Upload'}
               </span>
             </label>
           ) : null}
         </div>
       </div>
-      {error ? <p className="mt-1 text-xs text-light-danger dark:text-dark-danger">{error}</p> : null}
+      {error ? (
+        <p className="mt-1 text-xs text-light-danger dark:text-dark-danger">{error}</p>
+      ) : null}
 
       {extraction ? (
         <div className="mt-3 space-y-2 border-t border-light-border pt-3 dark:border-dark-border">
@@ -586,7 +665,10 @@ function DocumentRow({
             const lowConfidence = field.confidence < 0.7;
             const currentValue = edits[extractionKey] ?? String(field.value);
             return (
-              <div key={extractionKey} className="rounded-md bg-light-surface p-2 dark:bg-dark-surface">
+              <div
+                key={extractionKey}
+                className="rounded-md bg-light-surface p-2 dark:bg-dark-surface"
+              >
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs font-medium text-light-textPrimary dark:text-dark-textPrimary">
                     {label}
@@ -598,7 +680,8 @@ function DocumentRow({
                         : 'text-[10px] text-light-textMuted dark:text-dark-textMuted'
                     }
                   >
-                    Confidence: {Math.round(field.confidence * 100)}%{lowConfidence ? ' — please check' : ''}
+                    Confidence: {Math.round(field.confidence * 100)}%
+                    {lowConfidence ? ' — please check' : ''}
                   </span>
                 </div>
                 <p className="mt-1 text-[11px] text-light-textMuted dark:text-dark-textMuted">
@@ -607,13 +690,17 @@ function DocumentRow({
                 <div className="mt-1 flex gap-2">
                   <input
                     value={currentValue}
-                    onChange={(e) => setEdits((prev) => ({ ...prev, [extractionKey]: e.target.value }))}
+                    onChange={(e) =>
+                      setEdits((prev) => ({ ...prev, [extractionKey]: e.target.value }))
+                    }
                     className={inputClass + ' mt-0 flex-1'}
                   />
                   <Button
                     type="button"
                     size="sm"
-                    onClick={() => void applyExtractedValue(extractionKey, formField, String(field.value))}
+                    onClick={() =>
+                      void applyExtractedValue(extractionKey, formField, String(field.value))
+                    }
                   >
                     Use this value
                   </Button>

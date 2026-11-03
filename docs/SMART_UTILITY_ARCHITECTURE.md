@@ -55,18 +55,18 @@ Property ──┬─ Building (optional, property_buildings)
 
 ## 2. Data model (new tables, migration 175)
 
-| Table                              | Purpose                                                                                                                                                                                                                       |
-| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `property_buildings`               | Optional building/block level.                                                                                                                                                                                                |
-| `meter_integrations`               | One push connection (a gateway, a Shelly fleet, a Modbus gateway, the simulator) scoped to an org and optionally one property. Holds `provider`, `token_prefix`, `token_hash` (SHA-256), `previous_token_hash` + `previous_token_expires_at` (rotation grace), `status`, `last_seen_at`. **The plaintext token is shown once and never stored.** |
-| `meter_telemetry_readings`         | Append-only cumulative register readings: `meter_id`, `read_at`, `raw_value`, `value` (= raw × multiplier + value_offset, in the meter's base unit: L or kWh), `source` (`device|manual|simulator|estimated`), `integration_id`, `external_event_id`, `status` (`valid|suspect|rejected`), `rejection_reason`, `document_id` (photo evidence), `recorded_by`. **Unique `(meter_id, read_at)`** and **unique `(integration_id, external_event_id)`** = idempotency/duplicate detection. |
-| `meter_ingest_events`              | One row per ingestion request (accepted / partially accepted / rejected, counts, reason, source IP hash) — the integration audit log and the "test connection" evidence.                                                     |
-| `utility_alerts`                   | Rule-based anomaly and discrepancy alerts: `rule` (`water_continuous_night_flow`, `consumption_spike`, `vacant_unit_consumption`, `electricity_night_base_load`, `main_submeter_discrepancy`, `meter_offline`, `meter_reset_detected`), `severity`, `period_start/end`, `details jsonb`, `estimated_cost`, `status` (`open|acknowledged|resolved`), `dedupe_key` unique. |
-| `utility_alert_settings`           | Per-property thresholds (discrepancy %, spike multiple, night-flow window/threshold, vacancy floor) with code defaults when absent.                                                                                         |
-| `municipal_submission_settings`    | Per property: `municipality_code`, `municipal_account_number`, `mode` (`manual|approval_required|automatic`), `billing_day`, `lead_days`, `include_photos`, `enabled`.                                                         |
-| `municipal_submission_recipients`  | Per property: `email`, `label`, `recipient_type` (`municipality|managing_agent|utility_company|accountant|custom`), `authorised_at`, `authorised_by`, `active`. Only **authorised** recipients can receive automatic sends. |
-| `municipal_submissions`            | One reading pack per property per period: `period_start/end`, `status` (`draft|pending_approval|approved|sending|sent|partially_failed|failed|cancelled`), `report jsonb` (immutable snapshot of what was sent), `approved_by/at`, `acceptance_status` (`unknown|accepted|rejected|not_applicable`), `submission_reference`, `acceptance_notes`. |
-| `municipal_submission_deliveries`  | One row per recipient per submission: `status` (`pending|queued|sent|delivered|failed|bounced`), `attempts`, `next_attempt_at`, `last_error`, `email_message_id`, `provider_message_id`. The delivery id is the `relatedEntityId` passed to `dispatchEmail`, so its one-email-per-entity idempotency applies per recipient. |
+| Table                             | Purpose                                                                                                                                                                                                                                                                                                                                          |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `property_buildings`              | Optional building/block level.                                                                                                                                                                                                                                                                                                                   |
+| `meter_integrations`              | One push connection (a gateway, a Shelly fleet, a Modbus gateway, the simulator) scoped to an org and optionally one property. Holds `provider`, `token_prefix`, `token_hash` (SHA-256), `previous_token_hash` + `previous_token_expires_at` (rotation grace), `status`, `last_seen_at`. **The plaintext token is shown once and never stored.** |
+| `meter_telemetry_readings`        | Append-only cumulative register readings: `meter_id`, `read_at`, `raw_value`, `value` (= raw × multiplier + value_offset, in the meter's base unit: L or kWh), `source` (`device                                                                                                                                                                 | manual            | simulator                                                             | estimated`), `integration_id`, `external_event_id`, `status` (`valid | suspect                                                                                                           | rejected`), `rejection_reason`, `document_id`(photo evidence),`recorded_by`. **Unique `(meter_id, read_at)`** and **unique `(integration_id, external_event_id)`** = idempotency/duplicate detection.                               |
+| `meter_ingest_events`             | One row per ingestion request (accepted / partially accepted / rejected, counts, reason, source IP hash) — the integration audit log and the "test connection" evidence.                                                                                                                                                                         |
+| `utility_alerts`                  | Rule-based anomaly and discrepancy alerts: `rule` (`water_continuous_night_flow`, `consumption_spike`, `vacant_unit_consumption`, `electricity_night_base_load`, `main_submeter_discrepancy`, `meter_offline`, `meter_reset_detected`), `severity`, `period_start/end`, `details jsonb`, `estimated_cost`, `status` (`open                       | acknowledged      | resolved`), `dedupe_key` unique.                                      |
+| `utility_alert_settings`          | Per-property thresholds (discrepancy %, spike multiple, night-flow window/threshold, vacancy floor) with code defaults when absent.                                                                                                                                                                                                              |
+| `municipal_submission_settings`   | Per property: `municipality_code`, `municipal_account_number`, `mode` (`manual                                                                                                                                                                                                                                                                   | approval_required | automatic`), `billing_day`, `lead_days`, `include_photos`, `enabled`. |
+| `municipal_submission_recipients` | Per property: `email`, `label`, `recipient_type` (`municipality                                                                                                                                                                                                                                                                                  | managing_agent    | utility_company                                                       | accountant                                                           | custom`), `authorised_at`, `authorised_by`, `active`. Only **authorised** recipients can receive automatic sends. |
+| `municipal_submissions`           | One reading pack per property per period: `period_start/end`, `status` (`draft                                                                                                                                                                                                                                                                   | pending_approval  | approved                                                              | sending                                                              | sent                                                                                                              | partially_failed                                                                                                                                                                                                                    | failed | cancelled`), `report jsonb`(immutable snapshot of what was sent),`approved_by/at`, `acceptance_status` (`unknown | accepted | rejected | not_applicable`), `submission_reference`, `acceptance_notes`. |
+| `municipal_submission_deliveries` | One row per recipient per submission: `status` (`pending                                                                                                                                                                                                                                                                                         | queued            | sent                                                                  | delivered                                                            | failed                                                                                                            | bounced`), `attempts`, `next_attempt_at`, `last_error`, `email_message_id`, `provider_message_id`. The delivery id is the `relatedEntityId`passed to`dispatchEmail`, so its one-email-per-entity idempotency applies per recipient. |
 
 ### 2.1 Access control (RLS)
 
@@ -134,12 +134,12 @@ Physical meter
 The owner configures `expected_interval_minutes` per meter. The UI only offers intervals the connectivity method
 supports (`lib/smartUtility/capabilities.ts`):
 
-| Connectivity                    | Offered intervals              | Why                                                                                   |
-| ------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------- |
-| LoRaWAN (EM300-DI)              | 15 min, 1 h, 1 day             | Battery life: ≈5 y at 10 min per Milesight; shorter is not offered                   |
-| Wi-Fi (Shelly)                  | 15 min, 1 h, 1 day             | Mains-powered; finer data stays on device                                             |
-| Modbus gateway                  | 15 min, 1 h, 1 day             | Gateway poll interval; LTE data cost scales with frequency                           |
-| Manual                          | 1 day, 1 month                 | Human-entered                                                                         |
+| Connectivity       | Offered intervals  | Why                                                                |
+| ------------------ | ------------------ | ------------------------------------------------------------------ |
+| LoRaWAN (EM300-DI) | 15 min, 1 h, 1 day | Battery life: ≈5 y at 10 min per Milesight; shorter is not offered |
+| Wi-Fi (Shelly)     | 15 min, 1 h, 1 day | Mains-powered; finer data stays on device                          |
+| Modbus gateway     | 15 min, 1 h, 1 day | Gateway poll interval; LTE data cost scales with frequency         |
+| Manual             | 1 day, 1 month     | Human-entered                                                      |
 
 The interval is _configured on the device/gateway_ (documented in the install guide); Proplyst uses the stored value
 for health checks and for choosing the default chart granularity. Proplyst never pushes configuration to devices in
@@ -181,13 +181,13 @@ reported as its own data-quality status, not an alert about tenants.
 
 Run by the daily job over the last complete day (SAST), per meter:
 
-| Rule                            | Water                                                                                                  | Electricity                                                                                           |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
-| Night flow / base load          | Every hourly bucket 00:00–05:00 has consumption > `nightFlowLitresPerHour` (default 5 L/h) → _possible leak_ | Mean 00:00–05:00 hourly kWh > `baseLoadRatio` (default 0.6) × daytime mean and > 0.3 kWh/h       |
-| Spike                           | Day consumption > `spikeMultiple` (default 3) × median of the previous 14 days and > 200 L           | same, floor 5 kWh                                                                                    |
-| Vacant unit                     | Unit `status='vacant'` and day consumption > 50 L                                                     | > 2 kWh                                                                                              |
-| Reset detected / offline        | From the consumption engine / health check                                                            | same                                                                                                 |
-| Main vs submeter                | Reconciliation above threshold (monthly)                                                               | same                                                                                                 |
+| Rule                     | Water                                                                                                        | Electricity                                                                                |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| Night flow / base load   | Every hourly bucket 00:00–05:00 has consumption > `nightFlowLitresPerHour` (default 5 L/h) → _possible leak_ | Mean 00:00–05:00 hourly kWh > `baseLoadRatio` (default 0.6) × daytime mean and > 0.3 kWh/h |
+| Spike                    | Day consumption > `spikeMultiple` (default 3) × median of the previous 14 days and > 200 L                   | same, floor 5 kWh                                                                          |
+| Vacant unit              | Unit `status='vacant'` and day consumption > 50 L                                                            | > 2 kWh                                                                                    |
+| Reset detected / offline | From the consumption engine / health check                                                                   | same                                                                                       |
+| Main vs submeter         | Reconciliation above threshold (monthly)                                                                     | same                                                                                       |
 
 Every alert stores the numbers that triggered it and an **estimated financial impact** = excess consumption ×
 `tariff_per_unit` when a tariff is configured (labelled "estimate"; Phase 2 replaces the flat tariff with block
@@ -250,18 +250,18 @@ submissions → send approved/automatic deliveries → retry due failures → mi
 
 ## 11. API surface (as implemented; all under `/api/v1`, `{error:{code,message}}` envelope, zod validation)
 
-| Method & path                                                                 | Auth / permission                                                    |
-| ----------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| `GET properties/:id/smart-utility` — dashboard payload                         | session; RLS read (`can_read_property_utilities`)                     |
-| `POST properties/:id/smart-meters` · `PATCH smart-meters/:id` (incl. `decommission`) · `POST smart-meters/:id/replace` | session; `can_write_property_utilities`                               |
-| `GET smart-meters/:id/telemetry?from&to` · `POST smart-meters/:id/telemetry` (manual reading, optional `documentId`) | read / write                                                          |
-| `POST properties/:id/buildings`                                                | write                                                                 |
-| `POST properties/:id/meter-integrations` (returns token once) · `GET meter-integrations/:id` (ingest log) · `POST meter-integrations/:id {action: rotate\|revoke}` | write **and** org role manager+                                       |
-| `POST integrations/meters/ingest`                                              | integration bearer token; CSRF- and MFA-exempt (device, not user)    |
-| `PUT properties/:id/municipal-submissions/settings` · `POST properties/:id/municipal-submissions/recipients` · `PATCH municipal-submission-recipients/:id` | write                                                                 |
-| `POST properties/:id/municipal-submissions` (prepare pack) · `POST municipal-submissions/:id {action: approve\|send\|cancel\|acceptance}` · `GET municipal-submissions/:id/export?format=csv\|pdf` | write (export: read)                                                  |
-| `PATCH utility-alerts/:id` · `PUT properties/:id/utility-alert-settings`       | write                                                                 |
-| `POST system/smart-utility-jobs` (also runs as job 7 of `system/daily-jobs`)   | `CRON_JOB_SECRET` / super_admin                                       |
+| Method & path                                                                                                                                                                                      | Auth / permission                                                 |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `GET properties/:id/smart-utility` — dashboard payload                                                                                                                                             | session; RLS read (`can_read_property_utilities`)                 |
+| `POST properties/:id/smart-meters` · `PATCH smart-meters/:id` (incl. `decommission`) · `POST smart-meters/:id/replace`                                                                             | session; `can_write_property_utilities`                           |
+| `GET smart-meters/:id/telemetry?from&to` · `POST smart-meters/:id/telemetry` (manual reading, optional `documentId`)                                                                               | read / write                                                      |
+| `POST properties/:id/buildings`                                                                                                                                                                    | write                                                             |
+| `POST properties/:id/meter-integrations` (returns token once) · `GET meter-integrations/:id` (ingest log) · `POST meter-integrations/:id {action: rotate\|revoke}`                                 | write **and** org role manager+                                   |
+| `POST integrations/meters/ingest`                                                                                                                                                                  | integration bearer token; CSRF- and MFA-exempt (device, not user) |
+| `PUT properties/:id/municipal-submissions/settings` · `POST properties/:id/municipal-submissions/recipients` · `PATCH municipal-submission-recipients/:id`                                         | write                                                             |
+| `POST properties/:id/municipal-submissions` (prepare pack) · `POST municipal-submissions/:id {action: approve\|send\|cancel\|acceptance}` · `GET municipal-submissions/:id/export?format=csv\|pdf` | write (export: read)                                              |
+| `PATCH utility-alerts/:id` · `PUT properties/:id/utility-alert-settings`                                                                                                                           | write                                                             |
+| `POST system/smart-utility-jobs` (also runs as job 7 of `system/daily-jobs`)                                                                                                                       | `CRON_JOB_SECRET` / super_admin                                   |
 
 ## 12. Device configuration reference
 
@@ -293,10 +293,13 @@ function push() {
     let id = Shelly.getDeviceInfo().id;
     let body = { src: id, params: { ts: st.sys.unixtime } };
     for (let k in st) {
-      if (k.indexOf('emdata:') === 0 || k.indexOf('em1data:') === 0 || k.indexOf('input:') === 0) body.params[k] = st[k];
+      if (k.indexOf('emdata:') === 0 || k.indexOf('em1data:') === 0 || k.indexOf('input:') === 0)
+        body.params[k] = st[k];
     }
     Shelly.call('HTTP.Request', {
-      method: 'POST', url: URL, timeout: 15,
+      method: 'POST',
+      url: URL,
+      timeout: 15,
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + TOKEN },
       body: JSON.stringify(body),
     });

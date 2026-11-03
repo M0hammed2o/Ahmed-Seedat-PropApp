@@ -39,14 +39,21 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
       {
         error: {
           code: 'invoice_fetch_failed',
-          message: safeErrorMessage(error, 'Could not load this invoice.', 'invoices/[id]/pdf.fetch'),
+          message: safeErrorMessage(
+            error,
+            'Could not load this invoice.',
+            'invoices/[id]/pdf.fetch',
+          ),
         },
       },
       { status: 500 },
     );
   }
   if (!invoice) {
-    return NextResponse.json({ error: { code: 'not_found', message: 'Invoice not found.' } }, { status: 404 });
+    return NextResponse.json(
+      { error: { code: 'not_found', message: 'Invoice not found.' } },
+      { status: 404 },
+    );
   }
 
   const lease = invoice.leases as unknown as {
@@ -67,7 +74,11 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
       {
         error: {
           code: 'invoice_line_items_fetch_failed',
-          message: safeErrorMessage(lineError, 'Could not load invoice line items.', 'invoices/[id]/pdf.lineItems'),
+          message: safeErrorMessage(
+            lineError,
+            'Could not load invoice line items.',
+            'invoices/[id]/pdf.lineItems',
+          ),
         },
       },
       { status: 500 },
@@ -138,7 +149,11 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
         {
           error: {
             code: 'organization_fetch_failed',
-            message: safeErrorMessage(orgError, 'Could not load organisation details.', 'invoices/[id]/pdf.org'),
+            message: safeErrorMessage(
+              orgError,
+              'Could not load organisation details.',
+              'invoices/[id]/pdf.org',
+            ),
           },
         },
         { status: 500 },

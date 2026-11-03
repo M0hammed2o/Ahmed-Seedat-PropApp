@@ -2,7 +2,11 @@ import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getServiceRoleClient } from '@/lib/supabase/server';
 import { dispatchEmail, type DispatchEmailResult } from '@/lib/emailDispatch';
-import { dispatchWhatsApp, resolveOrgWhatsAppBranding, type DispatchWhatsAppResult } from '@/lib/whatsappDispatch';
+import {
+  dispatchWhatsApp,
+  resolveOrgWhatsAppBranding,
+  type DispatchWhatsAppResult,
+} from '@/lib/whatsappDispatch';
 import { buildLeaseReadyVariables } from '@/lib/whatsappTemplateVariables';
 import { checkApplicantWhatsAppEligibility } from '@/lib/applicationNotifications';
 import { getAppUrl } from '@/lib/appUrl';
@@ -55,12 +59,19 @@ export async function dispatchLeaseReadyEmail(
     .eq('is_primary', true)
     .maybeSingle();
 
-  const tenant = (leaseTenant as unknown as { tenants: { email: string | null; full_name: string } | null } | null)
-    ?.tenants;
-  const org = (lease as unknown as { organizations: { trading_name: string | null; legal_name: string } | null })
-    .organizations;
-  const unit = (lease as unknown as { units: { unit_label: string; properties: { nickname: string } | null } | null })
-    .units;
+  const tenant = (
+    leaseTenant as unknown as { tenants: { email: string | null; full_name: string } | null } | null
+  )?.tenants;
+  const org = (
+    lease as unknown as {
+      organizations: { trading_name: string | null; legal_name: string } | null;
+    }
+  ).organizations;
+  const unit = (
+    lease as unknown as {
+      units: { unit_label: string; properties: { nickname: string } | null } | null;
+    }
+  ).units;
 
   const orgName = org?.trading_name ?? org?.legal_name ?? 'Your landlord';
   const propertyLabel = unit?.properties?.nickname
@@ -103,12 +114,19 @@ export async function dispatchLeaseReadyWhatsApp(
     return { eligible: false, sent: false };
   }
 
-  const eligibility = await checkApplicantWhatsAppEligibility(serviceClient, lease.source_application_id);
+  const eligibility = await checkApplicantWhatsAppEligibility(
+    serviceClient,
+    lease.source_application_id,
+  );
   if (!eligibility.eligible || !eligibility.phone) {
     return { eligible: false, sent: false };
   }
 
-  const unit = (lease as unknown as { units: { unit_label: string; properties: { nickname: string } | null } | null }).units;
+  const unit = (
+    lease as unknown as {
+      units: { unit_label: string; properties: { nickname: string } | null } | null;
+    }
+  ).units;
   const branding = await resolveOrgWhatsAppBranding(serviceClient, lease.org_id);
   const propertyLabel = unit?.properties?.nickname
     ? `${unit.properties.nickname} — ${unit.unit_label}`

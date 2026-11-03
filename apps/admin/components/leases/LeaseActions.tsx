@@ -20,7 +20,14 @@ interface LeaseActionsProps {
   source: 'manual' | 'application_approved';
 }
 
-export function LeaseActions({ leaseId, orgId, status, hasTenant, canEdit, source }: LeaseActionsProps) {
+export function LeaseActions({
+  leaseId,
+  orgId,
+  status,
+  hasTenant,
+  canEdit,
+  source,
+}: LeaseActionsProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -208,8 +215,8 @@ function SignedDocumentPanel({
         </p>
       ) : (
         <p className="text-xs text-light-textMuted dark:text-dark-textMuted">
-          No signed lease document attached yet — this lease can still be activated without one,
-          but attaching the already-signed copy keeps a durable record.
+          No signed lease document attached yet — this lease can still be activated without one, but
+          attaching the already-signed copy keeps a durable record.
         </p>
       )}
       <input

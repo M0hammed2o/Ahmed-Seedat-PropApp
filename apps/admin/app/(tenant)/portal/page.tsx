@@ -384,9 +384,9 @@ async function loadData(): Promise<PortalOverview> {
   let paidCount = 0;
   let overdueCount = 0;
   if (leaseRow) {
-    const invoices = (await loadInvoicesWithBalances(supabase, { tenantId: session.tenantId })).filter(
-      (inv) => inv.displayStatus !== 'Draft',
-    );
+    const invoices = (
+      await loadInvoicesWithBalances(supabase, { tenantId: session.tenantId })
+    ).filter((inv) => inv.displayStatus !== 'Draft');
     paidCount = invoices.filter((inv) => inv.displayStatus === 'Paid').length;
     overdueCount = invoices.filter((inv) => inv.displayStatus === 'Overdue').length;
     const nextDue = invoices

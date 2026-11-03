@@ -43,7 +43,12 @@ describe('ConfirmEmailClient', () => {
       json: async () => ({ outcome: 'already_confirmed' }),
     }) as unknown as typeof fetch;
 
-    render(<ConfirmEmailClient tokenHash="real-hash" next="/onboarding/choose-plan?plan=starter&interval=monthly" />);
+    render(
+      <ConfirmEmailClient
+        tokenHash="real-hash"
+        next="/onboarding/choose-plan?plan=starter&interval=monthly"
+      />,
+    );
     fireEvent.click(screen.getByText('Confirm email address'));
 
     await waitFor(() => expect(screen.getByText('Email already confirmed')).toBeTruthy());

@@ -71,7 +71,11 @@ export async function fetchAll<T>(page: (from: number, to: number) => Page<T>): 
 }
 
 /** fetchAll for an `in(...)` filter over many ids: chunked (URL length) and paged (row cap). */
-export async function fetchAllIn<T>(ids: string[], page: (chunk: string[], from: number, to: number) => Page<T>, chunkSize = METER_CHUNK): Promise<T[]> {
+export async function fetchAllIn<T>(
+  ids: string[],
+  page: (chunk: string[], from: number, to: number) => Page<T>,
+  chunkSize = METER_CHUNK,
+): Promise<T[]> {
   const out: T[] = [];
   for (let c = 0; c < ids.length; c += chunkSize) {
     const chunk = ids.slice(c, c + chunkSize);

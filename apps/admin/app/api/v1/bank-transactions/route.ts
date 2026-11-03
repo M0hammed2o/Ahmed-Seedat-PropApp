@@ -39,7 +39,11 @@ export async function GET(request: NextRequest) {
       {
         error: {
           code: 'bank_transactions_list_failed',
-          message: safeErrorMessage(error, 'Could not load bank transactions.', 'bankTransactions.list'),
+          message: safeErrorMessage(
+            error,
+            'Could not load bank transactions.',
+            'bankTransactions.list',
+          ),
         },
       },
       { status: 500 },
@@ -95,7 +99,11 @@ export async function POST(request: NextRequest) {
       {
         error: {
           code: 'bank_account_fetch_failed',
-          message: safeErrorMessage(bankAccountError, 'Could not load this bank account.', 'bankTransactions.create.fetchBankAccount'),
+          message: safeErrorMessage(
+            bankAccountError,
+            'Could not load this bank account.',
+            'bankTransactions.create.fetchBankAccount',
+          ),
         },
       },
       { status: 500 },

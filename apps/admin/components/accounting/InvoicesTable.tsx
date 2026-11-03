@@ -187,14 +187,19 @@ function InvoiceActionsMenu({
               disabled={busy}
               onClick={() => {
                 const reason = window.prompt('Reason for voiding this invoice:');
-                if (reason && reason.trim().length > 0) void runAction('/void', { reason: reason.trim() });
+                if (reason && reason.trim().length > 0)
+                  void runAction('/void', { reason: reason.trim() });
               }}
               className="block w-full px-3 py-1.5 text-left text-xs text-light-danger hover:bg-light-surfaceRaised disabled:opacity-50 dark:text-dark-danger dark:hover:bg-dark-surfaceRaised"
             >
               Void invoice
             </button>
           ) : null}
-          {error ? <p className="px-3 py-1 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">{error}</p> : null}
+          {error ? (
+            <p className="px-3 py-1 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">
+              {error}
+            </p>
+          ) : null}
         </div>
       </details>
 
@@ -217,94 +222,96 @@ function InvoiceActionsMenu({
 
 function buildColumns(canSend: boolean, onSent: () => void): ColumnDef<InvoiceRow, unknown>[] {
   const columns: ColumnDef<InvoiceRow, unknown>[] = [
-  {
-    header: 'Invoice #',
-    accessorKey: 'invoiceNumber',
-    cell: (info) => (
-      <Link
-        href={`/accounting/invoices/${info.row.original.id}`}
-        className="tabular font-medium text-foreground hover:underline"
-      >
-        {info.row.original.invoiceNumber}
-      </Link>
-    ),
-  },
-  {
-    header: 'Tenant',
-    accessorKey: 'tenantName',
-    cell: (info) => (
-      <Link
-        href={`/tenants/${info.row.original.tenantId}`}
-        className="text-light-accent hover:underline dark:text-dark-accent"
-      >
-        {info.row.original.tenantName}
-      </Link>
-    ),
-  },
-  {
-    header: 'Property',
-    accessorKey: 'propertyNickname',
-    cell: (info) => (
-      <Link
-        href={`/properties/${info.row.original.propertyId}`}
-        className="text-light-textSecondary hover:underline dark:text-dark-textSecondary"
-      >
-        {info.row.original.propertyNickname}
-      </Link>
-    ),
-  },
-  {
-    header: 'Unit',
-    accessorKey: 'unitLabel',
-  },
-  {
-    header: 'Description',
-    accessorKey: 'description',
-  },
-  {
-    header: 'Issue date',
-    accessorKey: 'issuedAt',
-    cell: (info) => {
-      const value = info.getValue() as string | null;
-      return value ? new Date(value).toLocaleDateString('en-ZA') : '—';
-    },
-  },
-  {
-    header: 'Due date',
-    accessorKey: 'period',
-    cell: (info) => new Date(info.getValue() as string).toLocaleDateString('en-ZA'),
-  },
-  {
-    header: 'Amount',
-    accessorKey: 'amount',
-    cell: (info) => <span className="tabular">{currency(info.getValue() as number)}</span>,
-  },
-  {
-    header: 'Paid',
-    accessorKey: 'paid',
-    cell: (info) => <span className="tabular">{currency(info.getValue() as number)}</span>,
-  },
-  {
-    header: 'Balance',
-    accessorKey: 'balance',
-    cell: (info) => {
-      const value = info.getValue() as number;
-      return (
-        <span
-          className={`tabular font-medium ${value > 0 ? 'text-light-statusOverdue dark:text-dark-statusOverdue' : 'text-foreground'}`}
+    {
+      header: 'Invoice #',
+      accessorKey: 'invoiceNumber',
+      cell: (info) => (
+        <Link
+          href={`/accounting/invoices/${info.row.original.id}`}
+          className="tabular font-medium text-foreground hover:underline"
         >
-          {currency(value)}
-        </span>
-      );
+          {info.row.original.invoiceNumber}
+        </Link>
+      ),
     },
-  },
-  {
-    header: 'Status',
-    accessorKey: 'displayStatus',
-    cell: (info) => (
-      <StatusBadge presentation={STATUS_PRESENTATION[info.getValue() as InvoiceRow['displayStatus']]} />
-    ),
-  },
+    {
+      header: 'Tenant',
+      accessorKey: 'tenantName',
+      cell: (info) => (
+        <Link
+          href={`/tenants/${info.row.original.tenantId}`}
+          className="text-light-accent hover:underline dark:text-dark-accent"
+        >
+          {info.row.original.tenantName}
+        </Link>
+      ),
+    },
+    {
+      header: 'Property',
+      accessorKey: 'propertyNickname',
+      cell: (info) => (
+        <Link
+          href={`/properties/${info.row.original.propertyId}`}
+          className="text-light-textSecondary hover:underline dark:text-dark-textSecondary"
+        >
+          {info.row.original.propertyNickname}
+        </Link>
+      ),
+    },
+    {
+      header: 'Unit',
+      accessorKey: 'unitLabel',
+    },
+    {
+      header: 'Description',
+      accessorKey: 'description',
+    },
+    {
+      header: 'Issue date',
+      accessorKey: 'issuedAt',
+      cell: (info) => {
+        const value = info.getValue() as string | null;
+        return value ? new Date(value).toLocaleDateString('en-ZA') : '—';
+      },
+    },
+    {
+      header: 'Due date',
+      accessorKey: 'period',
+      cell: (info) => new Date(info.getValue() as string).toLocaleDateString('en-ZA'),
+    },
+    {
+      header: 'Amount',
+      accessorKey: 'amount',
+      cell: (info) => <span className="tabular">{currency(info.getValue() as number)}</span>,
+    },
+    {
+      header: 'Paid',
+      accessorKey: 'paid',
+      cell: (info) => <span className="tabular">{currency(info.getValue() as number)}</span>,
+    },
+    {
+      header: 'Balance',
+      accessorKey: 'balance',
+      cell: (info) => {
+        const value = info.getValue() as number;
+        return (
+          <span
+            className={`tabular font-medium ${value > 0 ? 'text-light-statusOverdue dark:text-dark-statusOverdue' : 'text-foreground'}`}
+          >
+            {currency(value)}
+          </span>
+        );
+      },
+    },
+    {
+      header: 'Status',
+      accessorKey: 'displayStatus',
+      cell: (info) => (
+        <StatusBadge
+          presentation={STATUS_PRESENTATION[info.getValue() as InvoiceRow['displayStatus']]}
+        />
+      ),
+    },
   ];
 
   columns.push({
@@ -314,7 +321,9 @@ function buildColumns(canSend: boolean, onSent: () => void): ColumnDef<InvoiceRo
     // that, so without it staff could not tell "already e-mailed" from "nothing to send".
     cell: (info) => (
       <span className="inline-flex items-center gap-2">
-        {info.row.original.emailedAt ? <span className="text-[12px] text-muted-foreground">Sent</span> : null}
+        {info.row.original.emailedAt ? (
+          <span className="text-[12px] text-muted-foreground">Sent</span>
+        ) : null}
         <InvoiceActionsMenu invoice={info.row.original} canWrite={canSend} onChanged={onSent} />
       </span>
     ),

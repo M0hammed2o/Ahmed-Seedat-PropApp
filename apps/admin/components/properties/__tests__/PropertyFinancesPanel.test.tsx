@@ -29,12 +29,19 @@ function stubFetchWithFailingRecurringCosts() {
           ok: false,
           status: 500,
           json: async () => ({
-            error: { code: 'recurring_costs_failed', message: 'Simulated failure (e.g. missing table/migration)' },
+            error: {
+              code: 'recurring_costs_failed',
+              message: 'Simulated failure (e.g. missing table/migration)',
+            },
           }),
         });
       }
       if (url.includes('/utility-settings')) {
-        return Promise.resolve({ ok: true, status: 200, json: async () => ({ utilitySettings: [] }) });
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ utilitySettings: [] }),
+        });
       }
       // /budget?month=...
       return Promise.resolve({
@@ -85,7 +92,9 @@ describe('PropertyFinancesPanel', () => {
 
     render(<PropertyFinancesPanel propertyId="property-1" orgId="org-1" canManage={true} />);
 
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'Monthly budget' })).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: 'Monthly budget' })).toBeTruthy(),
+    );
     expect(screen.queryByText(/Simulated failure/)).toBeNull();
   });
 
@@ -124,7 +133,9 @@ describe('PropertyFinancesPanel', () => {
 
     render(<PropertyFinancesPanel propertyId="property-1" orgId="org-1" canManage={true} />);
 
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'Financial setup' })).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: 'Financial setup' })).toBeTruthy(),
+    );
     // The summary, not the form: "Edit setup" button present, no "Save financial setup"/"Save
     // changes" submit button, and the rates value renders as read-only text, not an editable input.
     expect(screen.getByRole('button', { name: 'Edit setup' })).toBeTruthy();
@@ -150,7 +161,9 @@ describe('PropertyFinancesPanel', () => {
 
     render(<PropertyFinancesPanel propertyId="property-1" orgId="org-1" canManage={true} />);
 
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'Financial setup' })).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: 'Financial setup' })).toBeTruthy(),
+    );
     const waterSelect = screen.getByLabelText('Water') as HTMLSelectElement;
     const electricitySelect = screen.getByLabelText('Electricity') as HTMLSelectElement;
     expect(waterSelect.value).toBe('');

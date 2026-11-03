@@ -1,5 +1,12 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { jsonError, loadReadableProperty, notFound, requireUser, serverError, utilitiesDisabled } from '@/lib/smartUtility/http';
+import {
+  jsonError,
+  loadReadableProperty,
+  notFound,
+  requireUser,
+  serverError,
+  utilitiesDisabled,
+} from '@/lib/smartUtility/http';
 import { loadHybridDashboard, parseRange } from '@/lib/smartUtility/hybridDashboard';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -13,7 +20,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   const { id } = await params;
   const auth = await requireUser();
   if ('response' in auth) return auth.response;
-  const range = parseRange(request.nextUrl.searchParams.get('from'), request.nextUrl.searchParams.get('to'));
+  const range = parseRange(
+    request.nextUrl.searchParams.get('from'),
+    request.nextUrl.searchParams.get('to'),
+  );
   if ('error' in range) return jsonError(400, 'invalid_range', range.error);
   const property = await loadReadableProperty(auth.supabase, id);
   if (!property) return notFound();
@@ -21,6 +31,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     return NextResponse.json(await loadHybridDashboard(auth.supabase, property.id, range));
   } catch (error) {
-    return serverError('utility_dashboard_failed', 'Could not load the utilities dashboard.', 'utility_dashboard.load', error);
+    return serverError(
+      'utility_dashboard_failed',
+      'Could not load the utilities dashboard.',
+      'utility_dashboard.load',
+      error,
+    );
   }
 }

@@ -14,10 +14,12 @@ const mockCookieJar = new Map<string, string>();
 
 vi.mock('next/headers', () => ({
   headers: async () => ({
-    get: (name: string) => (name.toLowerCase() === 'authorization' ? mockAuthorizationHeader : null),
+    get: (name: string) =>
+      name.toLowerCase() === 'authorization' ? mockAuthorizationHeader : null,
   }),
   cookies: async () => ({
-    get: (name: string) => (mockCookieJar.has(name) ? { value: mockCookieJar.get(name) } : undefined),
+    get: (name: string) =>
+      mockCookieJar.has(name) ? { value: mockCookieJar.get(name) } : undefined,
     set: (name: string, value: string) => {
       mockCookieJar.set(name, value);
     },
@@ -84,159 +86,175 @@ function postRequest(propertyId: string, body: unknown) {
   });
 }
 
-describeIfSupabase('GET /api/v1/properties/:id/budget/annual (real local Supabase integration)', () => {
-  const serviceClient: SupabaseClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY!, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-
-  let orgId: string;
-  let propertyId: string;
-  let managerId: string;
-  let managerToken: string;
-  const password = 'TestPassw0rd!23';
-  const year = 2031; // far enough from real data that no other test/fixture could collide
-
-  beforeEach(async () => {
-    mockCookieJar.clear();
-    const suffix = Date.now();
-
-    const managerEmail = `budget-annual-manager-${suffix}@propertyvault.example`;
-    const managerCreated = await adminFetch('/auth/v1/admin/users', {
-      email: managerEmail,
-      password,
-      email_confirm: true,
-    });
-    managerId = managerCreated.id;
-    managerToken = await signIn(managerEmail, password);
-
-    const orgRows = await adminFetch('/rest/v1/organizations', {
-      legal_name: `Budget Annual Vitest Org ${suffix}`,
-      org_type: 'agency',
-    });
-    orgId = orgRows[0].id;
-    await adminFetch('/rest/v1/organization_members', {
-      org_id: orgId,
-      user_id: managerId,
-      role: 'manager',
-      status: 'active',
-      joined_at: new Date().toISOString(),
+describeIfSupabase(
+  'GET /api/v1/properties/:id/budget/annual (real local Supabase integration)',
+  () => {
+    const serviceClient: SupabaseClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY!, {
+      auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    const { data: property } = await serviceClient
-      .from('properties')
-      .insert({
+    let orgId: string;
+    let propertyId: string;
+    let managerId: string;
+    let managerToken: string;
+    const password = 'TestPassw0rd!23';
+    const year = 2031; // far enough from real data that no other test/fixture could collide
+
+    beforeEach(async () => {
+      mockCookieJar.clear();
+      const suffix = Date.now();
+
+      const managerEmail = `budget-annual-manager-${suffix}@propertyvault.example`;
+      const managerCreated = await adminFetch('/auth/v1/admin/users', {
+        email: managerEmail,
+        password,
+        email_confirm: true,
+      });
+      managerId = managerCreated.id;
+      managerToken = await signIn(managerEmail, password);
+
+      const orgRows = await adminFetch('/rest/v1/organizations', {
+        legal_name: `Budget Annual Vitest Org ${suffix}`,
+        org_type: 'agency',
+      });
+      orgId = orgRows[0].id;
+      await adminFetch('/rest/v1/organization_members', {
         org_id: orgId,
-        nickname: 'Budget Annual Property',
-        address_line1: '1 Test St',
-        city: 'Cape Town',
-        country: 'ZA',
-        property_type: 'house',
-      })
-      .select('id')
-      .single();
-    propertyId = property!.id;
-    await serviceClient
-      .from('property_access')
-      .upsert(
-        { property_id: propertyId, user_id: managerId, property_role: 'administrator', granted_by: managerId },
+        user_id: managerId,
+        role: 'manager',
+        status: 'active',
+        joined_at: new Date().toISOString(),
+      });
+
+      const { data: property } = await serviceClient
+        .from('properties')
+        .insert({
+          org_id: orgId,
+          nickname: 'Budget Annual Property',
+          address_line1: '1 Test St',
+          city: 'Cape Town',
+          country: 'ZA',
+          property_type: 'house',
+        })
+        .select('id')
+        .single();
+      propertyId = property!.id;
+      await serviceClient.from('property_access').upsert(
+        {
+          property_id: propertyId,
+          user_id: managerId,
+          property_role: 'administrator',
+          granted_by: managerId,
+        },
         { onConflict: 'property_id,user_id' },
       );
-  });
-
-  afterEach(async () => {
-    mockAuthorizationHeader = null;
-    await serviceClient.from('property_budgets').delete().eq('property_id', propertyId);
-    await serviceClient.from('property_access').delete().eq('property_id', propertyId);
-    await serviceClient.from('properties').delete().eq('id', propertyId);
-    await serviceClient.from('organizations').delete().eq('id', orgId);
-    await serviceClient.auth.admin.deleteUser(managerId);
-  });
-
-  it('returns all 12 months, none configured, with a 200 (never a 500 just because nothing is set yet)', async () => {
-    mockAuthorizationHeader = `Bearer ${managerToken}`;
-    const response = await GET(getRequest(propertyId, year), { params: Promise.resolve({ id: propertyId }) });
-    expect(response.status).toBe(200);
-    const body = await response.json();
-    expect(body.months).toHaveLength(12);
-    expect(body.months[0].month).toBe(`${year}-01-01`);
-    expect(body.months[11].month).toBe(`${year}-12-01`);
-    for (const m of body.months) {
-      expect(m.plannedAmount).toBeNull();
-      expect(m.actualAmount).toBe(0);
-    }
-  });
-
-  it('reflects a distributed annual budget across all 12 months in one batched response', async () => {
-    mockAuthorizationHeader = `Bearer ${managerToken}`;
-    const distributeResponse = await POST(
-      postRequest(propertyId, { orgId, year, annualTotal: 12000 }),
-      { params: Promise.resolve({ id: propertyId }) },
-    );
-    expect(distributeResponse.status).toBe(201);
-
-    const response = await GET(getRequest(propertyId, year), { params: Promise.resolve({ id: propertyId }) });
-    expect(response.status).toBe(200);
-    const body = await response.json();
-    expect(body.months).toHaveLength(12);
-    for (const m of body.months) {
-      expect(m.plannedAmount).toBe(1000);
-    }
-    // Phase A budget-hierarchy pass: the annual rollup is a pure sum of these same 12 months --
-    // 1000 planned x 12 = 12000, zero actual expenses recorded.
-    expect(body.annual).toEqual({
-      year,
-      monthsPlanned: 12,
-      annualPlanned: 12000,
-      annualActual: 0,
-      annualRemaining: 12000,
-      annualPercentUsed: 0,
     });
-  });
 
-  it('requires authentication', async () => {
-    mockAuthorizationHeader = null;
-    const response = await GET(getRequest(propertyId, year), { params: Promise.resolve({ id: propertyId }) });
-    expect(response.status).toBe(401);
-  });
-
-  it('rejects a missing or invalid ?year with 400, not a 500', async () => {
-    mockAuthorizationHeader = `Bearer ${managerToken}`;
-    const missing = await GET(getRequest(propertyId, null), { params: Promise.resolve({ id: propertyId }) });
-    expect(missing.status).toBe(400);
-
-    const invalid = await GET(getRequest(propertyId, 'not-a-year'), { params: Promise.resolve({ id: propertyId }) });
-    expect(invalid.status).toBe(400);
-  });
-
-  // V1 release-gate pass: the cross-org API isolation probe caught this route returning 500 where
-  // all three of its siblings (properties/:id/financial-summary, organizations/:orgId/
-  // financial-summary, organizations/:orgId/budget/annual) return 403 -- budget_vs_actual()'s
-  // authorization exception was being funnelled into the generic "RPC failed" 500 branch. The data
-  // was never exposed (RLS held), but a routine permission denial was being reported as a server
-  // fault. This test pins the corrected status so the inconsistency cannot silently return.
-  it('returns 403, not 500, for a signed-in user from a different organization', async () => {
-    const suffix = Date.now();
-    const outsiderEmail = `budget-annual-outsider-${suffix}@propertyvault.example`;
-    const outsiderCreated = await adminFetch('/auth/v1/admin/users', {
-      email: outsiderEmail,
-      password,
-      email_confirm: true,
+    afterEach(async () => {
+      mockAuthorizationHeader = null;
+      await serviceClient.from('property_budgets').delete().eq('property_id', propertyId);
+      await serviceClient.from('property_access').delete().eq('property_id', propertyId);
+      await serviceClient.from('properties').delete().eq('id', propertyId);
+      await serviceClient.from('organizations').delete().eq('id', orgId);
+      await serviceClient.auth.admin.deleteUser(managerId);
     });
-    const outsiderId = outsiderCreated.id as string;
-    try {
-      const outsiderToken = await signIn(outsiderEmail, password);
-      mockAuthorizationHeader = `Bearer ${outsiderToken}`;
+
+    it('returns all 12 months, none configured, with a 200 (never a 500 just because nothing is set yet)', async () => {
+      mockAuthorizationHeader = `Bearer ${managerToken}`;
+      const response = await GET(getRequest(propertyId, year), {
+        params: Promise.resolve({ id: propertyId }),
+      });
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.months).toHaveLength(12);
+      expect(body.months[0].month).toBe(`${year}-01-01`);
+      expect(body.months[11].month).toBe(`${year}-12-01`);
+      for (const m of body.months) {
+        expect(m.plannedAmount).toBeNull();
+        expect(m.actualAmount).toBe(0);
+      }
+    });
+
+    it('reflects a distributed annual budget across all 12 months in one batched response', async () => {
+      mockAuthorizationHeader = `Bearer ${managerToken}`;
+      const distributeResponse = await POST(
+        postRequest(propertyId, { orgId, year, annualTotal: 12000 }),
+        { params: Promise.resolve({ id: propertyId }) },
+      );
+      expect(distributeResponse.status).toBe(201);
 
       const response = await GET(getRequest(propertyId, year), {
         params: Promise.resolve({ id: propertyId }),
       });
-      expect(response.status).toBe(403);
+      expect(response.status).toBe(200);
       const body = await response.json();
-      expect(body.error.code).toBe('forbidden');
-      // The denial must not echo the underlying Postgres exception text back to the caller.
-      expect(JSON.stringify(body)).not.toContain('does not have access');
-    } finally {
-      await serviceClient.auth.admin.deleteUser(outsiderId);
-    }
-  });
-});
+      expect(body.months).toHaveLength(12);
+      for (const m of body.months) {
+        expect(m.plannedAmount).toBe(1000);
+      }
+      // Phase A budget-hierarchy pass: the annual rollup is a pure sum of these same 12 months --
+      // 1000 planned x 12 = 12000, zero actual expenses recorded.
+      expect(body.annual).toEqual({
+        year,
+        monthsPlanned: 12,
+        annualPlanned: 12000,
+        annualActual: 0,
+        annualRemaining: 12000,
+        annualPercentUsed: 0,
+      });
+    });
+
+    it('requires authentication', async () => {
+      mockAuthorizationHeader = null;
+      const response = await GET(getRequest(propertyId, year), {
+        params: Promise.resolve({ id: propertyId }),
+      });
+      expect(response.status).toBe(401);
+    });
+
+    it('rejects a missing or invalid ?year with 400, not a 500', async () => {
+      mockAuthorizationHeader = `Bearer ${managerToken}`;
+      const missing = await GET(getRequest(propertyId, null), {
+        params: Promise.resolve({ id: propertyId }),
+      });
+      expect(missing.status).toBe(400);
+
+      const invalid = await GET(getRequest(propertyId, 'not-a-year'), {
+        params: Promise.resolve({ id: propertyId }),
+      });
+      expect(invalid.status).toBe(400);
+    });
+
+    // V1 release-gate pass: the cross-org API isolation probe caught this route returning 500 where
+    // all three of its siblings (properties/:id/financial-summary, organizations/:orgId/
+    // financial-summary, organizations/:orgId/budget/annual) return 403 -- budget_vs_actual()'s
+    // authorization exception was being funnelled into the generic "RPC failed" 500 branch. The data
+    // was never exposed (RLS held), but a routine permission denial was being reported as a server
+    // fault. This test pins the corrected status so the inconsistency cannot silently return.
+    it('returns 403, not 500, for a signed-in user from a different organization', async () => {
+      const suffix = Date.now();
+      const outsiderEmail = `budget-annual-outsider-${suffix}@propertyvault.example`;
+      const outsiderCreated = await adminFetch('/auth/v1/admin/users', {
+        email: outsiderEmail,
+        password,
+        email_confirm: true,
+      });
+      const outsiderId = outsiderCreated.id as string;
+      try {
+        const outsiderToken = await signIn(outsiderEmail, password);
+        mockAuthorizationHeader = `Bearer ${outsiderToken}`;
+
+        const response = await GET(getRequest(propertyId, year), {
+          params: Promise.resolve({ id: propertyId }),
+        });
+        expect(response.status).toBe(403);
+        const body = await response.json();
+        expect(body.error.code).toBe('forbidden');
+        // The denial must not echo the underlying Postgres exception text back to the caller.
+        expect(JSON.stringify(body)).not.toContain('does not have access');
+      } finally {
+        await serviceClient.auth.admin.deleteUser(outsiderId);
+      }
+    });
+  },
+);

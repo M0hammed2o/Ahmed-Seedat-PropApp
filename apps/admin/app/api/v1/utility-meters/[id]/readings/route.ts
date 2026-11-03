@@ -4,7 +4,10 @@ import type { UtilityHistoryPoint } from '@propvault/types';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { requireOrgRole } from '@/lib/portfolio';
 import { safeErrorMessage } from '@/lib/safeError';
-import { isUnusualUsage as computeIsUnusualUsage, percentChange as computePercentChange } from '@/lib/utilityAnomaly';
+import {
+  isUnusualUsage as computeIsUnusualUsage,
+  percentChange as computePercentChange,
+} from '@/lib/utilityAnomaly';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -56,7 +59,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       {
         error: {
           code: 'utility_readings_list_failed',
-          message: safeErrorMessage(error, 'Could not load reading history.', 'utility_readings.list'),
+          message: safeErrorMessage(
+            error,
+            'Could not load reading history.',
+            'utility_readings.list',
+          ),
         },
       },
       { status: 500 },
@@ -67,9 +74,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   const history: UtilityHistoryPoint[] = rows.map((row, index) => {
     const consumption = row.consumption === null ? null : Number(row.consumption);
     const previous = index > 0 ? rows[index - 1] : null;
-    const previousConsumption = previous?.consumption === null || previous?.consumption === undefined
-      ? null
-      : Number(previous.consumption);
+    const previousConsumption =
+      previous?.consumption === null || previous?.consumption === undefined
+        ? null
+        : Number(previous.consumption);
 
     const percentChange = computePercentChange(consumption, previousConsumption);
     const isUnusualUsage = computeIsUnusualUsage({

@@ -762,9 +762,21 @@ export async function runPortfolioIntelligenceJob(
 ): Promise<PortfolioIntelligenceJobResult> {
   // Only organisations with at least one rule input or an undismissed insight (migration 180): an empty
   // organisation produces nothing and has nothing to auto-resolve, so skipping it changes no outcome.
-  const { data: candidates, error } = await serviceClient.rpc('portfolio_intelligence_candidate_orgs');
+  const { data: candidates, error } = await serviceClient.rpc(
+    'portfolio_intelligence_candidate_orgs',
+  );
   if (error) throw new Error(error.message);
-  type Candidate = { org_id: string; has_rent_overdue: boolean; has_rent_pending: boolean; has_leases: boolean; has_tickets: boolean; has_invoices: boolean; has_budgets: boolean; has_meters: boolean; has_insights: boolean };
+  type Candidate = {
+    org_id: string;
+    has_rent_overdue: boolean;
+    has_rent_pending: boolean;
+    has_leases: boolean;
+    has_tickets: boolean;
+    has_invoices: boolean;
+    has_budgets: boolean;
+    has_meters: boolean;
+    has_insights: boolean;
+  };
   const allOrgs = (candidates ?? []) as Candidate[];
 
   // Over the cap, rotate by day so every candidate is reached within ceil(n / cap) days (the old cap always
@@ -811,7 +823,12 @@ export async function runPortfolioIntelligenceJob(
       }
     }
   };
-  await Promise.all(Array.from({ length: Math.min(PORTFOLIO_INTELLIGENCE_CONCURRENCY, orgsToProcess.length) }, worker));
+  await Promise.all(
+    Array.from(
+      { length: Math.min(PORTFOLIO_INTELLIGENCE_CONCURRENCY, orgsToProcess.length) },
+      worker,
+    ),
+  );
 
   const orgsSkippedOverCap = orgsOverCap ? allOrgs.length - cap : 0;
   if (orgsSkippedOverCap > 0) {

@@ -68,7 +68,11 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       {
         error: {
           code: 'lease_fetch_failed',
-          message: safeErrorMessage(fetchError, 'Could not load this lease.', 'leases/[id].fetchBeforeWrite'),
+          message: safeErrorMessage(
+            fetchError,
+            'Could not load this lease.',
+            'leases/[id].fetchBeforeWrite',
+          ),
         },
       },
       { status: 500 },

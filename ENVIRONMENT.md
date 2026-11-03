@@ -81,12 +81,12 @@ Prerequisite: a Meta Business account with a WhatsApp Business Account (WABA), a
 and a registered sender phone number. That number must be one **not already registered to the
 consumer WhatsApp app**.
 
-| Variable | Where it comes from |
-| --- | --- |
-| `WHATSAPP_ACCESS_TOKEN` | Meta App Dashboard → WhatsApp → API Setup. Use a **System User** token (permanent); the 24-hour temporary token there is only useful for a first smoke test. |
-| `WHATSAPP_PHONE_NUMBER_ID` | Same API Setup screen — the numeric **Phone number ID** of the sender (not the phone number itself). |
-| `WHATSAPP_WEBHOOK_SECRET` | Meta App Dashboard → Settings → Basic → **App Secret**. This is what signs `X-Hub-Signature-256` on every inbound POST. |
-| `WHATSAPP_WEBHOOK_VERIFY_TOKEN` | You invent this. Paste the same string into this variable and into the Verify Token field when subscribing the callback URL. |
+| Variable                        | Where it comes from                                                                                                                                          |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `WHATSAPP_ACCESS_TOKEN`         | Meta App Dashboard → WhatsApp → API Setup. Use a **System User** token (permanent); the 24-hour temporary token there is only useful for a first smoke test. |
+| `WHATSAPP_PHONE_NUMBER_ID`      | Same API Setup screen — the numeric **Phone number ID** of the sender (not the phone number itself).                                                         |
+| `WHATSAPP_WEBHOOK_SECRET`       | Meta App Dashboard → Settings → Basic → **App Secret**. This is what signs `X-Hub-Signature-256` on every inbound POST.                                      |
+| `WHATSAPP_WEBHOOK_VERIFY_TOKEN` | You invent this. Paste the same string into this variable and into the Verify Token field when subscribing the callback URL.                                 |
 
 Then, in the Meta dashboard: subscribe the callback URL `https://<host>/api/v1/webhooks/whatsapp`
 and enable the `messages` webhook field (this delivers both inbound messages and outbound
@@ -99,11 +99,11 @@ Meta approval is revoked or still in review must have its flag set back to `fals
 
 ### Email (Resend)
 
-| Variable | Where it comes from |
-| --- | --- |
-| `RESEND_API_KEY` | Resend dashboard → API Keys. |
-| `RESEND_FROM_ADDRESS` | A sender on a domain you have **verified** in Resend (DNS: SPF + DKIM). Unverified domains are rejected at send time. |
-| `RESEND_WEBHOOK_SECRET` | Resend dashboard → Webhooks, if delivery/bounce status tracking is wanted. Optional. |
+| Variable                | Where it comes from                                                                                                   |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `RESEND_API_KEY`        | Resend dashboard → API Keys.                                                                                          |
+| `RESEND_FROM_ADDRESS`   | A sender on a domain you have **verified** in Resend (DNS: SPF + DKIM). Unverified domains are rejected at send time. |
+| `RESEND_WEBHOOK_SECRET` | Resend dashboard → Webhooks, if delivery/bounce status tracking is wanted. Optional.                                  |
 
 Note the naming: this codebase uses `RESEND_FROM_ADDRESS`. There is no `EMAIL_FROM` or
 `EMAIL_FROM_NAME` variable.
@@ -129,10 +129,10 @@ found during the public UAT pass:
 
 Relaxing (2) would be unsafe, so activation now needs **two keys**:
 
-| Variable | Value | Effect |
-| --- | --- | --- |
-| `WHATSAPP_UAT_OVERRIDE_NUMBER` | `+27837866021` (E.164 only) | The single destination every outbound message is redirected to |
-| `WHATSAPP_UAT_MODE` | exactly `enabled` | Required **in addition** in a production build. Any other value, or absent, and the override stays ignored |
+| Variable                       | Value                       | Effect                                                                                                     |
+| ------------------------------ | --------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `WHATSAPP_UAT_OVERRIDE_NUMBER` | `+27837866021` (E.164 only) | The single destination every outbound message is redirected to                                             |
+| `WHATSAPP_UAT_MODE`            | exactly `enabled`           | Required **in addition** in a production build. Any other value, or absent, and the override stays ignored |
 
 One stray variable therefore cannot arm this. Properties preserved: fails closed on a malformed
 number (suppresses the send rather than reaching the real tenant), never mutates tenant records,
@@ -146,26 +146,26 @@ Every uploaded file is scanned by the Cloudmersive Virus Scan API before it reac
 Google Document AI only ever reads files back out of Storage, so it never sees an unscanned file.
 The rule in `lib/uploadScan.ts`: **an upload proceeds only on an explicit clean verdict.**
 
-| | |
-| --- | --- |
-| **Scanner** | `POST https://api.cloudmersive.com/virus/scan/file`, `Apikey` header, multipart `inputFile`; verdict from `CleanResult` / `FoundViruses` (`lib/providers/malwareScan.ts`) |
-| **Config** | `CLOUDMERSIVE_API_KEY` on the Render web service (secret). Optional `CLOUDMERSIVE_MAX_FILE_BYTES` |
-| **How files flow** | upload route → auth → size + MIME checks → `scanUpload()` → Cloudmersive → `storeScannedUpload()` (server-side write + clean-scan record) → Supabase Storage → (later) extraction routes → `requireCleanScanBeforeProcessing()` → Google Document AI |
-| **Client Storage writes** | None. Migration `20260101000171` removed every client INSERT/UPDATE policy on `storage.objects`; only the server writes objects, through `lib/protectedStorage.ts` |
-| **Before OCR / processing** | The exact stored object must have a clean verdict in `upload_malware_scans` (server-only table) or pass a scan right then; otherwise the route refuses (403/413/422/503) before any job is created |
-| **Key missing in production** | Every upload → `503 upload_temporarily_unavailable`. ClamAV and the mock are never used in production |
-| **Threat found** | `422 malware_detected` |
-| **Scan fails** (timeout after 30 s, network error, 401/403, 429, 5xx, any other status, malformed body) | `503 scan_unavailable`, for sensitive and non-sensitive uploads alike |
-| **File above the plan's size cap** | `413 file_too_large_to_scan`, without contacting Cloudmersive |
+|                                                                                                         |                                                                                                                                                                                                                                                      |
+| ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Scanner**                                                                                             | `POST https://api.cloudmersive.com/virus/scan/file`, `Apikey` header, multipart `inputFile`; verdict from `CleanResult` / `FoundViruses` (`lib/providers/malwareScan.ts`)                                                                            |
+| **Config**                                                                                              | `CLOUDMERSIVE_API_KEY` on the Render web service (secret). Optional `CLOUDMERSIVE_MAX_FILE_BYTES`                                                                                                                                                    |
+| **How files flow**                                                                                      | upload route → auth → size + MIME checks → `scanUpload()` → Cloudmersive → `storeScannedUpload()` (server-side write + clean-scan record) → Supabase Storage → (later) extraction routes → `requireCleanScanBeforeProcessing()` → Google Document AI |
+| **Client Storage writes**                                                                               | None. Migration `20260101000171` removed every client INSERT/UPDATE policy on `storage.objects`; only the server writes objects, through `lib/protectedStorage.ts`                                                                                   |
+| **Before OCR / processing**                                                                             | The exact stored object must have a clean verdict in `upload_malware_scans` (server-only table) or pass a scan right then; otherwise the route refuses (403/413/422/503) before any job is created                                                   |
+| **Key missing in production**                                                                           | Every upload → `503 upload_temporarily_unavailable`. ClamAV and the mock are never used in production                                                                                                                                                |
+| **Threat found**                                                                                        | `422 malware_detected`                                                                                                                                                                                                                               |
+| **Scan fails** (timeout after 30 s, network error, 401/403, 429, 5xx, any other status, malformed body) | `503 scan_unavailable`, for sensitive and non-sensitive uploads alike                                                                                                                                                                                |
+| **File above the plan's size cap**                                                                      | `413 file_too_large_to_scan`, without contacting Cloudmersive                                                                                                                                                                                        |
 
 ### Free-tier limits (Cloudmersive plan page, checked 2026-09-13)
 
-| Limit | Free tier | Effect on Proplyst |
-| --- | --- | --- |
-| Maximum file size | **3.5 MB** | Proplyst accepts up to 25 MB. Every file between 3.5 MB and 25 MB is refused with 413 until the plan is upgraded (paid plans: 1 GB+) and `CLOUDMERSIVE_MAX_FILE_BYTES` is raised |
-| Calls per month | **600** | Each scan is one call. Once the allowance is used up, Cloudmersive's refusals fail closed as 503 |
-| Rate | **1 call per second, one request at a time** | Uploads arriving together can be refused (503) and succeed on retry |
-| Data centres | North America only | EU regions start on paid plans |
+| Limit             | Free tier                                    | Effect on Proplyst                                                                                                                                                               |
+| ----------------- | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Maximum file size | **3.5 MB**                                   | Proplyst accepts up to 25 MB. Every file between 3.5 MB and 25 MB is refused with 413 until the plan is upgraded (paid plans: 1 GB+) and `CLOUDMERSIVE_MAX_FILE_BYTES` is raised |
+| Calls per month   | **600**                                      | Each scan is one call. Once the allowance is used up, Cloudmersive's refusals fail closed as 503                                                                                 |
+| Rate              | **1 call per second, one request at a time** | Uploads arriving together can be refused (503) and succeed on retry                                                                                                              |
+| Data centres      | North America only                           | EU regions start on paid plans                                                                                                                                                   |
 
 Cloudmersive describes the free tier as an evaluation plan with lower availability, and its APIs as
 stateless: payload data is not stored or retained after the call completes.

@@ -1,6 +1,16 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { supplySourceCreateSchema } from '@propvault/validation';
-import { canWriteUtilities, forbidden, jsonError, loadReadableProperty, notFound, parseJson, requireUser, serverError, utilitiesDisabled } from '@/lib/smartUtility/http';
+import {
+  canWriteUtilities,
+  forbidden,
+  jsonError,
+  loadReadableProperty,
+  notFound,
+  parseJson,
+  requireUser,
+  serverError,
+  utilitiesDisabled,
+} from '@/lib/smartUtility/http';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -12,8 +22,19 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
   const { id } = await params;
   const auth = await requireUser();
   if ('response' in auth) return auth.response;
-  const { data, error } = await auth.supabase.from('utility_supply_sources').select(SOURCE_COLUMNS).eq('property_id', id).order('utility_type').order('name');
-  if (error) return serverError('sources_failed', 'Could not load supply sources.', 'utility_sources.list', error);
+  const { data, error } = await auth.supabase
+    .from('utility_supply_sources')
+    .select(SOURCE_COLUMNS)
+    .eq('property_id', id)
+    .order('utility_type')
+    .order('name');
+  if (error)
+    return serverError(
+      'sources_failed',
+      'Could not load supply sources.',
+      'utility_sources.list',
+      error,
+    );
   const ids = (data ?? []).map((s) => s.id);
   const latest = new Map<string, { metric: string; value: number; readAt: string }[]>();
   if (ids.length) {
@@ -34,11 +55,14 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     const readings = perSource.flatMap((r) => r.data ?? []);
     for (const r of readings) {
       const list = latest.get(r.source_id) ?? [];
-      if (!list.some((x) => x.metric === r.metric)) list.push({ metric: r.metric, value: Number(r.value), readAt: r.read_at });
+      if (!list.some((x) => x.metric === r.metric))
+        list.push({ metric: r.metric, value: Number(r.value), readAt: r.read_at });
       latest.set(r.source_id, list);
     }
   }
-  return NextResponse.json({ sources: (data ?? []).map((s) => ({ ...s, latest: latest.get(s.id) ?? [] })) });
+  return NextResponse.json({
+    sources: (data ?? []).map((s) => ({ ...s, latest: latest.get(s.id) ?? [] })),
+  });
 }
 
 /** POST — add a supply source. Optional level sensor binding must reference this org's integration. */
@@ -54,10 +78,19 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   if (!(await canWriteUtilities(auth.supabase, property.org_id, property.id))) return forbidden();
   const d = parsed.data;
   if (d.integrationId) {
-    const { data: integration } = await auth.supabase.from('meter_integrations').select('id, org_id').eq('id', d.integrationId).maybeSingle();
-    if (!integration || integration.org_id !== property.org_id) return jsonError(400, 'invalid_integration', 'Integration not found in this organisation.');
+    const { data: integration } = await auth.supabase
+      .from('meter_integrations')
+      .select('id, org_id')
+      .eq('id', d.integrationId)
+      .maybeSingle();
+    if (!integration || integration.org_id !== property.org_id)
+      return jsonError(400, 'invalid_integration', 'Integration not found in this organisation.');
     if (!d.externalDeviceId || !d.levelMetric) {
-      return jsonError(400, 'validation_failed', 'A sensor binding needs the device ID and the level metric it reports.');
+      return jsonError(
+        400,
+        'validation_failed',
+        'A sensor binding needs the device ID and the level metric it reports.',
+      );
     }
   }
   const { data, error } = await auth.supabase
@@ -87,9 +120,20 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     .select('id')
     .single();
   if (error) {
-    if (error.code === '23505') return jsonError(409, 'sensor_in_use', 'That sensor is already bound to another active source.');
-    if (/does not belong/.test(error.message)) return jsonError(400, 'invalid_scope', error.message);
-    return serverError('source_create_failed', 'Could not save the supply source.', 'utility_sources.insert', error);
+    if (error.code === '23505')
+      return jsonError(
+        409,
+        'sensor_in_use',
+        'That sensor is already bound to another active source.',
+      );
+    if (/does not belong/.test(error.message))
+      return jsonError(400, 'invalid_scope', error.message);
+    return serverError(
+      'source_create_failed',
+      'Could not save the supply source.',
+      'utility_sources.insert',
+      error,
+    );
   }
   return NextResponse.json({ sourceId: data.id }, { status: 201 });
 }

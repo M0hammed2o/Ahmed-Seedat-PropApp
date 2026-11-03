@@ -67,7 +67,11 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       {
         error: {
           code: 'owner_fetch_failed',
-          message: safeErrorMessage(fetchError, 'Could not load this owner.', 'owners.update.fetch'),
+          message: safeErrorMessage(
+            fetchError,
+            'Could not load this owner.',
+            'owners.update.fetch',
+          ),
         },
       },
       { status: 500 },

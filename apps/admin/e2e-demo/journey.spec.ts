@@ -8,7 +8,10 @@ const PASSWORD = process.env.DEMO_LOGIN_PASSWORD ?? '';
 const slow = (ms = 45_000) => expect.configure({ timeout: ms });
 
 async function login(page: Page) {
-  test.skip(!process.env.DEMO_BASE_URL || !EMAIL || !PASSWORD, 'DEMO_BASE_URL / DEMO_LOGIN_EMAIL / DEMO_LOGIN_PASSWORD not set');
+  test.skip(
+    !process.env.DEMO_BASE_URL || !EMAIL || !PASSWORD,
+    'DEMO_BASE_URL / DEMO_LOGIN_EMAIL / DEMO_LOGIN_PASSWORD not set',
+  );
   await page.goto('/login');
   await page.waitForLoadState('networkidle');
   await page.locator('input[type="email"]').fill(EMAIL);
@@ -18,7 +21,9 @@ async function login(page: Page) {
 }
 
 async function noErrorBanner(page: Page) {
-  await expect(page.getByText(/Unexpected response from the server|Something went wrong|Application error/i)).toHaveCount(0);
+  await expect(
+    page.getByText(/Unexpected response from the server|Something went wrong|Application error/i),
+  ).toHaveCount(0);
 }
 
 async function openDemoProperty(page: Page) {
@@ -43,13 +48,22 @@ test('login → dashboard → property → units & tenants', async ({ page }) =>
   expect(id).toBeTruthy();
 });
 
-test('Smart Utilities: dashboard, solar/battery/water sources, meters, alerts — never empty', async ({ page }) => {
+test('Smart Utilities: dashboard, solar/battery/water sources, meters, alerts — never empty', async ({
+  page,
+}) => {
   await login(page);
   const id = await openDemoProperty(page);
   await page.goto(`/properties/${id}?tab=Utilities`);
   await slow()(page.getByText('Utility monitoring')).toBeVisible();
   await slow()(page.getByText('Supply & sources')).toBeVisible();
-  for (const name of ['Rooftop solar 12 kWp', 'Battery 20 kWh', 'Diesel generator 15 kVA', 'eThekwini water (municipal)', 'Borehole (garden & tank top-up)', 'JoJo tanks 10 000 L']) {
+  for (const name of [
+    'Rooftop solar 12 kWp',
+    'Battery 20 kWh',
+    'Diesel generator 15 kVA',
+    'eThekwini water (municipal)',
+    'Borehole (garden & tank top-up)',
+    'JoJo tanks 10 000 L',
+  ]) {
     await slow()(page.getByText(name).first()).toBeVisible();
   }
   await slow()(page.getByRole('heading', { name: 'Alerts' })).toBeVisible();
@@ -61,32 +75,47 @@ test('Smart Utilities: dashboard, solar/battery/water sources, meters, alerts �
   await noErrorBanner(page);
 });
 
-test('tariffs, draft charges (calculate live), statements and municipal preview', async ({ page }) => {
+test('tariffs, draft charges (calculate live), statements and municipal preview', async ({
+  page,
+}) => {
   await login(page);
   const id = await openDemoProperty(page);
   await page.goto(`/properties/${id}?tab=Utilities`);
-  const billing = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Utility recharges' }) }).last();
+  const billing = page
+    .locator('section')
+    .filter({ has: page.getByRole('heading', { name: 'Utility recharges' }) })
+    .last();
   await slow()(billing.getByText(/DEMO FICTIONAL electricity/).first()).toBeVisible();
   await slow()(billing.getByText(/DEMO FICTIONAL water/).first()).toBeVisible();
   await slow()(billing.getByText(/Approved|On draft invoice/).first()).toBeVisible();
 
   // Calculate draft charges for the month BEFORE the pre-billed one (left uncalculated for the live demo).
   const now = new Date();
-  const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 2, 1)).toISOString().slice(0, 10);
-  const to = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1)).toISOString().slice(0, 10);
+  const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 2, 1))
+    .toISOString()
+    .slice(0, 10);
+  const to = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1))
+    .toISOString()
+    .slice(0, 10);
   await billing.getByLabel('From', { exact: true }).last().fill(from);
   await billing.getByLabel('To (exclusive)').fill(to);
   await billing.getByRole('button', { name: 'Calculate charges' }).click();
   await slow(90_000)(billing.getByText('Draft estimate').first()).toBeVisible();
 
-  const statements = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Utility statements' }) }).last();
+  const statements = page
+    .locator('section')
+    .filter({ has: page.getByRole('heading', { name: 'Utility statements' }) })
+    .last();
   await slow()(statements.getByText(/Thandiwe Mokoena/).first()).toBeVisible();
   const pdfHref = await statements.getByRole('link', { name: 'PDF' }).first().getAttribute('href');
   const pdf = await page.request.get(pdfHref!);
   expect(pdf.status()).toBe(200);
   expect(pdf.headers()['content-type']).toContain('application/pdf');
 
-  const municipal = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Monthly municipal readings' }) }).last();
+  const municipal = page
+    .locator('section')
+    .filter({ has: page.getByRole('heading', { name: 'Monthly municipal readings' }) })
+    .last();
   await municipal.getByRole('button', { name: 'Save settings' }).click();
   await slow()(municipal.getByText(/^Saved/)).toBeVisible();
   await municipal.getByRole('button', { name: 'Preview saved email' }).click();
@@ -108,6 +137,8 @@ test('responsive: Utilities on a phone has no horizontal overflow', async ({ pag
   const id = await openDemoProperty(page);
   await page.goto(`/properties/${id}?tab=Utilities`);
   await slow()(page.getByText('Supply & sources')).toBeVisible();
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - window.innerWidth,
+  );
   expect(overflow).toBeLessThanOrEqual(1);
 });

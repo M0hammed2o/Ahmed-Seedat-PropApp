@@ -147,7 +147,11 @@ export async function POST(request: NextRequest) {
         {
           error: {
             code: 'storage_upload_failed',
-            message: safeErrorMessage(stored.error, 'Could not upload your proof of payment.', 'tenantPortal.paymentReports.upload'),
+            message: safeErrorMessage(
+              stored.error,
+              'Could not upload your proof of payment.',
+              'tenantPortal.paymentReports.upload',
+            ),
           },
         },
         { status: 500 },
@@ -187,7 +191,11 @@ export async function POST(request: NextRequest) {
           error: {
             code: 'document_create_failed',
             message: docError
-              ? safeErrorMessage(docError, 'Could not save your proof of payment.', 'tenantPortal.paymentReports.documentCreate')
+              ? safeErrorMessage(
+                  docError,
+                  'Could not save your proof of payment.',
+                  'tenantPortal.paymentReports.documentCreate',
+                )
               : 'Could not save your proof of payment.',
           },
         },

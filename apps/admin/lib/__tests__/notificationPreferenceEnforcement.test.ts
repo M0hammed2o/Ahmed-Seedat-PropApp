@@ -48,7 +48,10 @@ describeIfSupabase('notification preference enforcement (server-side, real local
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     const { data: org, error } = await serviceClient
       .from('organizations')
-      .insert({ legal_name: `Pref Enforcement Org ${Date.now()}-${randomUUID().slice(0, 6)}`, org_type: 'agency' })
+      .insert({
+        legal_name: `Pref Enforcement Org ${Date.now()}-${randomUUID().slice(0, 6)}`,
+        org_type: 'agency',
+      })
       .select('id')
       .single();
     if (error) throw error;

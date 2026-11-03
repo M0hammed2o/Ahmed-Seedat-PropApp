@@ -2,7 +2,16 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { submissionRecipientUpdateSchema } from '@propvault/validation';
 import { getServiceRoleClient } from '@/lib/supabase/server';
 import { invalidateTemplateApproval } from '@/lib/smartUtility/reporting';
-import { canWriteUtilities, forbidden, notFound, parseJson, requireUser, serverError, utilitiesDisabled, utilitiesEnabledForOrg } from '@/lib/smartUtility/http';
+import {
+  canWriteUtilities,
+  forbidden,
+  notFound,
+  parseJson,
+  requireUser,
+  serverError,
+  utilitiesDisabled,
+  utilitiesEnabledForOrg,
+} from '@/lib/smartUtility/http';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -19,7 +28,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     .eq('id', id)
     .maybeSingle();
   if (!recipient) return notFound('Recipient');
-  if (!(await canWriteUtilities(auth.supabase, recipient.org_id, recipient.property_id))) return forbidden();
+  if (!(await canWriteUtilities(auth.supabase, recipient.org_id, recipient.property_id)))
+    return forbidden();
   if (!(await utilitiesEnabledForOrg(recipient.org_id))) return utilitiesDisabled();
 
   const update: Record<string, unknown> = {};
@@ -29,8 +39,17 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     update.authorised_at = parsed.data.authorise ? new Date().toISOString() : null;
     update.authorised_by = parsed.data.authorise ? auth.user.id : null;
   }
-  const { error } = await auth.supabase.from('municipal_submission_recipients').update(update).eq('id', id);
-  if (error) return serverError('recipient_update_failed', 'Could not update the recipient.', 'submission_recipients.update', error);
+  const { error } = await auth.supabase
+    .from('municipal_submission_recipients')
+    .update(update)
+    .eq('id', id);
+  if (error)
+    return serverError(
+      'recipient_update_failed',
+      'Could not update the recipient.',
+      'submission_recipients.update',
+      error,
+    );
   const approvalWithdrawn =
     parsed.data.active !== undefined || parsed.data.authorise !== undefined
       ? await invalidateTemplateApproval(getServiceRoleClient(), {

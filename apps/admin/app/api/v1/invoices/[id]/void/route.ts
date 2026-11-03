@@ -32,12 +32,24 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     .maybeSingle();
   if (fetchError) {
     return NextResponse.json(
-      { error: { code: 'invoice_fetch_failed', message: safeErrorMessage(fetchError, 'Could not load this invoice.', 'invoices/[id]/void.fetch') } },
+      {
+        error: {
+          code: 'invoice_fetch_failed',
+          message: safeErrorMessage(
+            fetchError,
+            'Could not load this invoice.',
+            'invoices/[id]/void.fetch',
+          ),
+        },
+      },
       { status: 500 },
     );
   }
   if (!existing) {
-    return NextResponse.json({ error: { code: 'not_found', message: 'Invoice not found.' } }, { status: 404 });
+    return NextResponse.json(
+      { error: { code: 'not_found', message: 'Invoice not found.' } },
+      { status: 404 },
+    );
   }
 
   const canWrite = await requireOrgRole(supabase, existing.org_id, 'accountant');
@@ -88,10 +100,19 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     );
   }
 
-  const { data: invoice, error: reloadError } = await supabase.from('invoices').select('*').eq('id', id).single();
+  const { data: invoice, error: reloadError } = await supabase
+    .from('invoices')
+    .select('*')
+    .eq('id', id)
+    .single();
   if (reloadError) {
     return NextResponse.json(
-      { error: { code: 'invoice_fetch_failed', message: 'Invoice was voided, but could not be reloaded. Please refresh.' } },
+      {
+        error: {
+          code: 'invoice_fetch_failed',
+          message: 'Invoice was voided, but could not be reloaded. Please refresh.',
+        },
+      },
       { status: 500 },
     );
   }

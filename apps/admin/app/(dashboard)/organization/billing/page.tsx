@@ -266,8 +266,7 @@ export default async function OrganizationBillingPage() {
     // very first subscription_payments row, so create_subscription_invoice_for_payment() (migration
     // 20260101000108) labels its invoice invoice_type='new_subscription' the same as a genuine
     // first paid subscription -- paymentPurpose is the only real signal that distinguishes them.
-    paymentPurpose:
-      (row.subscription_payments as { purpose: string } | null)?.purpose ?? null,
+    paymentPurpose: (row.subscription_payments as { purpose: string } | null)?.purpose ?? null,
     planName: (row.plans as { name: string } | null)?.name ?? null,
     total: Number(row.total),
     currency: row.currency,

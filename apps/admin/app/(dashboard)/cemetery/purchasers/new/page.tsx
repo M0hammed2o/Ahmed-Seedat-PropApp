@@ -15,7 +15,10 @@ export default async function NewPurchaserPage() {
   const terms = tenureTerms(cemeteries[0]?.tenure_model ?? 'burial_rights');
   return (
     <div className="space-y-5 animate-rise">
-      <PageHeader title={`Add ${terms.holderLower}`} subtitle="Contact details and an authorised contact / next of kin. One person can hold several grave sites." />
+      <PageHeader
+        title={`Add ${terms.holderLower}`}
+        subtitle="Contact details and an authorised contact / next of kin. One person can hold several grave sites."
+      />
       <PurchaserForm mode="create" holderLabel={terms.holder} />
     </div>
   );

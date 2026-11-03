@@ -17,7 +17,11 @@ function renderPage(searchParams: { token_hash?: string; type?: string; next?: s
 describe('ConfirmEmailPage', () => {
   it('extracts the inner next from a full RedirectTo URL and passes it to ConfirmEmailClient', async () => {
     const redirectTo = `http://localhost:3000/auth/callback?next=${encodeURIComponent('/invitations/accept?token=abc-123')}`;
-    const element = await renderPage({ token_hash: 'a-real-hash', type: 'signup', next: redirectTo });
+    const element = await renderPage({
+      token_hash: 'a-real-hash',
+      type: 'signup',
+      next: redirectTo,
+    });
     expect(element.props.next).toBe('/invitations/accept?token=abc-123');
     expect(element.props.tokenHash).toBe('a-real-hash');
   });
@@ -29,7 +33,11 @@ describe('ConfirmEmailPage', () => {
 
   it('defaults to / when the RedirectTo URL carries no inner next (or an empty one)', async () => {
     const redirectTo = 'http://localhost:3000/auth/callback';
-    const element = await renderPage({ token_hash: 'a-real-hash', type: 'signup', next: redirectTo });
+    const element = await renderPage({
+      token_hash: 'a-real-hash',
+      type: 'signup',
+      next: redirectTo,
+    });
     expect(element.props.next).toBe('/');
   });
 
@@ -44,19 +52,31 @@ describe('ConfirmEmailPage', () => {
 
   it('open-redirect protection: an absolute-URL inner next is neutralized, never passed through', async () => {
     const redirectTo = `http://localhost:3000/auth/callback?next=${encodeURIComponent('https://evil.example/steal')}`;
-    const element = await renderPage({ token_hash: 'a-real-hash', type: 'signup', next: redirectTo });
+    const element = await renderPage({
+      token_hash: 'a-real-hash',
+      type: 'signup',
+      next: redirectTo,
+    });
     expect(element.props.next).toBe('/');
   });
 
   it('open-redirect protection: a protocol-relative inner next (//evil.example) is neutralized', async () => {
     const redirectTo = `http://localhost:3000/auth/callback?next=${encodeURIComponent('//evil.example')}`;
-    const element = await renderPage({ token_hash: 'a-real-hash', type: 'signup', next: redirectTo });
+    const element = await renderPage({
+      token_hash: 'a-real-hash',
+      type: 'signup',
+      next: redirectTo,
+    });
     expect(element.props.next).toBe('/');
   });
 
   it('a plan-specific-CTA next (choose-plan with plan+interval) survives extraction intact', async () => {
     const redirectTo = `http://localhost:3000/auth/callback?next=${encodeURIComponent('/onboarding/choose-plan?plan=professional&interval=annual')}`;
-    const element = await renderPage({ token_hash: 'a-real-hash', type: 'signup', next: redirectTo });
+    const element = await renderPage({
+      token_hash: 'a-real-hash',
+      type: 'signup',
+      next: redirectTo,
+    });
     expect(element.props.next).toBe('/onboarding/choose-plan?plan=professional&interval=annual');
   });
 

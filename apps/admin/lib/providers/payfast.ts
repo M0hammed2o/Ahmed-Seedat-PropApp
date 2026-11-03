@@ -288,7 +288,9 @@ export class PayFastBillingGatewayProvider implements BillingGatewayProvider {
     const token = providerSubscriptionId;
     const testingParam = this.config.mode === 'sandbox' ? '?testing=true' : '';
     const url = `https://api.payfast.co.za/subscriptions/${encodeURIComponent(token)}/update${testingParam}`;
-    const bodyObject: Record<string, string> = { amount: Math.round(input.amount * 100).toString() };
+    const bodyObject: Record<string, string> = {
+      amount: Math.round(input.amount * 100).toString(),
+    };
     const headers = managementApiHeaders(this.config, bodyObject);
 
     const response = await fetch(url, {

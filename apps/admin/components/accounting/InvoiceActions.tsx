@@ -40,7 +40,11 @@ export function IssueInvoiceButton({ invoiceId }: { invoiceId: string }) {
       <Button variant="primary" size="sm" disabled={busy} onClick={issue}>
         {busy ? 'Issuing…' : 'Issue invoice'}
       </Button>
-      {error ? <p className="mt-1 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">{error}</p> : null}
+      {error ? (
+        <p className="mt-1 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -79,8 +83,14 @@ export function SendInvoiceButton({ invoiceId }: { invoiceId: string }) {
       <Button size="sm" disabled={busy} onClick={send}>
         {busy ? 'Sending…' : 'Send invoice'}
       </Button>
-      {error ? <p className="mt-1 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">{error}</p> : null}
-      {info ? <p className="mt-1 text-xs text-light-textMuted dark:text-dark-textMuted">{info}</p> : null}
+      {error ? (
+        <p className="mt-1 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">
+          {error}
+        </p>
+      ) : null}
+      {info ? (
+        <p className="mt-1 text-xs text-light-textMuted dark:text-dark-textMuted">{info}</p>
+      ) : null}
     </div>
   );
 }
@@ -178,7 +188,10 @@ export function RecordPaymentForm({
           </p>
         ) : null}
         <p className="text-xs text-light-textMuted dark:text-dark-textMuted">
-          Outstanding balance: <span className="tabular font-medium text-light-textPrimary dark:text-dark-textPrimary">R{balance.toFixed(2)}</span>
+          Outstanding balance:{' '}
+          <span className="tabular font-medium text-light-textPrimary dark:text-dark-textPrimary">
+            R{balance.toFixed(2)}
+          </span>
         </p>
         <label className="block text-xs">
           <span className="text-light-textMuted dark:text-dark-textMuted">Amount</span>
@@ -204,7 +217,12 @@ export function RecordPaymentForm({
         </label>
         <label className="block text-xs">
           <span className="text-light-textMuted dark:text-dark-textMuted">Payment method</span>
-          <select required value={method} onChange={(e) => setMethod(e.target.value)} className={inputClass}>
+          <select
+            required
+            value={method}
+            onChange={(e) => setMethod(e.target.value)}
+            className={inputClass}
+          >
             {PAYMENT_METHODS.map((m) => (
               <option key={m.value} value={m.value}>
                 {m.label}
@@ -213,7 +231,9 @@ export function RecordPaymentForm({
           </select>
         </label>
         <label className="block text-xs">
-          <span className="text-light-textMuted dark:text-dark-textMuted">Reference (optional)</span>
+          <span className="text-light-textMuted dark:text-dark-textMuted">
+            Reference (optional)
+          </span>
           <input
             value={reference}
             onChange={(e) => setReference(e.target.value)}
@@ -253,7 +273,13 @@ export function RecordPaymentForm({
  * submitting, since a reversal posts a real correcting journal entry and reopens the invoice's
  * balance -- not a quiet undo.
  */
-export function ReversePaymentButton({ invoiceId, paymentId }: { invoiceId: string; paymentId: string }) {
+export function ReversePaymentButton({
+  invoiceId,
+  paymentId,
+}: {
+  invoiceId: string;
+  paymentId: string;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState('');
@@ -479,7 +505,11 @@ export function AttachProofOfPaymentButton({
           className="hidden"
         />
       </label>
-      {error ? <p className="mt-1 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">{error}</p> : null}
+      {error ? (
+        <p className="mt-1 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }

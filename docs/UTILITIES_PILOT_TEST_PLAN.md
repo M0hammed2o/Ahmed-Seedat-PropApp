@@ -21,16 +21,16 @@
 
 ## 2. Pilot timeline (manual readings; no hardware needed)
 
-| Week | Activity | Pass criterion |
-| --- | --- | --- |
-| 1 | Configure sources (municipal grid, solar, municipal water, borehole), main meters, unit submeters, arrangements (all monitoring-only / landlord-paid) | supply map and meter list match the site walk-through |
-| 1 | Baseline readings for every meter, each with a date-stamped photo | 100 % of meters have a reading and photo |
-| 2–5 | Weekly readings; a second person verifies each one | ≥ 95 % verified within 2 days |
-| 4 | Missing-reading drill: skip one meter for a week, then enter it | no negative or invented consumption; partial quality shown |
-| 5 | Month-end: dashboard supply vs measured balance | ≥ 90 % of main-meter use explained, or the gap investigated and noted |
-| 5 | Month-end figures checked by hand against photos | each figure within one register unit |
-| 6–9 | Second month, same checks | repeat |
-| 9 | Decision point: stay monitoring-only, or move to draft billing (only if C1–C9 are confirmed) | written owner decision |
+| Week | Activity                                                                                                                                              | Pass criterion                                                        |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| 1    | Configure sources (municipal grid, solar, municipal water, borehole), main meters, unit submeters, arrangements (all monitoring-only / landlord-paid) | supply map and meter list match the site walk-through                 |
+| 1    | Baseline readings for every meter, each with a date-stamped photo                                                                                     | 100 % of meters have a reading and photo                              |
+| 2–5  | Weekly readings; a second person verifies each one                                                                                                    | ≥ 95 % verified within 2 days                                         |
+| 4    | Missing-reading drill: skip one meter for a week, then enter it                                                                                       | no negative or invented consumption; partial quality shown            |
+| 5    | Month-end: dashboard supply vs measured balance                                                                                                       | ≥ 90 % of main-meter use explained, or the gap investigated and noted |
+| 5    | Month-end figures checked by hand against photos                                                                                                      | each figure within one register unit                                  |
+| 6–9  | Second month, same checks                                                                                                                             | repeat                                                                |
+| 9    | Decision point: stay monitoring-only, or move to draft billing (only if C1–C9 are confirmed)                                                          | written owner decision                                                |
 
 ## 3. If draft billing is approved (cycle 3 onwards)
 

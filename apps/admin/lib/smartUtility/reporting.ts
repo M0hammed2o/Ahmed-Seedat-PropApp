@@ -24,9 +24,16 @@ export interface TemplateContext {
   scheduleEnabled: boolean;
 }
 
-export async function loadTemplateContext(serviceClient: SupabaseClient, propertyId: string): Promise<TemplateContext> {
+export async function loadTemplateContext(
+  serviceClient: SupabaseClient,
+  propertyId: string,
+): Promise<TemplateContext> {
   const [{ data: settings }, { data: recipients }] = await Promise.all([
-    serviceClient.from('municipal_submission_settings').select('*').eq('property_id', propertyId).maybeSingle(),
+    serviceClient
+      .from('municipal_submission_settings')
+      .select('*')
+      .eq('property_id', propertyId)
+      .maybeSingle(),
     serviceClient
       .from('municipal_submission_recipients')
       .select('email')
@@ -56,7 +63,11 @@ export async function loadTemplateContext(serviceClient: SupabaseClient, propert
 
 /** True when the owner's approval still covers exactly what would be sent now. */
 export function approvalIsCurrent(ctx: TemplateContext): boolean {
-  return !!ctx.approvedHash && ctx.approvedHash === ctx.currentHash && !!ctx.settings?.template_approved_at;
+  return (
+    !!ctx.approvedHash &&
+    ctx.approvedHash === ctx.currentHash &&
+    !!ctx.settings?.template_approved_at
+  );
 }
 
 /** Anything that changes the sent content withdraws approval and switches scheduled sending off. */
@@ -66,7 +77,12 @@ export async function invalidateTemplateApproval(
 ): Promise<boolean> {
   const { data } = await serviceClient
     .from('municipal_submission_settings')
-    .update({ template_hash: null, template_approved_at: null, template_approved_by: null, schedule_enabled: false })
+    .update({
+      template_hash: null,
+      template_approved_at: null,
+      template_approved_by: null,
+      schedule_enabled: false,
+    })
     .eq('property_id', args.propertyId)
     .not('template_approved_at', 'is', null)
     .select('id');
@@ -105,7 +121,11 @@ export interface RenderedPack {
   attachments: { filename: string; contentType: string }[];
 }
 
-export function renderPack(report: MunicipalReport, template: TemplateSettings, photoCount: number): RenderedPack {
+export function renderPack(
+  report: MunicipalReport,
+  template: TemplateSettings,
+  photoCount: number,
+): RenderedPack {
   const { subject, bodyText } = renderEmail(report, template);
   const html = renderEmailTemplate('municipal_meter_reading_report', {
     subject,
@@ -122,7 +142,12 @@ export function renderPack(report: MunicipalReport, template: TemplateSettings, 
     attachments: [
       { filename: reportPdfFilename(report), contentType: 'application/pdf' },
       { filename: reportCsvFilename(report), contentType: 'text/csv' },
-      ...(template.includeFields.photos ? Array.from({ length: photoCount }, (_, i) => ({ filename: `meter-photo-${i + 1}`, contentType: 'image/*' })) : []),
+      ...(template.includeFields.photos
+        ? Array.from({ length: photoCount }, (_, i) => ({
+            filename: `meter-photo-${i + 1}`,
+            contentType: 'image/*',
+          }))
+        : []),
     ],
   };
 }
@@ -148,4 +173,3 @@ export function previewWarnings(report: MunicipalReport, ctx: TemplateContext): 
     missingReadings: report.meters.filter((m) => m.verification === 'missing').length,
   };
 }
-

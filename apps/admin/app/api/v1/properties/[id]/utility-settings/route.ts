@@ -72,7 +72,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       {
         error: {
           code: 'utility_settings_list_failed',
-          message: safeErrorMessage(error, 'Could not load utility settings.', 'utility_responsibility_settings.list'),
+          message: safeErrorMessage(
+            error,
+            'Could not load utility settings.',
+            'utility_responsibility_settings.list',
+          ),
         },
       },
       { status: 500 },
@@ -131,9 +135,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
 
   // SEC-01/02: the property in the URL must belong to the organisation in the body (never trust the client's orgId).
-  const { data: owningProperty } = await supabase.from('properties').select('id, org_id').eq('id', id).maybeSingle();
+  const { data: owningProperty } = await supabase
+    .from('properties')
+    .select('id, org_id')
+    .eq('id', id)
+    .maybeSingle();
   if (!owningProperty || owningProperty.org_id !== parsed.data.orgId) {
-    return NextResponse.json({ error: { code: 'not_found', message: 'Property not found.' } }, { status: 404 });
+    return NextResponse.json(
+      { error: { code: 'not_found', message: 'Property not found.' } },
+      { status: 404 },
+    );
   }
   const canWrite = await requireOrgRole(supabase, parsed.data.orgId, 'accountant');
   if (!canWrite) {
@@ -141,7 +152,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       {
         error: {
           code: 'forbidden',
-          message: 'You do not have permission to set utility responsibility for this organization.',
+          message:
+            'You do not have permission to set utility responsibility for this organization.',
         },
       },
       { status: 403 },
@@ -195,7 +207,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     action: 'utility_responsibility_setting.set',
     entityType: 'utility_responsibility_settings',
     entityId: data.id,
-    after: { utilityType: data.utility_type, responsibilityMode: data.responsibility_mode, unitId: data.unit_id },
+    after: {
+      utilityType: data.utility_type,
+      responsibilityMode: data.responsibility_mode,
+      unitId: data.unit_id,
+    },
   });
 
   return NextResponse.json({ utilitySetting: mapRow(data) }, { status: 201 });

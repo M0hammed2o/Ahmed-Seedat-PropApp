@@ -14,7 +14,9 @@ import { jobFailed, runSmartUtilityJob } from '@/lib/smartUtility/jobs';
 export async function POST(request: NextRequest) {
   const env = getAdminServerEnv();
   const authHeader = request.headers.get('authorization');
-  const bearer = authHeader?.toLowerCase().startsWith('bearer ') ? authHeader.slice(7).trim() : null;
+  const bearer = authHeader?.toLowerCase().startsWith('bearer ')
+    ? authHeader.slice(7).trim()
+    : null;
   const secretAuthorized = cronSecretMatches(bearer, env.CRON_JOB_SECRET);
   if (!secretAuthorized) {
     const guard = await requireAdminRoleOrRespond('super_admin');

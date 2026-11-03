@@ -54,14 +54,24 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   const year = yearParam ? Number(yearParam) : NaN;
   if (!Number.isInteger(year) || year < 2000 || year > 2100) {
     return NextResponse.json(
-      { error: { code: 'validation_failed', message: 'A valid ?year=YYYY query parameter is required.' } },
+      {
+        error: {
+          code: 'validation_failed',
+          message: 'A valid ?year=YYYY query parameter is required.',
+        },
+      },
       { status: 400 },
     );
   }
 
-  const months = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}-01`);
+  const months = Array.from(
+    { length: 12 },
+    (_, i) => `${year}-${String(i + 1).padStart(2, '0')}-01`,
+  );
   const results = await Promise.all(
-    months.map((month) => supabase.rpc('budget_vs_actual', { p_property_id: id, p_month: month }).maybeSingle()),
+    months.map((month) =>
+      supabase.rpc('budget_vs_actual', { p_property_id: id, p_month: month }).maybeSingle(),
+    ),
   );
 
   // budget_vs_actual() raises an authorization exception ("Caller does not have access to this

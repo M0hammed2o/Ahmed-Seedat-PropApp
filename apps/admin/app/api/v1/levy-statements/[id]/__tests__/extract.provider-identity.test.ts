@@ -146,7 +146,9 @@ describeIfSupabase(
         bucket_id: 'documents',
         object_path: storagePath,
         org_id: orgId,
-        sha256: createHash('sha256').update(new Uint8Array([0x25, 0x50, 0x44, 0x46])).digest('hex'),
+        sha256: createHash('sha256')
+          .update(new Uint8Array([0x25, 0x50, 0x44, 0x46]))
+          .digest('hex'),
         scanner: 'test-fixture',
         source: 'upload',
       });
@@ -254,7 +256,9 @@ describeIfSupabase(
       });
 
       it('answers with a controlled 503 instead of running the mock', async () => {
-        const response = await POST(postRequest(), { params: Promise.resolve({ id: statementId }) });
+        const response = await POST(postRequest(), {
+          params: Promise.resolve({ id: statementId }),
+        });
         expect(response.status).toBe(503);
         const body = await response.json();
         expect(body.error.code).toBe('document_extraction_unavailable');

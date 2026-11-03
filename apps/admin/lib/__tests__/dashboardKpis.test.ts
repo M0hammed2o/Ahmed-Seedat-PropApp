@@ -27,7 +27,11 @@ describe('resolvePeriodRange', () => {
 
   it('resolves ytd from Jan 1 through `now` (not through year end)', () => {
     const range = resolvePeriodRange('ytd', {}, REFERENCE);
-    expect(range).toEqual({ startIso: '2026-01-01', endIso: '2026-08-27', label: 'Year to date 2026' });
+    expect(range).toEqual({
+      startIso: '2026-01-01',
+      endIso: '2026-08-27',
+      label: 'Year to date 2026',
+    });
   });
 
   it('resolves custom to the given from/to bounds when both are present', () => {
@@ -42,7 +46,11 @@ describe('resolvePeriodRange', () => {
   it('falls back to this_month when custom is missing one or both bounds', () => {
     const missingTo = resolvePeriodRange('custom', { from: '2026-03-01' }, REFERENCE);
     const missingBoth = resolvePeriodRange('custom', {}, REFERENCE);
-    expect(missingTo).toEqual({ startIso: '2026-08-01', endIso: '2026-08-31', label: 'August 2026' });
+    expect(missingTo).toEqual({
+      startIso: '2026-08-01',
+      endIso: '2026-08-31',
+      label: 'August 2026',
+    });
     expect(missingBoth).toEqual(missingTo);
   });
 });

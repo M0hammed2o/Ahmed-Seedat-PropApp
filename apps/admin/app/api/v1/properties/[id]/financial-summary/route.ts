@@ -58,7 +58,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   const month = request.nextUrl.searchParams.get('month');
   if (!month) {
     return NextResponse.json(
-      { error: { code: 'validation_failed', message: 'A ?month=YYYY-MM-01 query parameter is required.' } },
+      {
+        error: {
+          code: 'validation_failed',
+          message: 'A ?month=YYYY-MM-01 query parameter is required.',
+        },
+      },
       { status: 400 },
     );
   }
@@ -73,7 +78,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       {
         error: {
           code: 'financial_summary_failed',
-          message: safeErrorMessage(summaryResult.error, 'Could not load the financial summary.', 'owner_financial_summary'),
+          message: safeErrorMessage(
+            summaryResult.error,
+            'Could not load the financial summary.',
+            'owner_financial_summary',
+          ),
         },
       },
       { status: summaryResult.error.message.includes('does not have access') ? 403 : 500 },
@@ -95,16 +104,35 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   const otherExpenses = Number(summary?.other_expenses ?? 0);
   const totalExpenses = Number(summary?.total_expenses ?? 0);
 
-  const budgetPlanned = budget?.planned_amount === null || budget?.planned_amount === undefined ? null : Number(budget.planned_amount);
-  const budgetUsedPercent = budget?.percent_used === null || budget?.percent_used === undefined ? null : Number(budget.percent_used);
-  const budgetRemaining = budget?.remaining_amount === null || budget?.remaining_amount === undefined ? null : Number(budget.remaining_amount);
+  const budgetPlanned =
+    budget?.planned_amount === null || budget?.planned_amount === undefined
+      ? null
+      : Number(budget.planned_amount);
+  const budgetUsedPercent =
+    budget?.percent_used === null || budget?.percent_used === undefined
+      ? null
+      : Number(budget.percent_used);
+  const budgetRemaining =
+    budget?.remaining_amount === null || budget?.remaining_amount === undefined
+      ? null
+      : Number(budget.remaining_amount);
 
   const budgetAlerts: BudgetAlert[] = [];
   if (budgetUsedPercent !== null) {
     if (budgetUsedPercent >= 100) {
-      budgetAlerts.push({ propertyId: id, month, level: 'exceeded', percentUsed: budgetUsedPercent });
+      budgetAlerts.push({
+        propertyId: id,
+        month,
+        level: 'exceeded',
+        percentUsed: budgetUsedPercent,
+      });
     } else if (budgetUsedPercent >= BUDGET_APPROACHING_THRESHOLD_PERCENT) {
-      budgetAlerts.push({ propertyId: id, month, level: 'approaching', percentUsed: budgetUsedPercent });
+      budgetAlerts.push({
+        propertyId: id,
+        month,
+        level: 'approaching',
+        percentUsed: budgetUsedPercent,
+      });
     }
   }
 

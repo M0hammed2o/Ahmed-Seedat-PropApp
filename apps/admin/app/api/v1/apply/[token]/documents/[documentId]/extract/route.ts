@@ -5,10 +5,7 @@ import { canUseOcr } from '@/lib/subscriptionEntitlements';
 import { resolveDocumentIntelligence } from '@/lib/providers/documentIntelligence';
 import { isTrustedExtractionResult } from '@/lib/documentIntelligencePolicy';
 import { documentExtractionUnavailableResponse } from '@/lib/documentExtractionResponses';
-import {
-  createProtectedSignedUrl,
-  requireCleanScanBeforeProcessing,
-} from '@/lib/protectedStorage';
+import { createProtectedSignedUrl, requireCleanScanBeforeProcessing } from '@/lib/protectedStorage';
 import { mapExtractionResultRow } from '@/lib/documents';
 import { writeAuditEvent } from '@/lib/audit';
 
@@ -43,10 +40,20 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       { status: 500 },
     );
   }
-  const app = appData as { valid: boolean; error_code: string | null; application_id: string | null; org_id: string | null };
+  const app = appData as {
+    valid: boolean;
+    error_code: string | null;
+    application_id: string | null;
+    org_id: string | null;
+  };
   if (!app.valid || !app.application_id || !app.org_id) {
     return NextResponse.json(
-      { error: { code: app.error_code ?? 'invalid_token', message: 'This link is no longer valid.' } },
+      {
+        error: {
+          code: app.error_code ?? 'invalid_token',
+          message: 'This link is no longer valid.',
+        },
+      },
       { status: 410 },
     );
   }
@@ -73,7 +80,12 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
   }
   if (!SUPPORTED_TYPES.has(document.document_type)) {
     return NextResponse.json(
-      { error: { code: 'extraction_not_supported', message: 'This document type does not support OCR.' } },
+      {
+        error: {
+          code: 'extraction_not_supported',
+          message: 'This document type does not support OCR.',
+        },
+      },
       { status: 400 },
     );
   }
@@ -83,7 +95,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       {
         error: {
           code: 'feature_not_available',
-          message: 'Document scanning (OCR) is not included in this organization\'s current plan.',
+          message: "Document scanning (OCR) is not included in this organization's current plan.",
         },
       },
       { status: 403 },
@@ -128,7 +140,12 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
   const attempt = (existingJobs ?? []).reduce((max, j) => Math.max(max, j.attempt), 0) + 1;
   if (attempt > MAX_ATTEMPTS) {
     return NextResponse.json(
-      { error: { code: 'max_attempts_exceeded', message: 'This document could not be processed after several attempts.' } },
+      {
+        error: {
+          code: 'max_attempts_exceeded',
+          message: 'This document could not be processed after several attempts.',
+        },
+      },
       { status: 409 },
     );
   }
@@ -175,7 +192,10 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
   };
 
   try {
-    const extraction = await provider.extractFields(processingInput, document.document_type as DocumentType);
+    const extraction = await provider.extractFields(
+      processingInput,
+      document.document_type as DocumentType,
+    );
 
     const { data: resultRow, error: resultError } = await serviceRole
       .from('extraction_results')
@@ -224,7 +244,12 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       .eq('id', job.id);
 
     return NextResponse.json(
-      { error: { code: 'extraction_failed', message: 'Document parsing failed. You can try again.' } },
+      {
+        error: {
+          code: 'extraction_failed',
+          message: 'Document parsing failed. You can try again.',
+        },
+      },
       { status: 502 },
     );
   }

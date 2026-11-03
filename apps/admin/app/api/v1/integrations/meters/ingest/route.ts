@@ -32,24 +32,43 @@ export async function POST(request: NextRequest) {
 
   const auth = await authenticateIntegration(service, token);
   if (!auth.ok && auth.reason === 'utilities_disabled') {
-    return NextResponse.json({ error: { code: 'utilities_disabled', message: 'Smart Utilities is not enabled for this organisation.' } }, { status: 403 });
+    return NextResponse.json(
+      {
+        error: {
+          code: 'utilities_disabled',
+          message: 'Smart Utilities is not enabled for this organisation.',
+        },
+      },
+      { status: 403 },
+    );
   }
   if (!auth.ok) {
     return NextResponse.json(
-      { error: { code: auth.reason === 'revoked' ? 'integration_revoked' : 'unauthorized', message: 'Invalid or revoked integration token.' } },
+      {
+        error: {
+          code: auth.reason === 'revoked' ? 'integration_revoked' : 'unauthorized',
+          message: 'Invalid or revoked integration token.',
+        },
+      },
       { status: auth.reason === 'revoked' ? 403 : 401 },
     );
   }
 
   const raw = await request.text();
   if (raw.length > MAX_BODY_BYTES) {
-    return NextResponse.json({ error: { code: 'payload_too_large', message: 'Payload exceeds 256 KB.' } }, { status: 413 });
+    return NextResponse.json(
+      { error: { code: 'payload_too_large', message: 'Payload exceeds 256 KB.' } },
+      { status: 413 },
+    );
   }
   let body: unknown;
   try {
     body = JSON.parse(raw);
   } catch {
-    return NextResponse.json({ error: { code: 'invalid_json', message: 'Body must be JSON.' } }, { status: 400 });
+    return NextResponse.json(
+      { error: { code: 'invalid_json', message: 'Body must be JSON.' } },
+      { status: 400 },
+    );
   }
 
   try {
@@ -64,6 +83,9 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     console.error('[meter-ingest] failed', err instanceof Error ? err.message : err);
     // 503 so well-behaved gateways retry later; idempotency keys make the retry safe.
-    return NextResponse.json({ error: { code: 'ingest_failed', message: 'Temporary failure, retry later.' } }, { status: 503 });
+    return NextResponse.json(
+      { error: { code: 'ingest_failed', message: 'Temporary failure, retry later.' } },
+      { status: 503 },
+    );
   }
 }

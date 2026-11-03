@@ -40,7 +40,9 @@ export async function resolveCoverPhotoRow(
 ): Promise<CoverPhotoRow | null> {
   const { data } = await supabase
     .from('property_photos')
-    .select('id, hero_storage_path, card_storage_path, width, height, documents(org_id, storage_path)')
+    .select(
+      'id, hero_storage_path, card_storage_path, width, height, documents(org_id, storage_path)',
+    )
     .eq('property_id', propertyId)
     .order('is_cover', { ascending: false })
     .order('created_at', { ascending: true })
@@ -123,7 +125,8 @@ export async function signCoverPhotoUrl(
   row: CoverPhotoRow,
   size: 'hero' | 'card',
 ): Promise<string | null> {
-  const path = (size === 'hero' ? row.heroStoragePath : row.cardStoragePath) ?? row.originalStoragePath;
+  const path =
+    (size === 'hero' ? row.heroStoragePath : row.cardStoragePath) ?? row.originalStoragePath;
   const signed = await createProtectedSignedUrl(supabase, {
     orgId: row.orgId,
     storagePath: path,

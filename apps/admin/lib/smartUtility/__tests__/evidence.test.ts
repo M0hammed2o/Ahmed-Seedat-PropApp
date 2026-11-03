@@ -2,7 +2,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import sharp from 'sharp';
-import { buildMunicipalReport, renderEvidencePdf, renderReportPdf, type ReportPoint } from '../municipalReport';
+import {
+  buildMunicipalReport,
+  renderEvidencePdf,
+  renderReportPdf,
+  type ReportPoint,
+} from '../municipalReport';
 import { sastInstant } from '../consumption';
 
 // Meter evidence: the evidence PDF embeds the photo beside the reading, and municipal packs say
@@ -49,10 +54,23 @@ describe('meter evidence', () => {
     expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
     // An embedded JPEG makes the file substantially larger than a text-only page.
     const noPhoto = await renderEvidencePdf({
-      propertyName: 'x', propertyAddress: 'x', meterLabel: 'x', meterNumber: null, serialNumber: null,
-      utilityType: 'water', reading: 1, unit: 'kL', readAt: '2026-10-20T08:15:00Z', submittedBy: null,
-      source: 'manual', verificationStatus: 'unverified', verifiedBy: null, verifiedAt: null, note: null,
-      image: null, imageCaption: 'No photo',
+      propertyName: 'x',
+      propertyAddress: 'x',
+      meterLabel: 'x',
+      meterNumber: null,
+      serialNumber: null,
+      utilityType: 'water',
+      reading: 1,
+      unit: 'kL',
+      readAt: '2026-10-20T08:15:00Z',
+      submittedBy: null,
+      source: 'manual',
+      verificationStatus: 'unverified',
+      verifiedBy: null,
+      verifiedAt: null,
+      note: null,
+      image: null,
+      imageCaption: 'No photo',
     });
     expect(pdf.length).toBeGreaterThan(noPhoto.length + 5_000);
 
@@ -68,16 +86,48 @@ describe('meter evidence', () => {
         municipalAccountNumber: '5000000000 (example)',
         periodStart: sastInstant(2026, 9, 25),
         periodEnd: sastInstant(2026, 10, 25),
-        meters: [{
-          meterId: 'm1', utilityType: 'water', meterNumber: 'TSH-W-0001', serialNumber: '9988', registerDigits: null,
-          points: [
-            { readAt: '2026-09-24T08:00:00Z', rawValue: 1010000, value: 1010000, multiplier: 1, status: 'valid', source: 'manual', documentId: 'd0', verificationStatus: 'verified' },
-            { readAt: '2026-10-20T08:15:00Z', rawValue: 1035500, value: 1035500, multiplier: 1, status: 'valid', source: 'manual', documentId: 'd1', verificationStatus: 'verified' },
-          ],
-        }],
+        meters: [
+          {
+            meterId: 'm1',
+            utilityType: 'water',
+            meterNumber: 'TSH-W-0001',
+            serialNumber: '9988',
+            registerDigits: null,
+            points: [
+              {
+                readAt: '2026-09-24T08:00:00Z',
+                rawValue: 1010000,
+                value: 1010000,
+                multiplier: 1,
+                status: 'valid',
+                source: 'manual',
+                documentId: 'd0',
+                verificationStatus: 'verified',
+              },
+              {
+                readAt: '2026-10-20T08:15:00Z',
+                rawValue: 1035500,
+                value: 1035500,
+                multiplier: 1,
+                status: 'valid',
+                source: 'manual',
+                documentId: 'd1',
+                verificationStatus: 'verified',
+              },
+            ],
+          },
+        ],
         now: new Date('2026-10-20T10:00:00Z'),
       });
-      const pack = await renderReportPdf(report, { images: [{ meterId: 'm1', buffer: photo, caption: 'Meter photo, 2026-10-20 (synthetic example image)' }] });
+      const pack = await renderReportPdf(report, {
+        images: [
+          {
+            meterId: 'm1',
+            buffer: photo,
+            caption: 'Meter photo, 2026-10-20 (synthetic example image)',
+          },
+        ],
+      });
       fs.writeFileSync(path.join(dir, 'municipal-reading-pack-example.pdf'), pack);
     }
   });
@@ -85,12 +135,34 @@ describe('meter evidence', () => {
   it('distinguishes a reviewed photo from an unreviewed one in the municipal pack', () => {
     const mk = (verificationStatus: ReportPoint['verificationStatus']) =>
       buildMunicipalReport({
-        propertyName: 'P', propertyAddress: 'A', preparedFor: null, municipality: null, municipalAccountNumber: null,
-        periodStart: sastInstant(2026, 9, 25), periodEnd: sastInstant(2026, 10, 25),
-        meters: [{
-          meterId: 'm', utilityType: 'water', meterNumber: 'W', serialNumber: null, registerDigits: null,
-          points: [{ readAt: '2026-10-20T08:00:00Z', rawValue: 5, value: 5, multiplier: 1, status: 'valid', source: 'manual', documentId: 'd', verificationStatus }],
-        }],
+        propertyName: 'P',
+        propertyAddress: 'A',
+        preparedFor: null,
+        municipality: null,
+        municipalAccountNumber: null,
+        periodStart: sastInstant(2026, 9, 25),
+        periodEnd: sastInstant(2026, 10, 25),
+        meters: [
+          {
+            meterId: 'm',
+            utilityType: 'water',
+            meterNumber: 'W',
+            serialNumber: null,
+            registerDigits: null,
+            points: [
+              {
+                readAt: '2026-10-20T08:00:00Z',
+                rawValue: 5,
+                value: 5,
+                multiplier: 1,
+                status: 'valid',
+                source: 'manual',
+                documentId: 'd',
+                verificationStatus,
+              },
+            ],
+          },
+        ],
       }).meters[0]!.verificationNote;
     expect(mk('verified')).toMatch(/reviewed\.$/);
     expect(mk('unverified')).toMatch(/not yet reviewed/);

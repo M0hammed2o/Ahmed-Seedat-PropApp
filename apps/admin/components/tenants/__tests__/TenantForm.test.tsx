@@ -17,7 +17,9 @@ afterEach(() => {
 });
 
 const PROPERTIES = [{ id: 'property-1', nickname: 'Musgrave Heights' }];
-const UNITS = [{ id: 'unit-601', propertyId: 'property-1', unitLabel: '601', status: 'vacant' as const }];
+const UNITS = [
+  { id: 'unit-601', propertyId: 'property-1', unitLabel: '601', status: 'vacant' as const },
+];
 
 function mockFetchSequence(responses: { status: number; body: unknown }[]) {
   let call = 0;
@@ -42,7 +44,9 @@ describe('TenantForm (create mode)', () => {
     const internalRadio = screen.getByRole('radio', { name: /Manage internally only/i });
     expect(internalRadio).toHaveProperty('checked', true);
 
-    fireEvent.change(screen.getByLabelText('Full name'), { target: { value: 'Synthetic Test Tenant A' } });
+    fireEvent.change(screen.getByLabelText('Full name'), {
+      target: { value: 'Synthetic Test Tenant A' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Create tenant' }));
 
     await waitFor(() => expect(push).toHaveBeenCalledWith('/tenants/new-tenant-1'));
@@ -61,10 +65,17 @@ describe('TenantForm (create mode)', () => {
   // trigger an invitation at tenant-creation time.
   it('sends no invitation for "Manage internally only" even when email and phone are both entered', async () => {
     render(<TenantForm mode="create" orgId="org-1" properties={PROPERTIES} units={UNITS} />);
-    fireEvent.change(screen.getByLabelText('Full name'), { target: { value: 'Synthetic Test Tenant A' } });
-    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'synthetic-a@example.invalid' } });
+    fireEvent.change(screen.getByLabelText('Full name'), {
+      target: { value: 'Synthetic Test Tenant A' },
+    });
+    fireEvent.change(screen.getByLabelText('Email'), {
+      target: { value: 'synthetic-a@example.invalid' },
+    });
     fireEvent.change(screen.getByLabelText('Phone'), { target: { value: '+27 82 555 0100' } });
-    expect(screen.getByRole('radio', { name: /Manage internally only/i })).toHaveProperty('checked', true);
+    expect(screen.getByRole('radio', { name: /Manage internally only/i })).toHaveProperty(
+      'checked',
+      true,
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Create tenant' }));
 
     await waitFor(() => expect(push).toHaveBeenCalledWith('/tenants/new-tenant-1'));
@@ -79,7 +90,9 @@ describe('TenantForm (create mode)', () => {
 
   it('blocks submission for "Invite tenant to Proplyst" with no email or phone', async () => {
     render(<TenantForm mode="create" orgId="org-1" properties={PROPERTIES} units={UNITS} />);
-    fireEvent.change(screen.getByLabelText('Full name'), { target: { value: 'Synthetic Test Tenant A' } });
+    fireEvent.change(screen.getByLabelText('Full name'), {
+      target: { value: 'Synthetic Test Tenant A' },
+    });
     fireEvent.click(screen.getByRole('radio', { name: /Invite tenant to Proplyst/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Create tenant' }));
 
@@ -90,11 +103,24 @@ describe('TenantForm (create mode)', () => {
   it('sends an invitation only when "Invite tenant to Proplyst" was explicitly chosen', async () => {
     global.fetch = mockFetchSequence([
       { status: 201, body: { tenant: { id: 'new-tenant-2' } } },
-      { status: 201, body: { invitationId: 'inv-1', token: 't', shortCode: null, expiresAt: '2026-09-01', acceptUrl: 'x' } },
+      {
+        status: 201,
+        body: {
+          invitationId: 'inv-1',
+          token: 't',
+          shortCode: null,
+          expiresAt: '2026-09-01',
+          acceptUrl: 'x',
+        },
+      },
     ]);
     render(<TenantForm mode="create" orgId="org-1" properties={PROPERTIES} units={UNITS} />);
-    fireEvent.change(screen.getByLabelText('Full name'), { target: { value: 'Synthetic Test Tenant B' } });
-    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'synthetic-b@example.invalid' } });
+    fireEvent.change(screen.getByLabelText('Full name'), {
+      target: { value: 'Synthetic Test Tenant B' },
+    });
+    fireEvent.change(screen.getByLabelText('Email'), {
+      target: { value: 'synthetic-b@example.invalid' },
+    });
     fireEvent.click(screen.getByRole('radio', { name: /Invite tenant to Proplyst/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Create tenant' }));
 
@@ -102,24 +128,33 @@ describe('TenantForm (create mode)', () => {
     const calls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls;
     expect(calls[0]![0]).toBe('/api/v1/tenants');
     expect(calls[1]![0]).toBe('/api/v1/tenants/new-tenant-2/invitations');
-    expect(JSON.parse(calls[1]![1].body)).toEqual({ deliveryChannel: 'email', includeShortCode: false });
+    expect(JSON.parse(calls[1]![1].body)).toEqual({
+      deliveryChannel: 'email',
+      includeShortCode: false,
+    });
   });
 
   it('routes to the lease-creation flow, carrying the new tenant id, when a property and unit were selected', async () => {
     render(<TenantForm mode="create" orgId="org-1" properties={PROPERTIES} units={UNITS} />);
-    fireEvent.change(screen.getByLabelText('Full name'), { target: { value: 'Synthetic Test Tenant A' } });
+    fireEvent.change(screen.getByLabelText('Full name'), {
+      target: { value: 'Synthetic Test Tenant A' },
+    });
     fireEvent.change(screen.getByLabelText('Property'), { target: { value: 'property-1' } });
     fireEvent.change(screen.getByLabelText('Unit'), { target: { value: 'unit-601' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create tenant' }));
 
     await waitFor(() =>
-      expect(push).toHaveBeenCalledWith('/properties/property-1/units/unit-601/leases/new?tenantId=new-tenant-1'),
+      expect(push).toHaveBeenCalledWith(
+        '/properties/property-1/units/unit-601/leases/new?tenantId=new-tenant-1',
+      ),
     );
   });
 
   it('routes to the plain tenant page when no property/unit was selected', async () => {
     render(<TenantForm mode="create" orgId="org-1" properties={PROPERTIES} units={UNITS} />);
-    fireEvent.change(screen.getByLabelText('Full name'), { target: { value: 'Synthetic Test Tenant A' } });
+    fireEvent.change(screen.getByLabelText('Full name'), {
+      target: { value: 'Synthetic Test Tenant A' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Create tenant' }));
 
     await waitFor(() => expect(push).toHaveBeenCalledWith('/tenants/new-tenant-1'));

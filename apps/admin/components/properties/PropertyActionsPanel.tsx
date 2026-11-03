@@ -55,7 +55,11 @@ export function PropertyActionsPanel({
   }, [propertyId, isPrincipal]);
 
   async function archive() {
-    if (!window.confirm(`Archive ${nickname}? It will no longer appear as an active property, but all its history, documents and financial records stay intact and it can be restored later.`)) {
+    if (
+      !window.confirm(
+        `Archive ${nickname}? It will no longer appear as an active property, but all its history, documents and financial records stay intact and it can be restored later.`,
+      )
+    ) {
       return;
     }
     setPending('archive');

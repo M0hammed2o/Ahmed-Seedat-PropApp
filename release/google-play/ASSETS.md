@@ -2,13 +2,13 @@
 
 ## Required by Google
 
-| Asset | Spec | Status |
-|---|---|---|
-| App icon | 512×512 PNG, 32-bit, <1 MB | **Available** — checked 2026-09-15: 512×512, RGBA, 128,585 bytes |
-| Feature graphic | 1024×500 PNG/JPG, required to publish | **Missing — must be produced** |
-| Phone screenshots | 2–8, PNG/JPG, min 320px, max 3840px, long side ≤ 2× short side; 9:16 at 1080×1920 recommended | **Not captured** — see below |
-| 7" tablet screenshots | optional | Not planned for V1 |
-| 10" tablet screenshots | optional | Not planned for V1 |
+| Asset                  | Spec                                                                                          | Status                                                           |
+| ---------------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| App icon               | 512×512 PNG, 32-bit, <1 MB                                                                    | **Available** — checked 2026-09-15: 512×512, RGBA, 128,585 bytes |
+| Feature graphic        | 1024×500 PNG/JPG, required to publish                                                         | **Missing — must be produced**                                   |
+| Phone screenshots      | 2–8, PNG/JPG, min 320px, max 3840px, long side ≤ 2× short side; 9:16 at 1080×1920 recommended | **Not captured** — see below                                     |
+| 7" tablet screenshots  | optional                                                                                      | Not planned for V1                                               |
+| 10" tablet screenshots | optional                                                                                      | Not planned for V1                                               |
 
 ## App icon
 
@@ -46,6 +46,7 @@ most 2:1 (for example 1080×2160). Do not stretch the image, and do not add feat
 text the app does not show.
 
 Rules:
+
 - Use the demo account only.
 - Every screenshot must be the real app as built for this release, not a mock-up.
 - Frame out the status bar clock/battery if you want them uniform, or leave them — Play accepts both.

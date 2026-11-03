@@ -32,18 +32,32 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     .maybeSingle();
   if (fetchError) {
     return NextResponse.json(
-      { error: { code: 'invoice_fetch_failed', message: safeErrorMessage(fetchError, 'Could not load this invoice.', 'invoices/[id]/issue.fetch') } },
+      {
+        error: {
+          code: 'invoice_fetch_failed',
+          message: safeErrorMessage(
+            fetchError,
+            'Could not load this invoice.',
+            'invoices/[id]/issue.fetch',
+          ),
+        },
+      },
       { status: 500 },
     );
   }
   if (!existing) {
-    return NextResponse.json({ error: { code: 'not_found', message: 'Invoice not found.' } }, { status: 404 });
+    return NextResponse.json(
+      { error: { code: 'not_found', message: 'Invoice not found.' } },
+      { status: 404 },
+    );
   }
 
   const canWrite = await requireOrgRole(supabase, existing.org_id, 'accountant');
   if (!canWrite) {
     return NextResponse.json(
-      { error: { code: 'forbidden', message: 'You do not have permission to issue this invoice.' } },
+      {
+        error: { code: 'forbidden', message: 'You do not have permission to issue this invoice.' },
+      },
       { status: 403 },
     );
   }
@@ -54,17 +68,30 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       {
         error: {
           code: 'invoice_issue_failed',
-          message: safeErrorMessage(rpcError, 'Could not issue this invoice.', 'invoices/[id]/issue'),
+          message: safeErrorMessage(
+            rpcError,
+            'Could not issue this invoice.',
+            'invoices/[id]/issue',
+          ),
         },
       },
       { status: 400 },
     );
   }
 
-  const { data: invoice, error: reloadError } = await supabase.from('invoices').select('*').eq('id', id).single();
+  const { data: invoice, error: reloadError } = await supabase
+    .from('invoices')
+    .select('*')
+    .eq('id', id)
+    .single();
   if (reloadError) {
     return NextResponse.json(
-      { error: { code: 'invoice_fetch_failed', message: 'Invoice was issued, but could not be reloaded. Please refresh.' } },
+      {
+        error: {
+          code: 'invoice_fetch_failed',
+          message: 'Invoice was issued, but could not be reloaded. Please refresh.',
+        },
+      },
       { status: 500 },
     );
   }

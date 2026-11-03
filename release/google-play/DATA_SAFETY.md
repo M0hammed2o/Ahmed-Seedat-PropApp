@@ -4,9 +4,9 @@ Every answer below was derived by reading the code, not assumed. Where a claim d
 specific file, that file is named so it can be re-checked. Re-audited 12 September 2026 against
 `0a22bca`.
 
-**Scope rule that decides most of this form.** Google's Data Safety declaration covers what *your
-app* collects. Proplyst's Android app is a thin client over a shared backend, and several of the
-most sensitive things the *website* can store — identity numbers, payslips, bank statements, rental
+**Scope rule that decides most of this form.** Google's Data Safety declaration covers what _your
+app_ collects. Proplyst's Android app is a thin client over a shared backend, and several of the
+most sensitive things the _website_ can store — identity numbers, payslips, bank statements, rental
 applications — have no Android surface at all. Those are disclosed in the Privacy Policy, which
 covers both, but they are **not** declared here, because the app does not collect them. Each one is
 called out below with the evidence, so the line is auditable rather than convenient.
@@ -32,17 +32,17 @@ In-app: More → Account & security → Delete account. Web:
 
 ### Personal info
 
-| Type | Collected | Shared | Required/Optional | Purpose |
-|---|---|---|---|---|
-| Name | Yes | No | Optional | App functionality, Account management |
-| Email address | Yes | No | **Required** | App functionality, Account management |
-| User IDs | Yes | No | Required | App functionality, Account management |
-| Phone number | Yes | No | Optional | App functionality |
-| Address | Yes | No | Optional | App functionality |
-| Race and ethnicity | No | — | — | Not collected |
-| Political or religious beliefs | No | — | — | Not collected |
-| Sexual orientation | No | — | — | Not collected |
-| **Other info** | No | — | — | See "Government ID" below |
+| Type                           | Collected | Shared | Required/Optional | Purpose                               |
+| ------------------------------ | --------- | ------ | ----------------- | ------------------------------------- |
+| Name                           | Yes       | No     | Optional          | App functionality, Account management |
+| Email address                  | Yes       | No     | **Required**      | App functionality, Account management |
+| User IDs                       | Yes       | No     | Required          | App functionality, Account management |
+| Phone number                   | Yes       | No     | Optional          | App functionality                     |
+| Address                        | Yes       | No     | Optional          | App functionality                     |
+| Race and ethnicity             | No        | —      | —                 | Not collected                         |
+| Political or religious beliefs | No        | —      | —                 | Not collected                         |
+| Sexual orientation             | No        | —      | —                 | Not collected                         |
+| **Other info**                 | No        | —      | —                 | See "Government ID" below             |
 
 Sign-in is by email and password, or "Continue with Google" (1.0.1). Google sign-in uses Android's
 own Credential Manager: the user picks an account, Google returns a signed ID token naming that
@@ -59,12 +59,12 @@ The email it yields is the same "Email address" row above, collected for the sam
 
 ### Financial info
 
-| Type | Collected | Shared | Required/Optional | Purpose |
-|---|---|---|---|---|
-| User payment info | No | — | — | No card or bank credential is entered in the app |
-| Purchase history | No | — | — | The app contains no purchase flow at all |
-| Credit score | No | — | — | Not collected |
-| **Other financial info** | Yes | No | Required | App functionality |
+| Type                     | Collected | Shared | Required/Optional | Purpose                                          |
+| ------------------------ | --------- | ------ | ----------------- | ------------------------------------------------ |
+| User payment info        | No        | —      | —                 | No card or bank credential is entered in the app |
+| Purchase history         | No        | —      | —                 | The app contains no purchase flow at all         |
+| Credit score             | No        | —      | —                 | Not collected                                    |
+| **Other financial info** | Yes       | No     | Required          | App functionality                                |
 
 "Other financial info" is rent amounts, invoices, payments, expenses, budgets and utility costs —
 the substance of the product.
@@ -76,10 +76,10 @@ entitled account simply signs in.
 
 ### Photos and videos
 
-| Type | Collected | Shared | Required/Optional | Purpose |
-|---|---|---|---|---|
-| Photos | Yes | No | Optional | App functionality |
-| Videos | No | — | — | Not collected |
+| Type   | Collected | Shared | Required/Optional | Purpose           |
+| ------ | --------- | ------ | ----------------- | ----------------- |
+| Photos | Yes       | No     | Optional          | App functionality |
+| Videos | No        | —      | —                 | Not collected     |
 
 Only images the user deliberately attaches: an expense receipt, a utility bill, maintenance
 evidence, a meter photo. Chosen through the system camera app (`ActivityResultContracts.TakePicture`)
@@ -94,61 +94,69 @@ file. The temporary copy is deleted when the upload call returns. See
 `data/network/UploadPreparation.kt`. PDFs are uploaded unchanged.
 
 ### Audio files
+
 **Not collected.** No microphone permission, no recording API.
 
 ### Files and docs
 
-| Type | Collected | Shared | Required/Optional | Purpose |
-|---|---|---|---|---|
-| Files and docs | Yes | No | Optional | App functionality |
+| Type           | Collected | Shared | Required/Optional | Purpose           |
+| -------------- | --------- | ------ | ----------------- | ----------------- |
+| Files and docs | Yes       | No     | Optional          | App functionality |
 
 Documents the user attaches through the system document picker (`OpenDocument`).
 
 ### Calendar / Contacts
+
 **Not collected.** No permission declared, no provider queried.
 
 ### App activity
 
-| Type | Collected | Shared | Required/Optional | Purpose |
-|---|---|---|---|---|
-| App interactions | No | — | — | No analytics SDK records interactions |
-| In-app search history | No | — | — | Not collected |
-| Installed apps | No | — | — | Not queried |
-| Other user-generated content | Yes | No | Optional | App functionality |
-| Other actions | No | — | — | Not collected |
+| Type                         | Collected | Shared | Required/Optional | Purpose                               |
+| ---------------------------- | --------- | ------ | ----------------- | ------------------------------------- |
+| App interactions             | No        | —      | —                 | No analytics SDK records interactions |
+| In-app search history        | No        | —      | —                 | Not collected                         |
+| Installed apps               | No        | —      | —                 | Not queried                           |
+| Other user-generated content | Yes       | No     | Optional          | App functionality                     |
+| Other actions                | No        | —      | —                 | Not collected                         |
 
 "Other user-generated content" is the free text a user types: maintenance descriptions, notes,
 rejection reasons, announcements.
 
 ### Web browsing
+
 **Not collected.** There is no WebView in the app at all.
 
 ### App info and performance
+
 **Not collected.** No crash logs, no diagnostics, no performance traces leave the device — verified
 against `gradle/libs.versions.toml` and `app/build.gradle.kts`: no Firebase, Crashlytics, AdMob,
 Sentry, Bugsnag, AppsFlyer, Mixpanel, Amplitude, Adjust or Facebook SDK. The dependency set is
 AndroidX, Compose, Hilt, Room, Coil, Retrofit/OkHttp and `androidx.security.crypto`.
 
 ### Device or other IDs
+
 **Not collected.** No advertising ID, no `play-services-ads-identifier`, no SSAID or device
 fingerprint is read.
 
 ### Location
+
 **Not collected.** No location permission, no location API. Property addresses are typed by the
 user, never derived from the device. Photo GPS metadata is removed on the device before upload (see
 Photos and videos).
 
 ### Health and fitness
+
 **Not collected.**
 
 ### Messages
+
 **Not collected by the app.** WhatsApp and email messages are composed and dispatched
 **server-side**; the Android app neither reads nor sends them and has no SMS or messaging
 permission.
 
 ### Government ID — **Not collected by the Android app**
 
-This one needs stating carefully, because the *backend* does hold it. `tenants.id_number_ref`
+This one needs stating carefully, because the _backend_ does hold it. `tenants.id_number_ref`
 (`supabase/migrations/20260101000028_tenants.sql`) stores a South African ID number as a reference
 into `encrypted_secrets`, and the applicant flow accepts an `id_document` ("Copy of ID or
 passport"), plus `payslip`, `bank_statement` and `proof_of_address`.
@@ -170,17 +178,17 @@ moment `idNumberRef` enters the Android Tenant model.
 a "service provider" that processes data on the developer's behalf and on the developer's
 instructions. Every third party Proplyst uses is exactly that:
 
-| Processor | Receives | Still "shared = No"? |
-|---|---|---|
-| **Supabase** | Everything — it is the database, auth and file storage | Yes, infrastructure processor |
-| **Render** | Request traffic, server logs, IP addresses | Yes, hosting processor |
-| **Google Cloud (Document AI)** | An uploaded document's bytes, when text extraction runs | Yes, processes and returns; does not retain or train |
-| **Cloudmersive** | Every uploaded file's bytes (never its file name), to scan it for malware before it is stored | Yes, returns a verdict; states it does not retain the file — **server-side only** |
-| **Meta Platforms** | A recipient phone number and message content, where WhatsApp is enabled | Yes, delivery processor — **server-side only** |
-| **Resend** | A recipient email address and message content | Yes, delivery processor — **server-side only** |
-| **PayFast** | Card and billing details, **entered on the website, never in the app** | Not reached by the app at all |
+| Processor                      | Receives                                                                                      | Still "shared = No"?                                                              |
+| ------------------------------ | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| **Supabase**                   | Everything — it is the database, auth and file storage                                        | Yes, infrastructure processor                                                     |
+| **Render**                     | Request traffic, server logs, IP addresses                                                    | Yes, hosting processor                                                            |
+| **Google Cloud (Document AI)** | An uploaded document's bytes, when text extraction runs                                       | Yes, processes and returns; does not retain or train                              |
+| **Cloudmersive**               | Every uploaded file's bytes (never its file name), to scan it for malware before it is stored | Yes, returns a verdict; states it does not retain the file — **server-side only** |
+| **Meta Platforms**             | A recipient phone number and message content, where WhatsApp is enabled                       | Yes, delivery processor — **server-side only**                                    |
+| **Resend**                     | A recipient email address and message content                                                 | Yes, delivery processor — **server-side only**                                    |
+| **PayFast**                    | Card and billing details, **entered on the website, never in the app**                        | Not reached by the app at all                                                     |
 
-That is a Play answer, not a POPIA answer. POPIA expects each operator to be *named* to the data
+That is a Play answer, not a POPIA answer. POPIA expects each operator to be _named_ to the data
 subject, which is why the Privacy Policy lists all of them explicitly.
 
 ---
@@ -213,12 +221,12 @@ Profile).
 
 From the **merged release manifest**, not the source file:
 
-| Permission | Why | Runtime prompt? |
-|---|---|---|
-| `android.permission.INTERNET` | Talking to the backend | No — normal permission |
-| `android.permission.USE_BIOMETRIC` | Optional fingerprint unlock | No — biometric prompt is the consent |
-| `android.permission.USE_FINGERPRINT` | Merged in by `androidx.biometric` for pre-API-28 devices | No |
-| `za.co.genbridge.proplyst.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` | Generated by AndroidX, internal to the app itself | No — not a user-facing permission |
+| Permission                                                          | Why                                                      | Runtime prompt?                      |
+| ------------------------------------------------------------------- | -------------------------------------------------------- | ------------------------------------ |
+| `android.permission.INTERNET`                                       | Talking to the backend                                   | No — normal permission               |
+| `android.permission.USE_BIOMETRIC`                                  | Optional fingerprint unlock                              | No — biometric prompt is the consent |
+| `android.permission.USE_FINGERPRINT`                                | Merged in by `androidx.biometric` for pre-API-28 devices | No                                   |
+| `za.co.genbridge.proplyst.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` | Generated by AndroidX, internal to the app itself        | No — not a user-facing permission    |
 
 **That is all four.** No `CAMERA`, no `READ_MEDIA_IMAGES`/`READ_EXTERNAL_STORAGE`, no
 `ACCESS_*_LOCATION`, no `READ_CONTACTS`, no `RECORD_AUDIO`, no `POST_NOTIFICATIONS`, no `AD_ID`.

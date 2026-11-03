@@ -131,8 +131,13 @@ describe('REAL_DOCUMENT_INTELLIGENCE_PROVIDER_NAMES', () => {
 
 describe('user-facing messages', () => {
   it('name no environment variable, credential, vendor or infrastructure detail', () => {
-    for (const message of [DOCUMENT_EXTRACTION_UNAVAILABLE_MESSAGE, EXTRACTION_RESULT_NOT_TRUSTED_MESSAGE]) {
-      expect(message).not.toMatch(/GOOGLE_|AWS_|NODE_ENV|RENDER|credential|Document AI|Google|mock|provider/i);
+    for (const message of [
+      DOCUMENT_EXTRACTION_UNAVAILABLE_MESSAGE,
+      EXTRACTION_RESULT_NOT_TRUSTED_MESSAGE,
+    ]) {
+      expect(message).not.toMatch(
+        /GOOGLE_|AWS_|NODE_ENV|RENDER|credential|Document AI|Google|mock|provider/i,
+      );
     }
   });
 

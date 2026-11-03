@@ -4,13 +4,13 @@
 
 ## What changes
 
-| # | Change | Target | Blast radius |
-| --- | --- | --- | --- |
-| 1 | Migration **184** (Cemetery Management) | Supabase `radqoboichldiucydrgy` | Additive: new tables, functions, policies and one new column (`organizations.cemetery_enabled`, default false). All 16 existing organisations stay off. No existing row, policy or function changes. |
-| 2 | Migration **185** (invoice numbering) | same | Moves `invoice_number_seq` from 3 to ≥ 2296, and makes `set_invoice_number()` skip taken numbers. The next rent invoice of **any** organisation is numbered INV-002297 onwards (today it would fail). No existing invoice changes. |
-| 3 | Code: `feature/cemetery-management` fast-forwarded into `main` and pushed | GitHub → Render auto-deploy (`proplyst.co.za`) | Cemetery pages, navigation and dashboard panel appear only for organisations with the module on. Existing dashboards gain "Last 12 months", month and year filters and a 12-month chart; Reports gains a 12-month table. |
-| 4 | Demo organisation and its year of history (provisioner) | production database | INSERT and UPDATE rows of the new demo organisation only. Also: one new auth user (`cemetery.demo@proplyst.co.za`, pre-confirmed), its profile and consent rows, and an active Business subscription with no payment method. No e-mail, WhatsApp or payment request is sent. |
-| 5 | Live verification as the demo login | `proplyst.co.za` | Read-only checks, plus a reservation that is made and released on one demo grave site (two history rows). Refusal checks (double sale, overpayment) write nothing. Optionally, one live test sale with a payment and receipt (see below). |
+| #   | Change                                                                    | Target                                         | Blast radius                                                                                                                                                                                                                                                                 |
+| --- | ------------------------------------------------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Migration **184** (Cemetery Management)                                   | Supabase `radqoboichldiucydrgy`                | Additive: new tables, functions, policies and one new column (`organizations.cemetery_enabled`, default false). All 16 existing organisations stay off. No existing row, policy or function changes.                                                                         |
+| 2   | Migration **185** (invoice numbering)                                     | same                                           | Moves `invoice_number_seq` from 3 to ≥ 2296, and makes `set_invoice_number()` skip taken numbers. The next rent invoice of **any** organisation is numbered INV-002297 onwards (today it would fail). No existing invoice changes.                                           |
+| 3   | Code: `feature/cemetery-management` fast-forwarded into `main` and pushed | GitHub → Render auto-deploy (`proplyst.co.za`) | Cemetery pages, navigation and dashboard panel appear only for organisations with the module on. Existing dashboards gain "Last 12 months", month and year filters and a 12-month chart; Reports gains a 12-month table.                                                     |
+| 4   | Demo organisation and its year of history (provisioner)                   | production database                            | INSERT and UPDATE rows of the new demo organisation only. Also: one new auth user (`cemetery.demo@proplyst.co.za`, pre-confirmed), its profile and consent rows, and an active Business subscription with no payment method. No e-mail, WhatsApp or payment request is sent. |
+| 5   | Live verification as the demo login                                       | `proplyst.co.za`                               | Read-only checks, plus a reservation that is made and released on one demo grave site (two history rows). Refusal checks (double sale, overpayment) write nothing. Optionally, one live test sale with a payment and receipt (see below).                                    |
 
 ## Prerequisites (checked 2026-10-26, read-only)
 
@@ -56,17 +56,18 @@
    - a second run creates nothing;
    - the fingerprint for other organisations is unchanged;
    - `email_messages` and `whatsapp_messages` counts are unchanged.
+
 7. Live browser verification (`e2e-demo/cemetery-live.spec.ts` and the demo-year checks) as the demo login, desktop
    and phone. Also check that the marketing demo organisation's dashboard and reports still load.
 
 ## Rollback
 
-| Change | Rollback |
-| --- | --- |
-| Code | Redeploy `0e0df7f` in Render, or push a revert to `main`. The old build runs on the new schema. |
-| 184 | Switch the module off: `update organizations set cemetery_enabled = false …`. The schema drop is `supabase/rollback/20260101000184_cemetery_down.sql`; it refuses while customer cemetery data exists. |
-| 185 | None needed. Forward-only, and correct for all organisations. |
-| Demo org | Archive it (`status = 'archived'`, module off) and ban the login. It cannot be hard-deleted, because `audit_events` is immutable. |
+| Change   | Rollback                                                                                                                                                                                               |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Code     | Redeploy `0e0df7f` in Render, or push a revert to `main`. The old build runs on the new schema.                                                                                                        |
+| 184      | Switch the module off: `update organizations set cemetery_enabled = false …`. The schema drop is `supabase/rollback/20260101000184_cemetery_down.sql`; it refuses while customer cemetery data exists. |
+| 185      | None needed. Forward-only, and correct for all organisations.                                                                                                                                          |
+| Demo org | Archive it (`status = 'archived'`, module off) and ban the login. It cannot be hard-deleted, because `audit_events` is immutable.                                                                      |
 
 ## Decisions needed from the owner
 

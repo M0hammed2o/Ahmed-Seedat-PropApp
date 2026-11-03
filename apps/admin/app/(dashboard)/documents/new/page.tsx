@@ -90,7 +90,11 @@ export default async function NewDocumentPage({ searchParams }: SearchParams) {
       type TenancyRow = {
         leases: {
           status: string;
-          units: { id: string; unit_label: string; properties: { id: string; nickname: string } | null } | null;
+          units: {
+            id: string;
+            unit_label: string;
+            properties: { id: string; nickname: string } | null;
+          } | null;
         } | null;
       };
       const activeTenancy = ((tenancyRows ?? []) as unknown as TenancyRow[]).find(

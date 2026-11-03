@@ -235,7 +235,11 @@ export async function POST(request: NextRequest) {
   const smartStart = Date.now();
   try {
     const result = await runSmartUtilityJob(serviceClient);
-    jobs.smartUtility = { success: !jobFailed(result), durationMs: Date.now() - smartStart, result };
+    jobs.smartUtility = {
+      success: !jobFailed(result),
+      durationMs: Date.now() - smartStart,
+      result,
+    };
   } catch (err) {
     jobs.smartUtility = {
       success: false,

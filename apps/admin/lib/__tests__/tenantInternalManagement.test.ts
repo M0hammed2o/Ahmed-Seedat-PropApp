@@ -52,7 +52,12 @@ describeIfSupabase('internal-only tenant management (real local Supabase integra
 
     const { data: property, error: propertyError } = await serviceClient
       .from('properties')
-      .insert({ org_id: orgId, nickname: 'Musgrave Heights', address_line1: '1 Test St', city: 'Durban' })
+      .insert({
+        org_id: orgId,
+        nickname: 'Musgrave Heights',
+        address_line1: '1 Test St',
+        city: 'Durban',
+      })
       .select('id')
       .single();
     if (propertyError) throw propertyError;
@@ -68,7 +73,10 @@ describeIfSupabase('internal-only tenant management (real local Supabase integra
   });
 
   afterEach(async () => {
-    const { data: leaseRows } = await serviceClient.from('leases').select('id').eq('unit_id', unitId);
+    const { data: leaseRows } = await serviceClient
+      .from('leases')
+      .select('id')
+      .eq('unit_id', unitId);
     for (const l of leaseRows ?? []) {
       await serviceClient.from('lease_tenants').delete().eq('lease_id', l.id);
     }
@@ -97,8 +105,14 @@ describeIfSupabase('internal-only tenant management (real local Supabase integra
 
   it('creating a tenant sends no email and no WhatsApp message', async () => {
     const before = await Promise.all([
-      serviceClient.from('email_messages').select('id', { count: 'exact', head: true }).eq('org_id', orgId),
-      serviceClient.from('whatsapp_messages').select('id', { count: 'exact', head: true }).eq('org_id', orgId),
+      serviceClient
+        .from('email_messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('org_id', orgId),
+      serviceClient
+        .from('whatsapp_messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('org_id', orgId),
     ]);
 
     const { error } = await serviceClient
@@ -107,8 +121,14 @@ describeIfSupabase('internal-only tenant management (real local Supabase integra
     expect(error).toBeNull();
 
     const after = await Promise.all([
-      serviceClient.from('email_messages').select('id', { count: 'exact', head: true }).eq('org_id', orgId),
-      serviceClient.from('whatsapp_messages').select('id', { count: 'exact', head: true }).eq('org_id', orgId),
+      serviceClient
+        .from('email_messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('org_id', orgId),
+      serviceClient
+        .from('whatsapp_messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('org_id', orgId),
     ]);
     expect(after[0].count).toBe(before[0].count);
     expect(after[1].count).toBe(before[1].count);
@@ -187,7 +207,11 @@ describeIfSupabase('internal-only tenant management (real local Supabase integra
   it('inviting an already-existing internal tenant reuses the same tenant/lease/occupancy -- no duplicates', async () => {
     const { data: tenant } = await serviceClient
       .from('tenants')
-      .insert({ org_id: orgId, full_name: 'Synthetic Test Tenant A', email: 'synthetic-test-tenant-a@example.invalid' })
+      .insert({
+        org_id: orgId,
+        full_name: 'Synthetic Test Tenant A',
+        email: 'synthetic-test-tenant-a@example.invalid',
+      })
       .select('id')
       .single();
     const { data: lease } = await serviceClient
@@ -224,9 +248,15 @@ describeIfSupabase('internal-only tenant management (real local Supabase integra
     });
     expect(inviteError).toBeNull();
 
-    const { data: allTenants } = await serviceClient.from('tenants').select('id').eq('org_id', orgId);
+    const { data: allTenants } = await serviceClient
+      .from('tenants')
+      .select('id')
+      .eq('org_id', orgId);
     expect(allTenants).toHaveLength(1);
-    const { data: allLeases } = await serviceClient.from('leases').select('id').eq('unit_id', unitId);
+    const { data: allLeases } = await serviceClient
+      .from('leases')
+      .select('id')
+      .eq('unit_id', unitId);
     expect(allLeases).toHaveLength(1);
     const { data: allLeaseTenants } = await serviceClient
       .from('lease_tenants')
@@ -235,11 +265,15 @@ describeIfSupabase('internal-only tenant management (real local Supabase integra
     expect(allLeaseTenants).toHaveLength(1);
     expect(allLeaseTenants![0]!.tenant_id).toBe(tenant!.id);
 
-    const { data: unitStatus } = await serviceClient.from('units').select('status').eq('id', unitId).single();
+    const { data: unitStatus } = await serviceClient
+      .from('units')
+      .select('status')
+      .eq('id', unitId)
+      .single();
     expect(unitStatus!.status).toBe('occupied');
   });
 
-  it('the tenant list query does not leak another organisation\'s property/unit labels', async () => {
+  it("the tenant list query does not leak another organisation's property/unit labels", async () => {
     const { data: otherOrg } = await serviceClient
       .from('organizations')
       .insert({ legal_name: `Other Org ${Date.now()}`, org_type: 'agency', status: 'active' })
@@ -247,7 +281,12 @@ describeIfSupabase('internal-only tenant management (real local Supabase integra
       .single();
     const { data: otherProperty } = await serviceClient
       .from('properties')
-      .insert({ org_id: otherOrg!.id, nickname: 'Secret Other Property', address_line1: '2 Test St', city: 'Cape Town' })
+      .insert({
+        org_id: otherOrg!.id,
+        nickname: 'Secret Other Property',
+        address_line1: '2 Test St',
+        city: 'Cape Town',
+      })
       .select('id')
       .single();
     const { data: otherUnit } = await serviceClient

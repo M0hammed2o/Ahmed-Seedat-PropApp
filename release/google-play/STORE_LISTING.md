@@ -1,17 +1,21 @@
 # Play Store listing — Proplyst
 
 ## App name (30 char max)
+
 ```
 Proplyst
 ```
 
 ## Short description (80 char max)
+
 ```
 Track rent, expenses and budgets across your property portfolio.
 ```
+
 (64 characters)
 
 ## Full description (4000 char max)
+
 ```
 Proplyst is property management software for South African landlords and property owners. It keeps
 the money side of a rental portfolio in one place, on your phone.
@@ -65,21 +69,25 @@ A Proplyst account is required.
 ```
 
 ## Category and tags
+
 - **Application type:** App
 - **Category:** Business
 - **Tags:** Finance, Productivity
 
 ## Contact details
-| Field | Value |
-|---|---|
-| Email | `notifications@genbridge.co.za` — confirmed 2026-09-11. Temporary: a genbridge.co.za address standing in until a permanent `@proplyst.co.za` mailbox exists. |
-| Website | `https://proplyst.co.za` (live, verified) |
-| Phone | Optional. Leave blank unless you want it public. |
+
+| Field   | Value                                                                                                                                                        |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Email   | `notifications@genbridge.co.za` — confirmed 2026-09-11. Temporary: a genbridge.co.za address standing in until a permanent `@proplyst.co.za` mailbox exists. |
+| Website | `https://proplyst.co.za` (live, verified)                                                                                                                    |
+| Phone   | Optional. Leave blank unless you want it public.                                                                                                             |
 
 ## Privacy policy URL
+
 ```
 https://proplyst.co.za/privacy
 ```
+
 Live, returns HTTP 200, and is the **real, binding policy** (first published 2026-09-11; the current
 version is `PRIVACY_VERSION` in `packages/config/src/legal.ts`). It names the contact address, states
 the retention rule, and matches the Data safety answers in `DATA_SAFETY.md`. The same policy, and
@@ -87,8 +95,10 @@ the Terms at `https://proplyst.co.za/terms`, are linked inside the app at More �
 accounts: Profile), as Google Play's User Data policy requires.
 
 ## Account deletion URL
+
 ```
 https://proplyst.co.za/delete-account
 ```
+
 Built in this pass. Public, no sign-in required, names the app, and puts the deletion path first —
 which is what Google's policy asks for.

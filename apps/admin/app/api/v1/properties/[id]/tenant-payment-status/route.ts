@@ -39,7 +39,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   const month = request.nextUrl.searchParams.get('month');
   if (!month) {
     return NextResponse.json(
-      { error: { code: 'validation_failed', message: 'A ?month=YYYY-MM-01 query parameter is required.' } },
+      {
+        error: {
+          code: 'validation_failed',
+          message: 'A ?month=YYYY-MM-01 query parameter is required.',
+        },
+      },
       { status: 400 },
     );
   }
@@ -58,7 +63,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     .eq('property_id', id);
   if (unitsError) {
     return NextResponse.json(
-      { error: { code: 'tenant_payment_status_failed', message: "Could not load this property's units." } },
+      {
+        error: {
+          code: 'tenant_payment_status_failed',
+          message: "Could not load this property's units.",
+        },
+      },
       { status: 500 },
     );
   }
@@ -101,7 +111,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     : { data: [] };
 
   const paidByLeasePeriod = new Map<string, number>();
-  for (const p of (paidRows ?? []) as unknown as { amount: string; invoice: { lease_id: string; period: string } }[]) {
+  for (const p of (paidRows ?? []) as unknown as {
+    amount: string;
+    invoice: { lease_id: string; period: string };
+  }[]) {
     const key = `${p.invoice.lease_id}:${p.invoice.period}`;
     paidByLeasePeriod.set(key, (paidByLeasePeriod.get(key) ?? 0) + Number(p.amount));
   }

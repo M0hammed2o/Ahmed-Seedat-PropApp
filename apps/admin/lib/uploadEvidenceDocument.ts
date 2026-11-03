@@ -41,6 +41,9 @@ export async function uploadEvidenceDocument({
     }
     return { documentId: body.document.id as string, error: null };
   } catch {
-    return { documentId: null, error: 'Failed to upload evidence — check your connection and try again.' };
+    return {
+      documentId: null,
+      error: 'Failed to upload evidence — check your connection and try again.',
+    };
   }
 }

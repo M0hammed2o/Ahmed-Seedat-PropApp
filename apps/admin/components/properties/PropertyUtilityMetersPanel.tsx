@@ -1,7 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import type { UtilityMeter, UtilityResponsibilityMode, UtilityHistoryPoint } from '@propvault/types';
+import type {
+  UtilityMeter,
+  UtilityResponsibilityMode,
+  UtilityHistoryPoint,
+} from '@propvault/types';
 import { Button } from '@/components/ui/Button';
 import { Panel } from '@/components/ui/Panel';
 import { safeJson } from '@/lib/safeJson';
@@ -29,7 +33,10 @@ interface UnitOption {
 // PropertyFinancesPanel's own DEMO_COSTS/DEMO_SETTINGS follow: 'demo-property-1' has no real
 // backing row, so a live fetch() here would 404/error. Two meters with a few months of readings,
 // one flagged unusual, gives a realistic look at the anomaly indicator without a live meter.
-const DEMO_METER_TIMESTAMPS = { createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' };
+const DEMO_METER_TIMESTAMPS = {
+  createdAt: '2026-01-01T00:00:00Z',
+  updatedAt: '2026-01-01T00:00:00Z',
+};
 const DEMO_METERS: UtilityMeter[] = [
   {
     id: 'demo-meter-water',
@@ -62,14 +69,56 @@ const DEMO_METERS: UtilityMeter[] = [
 ];
 const DEMO_READINGS: Record<string, UtilityHistoryPoint[]> = {
   'demo-meter-water': [
-    { periodMonth: '2026-06-01', readingValue: 1200, consumption: 180, previousConsumption: null, percentChange: null, isUnusualUsage: false },
-    { periodMonth: '2026-07-01', readingValue: 1395, consumption: 195, previousConsumption: 180, percentChange: 8.3, isUnusualUsage: false },
-    { periodMonth: '2026-08-01', readingValue: 1700, consumption: 305, previousConsumption: 195, percentChange: 56.4, isUnusualUsage: true },
+    {
+      periodMonth: '2026-06-01',
+      readingValue: 1200,
+      consumption: 180,
+      previousConsumption: null,
+      percentChange: null,
+      isUnusualUsage: false,
+    },
+    {
+      periodMonth: '2026-07-01',
+      readingValue: 1395,
+      consumption: 195,
+      previousConsumption: 180,
+      percentChange: 8.3,
+      isUnusualUsage: false,
+    },
+    {
+      periodMonth: '2026-08-01',
+      readingValue: 1700,
+      consumption: 305,
+      previousConsumption: 195,
+      percentChange: 56.4,
+      isUnusualUsage: true,
+    },
   ],
   'demo-meter-electricity': [
-    { periodMonth: '2026-06-01', readingValue: 4100, consumption: 410, previousConsumption: null, percentChange: null, isUnusualUsage: false },
-    { periodMonth: '2026-07-01', readingValue: 4520, consumption: 420, previousConsumption: 410, percentChange: 2.4, isUnusualUsage: false },
-    { periodMonth: '2026-08-01', readingValue: 4950, consumption: 430, previousConsumption: 420, percentChange: 2.4, isUnusualUsage: false },
+    {
+      periodMonth: '2026-06-01',
+      readingValue: 4100,
+      consumption: 410,
+      previousConsumption: null,
+      percentChange: null,
+      isUnusualUsage: false,
+    },
+    {
+      periodMonth: '2026-07-01',
+      readingValue: 4520,
+      consumption: 420,
+      previousConsumption: 410,
+      percentChange: 2.4,
+      isUnusualUsage: false,
+    },
+    {
+      periodMonth: '2026-08-01',
+      readingValue: 4950,
+      consumption: 430,
+      previousConsumption: 420,
+      percentChange: 2.4,
+      isUnusualUsage: false,
+    },
   ],
 };
 
@@ -95,7 +144,8 @@ export function PropertyUtilityMetersPanel({
   const [newUtilityType, setNewUtilityType] = useState<'water' | 'electricity'>('water');
   const [newUnitId, setNewUnitId] = useState('');
   const [newMeterNumber, setNewMeterNumber] = useState('');
-  const [newResponsibility, setNewResponsibility] = useState<UtilityResponsibilityMode>('owner_paid');
+  const [newResponsibility, setNewResponsibility] =
+    useState<UtilityResponsibilityMode>('owner_paid');
   const [newIsPrepaid, setNewIsPrepaid] = useState(false);
   const [creating, setCreating] = useState(false);
 
@@ -185,7 +235,10 @@ export function PropertyUtilityMetersPanel({
 
       {canManage && !demoMode ? (
         showCreate ? (
-          <form onSubmit={handleCreate} className="space-y-3 rounded-md border border-light-border p-3 text-xs dark:border-dark-border">
+          <form
+            onSubmit={handleCreate}
+            className="space-y-3 rounded-md border border-light-border p-3 text-xs dark:border-dark-border"
+          >
             <div className="grid grid-cols-2 gap-3">
               <label className="block">
                 <span className="text-muted-foreground">Utility</span>
@@ -199,7 +252,9 @@ export function PropertyUtilityMetersPanel({
                 </select>
               </label>
               <label className="block">
-                <span className="text-muted-foreground">Unit (blank = property-wide / common area)</span>
+                <span className="text-muted-foreground">
+                  Unit (blank = property-wide / common area)
+                </span>
                 <select
                   value={newUnitId}
                   onChange={(e) => setNewUnitId(e.target.value)}
@@ -225,7 +280,9 @@ export function PropertyUtilityMetersPanel({
                 <span className="text-muted-foreground">Responsibility</span>
                 <select
                   value={newResponsibility}
-                  onChange={(e) => setNewResponsibility(e.target.value as UtilityResponsibilityMode)}
+                  onChange={(e) =>
+                    setNewResponsibility(e.target.value as UtilityResponsibilityMode)
+                  }
                   className="mt-1 block w-full rounded-md border border-light-border bg-transparent px-3 py-2 text-sm dark:border-dark-border"
                 >
                   {(Object.keys(RESPONSIBILITY_LABELS) as UtilityResponsibilityMode[])
@@ -239,7 +296,11 @@ export function PropertyUtilityMetersPanel({
               </label>
             </div>
             <label className="flex items-center gap-2">
-              <input type="checkbox" checked={newIsPrepaid} onChange={(e) => setNewIsPrepaid(e.target.checked)} />
+              <input
+                type="checkbox"
+                checked={newIsPrepaid}
+                onChange={(e) => setNewIsPrepaid(e.target.checked)}
+              />
               <span>Prepaid meter (voucher/token)</span>
             </label>
             <div className="flex gap-2">
@@ -285,8 +346,14 @@ function MeterRow({
       >
         <span>
           <span className="font-medium capitalize">{meter.utilityType}</span>
-          {meter.meterNumber ? <span className="text-muted-foreground"> · {meter.meterNumber}</span> : null}
-          {unitLabel ? <span className="text-muted-foreground"> · {unitLabel}</span> : <span className="text-muted-foreground"> · Whole property</span>}
+          {meter.meterNumber ? (
+            <span className="text-muted-foreground"> · {meter.meterNumber}</span>
+          ) : null}
+          {unitLabel ? (
+            <span className="text-muted-foreground"> · {unitLabel}</span>
+          ) : (
+            <span className="text-muted-foreground"> · Whole property</span>
+          )}
         </span>
         <span className="text-xs text-muted-foreground">
           {RESPONSIBILITY_LABELS[meter.responsibilityMode]}
@@ -294,7 +361,12 @@ function MeterRow({
         </span>
       </button>
       {expanded ? (
-        <MeterReadings meterId={meter.id} utilityType={meter.utilityType} canManage={canManage} demoMode={demoMode} />
+        <MeterReadings
+          meterId={meter.id}
+          utilityType={meter.utilityType}
+          canManage={canManage}
+          demoMode={demoMode}
+        />
       ) : null}
     </div>
   );
@@ -366,25 +438,34 @@ function MeterReadings({
 
   return (
     <div className="border-t border-light-border p-3 dark:border-dark-border">
-      {error ? <p className="mb-2 text-xs text-light-danger dark:text-dark-danger">{error}</p> : null}
+      {error ? (
+        <p className="mb-2 text-xs text-light-danger dark:text-dark-danger">{error}</p>
+      ) : null}
       {!loaded ? (
         <p className="text-xs text-muted-foreground">Loading...</p>
       ) : history.length === 0 ? (
         <p className="mb-2 text-xs text-muted-foreground">No readings yet.</p>
       ) : (
         <ul className="mb-3 space-y-1 text-xs">
-          {[...history].reverse().slice(0, 6).map((point) => (
-            <li key={point.periodMonth} className="flex items-center justify-between">
-              <span>{point.periodMonth}</span>
-              <span>
-                {point.consumption !== null ? `${point.consumption} ${unitOfMeasure}` : '—'}
-                {point.percentChange !== null ? ` (${point.percentChange > 0 ? '+' : ''}${point.percentChange}%)` : ''}
-                {point.isUnusualUsage ? (
-                  <span className="ml-1 text-light-warning dark:text-dark-warning">Unusual usage</span>
-                ) : null}
-              </span>
-            </li>
-          ))}
+          {[...history]
+            .reverse()
+            .slice(0, 6)
+            .map((point) => (
+              <li key={point.periodMonth} className="flex items-center justify-between">
+                <span>{point.periodMonth}</span>
+                <span>
+                  {point.consumption !== null ? `${point.consumption} ${unitOfMeasure}` : '—'}
+                  {point.percentChange !== null
+                    ? ` (${point.percentChange > 0 ? '+' : ''}${point.percentChange}%)`
+                    : ''}
+                  {point.isUnusualUsage ? (
+                    <span className="ml-1 text-light-warning dark:text-dark-warning">
+                      Unusual usage
+                    </span>
+                  ) : null}
+                </span>
+              </li>
+            ))}
         </ul>
       )}
       {canManage ? (

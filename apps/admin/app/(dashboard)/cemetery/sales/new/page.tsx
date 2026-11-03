@@ -30,7 +30,10 @@ export default async function NewCemeterySalePage({ searchParams }: SearchParams
 
   return (
     <div className="space-y-5 animate-rise">
-      <PageHeader title={`New ${terms.saleLower}`} subtitle={`${cemetery.name} · choose a site, the ${terms.holderLower}, the price and any deposit received.`} />
+      <PageHeader
+        title={`New ${terms.saleLower}`}
+        subtitle={`${cemetery.name} · choose a site, the ${terms.holderLower}, the price and any deposit received.`}
+      />
       {cemetery.is_demo ? <DemoNotice /> : null}
       <SaleForm
         sites={sites
@@ -41,7 +44,9 @@ export default async function NewCemeterySalePage({ searchParams }: SearchParams
             saleStatus: s.sale_status as 'available' | 'reserved',
             listPrice: s.list_price != null ? Number(s.list_price) : null,
             reservedForId: s.reserved_for_purchaser_id,
-            reservedForName: s.reserved_for_purchaser_id ? (name.get(s.reserved_for_purchaser_id) ?? null) : null,
+            reservedForName: s.reserved_for_purchaser_id
+              ? (name.get(s.reserved_for_purchaser_id) ?? null)
+              : null,
           }))}
         purchasers={purchasers.map((p) => ({ id: p.id, name: p.full_name }))}
         initialSiteId={chosen?.id ?? null}

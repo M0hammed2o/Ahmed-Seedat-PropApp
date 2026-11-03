@@ -35,7 +35,9 @@ async function errorShape(response: {
 async function addOrgMember(orgId: string, userId: string, role: string): Promise<void> {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!serviceRoleKey) {
-    throw new Error('SUPABASE_SERVICE_ROLE_KEY is not set -- cannot seed an org member for this test.');
+    throw new Error(
+      'SUPABASE_SERVICE_ROLE_KEY is not set -- cannot seed an org member for this test.',
+    );
   }
   const response = await fetch(`${SUPABASE_URL}/rest/v1/organization_members`, {
     method: 'POST',
@@ -74,9 +76,13 @@ test.describe('property/unit lifecycle routes: cross-org resource hiding', () =>
       await request.post(`/api/v1/properties/${fakeId}/restore`, { headers: { Origin: BASE_URL } }),
     );
     const hardDelete = await errorShape(
-      await request.post(`/api/v1/properties/${fakeId}/hard-delete`, { headers: { Origin: BASE_URL } }),
+      await request.post(`/api/v1/properties/${fakeId}/hard-delete`, {
+        headers: { Origin: BASE_URL },
+      }),
     );
-    const eligibility = await errorShape(await request.get(`/api/v1/properties/${fakeId}/deletion-eligibility`));
+    const eligibility = await errorShape(
+      await request.get(`/api/v1/properties/${fakeId}/deletion-eligibility`),
+    );
 
     for (const shape of [archive, restore, hardDelete, eligibility]) {
       expect(shape.status).toBe(404);
@@ -98,10 +104,14 @@ test.describe('property/unit lifecycle routes: cross-org resource hiding', () =>
       await request.delete(`/api/v1/properties/${propertyId}`, { headers: { Origin: BASE_URL } }),
     );
     const restore = await errorShape(
-      await request.post(`/api/v1/properties/${propertyId}/restore`, { headers: { Origin: BASE_URL } }),
+      await request.post(`/api/v1/properties/${propertyId}/restore`, {
+        headers: { Origin: BASE_URL },
+      }),
     );
     const hardDelete = await errorShape(
-      await request.post(`/api/v1/properties/${propertyId}/hard-delete`, { headers: { Origin: BASE_URL } }),
+      await request.post(`/api/v1/properties/${propertyId}/hard-delete`, {
+        headers: { Origin: BASE_URL },
+      }),
     );
     const eligibility = await errorShape(
       await request.get(`/api/v1/properties/${propertyId}/deletion-eligibility`),
@@ -131,7 +141,9 @@ test.describe('property/unit lifecycle routes: cross-org resource hiding', () =>
     const hardDelete = await errorShape(
       await request.post(`/api/v1/units/${fakeId}/hard-delete`, { headers: { Origin: BASE_URL } }),
     );
-    const eligibility = await errorShape(await request.get(`/api/v1/units/${fakeId}/deletion-eligibility`));
+    const eligibility = await errorShape(
+      await request.get(`/api/v1/units/${fakeId}/deletion-eligibility`),
+    );
 
     for (const shape of [archive, restore, hardDelete, eligibility]) {
       expect(shape.status).toBe(404);
@@ -157,7 +169,9 @@ test.describe('property/unit lifecycle routes: cross-org resource hiding', () =>
     const hardDelete = await errorShape(
       await request.post(`/api/v1/units/${unitId}/hard-delete`, { headers: { Origin: BASE_URL } }),
     );
-    const eligibility = await errorShape(await request.get(`/api/v1/units/${unitId}/deletion-eligibility`));
+    const eligibility = await errorShape(
+      await request.get(`/api/v1/units/${unitId}/deletion-eligibility`),
+    );
 
     for (const shape of [archive, restore, hardDelete, eligibility]) {
       expect(shape.status).toBe(404);
@@ -208,7 +222,9 @@ test.describe('property/unit lifecycle routes: cross-org resource hiding', () =>
     });
     expect(restoreResponse.ok()).toBe(true);
 
-    const eligibilityResponse = await request.get(`/api/v1/properties/${propertyId}/deletion-eligibility`);
+    const eligibilityResponse = await request.get(
+      `/api/v1/properties/${propertyId}/deletion-eligibility`,
+    );
     expect(eligibilityResponse.ok()).toBe(true);
     const eligibility = await eligibilityResponse.json();
     expect(eligibility.eligible).toBe(true);

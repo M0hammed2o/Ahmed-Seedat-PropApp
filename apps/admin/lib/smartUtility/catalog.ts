@@ -3,7 +3,8 @@
 // 2026-10-08 (docs/SMART_UTILITY_HARDWARE_RESEARCH.md §5). NEVER add an address that has not been
 // verified on an official page -- the UI asks the owner to enter their own instead.
 
-export type MunicipalChannelKind = 'email' | 'portal' | 'app' | 'whatsapp' | 'sms' | 'phone' | 'ivr';
+export type MunicipalChannelKind =
+  'email' | 'portal' | 'app' | 'whatsapp' | 'sms' | 'phone' | 'ivr';
 
 export interface MunicipalChannel {
   kind: MunicipalChannelKind;
@@ -33,8 +34,16 @@ export const MUNICIPALITIES: MunicipalityInfo[] = [
     name: 'eThekwini (Durban)',
     emailSubmission: false,
     channels: [
-      { kind: 'portal', value: 'eThekwini eServices (electricity self-reading)', utility: 'electricity' },
-      { kind: 'portal', value: 'eThekwini eServices water capture (login + photo)', utility: 'water' },
+      {
+        kind: 'portal',
+        value: 'eThekwini eServices (electricity self-reading)',
+        utility: 'electricity',
+      },
+      {
+        kind: 'portal',
+        value: 'eThekwini eServices water capture (login + photo)',
+        utility: 'water',
+      },
     ],
     photo: 'required',
     windowNote: 'Per-customer "read cycle days" shown after validation; readings are audited.',
@@ -52,7 +61,12 @@ export const MUNICIPALITIES: MunicipalityInfo[] = [
     name: 'City of Johannesburg (City Power / Johannesburg Water)',
     emailSubmission: true,
     channels: [
-      { kind: 'email', value: 'estimations@citypower.co.za', utility: 'electricity', note: 'City Power' },
+      {
+        kind: 'email',
+        value: 'estimations@citypower.co.za',
+        utility: 'electricity',
+        note: 'City Power',
+      },
       { kind: 'portal', value: 'e-Joburg', utility: 'both' },
       { kind: 'phone', value: '0860 562 874', utility: 'both' },
     ],
@@ -74,7 +88,12 @@ export const MUNICIPALITIES: MunicipalityInfo[] = [
     emailSubmission: true,
     channels: [
       { kind: 'email', value: 'Water.MeterReading@capetown.gov.za', utility: 'water' },
-      { kind: 'email', value: 'accounts@capetown.gov.za', utility: 'electricity', note: 'Commercial electricity page' },
+      {
+        kind: 'email',
+        value: 'accounts@capetown.gov.za',
+        utility: 'electricity',
+        note: 'Commercial electricity page',
+      },
       { kind: 'whatsapp', value: '060 018 1505', utility: 'water' },
       { kind: 'sms', value: '31373', utility: 'water' },
       { kind: 'portal', value: 'City e-Services', utility: 'both' },
@@ -101,7 +120,10 @@ export const MUNICIPALITIES: MunicipalityInfo[] = [
     requiredInfo: 'Portion number (top left of the account); official template available.',
     sourceUrl: 'https://www.tshwane.gov.za/?page_id=199',
     verifiedOn: '2026-10-08',
-    caveats: ['An inspector may visit at random to verify readings.', 'WhatsApp number is press-reported only.'],
+    caveats: [
+      'An inspector may visit at random to verify readings.',
+      'WhatsApp number is press-reported only.',
+    ],
   },
   {
     code: 'ekurhuleni',
@@ -111,7 +133,8 @@ export const MUNICIPALITIES: MunicipalityInfo[] = [
     photo: 'optional',
     windowNote: 'Per-township submission dates (2022 PDF; check it is current).',
     requiredInfo: 'Account and meter are selected in the app.',
-    sourceUrl: 'https://www.ekurhuleni.gov.za/current-campaigns/you-can-now-submit-meter-readings-online/',
+    sourceUrl:
+      'https://www.ekurhuleni.gov.za/current-campaigns/you-can-now-submit-meter-readings-online/',
     verifiedOn: '2026-10-08',
     caveats: ['Siyakhokha@ekurhuleni.gov.za is a support address, not a submission channel.'],
   },
@@ -137,7 +160,9 @@ export const MUNICIPALITIES: MunicipalityInfo[] = [
     requiredInfo: 'Name, ID number, contact number, email, meter numbers and readings.',
     sourceUrl: 'http://www.msunduzi.gov.za/site/meter-reading-submission/',
     verifiedOn: '2026-10-08',
-    caveats: ['The form asks for an ID number -- consider whether you are willing to share it by email.'],
+    caveats: [
+      'The form asks for an ID number -- consider whether you are willing to share it by email.',
+    ],
   },
   {
     code: 'stellenbosch',
@@ -155,7 +180,9 @@ export const MUNICIPALITIES: MunicipalityInfo[] = [
     code: 'nelson_mandela_bay',
     name: 'Nelson Mandela Bay',
     emailSubmission: false,
-    channels: [{ kind: 'ivr', value: 'IVR (register for voluntary meter readings)', utility: 'both' }],
+    channels: [
+      { kind: 'ivr', value: 'IVR (register for voluntary meter readings)', utility: 'both' },
+    ],
     photo: 'unknown',
     windowNote: 'Unknown.',
     requiredInfo: 'Account number and ID/registration number (IVR registration).',
@@ -186,7 +213,8 @@ export function getMunicipality(code: string | null | undefined): MunicipalityIn
 
 // ---------------------------------------------------------------- hardware catalogue
 
-export type Connectivity = 'manual' | 'lorawan' | 'wifi' | 'modbus_gateway' | 'http_push' | 'simulator';
+export type Connectivity =
+  'manual' | 'lorawan' | 'wifi' | 'modbus_gateway' | 'http_push' | 'simulator';
 
 export interface DeviceModel {
   manufacturer: string;
@@ -210,7 +238,8 @@ export const DEVICE_MODELS: DeviceModel[] = [
     connectivity: 'lorawan',
     provider: 'milesight_lorawan',
     defaultMultiplier: 0.5,
-    multiplierNote: 'Litres per pulse of the water meter (0.5 L/pulse for the SA pulse-ready meters researched).',
+    multiplierNote:
+      'Litres per pulse of the water meter (0.5 L/pulse for the SA pulse-ready meters researched).',
     channels: [{ value: '', label: 'Pulse counter' }],
     billingGrade: false,
     note: 'Billing accuracy is that of the water meter itself; reconcile against the dial periodically.',

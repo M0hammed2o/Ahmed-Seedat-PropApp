@@ -44,7 +44,11 @@ describeIfSupabase('setAddonCapacity (real local Supabase integration)', () => {
 
     const { data: org } = await serviceClient
       .from('organizations')
-      .insert({ legal_name: `Addon Vitest Org ${Date.now()}`, org_type: 'agency', status: 'active' })
+      .insert({
+        legal_name: `Addon Vitest Org ${Date.now()}`,
+        org_type: 'agency',
+        status: 'active',
+      })
       .select('id')
       .single();
     orgId = org!.id;

@@ -51,9 +51,10 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 
   const plan = invoice.plans as { name: string; base_price: number } | null;
   const org = invoice.organizations as { legal_name: string; trading_name: string | null } | null;
-  const payment = invoice.subscription_payments as
-    | { provider_reference: string | null; purpose: string | null }
-    | null;
+  const payment = invoice.subscription_payments as {
+    provider_reference: string | null;
+    purpose: string | null;
+  } | null;
 
   const pdfBuffer = await renderSubscriptionInvoicePdf({
     invoiceNumber: invoice.invoice_number,

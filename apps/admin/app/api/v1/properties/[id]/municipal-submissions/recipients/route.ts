@@ -2,7 +2,17 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { submissionRecipientCreateSchema } from '@propvault/validation';
 import { getServiceRoleClient } from '@/lib/supabase/server';
 import { invalidateTemplateApproval } from '@/lib/smartUtility/reporting';
-import { canWriteUtilities, forbidden, jsonError, loadReadableProperty, notFound, parseJson, requireUser, serverError, utilitiesDisabled } from '@/lib/smartUtility/http';
+import {
+  canWriteUtilities,
+  forbidden,
+  jsonError,
+  loadReadableProperty,
+  notFound,
+  parseJson,
+  requireUser,
+  serverError,
+  utilitiesDisabled,
+} from '@/lib/smartUtility/http';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -37,8 +47,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     .select('id')
     .single();
   if (error) {
-    if (error.code === '23505') return jsonError(409, 'duplicate_recipient', 'That address is already a recipient.');
-    return serverError('recipient_create_failed', 'Could not add the recipient.', 'submission_recipients.insert', error);
+    if (error.code === '23505')
+      return jsonError(409, 'duplicate_recipient', 'That address is already a recipient.');
+    return serverError(
+      'recipient_create_failed',
+      'Could not add the recipient.',
+      'submission_recipients.insert',
+      error,
+    );
   }
   // A new authorised recipient changes who receives the pack: approval must be given again.
   const approvalWithdrawn = parsed.data.authorise

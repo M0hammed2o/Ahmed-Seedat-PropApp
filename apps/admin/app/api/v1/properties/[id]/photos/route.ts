@@ -305,8 +305,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   const photoInsert = {
     property_id: propertyId,
     document_id: documentRow.id,
-    hero_storage_path: uploadedDerivativePaths.includes(heroStoragePath ?? '') ? heroStoragePath : null,
-    card_storage_path: uploadedDerivativePaths.includes(cardStoragePath ?? '') ? cardStoragePath : null,
+    hero_storage_path: uploadedDerivativePaths.includes(heroStoragePath ?? '')
+      ? heroStoragePath
+      : null,
+    card_storage_path: uploadedDerivativePaths.includes(cardStoragePath ?? '')
+      ? cardStoragePath
+      : null,
     width: derivatives.width,
     height: derivatives.height,
   };
@@ -333,7 +337,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     await removeProtectedObjects([storagePath, ...uploadedDerivativePaths]);
     await supabase.from('documents').delete().eq('id', documentRow.id);
     return NextResponse.json(
-      { error: { code: 'property_photo_create_failed', message: photoError?.message ?? 'Failed to record photo.' } },
+      {
+        error: {
+          code: 'property_photo_create_failed',
+          message: photoError?.message ?? 'Failed to record photo.',
+        },
+      },
       { status: 500 },
     );
   }

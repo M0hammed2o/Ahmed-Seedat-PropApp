@@ -35,7 +35,11 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       {
         error: {
           code: 'unit_fetch_failed',
-          message: safeErrorMessage(visibilityError, 'Could not load this unit.', 'units/[id]/archive.visibility'),
+          message: safeErrorMessage(
+            visibilityError,
+            'Could not load this unit.',
+            'units/[id]/archive.visibility',
+          ),
         },
       },
       { status: 500 },
@@ -54,7 +58,11 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       {
         error: {
           code: 'unit_archive_failed',
-          message: safeErrorMessage(error, 'Could not archive this unit.', 'units/[id]/archive.rpc'),
+          message: safeErrorMessage(
+            error,
+            'Could not archive this unit.',
+            'units/[id]/archive.rpc',
+          ),
         },
       },
       { status: 409 },

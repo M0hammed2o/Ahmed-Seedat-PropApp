@@ -201,7 +201,11 @@ export default async function PortalLayout({ children }: { children: React.React
   // member or owner is never blocked by an org they don't own the billing for. Every
   // pre-existing organization was backfilled to a non-null commercial_setup_completed_at
   // (20260101000114), so this never fires for any of them.
-  if (!ADMIN_DEMO_MODE && activeOrg.role === 'principal' && currentPath !== '/organization/billing/setup') {
+  if (
+    !ADMIN_DEMO_MODE &&
+    activeOrg.role === 'principal' &&
+    currentPath !== '/organization/billing/setup'
+  ) {
     const supabase = await getServerSupabaseClient();
     const { data: orgRow } = await supabase
       .from('organizations')
@@ -354,9 +358,11 @@ async function loadCemeteryHolderLabel(): Promise<string> {
   return data?.tenure_model === 'land_sale' ? 'Purchasers' : 'Rights holders';
 }
 
-async function loadWalkthroughData(
-  orgId: string,
-): Promise<{ planTier: PlanTier | null; walkthroughDismissed: boolean; walkthroughCompleted: boolean }> {
+async function loadWalkthroughData(orgId: string): Promise<{
+  planTier: PlanTier | null;
+  walkthroughDismissed: boolean;
+  walkthroughCompleted: boolean;
+}> {
   const supabase = await getServerSupabaseClient();
   const [{ data: sub }, { data: state }] = await Promise.all([
     supabase
@@ -375,7 +381,9 @@ async function loadWalkthroughData(
   ]);
 
   const plansRelation = sub?.plans as { code: string } | { code: string }[] | null;
-  const planCode = Array.isArray(plansRelation) ? (plansRelation[0]?.code ?? null) : (plansRelation?.code ?? null);
+  const planCode = Array.isArray(plansRelation)
+    ? (plansRelation[0]?.code ?? null)
+    : (plansRelation?.code ?? null);
   const planTier: PlanTier | null = planCode?.startsWith('starter')
     ? 'starter'
     : planCode?.startsWith('professional')

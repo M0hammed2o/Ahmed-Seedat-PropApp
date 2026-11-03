@@ -32,12 +32,7 @@ interface Invite {
 }
 
 type ProvisionStatus =
-  | 'pending'
-  | 'pending_send_failed'
-  | 'awaiting_activation'
-  | 'expired'
-  | 'activated'
-  | 'revoked';
+  'pending' | 'pending_send_failed' | 'awaiting_activation' | 'expired' | 'activated' | 'revoked';
 
 interface StaffProvision {
   id: string;
@@ -289,9 +284,7 @@ export function StaffAccessPanel({
               <li key={m.userId} className="py-3">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-foreground">
-                      {m.displayName}
-                    </p>
+                    <p className="truncate text-sm font-medium text-foreground">{m.displayName}</p>
                     <div className="mt-0.5 flex items-center gap-2">
                       {canEditRole ? (
                         <select

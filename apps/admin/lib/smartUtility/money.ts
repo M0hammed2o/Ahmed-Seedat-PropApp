@@ -52,7 +52,11 @@ export interface VatSplit {
 }
 
 /** Splits a line amount (cents) entered either VAT-inclusive or exclusive, VAT rate in percent. */
-export function vatSplit(amountCents: bigint, vatInclusive: boolean, vatRatePct: number | string): VatSplit {
+export function vatSplit(
+  amountCents: bigint,
+  vatInclusive: boolean,
+  vatRatePct: number | string,
+): VatSplit {
   const rate = toScaled(vatRatePct); // percent, 6 dp
   const hundred = 100n * SCALE;
   if (vatInclusive) {

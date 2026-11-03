@@ -27,7 +27,8 @@ export const DEFAULT_INCLUDE_FIELDS: IncludeFields = {
   photos: true,
 };
 
-export const DEFAULT_SUBJECT = 'Meter readings for {{property_address}} — account {{account_number}} ({{period_end}})';
+export const DEFAULT_SUBJECT =
+  'Meter readings for {{property_address}} — account {{account_number}} ({{period_end}})';
 
 export const DEFAULT_BODY = `Good day,
 
@@ -54,7 +55,9 @@ export const PLACEHOLDERS = [
 ] as const;
 
 export function normaliseFields(raw: unknown): IncludeFields {
-  const src = (raw && typeof raw === 'object' ? raw : {}) as Partial<Record<keyof IncludeFields, unknown>>;
+  const src = (raw && typeof raw === 'object' ? raw : {}) as Partial<
+    Record<keyof IncludeFields, unknown>
+  >;
   const out = { ...DEFAULT_INCLUDE_FIELDS };
   for (const k of Object.keys(out) as (keyof IncludeFields)[]) {
     if (typeof src[k] === 'boolean') out[k] = src[k] as boolean;
@@ -104,9 +107,13 @@ export function readingLines(m: ReportMeterLine, f: IncludeFields): string[] {
     `${kind} meter ${ident}${f.serialNumber && m.serialNumber && m.meterNumber ? ` (serial ${m.serialNumber})` : ''}`,
   ];
   if (f.previousReading) {
-    lines.push(`  Previous reading: ${fmt(m.previousReading)} ${m.unit}${f.readingDate ? ` on ${dateOnly(m.previousReadingAt)}` : ''}`);
+    lines.push(
+      `  Previous reading: ${fmt(m.previousReading)} ${m.unit}${f.readingDate ? ` on ${dateOnly(m.previousReadingAt)}` : ''}`,
+    );
   }
-  lines.push(`  Current reading: ${fmt(m.currentReading)} ${m.unit}${f.readingDate ? ` on ${dateOnly(m.currentReadingAt)}` : ''}`);
+  lines.push(
+    `  Current reading: ${fmt(m.currentReading)} ${m.unit}${f.readingDate ? ` on ${dateOnly(m.currentReadingAt)}` : ''}`,
+  );
   if (f.consumption) lines.push(`  Consumption: ${fmt(m.consumption)} ${m.unit}`);
   lines.push(`  Source: ${m.verificationNote}`);
   return lines;
@@ -145,7 +152,9 @@ export interface RenderedEmail {
 }
 
 export function renderEmail(report: MunicipalReport, t: TemplateSettings): RenderedEmail {
-  const subject = renderTemplate(t.subjectTemplate ?? DEFAULT_SUBJECT, report, t).replace(/\s+/g, ' ').slice(0, 300);
+  const subject = renderTemplate(t.subjectTemplate ?? DEFAULT_SUBJECT, report, t)
+    .replace(/\s+/g, ' ')
+    .slice(0, 300);
   const bodyText = renderTemplate(t.bodyTemplate ?? DEFAULT_BODY, report, t);
   return { subject, bodyText };
 }

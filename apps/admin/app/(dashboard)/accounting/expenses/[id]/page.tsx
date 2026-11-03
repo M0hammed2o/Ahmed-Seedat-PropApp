@@ -66,7 +66,9 @@ export default async function ExpenseDetailPage({ params }: RouteParams) {
     receiptCategoryId = category?.id ?? null;
   }
 
-  return <ExpenseDetailView expense={expense} canPost={canPost} receiptCategoryId={receiptCategoryId} />;
+  return (
+    <ExpenseDetailView expense={expense} canPost={canPost} receiptCategoryId={receiptCategoryId} />
+  );
 }
 
 function ExpenseDetailView({

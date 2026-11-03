@@ -35,7 +35,12 @@ export function ExpenseEvidenceUpload({
     setBusy(true);
     setError(null);
     try {
-      const uploaded = await uploadEvidenceDocument({ orgId, propertyId, categoryId: receiptCategoryId, file });
+      const uploaded = await uploadEvidenceDocument({
+        orgId,
+        propertyId,
+        categoryId: receiptCategoryId,
+        file,
+      });
       if (uploaded.error || !uploaded.documentId) {
         setError(uploaded.error ?? 'Failed to upload evidence.');
         return;
@@ -60,12 +65,17 @@ export function ExpenseEvidenceUpload({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mt-4 rounded-lg border border-light-border p-4 dark:border-dark-border">
+    <form
+      onSubmit={handleSubmit}
+      className="mt-4 rounded-lg border border-light-border p-4 dark:border-dark-border"
+    >
       <p className="text-xs text-light-textSecondary dark:text-dark-textSecondary">
         No supporting evidence attached yet.
       </p>
       {error ? (
-        <p className="mt-2 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">{error}</p>
+        <p className="mt-2 text-xs text-light-statusOverdue dark:text-dark-statusOverdue">
+          {error}
+        </p>
       ) : null}
       <input
         type="file"

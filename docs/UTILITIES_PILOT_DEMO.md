@@ -1,6 +1,7 @@
 # Utilities — Pilot Demonstration Data
 
 **Everything here is DEMONSTRATION DATA.**
+
 - All tariffs are fictional figures, labelled "DEMO FICTIONAL" in the app. They are not municipal or legally authorised
   rates.
 - All people and places are fictional; e-mail addresses use `@demo.proplyst.example`, which cannot receive mail.
@@ -31,25 +32,26 @@ PILOT_DEMO_CONFIRM=disposable PILOT_DEMO_PASSWORD='<choose 12+ characters>' npx 
 
 ## What it builds — "DEMO Protea Gardens (fictional)", Pietermaritzburg, October 2026 (31 days)
 
-| | Electricity | Water |
-| --- | --- | --- |
-| Supply (monitoring only, never billed) | municipal grid import 600 kWh, rooftop solar 880 kWh | municipal 34 kL, borehole 16 kL, JoJo tank 45 % → 65 %, 2 kL tanker delivery (R950) |
-| Main meters (never billed) | main DB 1,450 kWh | erf connection 52 kL |
-| Unit submeters | F1–F7, each linked to the main meter (`parent_meter_id`) | F1, F2, F3; shared meter for F4 + F6 |
+|                                        | Electricity                                              | Water                                                                               |
+| -------------------------------------- | -------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Supply (monitoring only, never billed) | municipal grid import 600 kWh, rooftop solar 880 kWh     | municipal 34 kL, borehole 16 kL, JoJo tank 45 % → 65 %, 2 kL tanker delivery (R950) |
+| Main meters (never billed)             | main DB 1,450 kWh                                        | erf connection 52 kL                                                                |
+| Unit submeters                         | F1–F7, each linked to the main meter (`parent_meter_id`) | F1, F2, F3; shared meter for F4 + F6                                                |
 
 Fictional tariffs:
+
 - **Electricity:** R3.00/kWh plus R60.00 a month, VAT-inclusive.
 - **Water:** 0–6 kL at R20, 6–15 kL at R30, above 15 kL at R50 per kL.
 
-| Flat | Arrangement | Use | Draft charge (hand-computed) |
-| --- | --- | --- | --- |
-| F1 | metered electricity (manual readings with photos; Nov reading **verified**) + metered water | 200 kWh; 8 kL | 200×3 + 60 = **R660.00**; 6×20 + 2×30 = **R180.00** |
-| F2 | electricity included in rent; water paid by landlord | 150 kWh; 5 kL | none (monitored) |
-| F3 | fixed R400 incl. 100 kWh; metered water | 130 kWh; 12 kL | **R400.00** + 30×3 = **R90.00**; 6×20 + 6×30 = **R300.00** |
-| F4 | fixed R350/month; shared water (equal) | — ; ½ of 20 kL | **R350.00**; R640 ÷ 2 = **R320.00** |
-| F5 | metered; tenant out 15 Oct, in 16 Oct | 50 + 40 kWh | 150 + 60×15/31 = **R179.03**; 120 + 60×16/31 = **R150.97** |
-| F6 | metered; **1 Nov reading missing** → estimated; shared water | Sep: 300 kWh / 30 days | estimate 10/day × 31 = 310 kWh → **R990.00**; reading arrives (330 kWh) → **R60.00 draft true-up** |
-| F7 | vacant — monitored only, no arrangement | 12 kWh | none |
+| Flat | Arrangement                                                                                 | Use                    | Draft charge (hand-computed)                                                                       |
+| ---- | ------------------------------------------------------------------------------------------- | ---------------------- | -------------------------------------------------------------------------------------------------- |
+| F1   | metered electricity (manual readings with photos; Nov reading **verified**) + metered water | 200 kWh; 8 kL          | 200×3 + 60 = **R660.00**; 6×20 + 2×30 = **R180.00**                                                |
+| F2   | electricity included in rent; water paid by landlord                                        | 150 kWh; 5 kL          | none (monitored)                                                                                   |
+| F3   | fixed R400 incl. 100 kWh; metered water                                                     | 130 kWh; 12 kL         | **R400.00** + 30×3 = **R90.00**; 6×20 + 6×30 = **R300.00**                                         |
+| F4   | fixed R350/month; shared water (equal)                                                      | — ; ½ of 20 kL         | **R350.00**; R640 ÷ 2 = **R320.00**                                                                |
+| F5   | metered; tenant out 15 Oct, in 16 Oct                                                       | 50 + 40 kWh            | 150 + 60×15/31 = **R179.03**; 120 + 60×16/31 = **R150.97**                                         |
+| F6   | metered; **1 Nov reading missing** → estimated; shared water                                | Sep: 300 kWh / 30 days | estimate 10/day × 31 = 310 kWh → **R990.00**; reading arrives (330 kWh) → **R60.00 draft true-up** |
+| F7   | vacant — monitored only, no arrangement                                                     | 12 kWh                 | none                                                                                               |
 
 - **Month total:** R3,940.00. The seeder recomputes it in cents as a second method.
 - No charge ever cites a main, grid, solar or source meter. Tank levels and tanker logs are never billed.

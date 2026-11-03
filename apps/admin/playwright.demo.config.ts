@@ -11,9 +11,17 @@ export default defineConfig({
   workers: 1,
   retries: 1,
   reporter: [['list']],
-  use: { baseURL: process.env.DEMO_BASE_URL, trace: 'retain-on-failure', screenshot: 'only-on-failure' },
+  use: {
+    baseURL: process.env.DEMO_BASE_URL,
+    trace: 'retain-on-failure',
+    screenshot: 'only-on-failure',
+  },
   projects: [
-    { name: 'desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } }, grepInvert: /responsive/ },
+    {
+      name: 'desktop',
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+      grepInvert: /responsive/,
+    },
     { name: 'phone', use: { ...devices['Pixel 7'] }, grep: /responsive/ },
   ],
 });

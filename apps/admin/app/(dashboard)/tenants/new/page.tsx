@@ -11,7 +11,14 @@ export default async function NewTenantPage() {
         mode="create"
         orgId="demo-org-1"
         properties={[{ id: 'demo-property-1', nickname: 'Sea Point Apartment' }]}
-        units={[{ id: 'demo-unit-1', propertyId: 'demo-property-1', unitLabel: 'Unit 1', status: 'vacant' }]}
+        units={[
+          {
+            id: 'demo-unit-1',
+            propertyId: 'demo-property-1',
+            unitLabel: 'Unit 1',
+            status: 'vacant',
+          },
+        ]}
       />
     );
   }

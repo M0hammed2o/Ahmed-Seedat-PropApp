@@ -12,7 +12,10 @@ import { safeErrorMessage } from '@/lib/safeError';
  * it once, `ON CONFLICT (org_id) DO NOTHING`, and never touches an existing row). Stamps
  * corrected_by/corrected_at and writes an audit event, same as every other admin mutation here.
  */
-export async function PATCH(request: NextRequest, { params }: { params: Promise<{ orgId: string }> }) {
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ orgId: string }> },
+) {
   const guard = await requireAdminRoleOrRespond('super_admin');
   if ('response' in guard) return guard.response;
 
@@ -64,7 +67,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     corrected_by: guard.session.authUserId,
     corrected_at: new Date().toISOString(),
   };
-  if ('referralPartnerId' in parsed.data) updates.referral_partner_id = parsed.data.referralPartnerId ?? null;
+  if ('referralPartnerId' in parsed.data)
+    updates.referral_partner_id = parsed.data.referralPartnerId ?? null;
   if ('fallbackReferrerName' in parsed.data)
     updates.fallback_referrer_name = parsed.data.fallbackReferrerName ?? null;
 
@@ -99,8 +103,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     action: 'referral_attribution.corrected',
     entityType: 'organization_referral_attributions',
     entityId: orgId,
-    before: { referralPartnerId: before.referral_partner_id, fallbackReferrerName: before.fallback_referrer_name },
-    after: { referralPartnerId: data.referral_partner_id, fallbackReferrerName: data.fallback_referrer_name },
+    before: {
+      referralPartnerId: before.referral_partner_id,
+      fallbackReferrerName: before.fallback_referrer_name,
+    },
+    after: {
+      referralPartnerId: data.referral_partner_id,
+      fallbackReferrerName: data.fallback_referrer_name,
+    },
   });
 
   return NextResponse.json({

@@ -2,7 +2,11 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { getServiceRoleClient } from '@/lib/supabase/server';
 import { listPlatformOrganizations } from '@/lib/superAdmin';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
-import { ReferralsClient, type ReferralAttributionRow, type ReferralPartnerRow } from './ReferralsClient';
+import {
+  ReferralsClient,
+  type ReferralAttributionRow,
+  type ReferralPartnerRow,
+} from './ReferralsClient';
 
 /**
  * Platform Admin > Referrals (V1 launch-completion pass, WORKLOG.md this date). Lists referral
@@ -26,7 +30,9 @@ async function getReferralPartners(): Promise<ReferralPartnerRow[]> {
     .select('referral_partner_id')
     .not('referral_partner_id', 'is', null);
   if (attributionsError)
-    throw new Error(`Failed to fetch organization_referral_attributions: ${attributionsError.message}`);
+    throw new Error(
+      `Failed to fetch organization_referral_attributions: ${attributionsError.message}`,
+    );
   const counts = new Map<string, number>();
   for (const row of attributions ?? []) {
     const id = row.referral_partner_id as string;
@@ -53,7 +59,8 @@ async function getReferredOrganizations(): Promise<ReferralAttributionRow[]> {
        referral_partners ( name )`,
     )
     .order('attributed_at', { ascending: false });
-  if (error) throw new Error(`Failed to fetch organization_referral_attributions: ${error.message}`);
+  if (error)
+    throw new Error(`Failed to fetch organization_referral_attributions: ${error.message}`);
 
   const rows = data ?? [];
   const orgIds = rows.map((r) => r.org_id as string);
@@ -63,7 +70,10 @@ async function getReferredOrganizations(): Promise<ReferralAttributionRow[]> {
   // re-implementing that subscription/plan lookup here. `beforeFilter` is repurposed as an
   // arbitrary PostgREST `.or()` clause (`id.in.(...)`) restricting the result to exactly these
   // attributed orgs; every org id is a server-generated UUID, never user-supplied text.
-  const planByOrg = new Map<string, { planName: string | null; subscriptionStatus: string | null }>();
+  const planByOrg = new Map<
+    string,
+    { planName: string | null; subscriptionStatus: string | null }
+  >();
   if (orgIds.length > 0) {
     const summaries = await listPlatformOrganizations(
       serviceClient,

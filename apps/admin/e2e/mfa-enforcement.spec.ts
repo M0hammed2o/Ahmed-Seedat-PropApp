@@ -60,10 +60,7 @@ test.describe('customer MFA enforcement', () => {
     // this date), so this account starts with no recorded consent/profile -- complete both before
     // proceeding to org setup, or protected routes would land on /legal-consent instead.
     await completeLegalConsentAndProfile(page.request);
-    await createCommerciallyReadyOrganization(
-      page.request,
-      `E2E MFA Cycle Org ${Date.now()}`,
-    );
+    await createCommerciallyReadyOrganization(page.request, `E2E MFA Cycle Org ${Date.now()}`);
 
     await page.goto('/settings');
     await page.waitForLoadState('networkidle');

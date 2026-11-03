@@ -18,10 +18,7 @@ export interface ReconciliationInput {
 }
 
 export type ReconciliationStatus =
-  | 'within_threshold'
-  | 'above_threshold'
-  | 'submeters_exceed_main'
-  | 'insufficient_data';
+  'within_threshold' | 'above_threshold' | 'submeters_exceed_main' | 'insufficient_data';
 
 export interface ReconciliationResult {
   main: number | null;
@@ -33,7 +30,12 @@ export interface ReconciliationResult {
   missing: string[];
   /** Any input that is only 'partial' -- the comparison is indicative, not exact. */
   approximate: boolean;
-  submeters: { meterId: string; label: string; consumption: number | null; sharePct: number | null }[];
+  submeters: {
+    meterId: string;
+    label: string;
+    consumption: number | null;
+    sharePct: number | null;
+  }[];
 }
 
 function round(n: number, dp = 2): number {
@@ -44,7 +46,10 @@ function round(n: number, dp = 2): number {
 export function reconcile(input: ReconciliationInput): ReconciliationResult {
   const missing = input.submeters.filter((s) => s.consumption === null).map((s) => s.label);
   const known = input.submeters.filter((s) => s.consumption !== null);
-  const submeterTotal = round(known.reduce((sum, s) => sum + (s.consumption ?? 0), 0), 4);
+  const submeterTotal = round(
+    known.reduce((sum, s) => sum + (s.consumption ?? 0), 0),
+    4,
+  );
   const main = input.main?.consumption ?? null;
   const approximate =
     input.main?.quality === 'partial' || input.submeters.some((s) => s.quality === 'partial');
@@ -53,7 +58,8 @@ export function reconcile(input: ReconciliationInput): ReconciliationResult {
     meterId: s.meterId,
     label: s.label,
     consumption: s.consumption,
-    sharePct: s.consumption !== null && main && main > 0 ? round((s.consumption / main) * 100) : null,
+    sharePct:
+      s.consumption !== null && main && main > 0 ? round((s.consumption / main) * 100) : null,
   }));
 
   if (main === null || main <= 0 || input.submeters.length === 0 || missing.length > 0) {
@@ -76,5 +82,14 @@ export function reconcile(input: ReconciliationInput): ReconciliationResult {
   else if (unallocatedPct > input.thresholdPct) status = 'above_threshold';
   else status = 'within_threshold';
 
-  return { main, submeterTotal, unallocated, unallocatedPct, status, missing, approximate, submeters };
+  return {
+    main,
+    submeterTotal,
+    unallocated,
+    unallocatedPct,
+    status,
+    missing,
+    approximate,
+    submeters,
+  };
 }

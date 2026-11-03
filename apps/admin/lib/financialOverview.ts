@@ -73,7 +73,9 @@ export async function loadPropertyFinancialOverview(
   month: string,
 ): Promise<OwnerFinancialSummary | null> {
   const [summaryResult, budgetResult] = await Promise.all([
-    supabase.rpc('owner_financial_summary', { p_property_id: propertyId, p_month: month }).maybeSingle(),
+    supabase
+      .rpc('owner_financial_summary', { p_property_id: propertyId, p_month: month })
+      .maybeSingle(),
     supabase.rpc('budget_vs_actual', { p_property_id: propertyId, p_month: month }).maybeSingle(),
   ]);
   if (summaryResult.error) return null;

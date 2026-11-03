@@ -9,7 +9,13 @@ import { serverError } from '@/lib/smartUtility/http';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
-const bodySchema = z.object({ reason: z.string().trim().min(10, 'Please say what looks wrong (at least 10 characters).').max(1000) });
+const bodySchema = z.object({
+  reason: z
+    .string()
+    .trim()
+    .min(10, 'Please say what looks wrong (at least 10 characters).')
+    .max(1000),
+});
 
 /**
  * POST /api/v1/tenant-portal/utility-statements/:id/dispute — the signed-in tenant queries the charges on one of THEIR
@@ -20,19 +26,38 @@ const bodySchema = z.object({ reason: z.string().trim().min(10, 'Please say what
  */
 export async function POST(request: NextRequest, { params }: RouteParams) {
   const { id } = await params;
-  if (!/^[0-9a-f-]{36}$/i.test(id)) return NextResponse.json({ error: { code: 'not_found', message: 'Statement not found.' } }, { status: 404 });
+  if (!/^[0-9a-f-]{36}$/i.test(id))
+    return NextResponse.json(
+      { error: { code: 'not_found', message: 'Statement not found.' } },
+      { status: 404 },
+    );
   const session = await resolveTenantSession();
-  if (!session) return NextResponse.json({ error: { code: 'unauthenticated', message: 'Sign in required.' } }, { status: 401 });
+  if (!session)
+    return NextResponse.json(
+      { error: { code: 'unauthenticated', message: 'Sign in required.' } },
+      { status: 401 },
+    );
 
   let raw: unknown;
   try {
     raw = await request.json();
   } catch {
-    return NextResponse.json({ error: { code: 'invalid_json', message: 'Request body must be valid JSON.' } }, { status: 400 });
+    return NextResponse.json(
+      { error: { code: 'invalid_json', message: 'Request body must be valid JSON.' } },
+      { status: 400 },
+    );
   }
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
-    return NextResponse.json({ error: { code: 'validation_error', message: parsed.error.issues[0]?.message ?? 'Invalid request.' } }, { status: 400 });
+    return NextResponse.json(
+      {
+        error: {
+          code: 'validation_error',
+          message: parsed.error.issues[0]?.message ?? 'Invalid request.',
+        },
+      },
+      { status: 400 },
+    );
   }
 
   const service = getServiceRoleClient();
@@ -48,7 +73,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     .eq('tenant_id', session.tenantId)
     .in('status', ['approved', 'sent'])
     .maybeSingle();
-  if (!statement) return NextResponse.json({ error: { code: 'not_found', message: 'Statement not found.' } }, { status: 404 });
+  if (!statement)
+    return NextResponse.json(
+      { error: { code: 'not_found', message: 'Statement not found.' } },
+      { status: 404 },
+    );
 
   try {
     const { data: charges, error } = await service
@@ -61,7 +90,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     if (error) throw new Error(error.message);
     const toOpen = (charges ?? []).filter((c) => c.dispute_status !== 'open');
     for (const c of toOpen) {
-      await disputeCharge(service, { chargeId: c.id, propertyId: statement.property_id, action: 'open', text: `Tenant query: ${parsed.data.reason}`, actorUserId: session.userId });
+      await disputeCharge(service, {
+        chargeId: c.id,
+        propertyId: statement.property_id,
+        action: 'open',
+        text: `Tenant query: ${parsed.data.reason}`,
+        actorUserId: session.userId,
+      });
     }
     await notifyPropertyStaff(service, {
       orgId: statement.org_id,
@@ -73,8 +108,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       relatedEntityId: statement.id,
       minRole: 'accountant',
     });
-    return NextResponse.json({ disputed: toOpen.length, alreadyDisputed: (charges ?? []).length - toOpen.length }, { status: 201 });
+    return NextResponse.json(
+      { disputed: toOpen.length, alreadyDisputed: (charges ?? []).length - toOpen.length },
+      { status: 201 },
+    );
   } catch (err) {
-    return serverError('utility_dispute_failed', 'Could not record your query. Please try again.', 'tenant_portal.utility_dispute', err);
+    return serverError(
+      'utility_dispute_failed',
+      'Could not record your query. Please try again.',
+      'tenant_portal.utility_dispute',
+      err,
+    );
   }
 }

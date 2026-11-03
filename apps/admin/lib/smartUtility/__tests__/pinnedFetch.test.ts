@@ -14,18 +14,40 @@ const run = (lookup: ReturnType<typeof guardedLookup>, options: { all?: boolean 
 
 describe('guarded lookup', () => {
   it('refuses a name that resolves to any private address (rebinding cannot slip through at connect time)', async () => {
-    const r = await run(guardedLookup(async () => ['93.184.216.34', '10.0.0.5']), undefined);
+    const r = await run(
+      guardedLookup(async () => ['93.184.216.34', '10.0.0.5']),
+      undefined,
+    );
     expect(r.err?.message).toMatch(/private or reserved/);
   });
   it('yields only the validated public addresses, in both lookup calling conventions', async () => {
-    expect(await run(guardedLookup(async () => ['93.184.216.34']), undefined)).toMatchObject({ err: null, address: '93.184.216.34', family: 4 });
-    expect((await run(guardedLookup(async () => ['93.184.216.34', '2001:4860:4860::8888']), { all: true })).address).toEqual([
+    expect(
+      await run(
+        guardedLookup(async () => ['93.184.216.34']),
+        undefined,
+      ),
+    ).toMatchObject({ err: null, address: '93.184.216.34', family: 4 });
+    expect(
+      (
+        await run(
+          guardedLookup(async () => ['93.184.216.34', '2001:4860:4860::8888']),
+          { all: true },
+        )
+      ).address,
+    ).toEqual([
       { address: '93.184.216.34', family: 4 },
       { address: '2001:4860:4860::8888', family: 6 },
     ]);
   });
   it('fails closed when the name does not resolve', async () => {
-    expect((await run(guardedLookup(async () => []), undefined)).err?.message).toMatch(/did not resolve/);
+    expect(
+      (
+        await run(
+          guardedLookup(async () => []),
+          undefined,
+        )
+      ).err?.message,
+    ).toMatch(/did not resolve/);
   });
 });
 
@@ -49,7 +71,11 @@ describe('pinned fetch', () => {
     const port = (server.address() as AddressInfo).port;
     try {
       const f = pinnedFetch({ allowLocal: true });
-      const ok = await f(`http://127.0.0.1:${port}/x`, { method: 'POST', body: '{}', headers: { 'content-type': 'application/json' } });
+      const ok = await f(`http://127.0.0.1:${port}/x`, {
+        method: 'POST',
+        body: '{}',
+        headers: { 'content-type': 'application/json' },
+      });
       expect(await ok.json()).toEqual({ ok: true, method: 'POST' });
       const redirect = await f(`http://127.0.0.1:${port}/redirect`);
       expect(redirect.status).toBe(302); // returned, not followed

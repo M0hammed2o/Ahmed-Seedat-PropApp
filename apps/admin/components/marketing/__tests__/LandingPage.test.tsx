@@ -69,7 +69,9 @@ describe('LandingPage', () => {
       hrefs.some(
         (href) =>
           href?.startsWith('/register?next=') &&
-          href.includes(encodeURIComponent('/onboarding/choose-plan?plan=starter&interval=monthly')),
+          href.includes(
+            encodeURIComponent('/onboarding/choose-plan?plan=starter&interval=monthly'),
+          ),
       ),
     ).toBe(true);
     expect(
@@ -85,7 +87,9 @@ describe('LandingPage', () => {
       hrefs.some(
         (href) =>
           href?.startsWith('/register?next=') &&
-          href.includes(encodeURIComponent('/onboarding/choose-plan?plan=business&interval=monthly')),
+          href.includes(
+            encodeURIComponent('/onboarding/choose-plan?plan=business&interval=monthly'),
+          ),
       ),
     ).toBe(true);
 

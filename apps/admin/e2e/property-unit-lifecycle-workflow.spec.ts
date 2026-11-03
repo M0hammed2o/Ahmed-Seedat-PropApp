@@ -30,7 +30,11 @@ async function createManualLease(
   return body.lease.id as string;
 }
 
-async function createTenant(request: APIRequestContext, orgId: string, fullName: string): Promise<string> {
+async function createTenant(
+  request: APIRequestContext,
+  orgId: string,
+  fullName: string,
+): Promise<string> {
   const response = await request.post('/api/v1/tenants', {
     headers: { Origin: BASE_URL },
     data: { orgId, fullName },
@@ -60,7 +64,10 @@ async function assignTenantAndActivate(
  * does -- a unit (audit_events.property_id then permanently references it, empirically proven
  * earlier this engagement), which is enough on its own to block hard delete without needing an
  * active lease too. */
-async function createUnitToGiveHistory(request: APIRequestContext, propertyId: string): Promise<void> {
+async function createUnitToGiveHistory(
+  request: APIRequestContext,
+  propertyId: string,
+): Promise<void> {
   await createUnit(request, propertyId, 'History Unit');
 }
 
@@ -108,7 +115,9 @@ test.describe('B. Empty property hard delete', () => {
 
     await page.goto(`/properties/${propertyId}`);
     await page.waitForLoadState('networkidle');
-    await expect(page.getByRole('button', { name: 'Delete permanently' })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('button', { name: 'Delete permanently' })).toBeVisible({
+      timeout: 30_000,
+    });
     await page.getByRole('button', { name: 'Delete permanently' }).click();
 
     await page.getByLabel(/Type .* to confirm/i).fill('Test Property');
@@ -144,7 +153,9 @@ test.describe('C. Property with history', () => {
     await page.waitForLoadState('networkidle');
 
     // Give the eligibility check (fired client-side on mount) time to resolve.
-    await expect(page.getByText(/historical activity and cannot be permanently deleted/i)).toBeVisible({
+    await expect(
+      page.getByText(/historical activity and cannot be permanently deleted/i),
+    ).toBeVisible({
       timeout: 30_000,
     });
     await expect(page.getByRole('button', { name: 'Delete permanently' })).not.toBeVisible();
@@ -174,7 +185,9 @@ test.describe('D. Active lease archive block', () => {
     page.once('dialog', (dialog) => dialog.accept());
     await page.getByRole('button', { name: 'Archive property' }).click();
 
-    await expect(page.getByText(/cannot be archived because Unit 601 has an active lease/i)).toBeVisible({
+    await expect(
+      page.getByText(/cannot be archived because Unit 601 has an active lease/i),
+    ).toBeVisible({
       timeout: 30_000,
     });
 
@@ -199,7 +212,9 @@ test.describe('E. Property archive + restore', () => {
     await page.waitForLoadState('networkidle');
     page.once('dialog', (dialog) => dialog.accept());
     await page.getByRole('button', { name: 'Archive property' }).click();
-    await expect(page.getByRole('button', { name: 'Restore property' })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('button', { name: 'Restore property' })).toBeVisible({
+      timeout: 30_000,
+    });
 
     // Default (Active) listing no longer shows it.
     await page.goto('/properties');
@@ -226,7 +241,9 @@ test.describe('E. Property archive + restore', () => {
     // Restore -- also a window.confirm(), same as archive.
     page.once('dialog', (dialog) => dialog.accept());
     await page.getByRole('button', { name: 'Restore property' }).click();
-    await expect(page.getByRole('button', { name: 'Archive property' })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('button', { name: 'Archive property' })).toBeVisible({
+      timeout: 30_000,
+    });
 
     await page.goto('/properties');
     await page.waitForLoadState('networkidle');
@@ -245,7 +262,9 @@ test.describe('F. Empty unit delete', () => {
 
     await page.goto(`/properties/${propertyId}/units/${doomedUnitId}`);
     await page.waitForLoadState('networkidle');
-    await expect(page.getByRole('button', { name: 'Delete permanently' })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('button', { name: 'Delete permanently' })).toBeVisible({
+      timeout: 30_000,
+    });
     await page.getByRole('button', { name: 'Delete permanently' }).click();
     await page.getByLabel(/Type .* to confirm/i).fill('602');
     await page
@@ -300,7 +319,9 @@ test.describe('H. Unit archive + restore', () => {
     await page.waitForLoadState('networkidle');
     page.once('dialog', (dialog) => dialog.accept());
     await page.getByRole('button', { name: 'Archive unit' }).click();
-    await expect(page.getByRole('button', { name: 'Restore unit' })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('button', { name: 'Restore unit' })).toBeVisible({
+      timeout: 30_000,
+    });
     expect(await getUnitStatus(page.request, unitId)).toBe('archived');
 
     // Excluded from the default (non-archived) selection on the property's Units tab.
@@ -339,7 +360,9 @@ test.describe('H. Unit archive + restore', () => {
     // Restore returns the unit to vacant, never occupied.
     page.once('dialog', (dialog) => dialog.accept());
     await page.getByRole('button', { name: 'Restore unit' }).click();
-    await expect(page.getByRole('button', { name: 'Archive unit' })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('button', { name: 'Archive unit' })).toBeVisible({
+      timeout: 30_000,
+    });
     expect(await getUnitStatus(page.request, unitId)).toBe('vacant');
 
     // The previously-blocked lease now activates normally.

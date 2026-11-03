@@ -24,7 +24,7 @@ any kind in the app, and nothing renders third-party creative.
 
 Proplyst is commercial property-management software published by GENBRIDGE Pty Ltd. It is not
 developed by, on behalf of, or in partnership with any government entity, and it does not deliver a
-government service. Municipal accounts appear only as *expenses a landlord records*: a
+government service. Municipal accounts appear only as _expenses a landlord records_: a
 rates-and-taxes line, a water bill someone uploads. The app has no connection to any municipal or
 government system.
 
@@ -33,23 +33,23 @@ government system.
 ## Financial features
 
 **This is the one to answer carefully**, because the app is full of money. The distinction Google
-draws is between *recording* financial information and *providing a financial service*.
+draws is between _recording_ financial information and _providing a financial service_.
 
 What Proplyst actually does:
 
-| Activity | Present? | What it is |
-|---|---|---|
-| Property-management recordkeeping | **Yes** | Rent schedules, invoices, expenses, budgets, utility costs — bookkeeping for a landlord's own portfolio |
-| Payment **confirmation** | **Yes** | A tenant reports "I paid by EFT"; the owner confirms or rejects it. This records an assertion about money that moved **elsewhere** |
-| SaaS subscription billing | Yes, **website only** | PayFast, on proplyst.co.za. The Android app has no purchase flow — see `BILLING_COMPLIANCE.md` |
-| Lending / credit / loans | No | — |
-| Banking / e-money / wallets | No | Proplyst never holds funds |
-| Payments or money transmission | No | The app moves no money and initiates no transaction |
-| Investing / securities / forex | No | — |
-| Crypto | No | — |
-| Insurance | No | — |
-| Debt collection / credit reporting | No | Overdue rent is flagged to the landlord only; nothing is reported to any bureau |
-| Tax preparation or filing | No | Records are retained for tax purposes; nothing is calculated or filed |
+| Activity                           | Present?              | What it is                                                                                                                         |
+| ---------------------------------- | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Property-management recordkeeping  | **Yes**               | Rent schedules, invoices, expenses, budgets, utility costs — bookkeeping for a landlord's own portfolio                            |
+| Payment **confirmation**           | **Yes**               | A tenant reports "I paid by EFT"; the owner confirms or rejects it. This records an assertion about money that moved **elsewhere** |
+| SaaS subscription billing          | Yes, **website only** | PayFast, on proplyst.co.za. The Android app has no purchase flow — see `BILLING_COMPLIANCE.md`                                     |
+| Lending / credit / loans           | No                    | —                                                                                                                                  |
+| Banking / e-money / wallets        | No                    | Proplyst never holds funds                                                                                                         |
+| Payments or money transmission     | No                    | The app moves no money and initiates no transaction                                                                                |
+| Investing / securities / forex     | No                    | —                                                                                                                                  |
+| Crypto                             | No                    | —                                                                                                                                  |
+| Insurance                          | No                    | —                                                                                                                                  |
+| Debt collection / credit reporting | No                    | Overdue rent is flagged to the landlord only; nothing is reported to any bureau                                                    |
+| Tax preparation or filing          | No                    | Records are retained for tax purposes; nothing is calculated or filed                                                              |
 
 **Recommended answer: the app does NOT provide financial features / financial services.** It is
 business record-keeping software. Proplyst never holds, moves, lends or invests money; the Android
@@ -95,20 +95,20 @@ Expected outcome: the lowest rating in each system — **Everyone / PEGI 3 / 3+*
 
 Answer the questionnaire as a **Utility, Productivity, Communication or Other** app, then:
 
-| Question area | Answer | Why |
-|---|---|---|
-| Violence (realistic, fantasy, or cartoon) | No | — |
-| Sexual content or nudity | No | — |
-| Profanity or crude humour | No | — |
-| Controlled substances (drugs, alcohol, tobacco) | No | — |
-| Gambling — simulated or real | No | No gambling, no loot boxes, no wagering |
-| Horror or fear content | No | — |
-| Discrimination or hate content | No | — |
-| User-generated content shared publicly | **No** | Users type notes, descriptions and announcements, but these are visible only inside their own organisation. There is no public feed, no social surface, no stranger-to-stranger contact |
-| Users can interact or exchange content | **Qualified yes** | Only within one organisation, between an owner/staff member and their own tenants — never with the public. Answer as the questionnaire's wording requires, and do not claim an open social feature that does not exist |
-| Shares user location with other users | No | No location is collected at all |
-| Allows purchase of digital goods | **No** | The app contains no purchase flow |
-| Digital purchases / in-app purchases | No | Same |
+| Question area                                   | Answer            | Why                                                                                                                                                                                                                    |
+| ----------------------------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Violence (realistic, fantasy, or cartoon)       | No                | —                                                                                                                                                                                                                      |
+| Sexual content or nudity                        | No                | —                                                                                                                                                                                                                      |
+| Profanity or crude humour                       | No                | —                                                                                                                                                                                                                      |
+| Controlled substances (drugs, alcohol, tobacco) | No                | —                                                                                                                                                                                                                      |
+| Gambling — simulated or real                    | No                | No gambling, no loot boxes, no wagering                                                                                                                                                                                |
+| Horror or fear content                          | No                | —                                                                                                                                                                                                                      |
+| Discrimination or hate content                  | No                | —                                                                                                                                                                                                                      |
+| User-generated content shared publicly          | **No**            | Users type notes, descriptions and announcements, but these are visible only inside their own organisation. There is no public feed, no social surface, no stranger-to-stranger contact                                |
+| Users can interact or exchange content          | **Qualified yes** | Only within one organisation, between an owner/staff member and their own tenants — never with the public. Answer as the questionnaire's wording requires, and do not claim an open social feature that does not exist |
+| Shares user location with other users           | No                | No location is collected at all                                                                                                                                                                                        |
+| Allows purchase of digital goods                | **No**            | The app contains no purchase flow                                                                                                                                                                                      |
+| Digital purchases / in-app purchases            | No                | Same                                                                                                                                                                                                                   |
 
 **Do not tick "Users can interact"** as an unqualified yes if the questionnaire treats it as open
 social interaction; Proplyst has no public or stranger-facing communication. Where the wording is
@@ -118,11 +118,11 @@ ambiguous, describe it as organisation-scoped messaging between a landlord and t
 
 ## Other declarations
 
-| Declaration | Answer | Why |
-|---|---|---|
-| **News app** | No | Not a news publisher |
-| **COVID-19 contact tracing / status** | No | No such functionality |
-| **Data safety — government ID** | No | Not collected *by the app* — see `DATA_SAFETY.md` for the full reasoning |
-| **Advertising ID** | Not used | No `AD_ID` permission, no ads SDK |
-| **Account creation** | Required | Every screen is behind sign-in — see `APP_ACCESS.md` |
-| **Account deletion** | In-app and on the web | More → Account & security → Delete account, and `proplyst.co.za/delete-account` |
+| Declaration                           | Answer                | Why                                                                             |
+| ------------------------------------- | --------------------- | ------------------------------------------------------------------------------- |
+| **News app**                          | No                    | Not a news publisher                                                            |
+| **COVID-19 contact tracing / status** | No                    | No such functionality                                                           |
+| **Data safety — government ID**       | No                    | Not collected _by the app_ — see `DATA_SAFETY.md` for the full reasoning        |
+| **Advertising ID**                    | Not used              | No `AD_ID` permission, no ads SDK                                               |
+| **Account creation**                  | Required              | Every screen is behind sign-in — see `APP_ACCESS.md`                            |
+| **Account deletion**                  | In-app and on the web | More → Account & security → Delete account, and `proplyst.co.za/delete-account` |

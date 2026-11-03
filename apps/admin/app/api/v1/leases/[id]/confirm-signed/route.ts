@@ -28,7 +28,10 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
 
   const { data, error } = await supabase
     .from('lease_preparations')
-    .update({ staff_confirmed_signed_at: new Date().toISOString(), staff_confirmed_signed_by: user.id })
+    .update({
+      staff_confirmed_signed_at: new Date().toISOString(),
+      staff_confirmed_signed_by: user.id,
+    })
     .eq('lease_id', id)
     .select('*')
     .maybeSingle();
@@ -44,7 +47,8 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       {
         error: {
           code: 'not_found',
-          message: 'No lease preparation record found -- generate or upload a lease document first.',
+          message:
+            'No lease preparation record found -- generate or upload a lease document first.',
         },
       },
       { status: 404 },

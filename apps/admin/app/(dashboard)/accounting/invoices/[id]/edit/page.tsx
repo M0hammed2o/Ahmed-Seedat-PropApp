@@ -3,7 +3,11 @@ import { notFound, redirect } from 'next/navigation';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { ManualInvoiceForm } from '@/components/accounting/ManualInvoiceForm';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
-import { resolvePortalSession, findActiveMembership, canPostAccountingRecords } from '@/lib/orgSession';
+import {
+  resolvePortalSession,
+  findActiveMembership,
+  canPostAccountingRecords,
+} from '@/lib/orgSession';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -32,7 +36,8 @@ export default async function EditManualInvoicePage({ params }: RouteParams) {
   const membership = session ? findActiveMembership(session, invoice.org_id) : undefined;
   const canWrite = Boolean(membership && canPostAccountingRecords(membership.role));
   if (!canWrite) redirect(`/accounting/invoices/${id}`);
-  if (invoice.source !== 'manual' || invoice.status !== 'draft') redirect(`/accounting/invoices/${id}`);
+  if (invoice.source !== 'manual' || invoice.status !== 'draft')
+    redirect(`/accounting/invoices/${id}`);
 
   const { data: lineItemRows, error: lineError } = await supabase
     .from('invoice_line_items')

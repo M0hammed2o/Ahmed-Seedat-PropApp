@@ -14,7 +14,9 @@ describe('meter catalogue honesty', () => {
   });
 
   it('never offers an integration path for supplier-gated or unsupported entries', () => {
-    for (const e of METER_CATALOGUE.filter((x) => x.status === 'supplier_approval' || x.status === 'unsupported')) {
+    for (const e of METER_CATALOGUE.filter(
+      (x) => x.status === 'supplier_approval' || x.status === 'unsupported',
+    )) {
       expect(e.providers).toEqual([]);
       expect(e.caveats.length).toBeGreaterThan(0);
     }
@@ -34,7 +36,9 @@ describe('meter catalogue honesty', () => {
 
   it('flags every monitoring-grade (non-billing) hardware entry with a caveat', () => {
     // Selectable hardware only; supplier-gated/unsupported entries are covered by the caveat rule above.
-    for (const e of METER_CATALOGUE.filter((x) => !x.billingGrade && x.manufacturer !== 'Any' && x.status === 'needs_hardware_testing')) {
+    for (const e of METER_CATALOGUE.filter(
+      (x) => !x.billingGrade && x.manufacturer !== 'Any' && x.status === 'needs_hardware_testing',
+    )) {
       expect(e.caveats.join(' ')).toMatch(/monitoring|Not a SANS|billing/i);
     }
   });
@@ -43,7 +47,11 @@ describe('meter catalogue honesty', () => {
     expect(new Set(METER_CATALOGUE.map((e) => e.id)).size).toBe(METER_CATALOGUE.length);
     for (const u of ['water', 'electricity'] as const) {
       for (const role of ['main', 'check', 'submeter'] as const) {
-        expect(METER_CATALOGUE.some((e) => e.utilityType === u && e.roles.includes(role) && e.status !== 'unsupported')).toBe(true);
+        expect(
+          METER_CATALOGUE.some(
+            (e) => e.utilityType === u && e.roles.includes(role) && e.status !== 'unsupported',
+          ),
+        ).toBe(true);
       }
     }
   });

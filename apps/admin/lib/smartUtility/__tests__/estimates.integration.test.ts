@@ -50,46 +50,133 @@ d('estimates and true-up (real local Supabase)', () => {
   };
   const read = async (meterId: string, y: number, mo: number, day: number, v: number) => {
     const { error } = await service.from('meter_telemetry_readings').insert({
-      org_id: orgId, property_id: p, meter_id: meterId, read_at: sastInstant(y, mo, day).toISOString(), raw_value: v, multiplier: 1, value: v, source: 'device', status: 'valid',
+      org_id: orgId,
+      property_id: p,
+      meter_id: meterId,
+      read_at: sastInstant(y, mo, day).toISOString(),
+      raw_value: v,
+      multiplier: 1,
+      value: v,
+      source: 'device',
+      status: 'valid',
     });
     if (error) throw new Error(error.message);
   };
-  const charges = async () => (await service.from('utility_charges').select('*, units(unit_label)').eq('property_id', p).neq('status', 'void')).data ?? [];
+  const charges = async () =>
+    (
+      await service
+        .from('utility_charges')
+        .select('*, units(unit_label)')
+        .eq('property_id', p)
+        .neq('status', 'void')
+    ).data ?? [];
   const sep = async (label: string, type = 'consumption') =>
-    (await charges()).find((c) => c.units?.unit_label === label && c.charge_type === type && c.segment_start === '2026-09-01');
+    (await charges()).find(
+      (c) =>
+        c.units?.unit_label === label && c.charge_type === type && c.segment_start === '2026-09-01',
+    );
 
   beforeAll(async () => {
     const email = `est-${sfx}@propertyvault.example`;
-    userId = (await service.auth.admin.createUser({ email, password: 'TestPassw0rd!23', email_confirm: true })).data.user!.id;
+    userId = (
+      await service.auth.admin.createUser({
+        email,
+        password: 'TestPassw0rd!23',
+        email_confirm: true,
+      })
+    ).data.user!.id;
     orgId = await ins('organizations', { legal_name: `EST ${sfx}`, org_type: 'agency' });
-    await service.from('organization_members').insert({ org_id: orgId, user_id: userId, role: 'accountant', status: 'active', joined_at: new Date().toISOString(), property_access_mode: 'all' });
+    await service.from('organization_members').insert({
+      org_id: orgId,
+      user_id: userId,
+      role: 'accountant',
+      status: 'active',
+      joined_at: new Date().toISOString(),
+      property_access_mode: 'all',
+    });
     session = createClient(URL_, ANON_KEY, opts);
     await session.auth.signInWithPassword({ email, password: 'TestPassw0rd!23' });
 
-    p = await ins('properties', { org_id: orgId, nickname: 'Estimate Court', address_line1: '3 Test St', city: 'Durban', province: 'KwaZulu-Natal', postal_code: '4001' });
+    p = await ins('properties', {
+      org_id: orgId,
+      nickname: 'Estimate Court',
+      address_line1: '3 Test St',
+      city: 'Durban',
+      province: 'KwaZulu-Natal',
+      postal_code: '4001',
+    });
     for (const k of ['A', 'B', 'C', 'D']) {
       u[k] = await ins('units', { org_id: orgId, property_id: p, unit_label: `Unit ${k}` });
-      const tenantId = await ins('tenants', { org_id: orgId, full_name: `Tenant ${k}`, status: 'active' });
-      const leaseId = await ins('leases', { org_id: orgId, unit_id: u[k], start_date: '2026-01-01', end_date: null, rent_amount: 5000, status: 'active' });
-      await service.from('lease_tenants').insert({ lease_id: leaseId, tenant_id: tenantId, is_primary: true });
-      m[k] = await ins('utility_meters', { org_id: orgId, property_id: p, unit_id: u[k], utility_type: 'electricity', meter_role: 'submeter', responsibility_mode: 'owner_paid' });
+      const tenantId = await ins('tenants', {
+        org_id: orgId,
+        full_name: `Tenant ${k}`,
+        status: 'active',
+      });
+      const leaseId = await ins('leases', {
+        org_id: orgId,
+        unit_id: u[k],
+        start_date: '2026-01-01',
+        end_date: null,
+        rent_amount: 5000,
+        status: 'active',
+      });
+      await service
+        .from('lease_tenants')
+        .insert({ lease_id: leaseId, tenant_id: tenantId, is_primary: true });
+      m[k] = await ins('utility_meters', {
+        org_id: orgId,
+        property_id: p,
+        unit_id: u[k],
+        utility_type: 'electricity',
+        meter_role: 'submeter',
+        responsibility_mode: 'owner_paid',
+      });
     }
     for (const k of ['A', 'B', 'C']) {
       await read(m[k]!, 2026, 8, 1, 0);
       await read(m[k]!, 2026, 9, 1, 310);
     }
     await read(m.D!, 2026, 9, 1, 0); // D: only an opening reading, no history
-    await ins('utility_tariffs', { org_id: orgId, property_id: p, utility_type: 'electricity', name: 'FICTIONAL flat R3', tariff_kind: 'flat', fixed_charge: 60, blocks: [{ upTo: null, rate: 3 }], vat_inclusive: true, vat_rate: 15, effective_from: '2026-01-01' });
+    await ins('utility_tariffs', {
+      org_id: orgId,
+      property_id: p,
+      utility_type: 'electricity',
+      name: 'FICTIONAL flat R3',
+      tariff_kind: 'flat',
+      fixed_charge: 60,
+      blocks: [{ upTo: null, rate: 3 }],
+      vat_inclusive: true,
+      vat_rate: 15,
+      effective_from: '2026-01-01',
+    });
     const { error } = await service.from('utility_billing_arrangements').insert(
-      ['A', 'B', 'C', 'D'].map((k) => ({ org_id: orgId, property_id: p, unit_id: u[k], utility_type: 'electricity', arrangement: 'metered_recharge', effective_from: '2026-01-01', invoice_mode: 'separate_invoice' })),
+      ['A', 'B', 'C', 'D'].map((k) => ({
+        org_id: orgId,
+        property_id: p,
+        unit_id: u[k],
+        utility_type: 'electricity',
+        arrangement: 'metered_recharge',
+        effective_from: '2026-01-01',
+        invoice_mode: 'separate_invoice',
+      })),
     );
     if (error) throw new Error(error.message);
     await billing.generateCharges(service, { propertyId: p, ...AUG, actorUserId: userId });
   }, 120_000);
 
   it('August is billed from readings (independent: 310 × R3 + R60 = R990)', async () => {
-    const aug = (await charges()).filter((c) => c.segment_start === '2026-08-01' && c.charge_type === 'consumption');
-    expect(aug.map((c) => [c.units.unit_label, c.consumption === null ? null : Number(c.consumption), Number(c.total_amount)]).sort()).toEqual([
+    const aug = (await charges()).filter(
+      (c) => c.segment_start === '2026-08-01' && c.charge_type === 'consumption',
+    );
+    expect(
+      aug
+        .map((c) => [
+          c.units.unit_label,
+          c.consumption === null ? null : Number(c.consumption),
+          Number(c.total_amount),
+        ])
+        .sort(),
+    ).toEqual([
       ['Unit A', 310, 990],
       ['Unit B', 310, 990],
       ['Unit C', 310, 990],
@@ -98,13 +185,23 @@ d('estimates and true-up (real local Supabase)', () => {
   });
 
   it('estimates nothing unless asked; when asked, 10 kWh/day × 30 = 300 kWh → R960, flagged', async () => {
-    await billing.generateCharges(service, { propertyId: p, ...SEP, actorUserId: userId, estimateMissing: true });
+    await billing.generateCharges(service, {
+      propertyId: p,
+      ...SEP,
+      actorUserId: userId,
+      estimateMissing: true,
+    });
     for (const k of ['A', 'B', 'C']) {
       const c = (await sep(`Unit ${k}`))!;
       expect(Number(c.consumption)).toBe(300);
       expect(Number(c.total_amount)).toBe(960);
       expect(c.review_flags).toContain('estimated_consumption_true_up_pending');
-      expect(c.calculation.estimate).toMatchObject({ method: 'average_daily_from_recent_actuals', avgDaily: 10, days: 30, consumption: 300 });
+      expect(c.calculation.estimate).toMatchObject({
+        method: 'average_daily_from_recent_actuals',
+        avgDaily: 10,
+        days: 30,
+        consumption: 300,
+      });
       expect(c.notes).toMatch(/^Estimated: no usable readings; 10 per day from 1 earlier period/);
     }
     // D: no earlier actual use → never guessed; priced at nothing and left for review.
@@ -115,11 +212,23 @@ d('estimates and true-up (real local Supabase)', () => {
 
   it('trues up once readings arrive: credit when an invoiced estimate was too high, draft charge when too low', async () => {
     const [a, b, c] = [(await sep('Unit A'))!, (await sep('Unit B'))!, (await sep('Unit C'))!];
-    await billing.approveCharges(service, { chargeIds: [a.id, b.id, c.id], propertyId: p, actorUserId: userId });
-    const inv = await billing.invoiceCharges(session, service, { chargeIds: [a.id], propertyId: p, actorUserId: userId });
+    await billing.approveCharges(service, {
+      chargeIds: [a.id, b.id, c.id],
+      propertyId: p,
+      actorUserId: userId,
+    });
+    const inv = await billing.invoiceCharges(session, service, {
+      chargeIds: [a.id],
+      propertyId: p,
+      actorUserId: userId,
+    });
     expect(inv.invoices).toHaveLength(1);
     // Nothing to true up before the readings exist.
-    const before = await billing.generateCharges(service, { propertyId: p, ...SEP, actorUserId: userId });
+    const before = await billing.generateCharges(service, {
+      propertyId: p,
+      ...SEP,
+      actorUserId: userId,
+    });
     expect(before.created).toBe(0);
 
     await read(m.A!, 2026, 10, 1, 310 + 270);
@@ -134,10 +243,15 @@ d('estimates and true-up (real local Supabase)', () => {
     const r = pair[0];
 
     // A: 270 × 3 + 60 = 870 vs 960 → R90 credit on the invoiced estimate.
-    const { data: credits } = await service.from('utility_credits').select('amount, remaining, reason, lease_id').eq('source_charge_id', a.id);
+    const { data: credits } = await service
+      .from('utility_credits')
+      .select('amount, remaining, reason, lease_id')
+      .eq('source_charge_id', a.id);
     expect(credits).toHaveLength(1);
     expect(Number(credits![0]!.amount)).toBe(90);
-    expect(credits![0]!.reason).toMatch(/^True-up: actual 270 vs estimated 300 for 2026-09-01 to 2026-09-30/);
+    expect(credits![0]!.reason).toMatch(
+      /^True-up: actual 270 vs estimated 300 for 2026-09-01 to 2026-09-30/,
+    );
     expect(credits![0]!.lease_id).toBe(a.lease_id);
 
     // B: 330 × 3 + 60 = 1050 vs 960 → a DRAFT R90 true-up for 30 kWh; VAT split adds back to the total.
@@ -148,11 +262,20 @@ d('estimates and true-up (real local Supabase)', () => {
     expect(Math.round((Number(t.amount_excl_vat) + Number(t.vat_amount)) * 100)).toBe(9000);
     expect(Number(t.amount_excl_vat)).toBeCloseTo(90 / 1.15, 2);
     expect(t.review_flags).toContain('true_up_of_estimate');
-    expect(t.calculation).toMatchObject({ kind: 'true_up', estimateChargeId: b.id, estimated: 300, actual: 330, estimatedCents: 96000, actualCents: 105000 });
+    expect(t.calculation).toMatchObject({
+      kind: 'true_up',
+      estimateChargeId: b.id,
+      estimated: 300,
+      actual: 330,
+      estimatedCents: 96000,
+      actualCents: 105000,
+    });
 
     // C: overbilled but only approved → no credit, told to void and recalculate.
     expect(r.skipped.find((s) => s.unitId === u.C)?.reason).toMatch(/void it and recalculate/);
-    expect((await service.from('utility_credits').select('id').eq('source_charge_id', c.id)).data).toHaveLength(0);
+    expect(
+      (await service.from('utility_credits').select('id').eq('source_charge_id', c.id)).data,
+    ).toHaveLength(0);
   }, 120_000);
 
   it('never trues up twice (re-runs, including concurrent ones)', async () => {
@@ -163,21 +286,58 @@ d('estimates and true-up (real local Supabase)', () => {
     expect(runs.map((x) => x.created)).toEqual([0, 0]);
     expect((await charges()).filter((c) => c.charge_type === 'true_up')).toHaveLength(1);
     const a = (await sep('Unit A'))!;
-    expect((await service.from('utility_credits').select('id').eq('source_charge_id', a.id)).data).toHaveLength(1);
+    expect(
+      (await service.from('utility_credits').select('id').eq('source_charge_id', a.id)).data,
+    ).toHaveLength(1);
   }, 120_000);
 
   it('TD-61: a VAT-registered landlord sees that utility VAT is not yet split in the ledger', async () => {
     await service.from('organizations').update({ vat_no: '4000000000' }).eq('id', orgId); // fictional
     const unitE = await ins('units', { org_id: orgId, property_id: p, unit_label: 'Unit E' });
-    const tenantId = await ins('tenants', { org_id: orgId, full_name: 'Tenant E', status: 'active' });
-    const leaseId = await ins('leases', { org_id: orgId, unit_id: unitE, start_date: '2026-01-01', end_date: null, rent_amount: 5000, status: 'active' });
-    await service.from('lease_tenants').insert({ lease_id: leaseId, tenant_id: tenantId, is_primary: true });
-    const meterE = await ins('utility_meters', { org_id: orgId, property_id: p, unit_id: unitE, utility_type: 'electricity', meter_role: 'submeter', responsibility_mode: 'owner_paid' });
+    const tenantId = await ins('tenants', {
+      org_id: orgId,
+      full_name: 'Tenant E',
+      status: 'active',
+    });
+    const leaseId = await ins('leases', {
+      org_id: orgId,
+      unit_id: unitE,
+      start_date: '2026-01-01',
+      end_date: null,
+      rent_amount: 5000,
+      status: 'active',
+    });
+    await service
+      .from('lease_tenants')
+      .insert({ lease_id: leaseId, tenant_id: tenantId, is_primary: true });
+    const meterE = await ins('utility_meters', {
+      org_id: orgId,
+      property_id: p,
+      unit_id: unitE,
+      utility_type: 'electricity',
+      meter_role: 'submeter',
+      responsibility_mode: 'owner_paid',
+    });
     await read(meterE, 2026, 10, 1, 0);
     await read(meterE, 2026, 11, 1, 100);
-    await ins('utility_billing_arrangements', { org_id: orgId, property_id: p, unit_id: unitE, utility_type: 'electricity', arrangement: 'metered_recharge', effective_from: '2026-01-01', invoice_mode: 'separate_invoice' });
-    await billing.generateCharges(service, { propertyId: p, periodStart: '2026-10-01', periodEnd: '2026-11-01', actorUserId: userId });
-    const e = (await charges()).find((c) => c.units?.unit_label === 'Unit E' && c.segment_start === '2026-10-01')!;
+    await ins('utility_billing_arrangements', {
+      org_id: orgId,
+      property_id: p,
+      unit_id: unitE,
+      utility_type: 'electricity',
+      arrangement: 'metered_recharge',
+      effective_from: '2026-01-01',
+      invoice_mode: 'separate_invoice',
+    });
+    await billing.generateCharges(service, {
+      propertyId: p,
+      periodStart: '2026-10-01',
+      periodEnd: '2026-11-01',
+      actorUserId: userId,
+    });
+    const e = (await charges()).find(
+      (c) => c.units?.unit_label === 'Unit E' && c.segment_start === '2026-10-01',
+    )!;
     expect(Number(e.total_amount)).toBe(360); // 100 × 3 + 60
     expect(e.review_flags).toContain('vat_ledger_split_pending');
     await service.from('organizations').update({ vat_no: null }).eq('id', orgId);

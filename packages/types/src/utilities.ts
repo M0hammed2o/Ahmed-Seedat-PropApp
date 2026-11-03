@@ -20,11 +20,7 @@ export interface RecurringPropertyCost {
 export type UtilityType = 'water' | 'electricity';
 
 export type UtilityResponsibilityMode =
-  | 'owner_paid'
-  | 'tenant_paid_direct'
-  | 'tenant_prepaid'
-  | 'included_in_rent'
-  | 'common_area_owner';
+  'owner_paid' | 'tenant_paid_direct' | 'tenant_prepaid' | 'included_in_rent' | 'common_area_owner';
 
 export interface UtilityResponsibilitySetting {
   id: string;

@@ -1,6 +1,14 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { tariffPreviewSchema } from '@propvault/validation';
-import { jsonError, loadReadableProperty, notFound, parseJson, requireUser, serverError, utilitiesDisabled } from '@/lib/smartUtility/http';
+import {
+  jsonError,
+  loadReadableProperty,
+  notFound,
+  parseJson,
+  requireUser,
+  serverError,
+  utilitiesDisabled,
+} from '@/lib/smartUtility/http';
 import { meterUsage, TARIFF_COLUMNS, toTariffV2, type TariffRow } from '@/lib/smartUtility/billing';
 import { sastInstant } from '@/lib/smartUtility/consumption';
 import { computeTariffCharge, type TariffV2 } from '@/lib/smartUtility/tariffEngine';
@@ -12,7 +20,8 @@ const toSast = (d: string) => {
   const [y, m, day] = d.split('-').map(Number);
   return sastInstant(y!, m!, day!);
 };
-const days = (a: string, b: string) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000);
+const days = (a: string, b: string) =>
+  Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000);
 
 /**
  * POST — calculation preview. Price a saved tariff (tariffId) or an unsaved draft (tariff) against either an entered
@@ -28,7 +37,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   const property = await loadReadableProperty(auth.supabase, id);
   if (!property) return notFound();
   if (!property.utilities_enabled) return utilitiesDisabled();
-  if (d.periodEnd <= d.periodStart) return jsonError(400, 'validation_failed', 'The period end must be after its start.');
+  if (d.periodEnd <= d.periodStart)
+    return jsonError(400, 'validation_failed', 'The period end must be after its start.');
   const segStart = d.segmentStart ?? d.periodStart;
   const segEnd = d.segmentEnd ?? d.periodEnd;
   if (segStart < d.periodStart || segEnd > d.periodEnd || segEnd <= segStart) {
@@ -37,7 +47,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     let tariff: TariffV2;
     if (d.tariffId) {
-      const { data } = await auth.supabase.from('utility_tariffs').select(TARIFF_COLUMNS).eq('id', d.tariffId).eq('property_id', property.id).maybeSingle();
+      const { data } = await auth.supabase
+        .from('utility_tariffs')
+        .select(TARIFF_COLUMNS)
+        .eq('id', d.tariffId)
+        .eq('property_id', property.id)
+        .maybeSingle();
       if (!data) return notFound('Tariff');
       tariff = toTariffV2(data as TariffRow);
     } else if (d.tariff) {
@@ -54,7 +69,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     if (d.meterId) {
       const usage = await meterUsage(auth.supabase, d.meterId, segStart, segEnd);
       if (!usage || usage.meter.property_id !== property.id) return notFound('Meter');
-      if (usage.meter.utility_type !== tariff.utilityType) return jsonError(400, 'validation_failed', 'The meter and tariff are for different utilities.');
+      if (usage.meter.utility_type !== tariff.utilityType)
+        return jsonError(
+          400,
+          'validation_failed',
+          'The meter and tariff are for different utilities.',
+        );
       consumption = usage.consumption;
       daily = usage.daily;
       hourly = usage.hourly;
@@ -71,6 +91,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     });
     return NextResponse.json({ consumption, quality, result });
   } catch (error) {
-    return serverError('tariff_preview_failed', 'Could not calculate the preview.', 'utility_tariffs.preview', error);
+    return serverError(
+      'tariff_preview_failed',
+      'Could not calculate the preview.',
+      'utility_tariffs.preview',
+      error,
+    );
   }
 }

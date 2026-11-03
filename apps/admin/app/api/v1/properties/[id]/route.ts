@@ -40,7 +40,11 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
       {
         error: {
           code: 'property_fetch_failed',
-          message: safeErrorMessage(error, 'Could not load this property.', 'properties/[id].fetch'),
+          message: safeErrorMessage(
+            error,
+            'Could not load this property.',
+            'properties/[id].fetch',
+          ),
         },
       },
       { status: 500 },
@@ -62,11 +66,18 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     resolveCoverPhotoRow(supabase, id).catch(() => null),
     loadUnitOccupancyByProperty(supabase, [id]).catch(() => new Map()),
   ]);
-  const coverPhotoUrl = coverRow ? await signCoverPhotoUrl(supabase, coverRow, 'hero').catch(() => null) : null;
+  const coverPhotoUrl = coverRow
+    ? await signCoverPhotoUrl(supabase, coverRow, 'hero').catch(() => null)
+    : null;
   const occupancy = occupancyByProperty.get(id) ?? { unitCount: 0, occupiedUnitCount: 0 };
 
   return NextResponse.json({
-    property: { ...property, coverPhotoUrl, unitCount: occupancy.unitCount, occupiedUnitCount: occupancy.occupiedUnitCount },
+    property: {
+      ...property,
+      coverPhotoUrl,
+      unitCount: occupancy.unitCount,
+      occupiedUnitCount: occupancy.occupiedUnitCount,
+    },
   });
 }
 
@@ -89,7 +100,11 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       {
         error: {
           code: 'property_fetch_failed',
-          message: safeErrorMessage(fetchError, 'Could not load this property.', 'properties/[id].fetchBeforeWrite'),
+          message: safeErrorMessage(
+            fetchError,
+            'Could not load this property.',
+            'properties/[id].fetchBeforeWrite',
+          ),
         },
       },
       { status: 500 },

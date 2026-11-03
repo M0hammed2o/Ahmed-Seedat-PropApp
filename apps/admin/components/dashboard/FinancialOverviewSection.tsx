@@ -50,10 +50,7 @@ export function FinancialOverviewSection({
 }) {
   if (!summary) {
     return (
-      <Panel
-        title="Financial overview"
-        description={`For ${monthLabel} · not available right now`}
-      >
+      <Panel title="Financial overview" description={`For ${monthLabel} · not available right now`}>
         <p className="text-[13px] text-muted-foreground">
           The financial overview could not be loaded. Rent, expenses, and budget figures elsewhere
           on this page are unaffected.
@@ -165,7 +162,9 @@ export function FinancialOverviewSection({
 
           {summary.budgetPlanned === null ? (
             <div className="flex flex-col items-start gap-2">
-              <p className="text-[13px] text-muted-foreground">Budget not configured for {monthLabel}.</p>
+              <p className="text-[13px] text-muted-foreground">
+                Budget not configured for {monthLabel}.
+              </p>
               <Link
                 href={manageBudgetHref}
                 className="rounded-lg bg-primary px-3 py-1.5 text-[12px] font-semibold text-primary-foreground"
@@ -240,7 +239,9 @@ function CostGroup({
         {items.map((item) => (
           <div key={item.label}>
             <p className="truncate text-[11px] text-muted-foreground">{item.label}</p>
-            <p className="tabular text-[13px] font-medium text-foreground">{currency(item.value)}</p>
+            <p className="tabular text-[13px] font-medium text-foreground">
+              {currency(item.value)}
+            </p>
           </div>
         ))}
       </div>

@@ -23,13 +23,17 @@ export function validateDocxContent(buffer: Buffer): DocxValidationResult {
   try {
     zip = new PizZip(buffer);
   } catch {
-    return { valid: false, reason: 'File does not appear to be a valid DOCX (not a readable zip archive).' };
+    return {
+      valid: false,
+      reason: 'File does not appear to be a valid DOCX (not a readable zip archive).',
+    };
   }
 
   if (!zip.file('[Content_Types].xml')) {
     return {
       valid: false,
-      reason: 'File does not appear to be a valid Office Open XML document (missing [Content_Types].xml).',
+      reason:
+        'File does not appear to be a valid Office Open XML document (missing [Content_Types].xml).',
     };
   }
 

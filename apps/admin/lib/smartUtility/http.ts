@@ -8,7 +8,12 @@ import { safeErrorMessage } from '@/lib/safeError';
 // Shared plumbing for the Smart Utility routes: same {error:{code,message}} envelope and
 // auth → JSON → zod → permission order as every other /api/v1 route in this codebase.
 
-export function jsonError(status: number, code: string, message: string, extra?: Record<string, unknown>) {
+export function jsonError(
+  status: number,
+  code: string,
+  message: string,
+  extra?: Record<string, unknown>,
+) {
   return NextResponse.json({ error: { code, message, ...(extra ?? {}) } }, { status });
 }
 
@@ -35,7 +40,10 @@ export async function parseJson<T>(
   }
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
-    const flat = parsed.error.flatten() as { fieldErrors: Record<string, string[]>; formErrors: string[] };
+    const flat = parsed.error.flatten() as {
+      fieldErrors: Record<string, string[]>;
+      formErrors: string[];
+    };
     return {
       response: jsonError(400, 'validation_failed', 'Check the highlighted fields.', {
         field_errors: flat.fieldErrors,
@@ -50,7 +58,13 @@ export async function parseJson<T>(
 export async function loadReadableProperty(
   supabase: SupabaseClient,
   propertyId: string,
-): Promise<{ id: string; org_id: string; nickname: string | null; full_address: string | null; utilities_enabled: boolean } | null> {
+): Promise<{
+  id: string;
+  org_id: string;
+  nickname: string | null;
+  full_address: string | null;
+  utilities_enabled: boolean;
+} | null> {
   if (!/^[0-9a-f-]{36}$/i.test(propertyId)) return null;
   const { data } = await supabase
     .from('properties')
@@ -58,7 +72,9 @@ export async function loadReadableProperty(
     .eq('id', propertyId)
     .maybeSingle();
   if (!data) return null;
-  const { organizations, ...rest } = data as typeof data & { organizations: { utilities_enabled?: boolean } | null };
+  const { organizations, ...rest } = data as typeof data & {
+    organizations: { utilities_enabled?: boolean } | null;
+  };
   // Fail closed (migration 182): only an explicit true enables Smart Utilities for the organisation.
   return { ...rest, utilities_enabled: organizations?.utilities_enabled === true };
 }
@@ -69,16 +85,28 @@ export async function loadReadableProperty(
  * cannot affect it. FAIL CLOSED: only an explicit `true` enables; a missing row or a lookup error means disabled.
  */
 export async function utilitiesEnabledForOrg(orgId: string): Promise<boolean> {
-  const { data, error } = await getServiceRoleClient().from('organizations').select('utilities_enabled').eq('id', orgId).maybeSingle();
+  const { data, error } = await getServiceRoleClient()
+    .from('organizations')
+    .select('utilities_enabled')
+    .eq('id', orgId)
+    .maybeSingle();
   if (error) return false;
   return (data as { utilities_enabled?: boolean } | null)?.utilities_enabled === true;
 }
 
 export const utilitiesDisabled = () =>
-  jsonError(403, 'utilities_disabled', 'Smart Utilities is not enabled for this organisation. Ask Proplyst support to enable it.');
+  jsonError(
+    403,
+    'utilities_disabled',
+    'Smart Utilities is not enabled for this organisation. Ask Proplyst support to enable it.',
+  );
 
 /** Same predicate the RLS write policies use (migration 175), evaluated as the caller. */
-export async function canWriteUtilities(supabase: SupabaseClient, orgId: string, propertyId: string) {
+export async function canWriteUtilities(
+  supabase: SupabaseClient,
+  orgId: string,
+  propertyId: string,
+) {
   const { data, error } = await supabase.rpc('can_write_property_utilities', {
     p_org_id: orgId,
     p_property_id: propertyId,
@@ -87,7 +115,11 @@ export async function canWriteUtilities(supabase: SupabaseClient, orgId: string,
   return data === true;
 }
 
-export async function canReadUtilities(supabase: SupabaseClient, orgId: string, propertyId: string) {
+export async function canReadUtilities(
+  supabase: SupabaseClient,
+  orgId: string,
+  propertyId: string,
+) {
   const { data, error } = await supabase.rpc('can_read_property_utilities', {
     p_org_id: orgId,
     p_property_id: propertyId,

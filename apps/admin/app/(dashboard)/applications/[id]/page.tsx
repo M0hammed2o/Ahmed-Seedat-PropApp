@@ -132,7 +132,8 @@ async function loadWorkflowStageData(
 
   const requiredRows = (requirements ?? []).filter((r) => r.is_required);
   const documentsComplete =
-    requiredRows.length > 0 && requiredRows.every((r) => r.status === 'accepted' || r.status === 'reviewed');
+    requiredRows.length > 0 &&
+    requiredRows.every((r) => r.status === 'accepted' || r.status === 'reviewed');
 
   return {
     invited: (tokenCount ?? 0) > 0,
@@ -173,9 +174,7 @@ function ApplicationWorkflowIndicator({
           >
             {stage.done ? '✓' : ''} {stage.label}
           </span>
-          {i < stages.length - 1 ? (
-            <span className="text-muted-foreground">→</span>
-          ) : null}
+          {i < stages.length - 1 ? <span className="text-muted-foreground">→</span> : null}
         </div>
       ))}
     </div>

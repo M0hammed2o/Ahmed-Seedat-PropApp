@@ -133,6 +133,7 @@ export async function computeDowngradeImpact(
     properties: propertiesImpact,
     staff: staffImpact,
     owners: ownersImpact,
-    requiresSelection: propertiesImpact.overBy > 0 || staffImpact.overBy > 0 || ownersImpact.overBy > 0,
+    requiresSelection:
+      propertiesImpact.overBy > 0 || staffImpact.overBy > 0 || ownersImpact.overBy > 0,
   };
 }

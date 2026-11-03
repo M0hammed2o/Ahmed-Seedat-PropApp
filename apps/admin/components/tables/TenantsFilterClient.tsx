@@ -31,7 +31,8 @@ export function TenantsFilterClient({
 }) {
   const { query, setQuery, filtered } = useListSearch(
     tenants,
-    (t) => `${t.fullName} ${t.email ?? ''} ${t.phone ?? ''} ${t.tenancy?.propertyNickname ?? ''} ${t.tenancy?.unitLabel ?? ''}`,
+    (t) =>
+      `${t.fullName} ${t.email ?? ''} ${t.phone ?? ''} ${t.tenancy?.propertyNickname ?? ''} ${t.tenancy?.unitLabel ?? ''}`,
   );
 
   const propertyOptions = useMemo(() => {

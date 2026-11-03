@@ -1,15 +1,24 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import {
-  WalkthroughOverlay,
-  requestWalkthroughRestart,
-} from '../WalkthroughOverlay';
+import { WalkthroughOverlay, requestWalkthroughRestart } from '../WalkthroughOverlay';
 import type { WalkthroughStep } from '@/lib/walkthroughSteps';
 
 const STEPS: WalkthroughStep[] = [
-  { id: 'dashboard', title: 'Your dashboard', body: 'Body 1', href: '/dashboard', navLabel: 'Dashboard' },
-  { id: 'properties', title: 'Properties', body: 'Body 2', href: '/properties', navLabel: 'Properties' },
+  {
+    id: 'dashboard',
+    title: 'Your dashboard',
+    body: 'Body 1',
+    href: '/dashboard',
+    navLabel: 'Dashboard',
+  },
+  {
+    id: 'properties',
+    title: 'Properties',
+    body: 'Body 2',
+    href: '/properties',
+    navLabel: 'Properties',
+  },
 ];
 
 afterEach(() => {

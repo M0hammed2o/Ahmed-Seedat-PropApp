@@ -160,7 +160,9 @@ describeIfSupabase('checkout idempotency (real local Supabase integration)', () 
       plan_id: starterPlanId,
       billing_cycle: 'monthly',
       current_period_start: new Date().toISOString().slice(0, 10),
-      current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+      current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .slice(0, 10),
       status: 'trial' as const,
     };
 
@@ -190,7 +192,9 @@ describeIfSupabase('checkout idempotency (real local Supabase integration)', () 
         plan_id: professionalPlanId,
         billing_cycle: 'monthly',
         current_period_start: new Date().toISOString().slice(0, 10),
-        current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+        current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .slice(0, 10),
         status: 'active',
       })
       .select('id')
@@ -220,8 +224,12 @@ describeIfSupabase('checkout idempotency (real local Supabase integration)', () 
       org_id: orgId,
       plan_id: starterPlanId,
       billing_cycle: 'monthly',
-      current_period_start: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-      current_period_end: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+      current_period_start: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .slice(0, 10),
+      current_period_end: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .slice(0, 10),
       status: 'cancelled',
     });
     if (error) throw error;

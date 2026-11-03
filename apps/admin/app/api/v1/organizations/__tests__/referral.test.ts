@@ -15,10 +15,12 @@ const mockCookieJar = new Map<string, string>();
 
 vi.mock('next/headers', () => ({
   headers: async () => ({
-    get: (name: string) => (name.toLowerCase() === 'authorization' ? mockAuthorizationHeader : null),
+    get: (name: string) =>
+      name.toLowerCase() === 'authorization' ? mockAuthorizationHeader : null,
   }),
   cookies: async () => ({
-    get: (name: string) => (mockCookieJar.has(name) ? { value: mockCookieJar.get(name) } : undefined),
+    get: (name: string) =>
+      mockCookieJar.has(name) ? { value: mockCookieJar.get(name) } : undefined,
     set: (name: string, value: string) => {
       mockCookieJar.set(name, value);
     },
@@ -110,7 +112,11 @@ describeIfSupabase(
     async function signUpAndAuthenticate(): Promise<void> {
       const email = `referral-signup-${Date.now()}-${Math.random().toString(36).slice(2)}@propertyvault.example`;
       const password = 'TestPassw0rd!23';
-      const created = await adminFetch('/auth/v1/admin/users', { email, password, email_confirm: true });
+      const created = await adminFetch('/auth/v1/admin/users', {
+        email,
+        password,
+        email_confirm: true,
+      });
       createdUserIds.push(created.id);
 
       const tokenRes = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
@@ -148,7 +154,10 @@ describeIfSupabase(
     it('signup with no referral code and no referrer name works normally -- no attribution row, no error', async () => {
       await signUpAndAuthenticate();
       const response = await POST(
-        orgCreateRequest({ legalName: `Referral Org None ${Date.now()}`, orgType: 'owner_managed' }),
+        orgCreateRequest({
+          legalName: `Referral Org None ${Date.now()}`,
+          orgType: 'owner_managed',
+        }),
       );
       expect(response.status).toBe(201);
       const body = await response.json();

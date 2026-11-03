@@ -2,7 +2,11 @@ import { redirect } from 'next/navigation';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { ManualInvoiceForm, type TenancyOption } from '@/components/accounting/ManualInvoiceForm';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
-import { resolvePortalSession, findActiveMembership, canPostAccountingRecords } from '@/lib/orgSession';
+import {
+  resolvePortalSession,
+  findActiveMembership,
+  canPostAccountingRecords,
+} from '@/lib/orgSession';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 /**
@@ -15,13 +19,28 @@ export default async function NewManualInvoicePage() {
   if (ADMIN_DEMO_MODE) {
     return (
       <div className="space-y-6 animate-rise">
-        <PageHeader title="Create invoice" subtitle="A one-off charge to a tenant -- separate from rent." />
+        <PageHeader
+          title="Create invoice"
+          subtitle="A one-off charge to a tenant -- separate from rent."
+        />
         <ManualInvoiceForm
           orgId="demo-org-1"
           properties={[{ id: 'demo-property-1', nickname: 'Sea Point Apartment' }]}
-          units={[{ id: 'demo-unit-1', propertyId: 'demo-property-1', unitLabel: 'Unit 1', status: 'occupied' }]}
+          units={[
+            {
+              id: 'demo-unit-1',
+              propertyId: 'demo-property-1',
+              unitLabel: 'Unit 1',
+              status: 'occupied',
+            },
+          ]}
           tenancies={[
-            { unitId: 'demo-unit-1', tenantId: 'demo-tenant-1', tenantName: 'Naledi Khumalo', leaseId: 'demo-lease-1' },
+            {
+              unitId: 'demo-unit-1',
+              tenantId: 'demo-tenant-1',
+              tenantName: 'Naledi Khumalo',
+              leaseId: 'demo-lease-1',
+            },
           ]}
         />
       </div>
@@ -53,14 +72,22 @@ export default async function NewManualInvoicePage() {
       .from('lease_tenants')
       .select('tenant_id, tenants(full_name), leases(id, status, start_date, unit_id, org_id)'),
   ]);
-  if (propertiesResult.error) throw new Error(`Failed to load properties: ${propertiesResult.error.message}`);
+  if (propertiesResult.error)
+    throw new Error(`Failed to load properties: ${propertiesResult.error.message}`);
   if (unitsResult.error) throw new Error(`Failed to load units: ${unitsResult.error.message}`);
-  if (leaseTenantsResult.error) throw new Error(`Failed to load tenancies: ${leaseTenantsResult.error.message}`);
+  if (leaseTenantsResult.error)
+    throw new Error(`Failed to load tenancies: ${leaseTenantsResult.error.message}`);
 
   type LeaseTenantRow = {
     tenant_id: string;
     tenants: { full_name: string } | null;
-    leases: { id: string; status: string; start_date: string; unit_id: string; org_id: string } | null;
+    leases: {
+      id: string;
+      status: string;
+      start_date: string;
+      unit_id: string;
+      org_id: string;
+    } | null;
   };
   const rows = (leaseTenantsResult.data ?? []) as unknown as LeaseTenantRow[];
 
@@ -68,7 +95,10 @@ export default async function NewManualInvoicePage() {
   // the same rule lib/leasing.ts's pickCurrentLease() applies for a tenant's overall current
   // tenancy, scoped here per-unit since a tenant could theoretically have leased the same unit more
   // than once over time.
-  const byTenantUnit = new Map<string, { leaseId: string; status: string; startDate: string; tenantName: string }>();
+  const byTenantUnit = new Map<
+    string,
+    { leaseId: string; status: string; startDate: string; tenantName: string }
+  >();
   for (const row of rows) {
     if (!row.leases || row.leases.org_id !== activeOrg.orgId) continue;
     const key = `${row.tenant_id}:${row.leases.unit_id}`;
@@ -98,7 +128,10 @@ export default async function NewManualInvoicePage() {
 
   return (
     <div className="space-y-6 animate-rise">
-      <PageHeader title="Create invoice" subtitle="A one-off charge to a tenant -- separate from rent." />
+      <PageHeader
+        title="Create invoice"
+        subtitle="A one-off charge to a tenant -- separate from rent."
+      />
       <ManualInvoiceForm
         orgId={activeOrg.orgId}
         properties={propertiesResult.data ?? []}

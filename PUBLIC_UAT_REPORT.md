@@ -14,11 +14,11 @@ internet. No localhost, no Docker, no local Supabase. The browser is the source 
 The mandate supplied a placeholder (`<INSERT ACTUAL PROPLYST PUBLIC APP URL>`) and offered
 `https://app.proplyst.co.za` as an example. That example is wrong.
 
-| Candidate | Result |
-| --- | --- |
-| `https://proplyst.co.za` | **200 — this is the live application** |
-| `https://www.proplyst.co.za` | 301 (redirect) |
-| `https://app.proplyst.co.za` | Does not resolve (DNS failure) |
+| Candidate                    | Result                                 |
+| ---------------------------- | -------------------------------------- |
+| `https://proplyst.co.za`     | **200 — this is the live application** |
+| `https://www.proplyst.co.za` | 301 (redirect)                         |
+| `https://app.proplyst.co.za` | Does not resolve (DNS failure)         |
 
 All testing below used `https://proplyst.co.za`.
 
@@ -45,12 +45,12 @@ Creating the UAT organisation "through the normal public application flow" is bl
 independent server-side gates in `supabase/migrations/20260101000117_commercial_setup_rls_enforcement.sql`:
 
 1. `create_organization()` raises `owner_subscription_required: an active Proplyst owner
-   subscription is required to create your own portfolio.` unless `may_create_portfolio()` passes.
+subscription is required to create your own portfolio.` unless `may_create_portfolio()` passes.
 2. Every organisation it does create is inserted with `commercial_setup_required = true`, and
    `create_property()` refuses while `commercial_setup_completed_at is null`.
 
-The public landing page states the commercial terms plainly: *"30-day free trial. Payment method
-required. No charge today."* So reaching section 5 (create a property) requires completing payment-method
+The public landing page states the commercial terms plainly: _"30-day free trial. Payment method
+required. No charge today."_ So reaching section 5 (create a property) requires completing payment-method
 setup against the **production** gateway.
 
 ### B3 — Payment mode on production is unknown, and transacting was not authorised
@@ -65,7 +65,7 @@ setup was not attempted.
 `https://proplyst.co.za` is backed by the production Supabase project (confirmed by the OAuth
 redirect chain in §5). Registering "Proplyst UAT Portfolio" through the public flow necessarily
 writes production auth and organisation rows. Every prior instruction in this engagement states
-*"Do NOT modify production Supabase data."* Not attempted without explicit resolution of that conflict.
+_"Do NOT modify production Supabase data."_ Not attempted without explicit resolution of that conflict.
 
 **Consequence:** sections 4–19, 20 (authenticated navigation matrix), 22 (refresh-after-save),
 23 (staff persona), 24 (tenant persona), and the authenticated half of 25 (cross-org security) are
@@ -86,10 +86,10 @@ subresource requests**.
 
 ### 3.2 Unauthenticated access control (16/16) — no data exposure
 
-| Route | Result |
-| --- | --- |
-| `/dashboard`, `/properties`, `/tenants`, `/leases`, `/maintenance`, `/documents`, `/reports`, `/settings`, `/budget`, `/notifications` | Redirected to `/login` |
-| `/overview`, `/payments`, `/expenses`, `/utilities`, `/admin`, `/organizations` | HTTP 404 (not routable at these paths) |
+| Route                                                                                                                                  | Result                                 |
+| -------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| `/dashboard`, `/properties`, `/tenants`, `/leases`, `/maintenance`, `/documents`, `/reports`, `/settings`, `/budget`, `/notifications` | Redirected to `/login`                 |
+| `/overview`, `/payments`, `/expenses`, `/utilities`, `/admin`, `/organizations`                                                        | HTTP 404 (not routable at these paths) |
 
 No route served portfolio data to an anonymous visitor.
 
@@ -97,10 +97,10 @@ No route served portfolio data to an anonymous visitor.
 
 Tested by direct HTTP request, not UI navigation, per the mandate.
 
-| Endpoint | Status |
-| --- | --- |
-| `/api/v1/properties`, `/api/v1/tenants`, `/api/v1/leases`, `/api/v1/organizations`, `/api/v1/documents`, `/api/v1/expenses`, `/api/v1/notifications` | **401** |
-| `/api/v1/maintenance`, `/api/v1/reports/portfolio`, `/api/v1/payments` | 404 (no route at that path) |
+| Endpoint                                                                                                                                             | Status                      |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| `/api/v1/properties`, `/api/v1/tenants`, `/api/v1/leases`, `/api/v1/organizations`, `/api/v1/documents`, `/api/v1/expenses`, `/api/v1/notifications` | **401**                     |
+| `/api/v1/maintenance`, `/api/v1/reports/portfolio`, `/api/v1/payments`                                                                               | 404 (no route at that path) |
 
 Every response body was additionally scanned for record-shaped fields (`id`, `org_id`, `tenant_id`,
 `nickname`, `address_line1`, `amount`). **No unauthenticated endpoint returned any record data.**
@@ -139,10 +139,10 @@ to the deployed environment.
 The app uses Tailwind `darkMode: 'class'` via `next-themes`, so emulating `prefers-color-scheme`
 tests the wrong mechanism. The real persisted-theme switch was exercised instead:
 
-| Theme | `.dark` class | Background | Text |
-| --- | --- | --- | --- |
-| Light | absent | `rgb(249,250,251)` | `rgb(17,24,38)` |
-| Dark | present | `rgb(11,15,22)` | `rgb(241,244,247)` |
+| Theme | `.dark` class | Background         | Text               |
+| ----- | ------------- | ------------------ | ------------------ |
+| Light | absent        | `rgb(249,250,251)` | `rgb(17,24,38)`    |
+| Dark  | present       | `rgb(11,15,22)`    | `rgb(241,244,247)` |
 
 The two themes render distinctly and both are legible. A first-time visitor whose OS prefers dark is
 served **light** — correct, matching the recorded `defaultTheme="light"` decision in `app/layout.tsx`.
@@ -314,10 +314,10 @@ authenticated owner journey, cross-account security testing, and a full navigati
 
 ### 11.1 Provisioning (§1–§3)
 
-| Item | Value |
-| --- | --- |
-| Organisation | **Proplyst UAT Portfolio** |
-| Org id | `6b4d43a8-2bac-4ac9-ab9e-883c0303d3a7` |
+| Item                   | Value                                                     |
+| ---------------------- | --------------------------------------------------------- |
+| Organisation           | **Proplyst UAT Portfolio**                                |
+| Org id                 | `6b4d43a8-2bac-4ac9-ab9e-883c0303d3a7`                    |
 | Owner / staff / tenant | three synthetic identities on the reserved `.invalid` TLD |
 
 Path taken, deliberately the narrowest existing mechanism and **no SQL bypass**:
@@ -361,12 +361,12 @@ already ships the routes and UI that query the tables those migrations create.
 Confirmed empirically — these six tables are **absent from the production API** (PostgREST
 `PGRST205`, verified as the signed-in UAT owner):
 
-| Missing table | Migration | Feature it breaks |
-| --- | --- | --- |
-| `recurring_property_costs` | 163 | **Rates & taxes, levies** |
-| `utility_responsibility_settings` | 163 | **Water / electricity responsibility** |
-| `utility_meters`, `utility_readings` | 163 | **Meters — conventional and prepaid** |
-| `property_budgets`, `budget_category_lines` | 164 | **Budgets** |
+| Missing table                               | Migration | Feature it breaks                      |
+| ------------------------------------------- | --------- | -------------------------------------- |
+| `recurring_property_costs`                  | 163       | **Rates & taxes, levies**              |
+| `utility_responsibility_settings`           | 163       | **Water / electricity responsibility** |
+| `utility_meters`, `utility_readings`        | 163       | **Meters — conventional and prepaid**  |
+| `property_budgets`, `budget_category_lines` | 164       | **Budgets**                            |
 
 Directly observed consequences on the public site:
 
@@ -392,14 +392,14 @@ in full), §9 (utilities), and the cross-surface half of §8.
 
 All created through the deployed UI as a customer would, each with save → refresh → re-read:
 
-| Built | Result |
-| --- | --- |
-| 3 properties (apartment block, house, commercial) | created, persisted after full reload |
-| 7 units | created, persisted (4 Seaside, 1 Hillcrest, 2 Offices) |
-| 3 tenants | created "manage internally only" — **no invitation email sent** |
-| 3 leases | recorded, then **activated**: Active 3 / Draft 0 |
-| Occupancy | **Vacant 4 / Occupied 3** — correctly lease-derived, not a manual flag |
-| Rent schedules | **6 generated automatically** on activation |
+| Built                                             | Result                                                                 |
+| ------------------------------------------------- | ---------------------------------------------------------------------- |
+| 3 properties (apartment block, house, commercial) | created, persisted after full reload                                   |
+| 7 units                                           | created, persisted (4 Seaside, 1 Hillcrest, 2 Offices)                 |
+| 3 tenants                                         | created "manage internally only" — **no invitation email sent**        |
+| 3 leases                                          | recorded, then **activated**: Active 3 / Draft 0                       |
+| Occupancy                                         | **Vacant 4 / Occupied 3** — correctly lease-derived, not a manual flag |
+| Rent schedules                                    | **6 generated automatically** on activation                            |
 
 **Financial reconciliation (§8), independently checked:** R15 000 + R8 500 + R8 500 = **R32 000**
 per month; Rent Due shows exactly those six schedules across September and October 2026 at that
@@ -425,14 +425,14 @@ property manager may versus may not do inside their own org" remains untested.
 
 ### 11.6 Defects found this pass
 
-| # | Severity | Defect |
-| --- | --- | --- |
-| D3 | **Blocker** | Migration drift 163–169 — rates/levies/utilities/meters/budgets broken in production (§11.3) |
-| D4 | **High** | `recurring-costs` and `utility-settings` return HTTP 500 on the live site |
-| D5 | Medium | After sign-in the app lands on `/`, which renders a **blank page** for an authenticated user; the real gate chain only starts when navigating to `/dashboard` |
-| D6 | Low | `/leases/new` returns HTTP 200 with a "Something went wrong" boundary instead of 404 (no such route; real paths are `/properties/{id}/units/{unitId}/leases/new` and `/tenants/{id}/leases/new`) |
-| D7 | Low | Property breadcrumb renders the raw UUID (`792ed2e3 63f5 4e82 B1fc Efd465cf8e9a`) instead of the property name |
-| D8 | Low | `/organization/billing` throws minified React error #418 (hydration/text mismatch) |
+| #   | Severity    | Defect                                                                                                                                                                                           |
+| --- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| D3  | **Blocker** | Migration drift 163–169 — rates/levies/utilities/meters/budgets broken in production (§11.3)                                                                                                     |
+| D4  | **High**    | `recurring-costs` and `utility-settings` return HTTP 500 on the live site                                                                                                                        |
+| D5  | Medium      | After sign-in the app lands on `/`, which renders a **blank page** for an authenticated user; the real gate chain only starts when navigating to `/dashboard`                                    |
+| D6  | Low         | `/leases/new` returns HTTP 200 with a "Something went wrong" boundary instead of 404 (no such route; real paths are `/properties/{id}/units/{unitId}/leases/new` and `/tenants/{id}/leases/new`) |
+| D7  | Low         | Property breadcrumb renders the raw UUID (`792ed2e3 63f5 4e82 B1fc Efd465cf8e9a`) instead of the property name                                                                                   |
+| D8  | Low         | `/organization/billing` throws minified React error #418 (hydration/text mismatch)                                                                                                               |
 
 Per §15/§18 none of these were deployed. D3/D4 need a migration deployment, not a code fix.
 
@@ -478,14 +478,14 @@ been proven properly, by direct read-only SQL through the Supabase CLI (`supabas
 
 Hypotheses tested and eliminated:
 
-| Hypothesis | Verdict | Evidence |
-| --- | --- | --- |
-| Stale PostgREST schema cache | **Eliminated** | The relations do not exist at all |
-| Schema qualification / wrong search_path | **Eliminated** | `information_schema.tables` returns no match in **any** schema |
-| Grants / RLS hiding the table | **Eliminated** | A missing relation cannot be a grant problem |
-| Table renamed by a later migration | **Eliminated** | No `RENAME` in 164–169; the sole "rename" hit is a comment |
-| API querying obsolete relation names | **Eliminated** | Route queries `recurring_property_costs`; migration 163 creates exactly that name |
-| Migrations never applied | **CONFIRMED** | See below |
+| Hypothesis                               | Verdict        | Evidence                                                                          |
+| ---------------------------------------- | -------------- | --------------------------------------------------------------------------------- |
+| Stale PostgREST schema cache             | **Eliminated** | The relations do not exist at all                                                 |
+| Schema qualification / wrong search_path | **Eliminated** | `information_schema.tables` returns no match in **any** schema                    |
+| Grants / RLS hiding the table            | **Eliminated** | A missing relation cannot be a grant problem                                      |
+| Table renamed by a later migration       | **Eliminated** | No `RENAME` in 164–169; the sole "rename" hit is a comment                        |
+| API querying obsolete relation names     | **Eliminated** | Route queries `recurring_property_costs`; migration 163 creates exactly that name |
+| Migrations never applied                 | **CONFIRMED**  | See below                                                                         |
 
 Proven facts:
 
@@ -504,21 +504,21 @@ relation that genuinely does not exist. **This is deployment-process drift, not 
 
 ### 12.2 PRODUCTION SCHEMA DRIFT — exact extent
 
-| Migration | Objects never created | Feature broken in production |
-| --- | --- | --- |
-| 163 | `recurring_property_costs`, `utility_responsibility_settings`, `utility_meters`, `utility_readings` | Rates & taxes, levies, utility responsibility, meters (conventional + prepaid) |
-| 164 | `property_budgets`, `budget_category_lines` | **All budgets**, property and portfolio |
-| 165 | `payment_reports` allocation columns | Payment-report ledger allocation |
-| 166 | `owner_financial_summary()` | Owner financial summary |
-| 167 | `owner_portfolio_financial_summary()` | Portfolio financial summary |
-| 168 | `expenses.category_code` + enum | **Expense creation** — every attempt 500s |
+| Migration | Objects never created                                                                               | Feature broken in production                                                   |
+| --------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| 163       | `recurring_property_costs`, `utility_responsibility_settings`, `utility_meters`, `utility_readings` | Rates & taxes, levies, utility responsibility, meters (conventional + prepaid) |
+| 164       | `property_budgets`, `budget_category_lines`                                                         | **All budgets**, property and portfolio                                        |
+| 165       | `payment_reports` allocation columns                                                                | Payment-report ledger allocation                                               |
+| 166       | `owner_financial_summary()`                                                                         | Owner financial summary                                                        |
+| 167       | `owner_portfolio_financial_summary()`                                                               | Portfolio financial summary                                                    |
+| 168       | `expenses.category_code` + enum                                                                     | **Expense creation** — every attempt 500s                                      |
 
 169 is local-only (not in `origin/main`) and is a separate, unrelated fix.
 
 ### 12.3 LOCAL REMEDIATION PREPARED
 
 There is **nothing to author**: migrations 163–168 already exist, are already in the deployed branch,
-and are already correct. The remediation is a *deployment* action, which is out of scope here.
+and are already correct. The remediation is a _deployment_ action, which is out of scope here.
 
 Documented procedure for whoever runs it:
 
@@ -547,18 +547,18 @@ succeeded in the prior pass, marketing component suite 7/7. The UAT harness itse
 
 Built entirely through the deployed UI, save → refresh → re-read:
 
-| Area | Result |
-| --- | --- |
-| Units | 7 across 3 properties (target 6–8 met); all fields accepted and persisted |
-| Tenants | 4 — three **internal-only** (model A) + one **portal** tenant (model B) |
-| Leases | 4 recorded and **activated**; occupancy lease-derived |
-| Rent schedules | 8 generated automatically |
-| Invoicing | INV-000003 issued (R15 000); rent-due moved PENDING 6 → 5, PAID 1 |
-| Payment | R15 000 cash recorded → Paid R15 000, Balance R0, persisted |
-| **Duplicate payment** | **Prevented.** Control withdrawn once settled; direct API replay refused (403 CSRF); invoice paid total stayed **15000, never 30000** |
-| Staff RBAC | Staff added as **Manager**, `status=active`; 8 allowed surfaces open; principal-only pages show a proper "Access restricted" state with zero controls and zero roster data; restricted mutation APIs return **403** |
-| Cross-org | Second org **Proplyst UAT Isolation Portfolio** (`c1e77129-2fa5-4e19-97b0-3bdc6f97b606`) provisioned by the same approved path; **14/14** bidirectional isolation checks passed |
-| Notifications / Activity / Reports / Settings / Announcements | All render; Activity shows this session's writes |
+| Area                                                          | Result                                                                                                                                                                                                              |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Units                                                         | 7 across 3 properties (target 6–8 met); all fields accepted and persisted                                                                                                                                           |
+| Tenants                                                       | 4 — three **internal-only** (model A) + one **portal** tenant (model B)                                                                                                                                             |
+| Leases                                                        | 4 recorded and **activated**; occupancy lease-derived                                                                                                                                                               |
+| Rent schedules                                                | 8 generated automatically                                                                                                                                                                                           |
+| Invoicing                                                     | INV-000003 issued (R15 000); rent-due moved PENDING 6 → 5, PAID 1                                                                                                                                                   |
+| Payment                                                       | R15 000 cash recorded → Paid R15 000, Balance R0, persisted                                                                                                                                                         |
+| **Duplicate payment**                                         | **Prevented.** Control withdrawn once settled; direct API replay refused (403 CSRF); invoice paid total stayed **15000, never 30000**                                                                               |
+| Staff RBAC                                                    | Staff added as **Manager**, `status=active`; 8 allowed surfaces open; principal-only pages show a proper "Access restricted" state with zero controls and zero roster data; restricted mutation APIs return **403** |
+| Cross-org                                                     | Second org **Proplyst UAT Isolation Portfolio** (`c1e77129-2fa5-4e19-97b0-3bdc6f97b606`) provisioned by the same approved path; **14/14** bidirectional isolation checks passed                                     |
+| Notifications / Activity / Reports / Settings / Announcements | All render; Activity shows this session's writes                                                                                                                                                                    |
 
 **Dashboard reconciliation (§10)** — figures cross-check:
 Expected rent **R32 000**, Rent collected **R15 000**, Outstanding **R0**, Expenses **R0**,
@@ -624,15 +624,15 @@ disclosed rather than omitted. No real customer was emailed.
   recorded, and has not recurred. **No local fix prepared**, because fixing an unreproducible
   behaviour would be guesswork.
 - **Raw UUID in breadcrumb** — **confirmed and broader than first recorded**: it appears on the
-  property detail page *and* the invoice detail page (`b9 4ce3 85b9 2e8e7c7c9e98`). P2.
+  property detail page _and_ the invoice detail page (`b9 4ce3 85b9 2e8e7c7c9e98`). P2.
 - **Light-mode logo** and **marketing mockup domain** — local fixes retained, not deployed, per §17.
 
 ### 12.9 UAT data now in production
 
-| Organisation | Contents |
-| --- | --- |
-| Proplyst UAT Portfolio `6b4d43a8…` | 4 properties, 7 units, 4 tenants, 4 leases, 8 rent schedules, 1 invoice, 1 payment |
-| Proplyst UAT Isolation Portfolio `c1e77129…` | empty (isolation control only) |
+| Organisation                                 | Contents                                                                           |
+| -------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Proplyst UAT Portfolio `6b4d43a8…`           | 4 properties, 7 units, 4 tenants, 4 leases, 8 rent schedules, 1 invoice, 1 payment |
+| Proplyst UAT Isolation Portfolio `c1e77129…` | empty (isolation control only)                                                     |
 
 Organisation count 10 → 12. No real organisation, subscription or customer record was read for
 anything but identification, or modified. `payment_methods` = 0 and `billing_events` = 0 on both UAT
@@ -646,13 +646,13 @@ deliberately held out. The drift documented in §12 is now closed.
 
 ### 13.1 Alignment (§1)
 
-| | |
-| --- | --- |
-| BRANCH | `main` |
-| LOCAL HEAD | `0a380429360860571ae3c5c2ec93af712ec2abed` |
-| ORIGIN/MAIN | `e52d695d7533f074d2dd95303135888c3508c4de` (27 commits behind local, unchanged) |
-| DEPLOYED COMMIT | Not determinable — Render exposes only `x-render-origin-server`, no commit header |
-| PRODUCTION MIGRATION HEAD (before) | `20260101000162` |
+|                                    |                                                                                   |
+| ---------------------------------- | --------------------------------------------------------------------------------- |
+| BRANCH                             | `main`                                                                            |
+| LOCAL HEAD                         | `0a380429360860571ae3c5c2ec93af712ec2abed`                                        |
+| ORIGIN/MAIN                        | `e52d695d7533f074d2dd95303135888c3508c4de` (27 commits behind local, unchanged)   |
+| DEPLOYED COMMIT                    | Not determinable — Render exposes only `x-render-origin-server`, no commit header |
+| PRODUCTION MIGRATION HEAD (before) | `20260101000162`                                                                  |
 
 163–168 all **present** in `origin/main` and **byte-identical** to the local files (`git diff` clean
 against `origin/main` for each). 169 is **absent** from `origin/main`, confirming the deployed
@@ -660,12 +660,12 @@ application does not require it — so it was correctly excluded.
 
 ### 13.2 Backup (§2)
 
-| | |
-| --- | --- |
-| BACKUP METHOD | `supabase db dump --linked` (schema), `--data-only` (data), `--schema public,auth,storage` (broader schema) |
-| BACKUP START | 2026-09-07T19:29:10Z |
-| BACKUP COMPLETE | 2026-09-07T19:43:30Z |
-| RESTORE POINT | `prod-backup-20260907/` — `schema.sql` 771 469 B, `data.sql` 545 004 B, `schema-full.sql` 854 337 B, SHA-256 in `CHECKSUMS.txt` (session scratchpad, never committed) |
+|                 |                                                                                                                                                                       |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| BACKUP METHOD   | `supabase db dump --linked` (schema), `--data-only` (data), `--schema public,auth,storage` (broader schema)                                                           |
+| BACKUP START    | 2026-09-07T19:29:10Z                                                                                                                                                  |
+| BACKUP COMPLETE | 2026-09-07T19:43:30Z                                                                                                                                                  |
+| RESTORE POINT   | `prod-backup-20260907/` — `schema.sql` 771 469 B, `data.sql` 545 004 B, `schema-full.sql` 854 337 B, SHA-256 in `CHECKSUMS.txt` (session scratchpad, never committed) |
 
 **Verified by actual restore, not by inspection**: the dump was restored into a live scratch database
 and produced row counts identical to production — orgs 12, properties 17, units 12, tenants 13,
@@ -673,13 +673,13 @@ leases 5, invoices 3. That is what makes this a genuine restore point.
 
 ### 13.3 Legacy expense data (§3) — the critical pre-168 gate
 
-| | |
-| --- | --- |
-| TOTAL EXPENSE ROWS | **0** |
-| CATEGORY DISTRIBUTION | none — table empty |
-| ROWS 168 CAN MAP CLEANLY | 0 of 0 |
-| ROWS THAT CANNOT BE MAPPED | **0** |
-| NULL / EMPTY / UNKNOWN | 0 (and structurally impossible — see below) |
+|                            |                                             |
+| -------------------------- | ------------------------------------------- |
+| TOTAL EXPENSE ROWS         | **0**                                       |
+| CATEGORY DISTRIBUTION      | none — table empty                          |
+| ROWS 168 CAN MAP CLEANLY   | 0 of 0                                      |
+| ROWS THAT CANNOT BE MAPPED | **0**                                       |
+| NULL / EMPTY / UNKNOWN     | 0 (and structurally impossible — see below) |
 
 Three independent reasons the NOT NULL transition could not fail:
 
@@ -693,20 +693,20 @@ So the rehearsal deliberately injected **harder data than production has** (see 
 
 ### 13.4 Migration audit (§4)
 
-| | 163 | 164 | 165 | 166 | 167 | 168 |
-| --- | --- | --- | --- | --- | --- | --- |
-| Tables | 4 | 2 | 0 | 0 | 0 | 0 |
-| Columns added | 0 | 0 | 0 | 0 | 0 | 1 |
-| Functions | 3 | 3 | 1 | 2 | 1 | 4 |
-| SECURITY DEFINER | 3 | 3 | 0 | 4 | 1 | 2 |
-| Triggers | 6 | 2 | 0 | 0 | 0 | 1 |
-| Indexes | 14 | 4 | 0 | 0 | 0 | 0 |
-| RLS enable / policies | 4 / 9 | 2 / 4 | – | – | – | – |
-| `has_org_role` guards | 15 | 8 | 1 | 4 | 2 | 3 |
-| Backfill | no | no | no | no | no | **yes** |
-| NOT NULL transition | no | no | no | no | no | **yes** |
-| DROP TABLE / COLUMN | none | none | none | none | none | none |
-| SAFE TO APPLY | YES | YES | YES | YES | YES | YES |
+|                       | 163   | 164   | 165  | 166  | 167  | 168     |
+| --------------------- | ----- | ----- | ---- | ---- | ---- | ------- |
+| Tables                | 4     | 2     | 0    | 0    | 0    | 0       |
+| Columns added         | 0     | 0     | 0    | 0    | 0    | 1       |
+| Functions             | 3     | 3     | 1    | 2    | 1    | 4       |
+| SECURITY DEFINER      | 3     | 3     | 0    | 4    | 1    | 2       |
+| Triggers              | 6     | 2     | 0    | 0    | 0    | 1       |
+| Indexes               | 14    | 4     | 0    | 0    | 0    | 0       |
+| RLS enable / policies | 4 / 9 | 2 / 4 | –    | –    | –    | –       |
+| `has_org_role` guards | 15    | 8     | 1    | 4    | 2    | 3       |
+| Backfill              | no    | no    | no   | no   | no   | **yes** |
+| NOT NULL transition   | no    | no    | no   | no   | no   | **yes** |
+| DROP TABLE / COLUMN   | none  | none  | none | none | none | none    |
+| SAFE TO APPLY         | YES   | YES   | YES  | YES  | YES  | YES     |
 
 Only drops anywhere are `drop function` in 165/168, required because a table-returning function's
 signature cannot be changed by `CREATE OR REPLACE` — and neither function existed in production.
@@ -720,14 +720,14 @@ injected with deliberately hard labels**, then 163→168 applied in order.
 
 All six applied cleanly. The 168 backfill mapped every case correctly:
 
-| Input label | → code | |
-| --- | --- | --- |
-| `Water` / `electricity` / `Maintenance` / `levies` | water / electricity / maintenance / levies | exact |
-| `Rates & taxes` | rates_taxes | ampersand form |
-| `  WATER  ` | water | case + whitespace |
-| `Power` | electricity | synonym |
-| `management fee` | management | multi-word |
-| `Totally Unknown Label`, `' '` | **other** | honest fallback, not guessed |
+| Input label                                        | → code                                     |                              |
+| -------------------------------------------------- | ------------------------------------------ | ---------------------------- |
+| `Water` / `electricity` / `Maintenance` / `levies` | water / electricity / maintenance / levies | exact                        |
+| `Rates & taxes`                                    | rates_taxes                                | ampersand form               |
+| `  WATER  `                                        | water                                      | case + whitespace            |
+| `Power`                                            | electricity                                | synonym                      |
+| `management fee`                                   | management                                 | multi-word                   |
+| `Totally Unknown Label`, `' '`                     | **other**                                  | honest fallback, not guessed |
 
 0 rows left NULL; NOT NULL transition succeeded. Every baseline row count preserved exactly; IDs
 unique; no duplicates. RLS enabled with policies on all six new tables.
@@ -764,13 +764,13 @@ authenticated UAT owner. No PGRST205, no 500. **No manual schema-cache reload wa
 
 ### 13.8 Public retest (§10–§14)
 
-| Workflow | Before | After |
-| --- | --- | --- |
-| recurring-costs (rates & levies) | HTTP 500 | **200** |
-| utility-settings | HTTP 500 | **200** |
-| utility-meters | 404 | **200** |
-| property budget | unusable | **200** |
-| Expense creation | HTTP 500 | **201 × 5 created** |
+| Workflow                         | Before   | After               |
+| -------------------------------- | -------- | ------------------- |
+| recurring-costs (rates & levies) | HTTP 500 | **200**             |
+| utility-settings                 | HTTP 500 | **200**             |
+| utility-meters                   | 404      | **200**             |
+| property budget                  | unusable | **200**             |
+| Expense creation                 | HTTP 500 | **201 × 5 created** |
 
 **Budget acceptance (§11)** — set through the UI, read back from the server:
 Seaside R25 000, Hillcrest R8 000, Central Offices R40 000 → Budget page shows
@@ -793,22 +793,22 @@ net_operating_position 15 000 − 8 850 = **6 150 ✓**; rent 41 000 − 15 000 
 
 **Security regression (§15): 17/17.** Staff (a member, Manager) correctly sees the new finance data;
 tenant and Org B see none of it on any new endpoint; RPC id-substitution refused with
-*"Caller does not have access to this organization's financial summary"*.
+_"Caller does not have access to this organization's financial summary"_.
 
 **Document upload (§16): STILL BLOCKED BY FILE-SCANNING CONFIGURATION** — HTTP 503
 `upload_temporarily_unavailable`, unchanged. Not a database issue; scanning was **not** weakened.
 
 ### 13.9 Defects still open after the repair
 
-| # | Sev | Defect |
-| --- | --- | --- |
-| D-a | P1 | Document upload 503 — ClamAV unconfigured in production |
-| D-b | P2 | **Dashboard contradicts itself**: the "Expenses" card reads **R0** for September while "Operating position" on the same screen correctly uses R8 850 (15 000 − 8 850 = 6 150). Two financial truths on one page |
-| D-c | P2 | Dashboard "Outstanding rent R0" vs `owner_portfolio_financial_summary.rent_outstanding = 26 000` — the card appears to mean "invoiced but unpaid"; the caption does not say so |
-| D-d | P2 | `/api/v1/properties/{id}/budget` returns **500** to a non-member instead of 403/404 (no data leaked, but an unclean refusal) |
-| D-e | P2 | No UI to capture meter readings — the API works, but the Finances tab offers only "+ Add meter" |
-| D-f | P2 | Raw UUID in breadcrumbs (property and invoice pages) |
-| D-g | P2 | React #418 on `/organization/billing`; "+ Add ticket" on `/maintenance` navigates to `/properties`; `/leases/new` returns 200 + error boundary instead of 404 |
+| #   | Sev | Defect                                                                                                                                                                                                          |
+| --- | --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D-a | P1  | Document upload 503 — ClamAV unconfigured in production                                                                                                                                                         |
+| D-b | P2  | **Dashboard contradicts itself**: the "Expenses" card reads **R0** for September while "Operating position" on the same screen correctly uses R8 850 (15 000 − 8 850 = 6 150). Two financial truths on one page |
+| D-c | P2  | Dashboard "Outstanding rent R0" vs `owner_portfolio_financial_summary.rent_outstanding = 26 000` — the card appears to mean "invoiced but unpaid"; the caption does not say so                                  |
+| D-d | P2  | `/api/v1/properties/{id}/budget` returns **500** to a non-member instead of 403/404 (no data leaked, but an unclean refusal)                                                                                    |
+| D-e | P2  | No UI to capture meter readings — the API works, but the Finances tab offers only "+ Add meter"                                                                                                                 |
+| D-f | P2  | Raw UUID in breadcrumbs (property and invoice pages)                                                                                                                                                            |
+| D-g | P2  | React #418 on `/organization/billing`; "+ Add ticket" on `/maintenance` navigates to `/properties`; `/leases/new` returns 200 + error boundary instead of 404                                                   |
 
 ### 13.10 Safety ledger for this pass
 
@@ -836,7 +836,7 @@ Fixed by aligning the definition at its root: the card now counts every **non-vo
 is exactly what the operating position already reflected. The figure stays period-flexible (YTD and
 custom ranges keep working) and nothing is recomputed client-side. Two captions that misdescribed
 their own numbers were corrected: "Recorded in …" → "Incurred in …", and (§6) "Billed in …" →
-"Expected in …", since R41 000 was *scheduled* while only R15 000 was invoiced.
+"Expected in …", since R41 000 was _scheduled_ while only R15 000 was invoiced.
 
 **Known residual, deliberately not fixed here:** the RPC counts `void` expenses too. Once a void
 expense exists in a period, the RPC and the card will disagree by exactly that amount. The fix
@@ -846,26 +846,26 @@ belongs in the RPC and needs a migration, which is out of scope for this pass.
 
 - **Meter reading / history UI (§10) — already exists and works.** `PropertyUtilityMetersPanel.tsx`
   (431 lines) provides create/list meters, record-a-reading and history with the anomaly flag. Meter
-  rows are *expandable*; my earlier button-text scan missed that. Expanding the water meter on the
+  rows are _expandable_; my earlier button-text scan missed that. Expanding the water meter on the
   live site shows `2026-09-01 395 L (+2938.5%) **Unusual usage**`, `2026-08-01 13 L (+8.3%)`,
   `2026-07-01 12 L`, plus a Period / Reading date / Reading / **Save reading** form. No code written.
 - **Utility warning wording (§11) — already correct.** The UI says **"Unusual usage"**. It never
   claims a leak. Verified: no "leak detected" string anywhere.
 - **Staff not listed after provisioning — my assertion was wrong.** The roster shows
-  *"Team (2) … UAT Manager — Manager · All properties · Active"* by display name, not email.
+  _"Team (2) … UAT Manager — Manager · All properties · Active"_ by display name, not email.
   **Staff RBAC is 15/15.**
 
 ### 14.3 Acceptance results (all against the public site)
 
-| Area | Result |
-| --- | --- |
-| Annual budget (§8) | **PASS** — R96 000 distributed → 8 000/month; manual Sept adjustment → 9 500 with Aug/Oct untouched; portfolio total moved to R74 500 = 40 000 + 9 500 + 25 000, derived from property months |
+| Area                       | Result                                                                                                                                                                                                      |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Annual budget (§8)         | **PASS** — R96 000 distributed → 8 000/month; manual Sept adjustment → 9 500 with Aug/Oct untouched; portfolio total moved to R74 500 = 40 000 + 9 500 + 25 000, derived from property months               |
 | Budget warning states (§9) | **PASS** — Central Offices 112.5% **Over budget** (−R5 000), Hillcrest 90.5% **Approaching budget**, Seaside 35.4% **On track**, over-budget count 1. All derived from real spend, no fabricated alert rows |
-| Expense breakdown (§3) | **PASS** — 3 500 + 1 800 + 950 + 1 400 + 54 800 = **62 450 = total_expenses**; budget 74 500 − 62 450 = 12 050 remaining, 83.8% used, net −47 450 |
-| Staff RBAC (§16) | **PASS 15/15** — 8 allowed surfaces open; principal-only pages refuse with an "Access restricted" panel carrying **0 action controls**; restricted APIs 403 |
-| Cross-org (§17) | **PASS 14/14** — Org B loaded Org A's property URL directly and saw no Org A data; RPC id-substitution refused |
-| Document upload (§12) | **STILL BLOCKED BY FILE-SCANNING CONFIGURATION** — 503, unchanged. Scanning not weakened |
-| Tenant portal (§15) | **BLOCKED BY INVITATION DESTINATION** — see below |
+| Expense breakdown (§3)     | **PASS** — 3 500 + 1 800 + 950 + 1 400 + 54 800 = **62 450 = total_expenses**; budget 74 500 − 62 450 = 12 050 remaining, 83.8% used, net −47 450                                                           |
+| Staff RBAC (§16)           | **PASS 15/15** — 8 allowed surfaces open; principal-only pages refuse with an "Access restricted" panel carrying **0 action controls**; restricted APIs 403                                                 |
+| Cross-org (§17)            | **PASS 14/14** — Org B loaded Org A's property URL directly and saw no Org A data; RPC id-substitution refused                                                                                              |
+| Document upload (§12)      | **STILL BLOCKED BY FILE-SCANNING CONFIGURATION** — 503, unchanged. Scanning not weakened                                                                                                                    |
+| Tenant portal (§15)        | **BLOCKED BY INVITATION DESTINATION** — see below                                                                                                                                                           |
 
 ### 14.4 Tenant portal — why it stays blocked
 
@@ -893,20 +893,20 @@ variable on Render would do nothing; and even once deployed, the override was ig
 `NODE_ENV === 'production'`, which the public site legitimately is.
 
 **Prepared (not deployed):** a two-key gate. In a production build the override arms only when
-`WHATSAPP_UAT_MODE=enabled` is present *in addition to* `WHATSAPP_UAT_OVERRIDE_NUMBER`. One stray
+`WHATSAPP_UAT_MODE=enabled` is present _in addition to_ `WHATSAPP_UAT_OVERRIDE_NUMBER`. One stray
 variable cannot arm it; any other mode value is ignored. All prior safety properties are kept —
 fails closed on a malformed number, never mutates tenant records, records the true destination, and
 logs loudly throughout. Four new tests cover the gate. **No message was sent.**
 
 ### 14.6 Tests
 
-| Suite | Result |
-| --- | --- |
-| pgTAP | **94 files, 1438 assertions, 0 failed** |
-| Vitest | **1077 passed, 3 skipped, 4 failed** of 1084 |
-| TypeScript | clean |
-| ESLint | clean |
-| Production build | succeeds |
+| Suite            | Result                                       |
+| ---------------- | -------------------------------------------- |
+| pgTAP            | **94 files, 1438 assertions, 0 failed**      |
+| Vitest           | **1077 passed, 3 skipped, 4 failed** of 1084 |
+| TypeScript       | clean                                        |
+| ESLint           | clean                                        |
+| Production build | succeeds                                     |
 
 Failure classification, verified rather than assumed:
 
@@ -921,15 +921,15 @@ Failure classification, verified rather than assumed:
 
 ### 14.7 Public vs local classification (§18)
 
-| Item | PUBLIC CURRENT | LOCAL FIX | NEEDS DEPLOYMENT |
-| --- | --- | --- | --- |
-| recurring-costs, utility-settings, meters, budgets, expense create, financial summary RPCs | **PASS** (fixed by the DB repair, live now) | n/a | NO |
-| Dashboard expense card | **FAIL** (still R0) | PASS | **YES** |
-| Dashboard rent caption | FAIL ("Billed in") | PASS | **YES** |
-| Breadcrumbs | FAIL (raw UUID) | PASS | **YES** |
-| Maintenance "+ Add ticket" | FAIL (dead-end) | PASS | **YES** |
-| WhatsApp UAT override | not present | PASS | **YES** |
-| Logo / mockup domain | FAIL | PASS | **YES** |
+| Item                                                                                       | PUBLIC CURRENT                              | LOCAL FIX | NEEDS DEPLOYMENT |
+| ------------------------------------------------------------------------------------------ | ------------------------------------------- | --------- | ---------------- |
+| recurring-costs, utility-settings, meters, budgets, expense create, financial summary RPCs | **PASS** (fixed by the DB repair, live now) | n/a       | NO               |
+| Dashboard expense card                                                                     | **FAIL** (still R0)                         | PASS      | **YES**          |
+| Dashboard rent caption                                                                     | FAIL ("Billed in")                          | PASS      | **YES**          |
+| Breadcrumbs                                                                                | FAIL (raw UUID)                             | PASS      | **YES**          |
+| Maintenance "+ Add ticket"                                                                 | FAIL (dead-end)                             | PASS      | **YES**          |
+| WhatsApp UAT override                                                                      | not present                                 | PASS      | **YES**          |
+| Logo / mockup domain                                                                       | FAIL                                        | PASS      | **YES**          |
 
 ## 15. Seventh pass, 2026-09-08 — V1 completion: pushed, deployed, migrated, retested
 
@@ -938,13 +938,13 @@ First pass in this engagement to actually ship. 39 commits pushed, deployed, pro
 
 ### 15.1 Shipped
 
-| | |
-| --- | --- |
-| Push | `e52d695` → `22cf58b` (39 commits), no force, no divergence |
-| Deploy | Render auto-deploy, live in ~3 minutes, verified by an unauthenticated marker |
-| Production migration head | `20260101000168` → **`20260101000170`** |
-| Migrations applied | 169 (archived-property count), 170 (void-expense exclusion) |
-| PayFast | **UNCHANGED — previously user-verified, out of scope for this pass.** Not opened, not configured, not transacted |
+|                           |                                                                                                                  |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Push                      | `e52d695` → `22cf58b` (39 commits), no force, no divergence                                                      |
+| Deploy                    | Render auto-deploy, live in ~3 minutes, verified by an unauthenticated marker                                    |
+| Production migration head | `20260101000168` → **`20260101000170`**                                                                          |
+| Migrations applied        | 169 (archived-property count), 170 (void-expense exclusion)                                                      |
+| PayFast                   | **UNCHANGED — previously user-verified, out of scope for this pass.** Not opened, not configured, not transacted |
 
 Data intact through both migrations: 12 orgs, 16 properties, 12 units, 13 tenants, 5 leases,
 3 invoices, 7 expenses, 28 auth users. Backup taken and **verified by restoring it** before applying.
@@ -960,7 +960,7 @@ all three functions report `excludes_void=true` **and** `has_guard=true`.
 **A near-miss worth recording.** The first draft of 170 rebuilt `budget_vs_actual` from migration
 164 rather than 166, silently reverting the authorization guard 166 added — a cross-org caller went
 from 403 to **200**. The annual-budget route's own integration test caught it within minutes. New
-pgTAP asserts each figure as a *difference* (add a R50 000 void, nothing may move) and pins the
+pgTAP asserts each figure as a _difference_ (add a R50 000 void, nothing may move) and pins the
 guard.
 
 Note: `void` is not reachable through the product in V1 — no route or UI sets it. Migration 170 is
@@ -981,28 +981,28 @@ verified live.
 
 ### 15.4 Public verification after deployment
 
-| Check | Result |
-| --- | --- |
-| Dashboard Expenses card | **R62 450** (was R0), caption "Incurred in" |
-| Dashboard rent caption | "Expected in" (no longer mislabels planned rent as billed) |
-| Operating position | **−R47 450** = 15 000 collected − 62 450 expenses ✓ |
-| Breadcrumbs | `Portfolio › properties › UAT Seaside Apartments` — no raw UUID |
-| Maintenance flow | "+ Add ticket" → "Choose a property" → card → ticket form (Summary, Description, Where, Priority) |
-| Owner navigation sweep | 29 screens, **0 unexpected 4xx, 0 unexpected 5xx** |
-| Staff RBAC | **15/15** — allowed surfaces open, principal-only pages refuse with 0 action controls, restricted APIs 403 |
-| Cross-org isolation | **14/14** bidirectional, including the new finance tables and RPCs |
-| Budget states | Over budget 112.5%, Approaching 90.5%, On track 35.4%; portfolio total = sum of property budgets |
-| Non-member budget endpoint | **403** (was 500), body does not echo the Postgres exception |
+| Check                      | Result                                                                                                     |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Dashboard Expenses card    | **R62 450** (was R0), caption "Incurred in"                                                                |
+| Dashboard rent caption     | "Expected in" (no longer mislabels planned rent as billed)                                                 |
+| Operating position         | **−R47 450** = 15 000 collected − 62 450 expenses ✓                                                        |
+| Breadcrumbs                | `Portfolio › properties › UAT Seaside Apartments` — no raw UUID                                            |
+| Maintenance flow           | "+ Add ticket" → "Choose a property" → card → ticket form (Summary, Description, Where, Priority)          |
+| Owner navigation sweep     | 29 screens, **0 unexpected 4xx, 0 unexpected 5xx**                                                         |
+| Staff RBAC                 | **15/15** — allowed surfaces open, principal-only pages refuse with 0 action controls, restricted APIs 403 |
+| Cross-org isolation        | **14/14** bidirectional, including the new finance tables and RPCs                                         |
+| Budget states              | Over budget 112.5%, Approaching 90.5%, On track 35.4%; portfolio total = sum of property budgets           |
+| Non-member budget endpoint | **403** (was 500), body does not echo the Postgres exception                                               |
 
 ### 15.5 Test results
 
-| Suite | Result |
-| --- | --- |
-| pgTAP | **95 files, 1446 assertions, 0 failed** |
-| Vitest | **1084 passed, 3 skipped, 1 failed** of 1088 |
-| Android unit tests | **238 tests, 0 failures** (48 suites) |
-| Android debug APK | builds (24.2 MB) |
-| TypeScript / ESLint / web build | clean |
+| Suite                           | Result                                       |
+| ------------------------------- | -------------------------------------------- |
+| pgTAP                           | **95 files, 1446 assertions, 0 failed**      |
+| Vitest                          | **1084 passed, 3 skipped, 1 failed** of 1088 |
+| Android unit tests              | **238 tests, 0 failures** (48 suites)        |
+| Android debug APK               | builds (24.2 MB)                             |
+| TypeScript / ESLint / web build | clean                                        |
 
 The single vitest failure is `daily-jobs` — **PRE-EXISTING/INFRA**, previously proven to fail
 identically with the pre-change `whatsappDispatch.ts`. Running the suite sequentially rather than
@@ -1010,7 +1010,7 @@ alongside pgTAP took failures from 4 to 1, confirming the other three were resou
 
 ### 15.6 Android
 
-No backend contract changed: migration 170 altered function *bodies* only — identical signatures and
+No backend contract changed: migration 170 altered function _bodies_ only — identical signatures and
 identical return columns. Verified concretely rather than assumed: Android's `FinancialSummary`
 reads all 17 fields the RPC returns (`rentPlanned`, `totalExpenses`, `budgetPlanned`,
 `netOperatingPosition`, `propertyCount`, …), every one still present. 238 unit tests pass and the
@@ -1026,13 +1026,13 @@ across five categories, three distinct budget states, two meter types with readi
 
 ### 15.8 Known open items
 
-| Sev | Item |
-| --- | --- |
-| HIGH | Document upload 503 — needs a ClamAV private service and `CLAMAV_HOST`/`CLAMAV_PORT`. **Requires Render dashboard access this session does not have.** Exact service spec documented in ENVIRONMENT.md |
-| HIGH | WhatsApp real delivery — the two-key gate is now deployed, but `WHATSAPP_UAT_MODE` and `WHATSAPP_UAT_OVERRIDE_NUMBER` must be set in the production environment, which needs the same dashboard access. Meta provider presence remains undetermined |
-| MEDIUM | Tenant portal — blocked only by the invitation destination; the token is hashed at rest by design, so a controllable UAT inbox is required |
-| LOW | React #418 hydration warning, intermittent across Tenants / Expenses / Org Billing. Console-only, no 4xx/5xx, no user-visible effect |
-| LOW | Logo remains the rounded dark tile — no light-background or SVG variant exists anywhere in the repo |
+| Sev    | Item                                                                                                                                                                                                                                                |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| HIGH   | Document upload 503 — needs a ClamAV private service and `CLAMAV_HOST`/`CLAMAV_PORT`. **Requires Render dashboard access this session does not have.** Exact service spec documented in ENVIRONMENT.md                                              |
+| HIGH   | WhatsApp real delivery — the two-key gate is now deployed, but `WHATSAPP_UAT_MODE` and `WHATSAPP_UAT_OVERRIDE_NUMBER` must be set in the production environment, which needs the same dashboard access. Meta provider presence remains undetermined |
+| MEDIUM | Tenant portal — blocked only by the invitation destination; the token is hashed at rest by design, so a controllable UAT inbox is required                                                                                                          |
+| LOW    | React #418 hydration warning, intermittent across Tenants / Expenses / Org Billing. Console-only, no 4xx/5xx, no user-visible effect                                                                                                                |
+| LOW    | Logo remains the rounded dark tile — no light-background or SVG variant exists anywhere in the repo                                                                                                                                                 |
 
 ## Appendix — reproducing
 

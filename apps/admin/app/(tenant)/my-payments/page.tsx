@@ -76,11 +76,17 @@ export default async function MyPaymentsPage() {
 
   return (
     <div className="space-y-5 animate-rise">
-      <PageHeader title="My Payments" subtitle="Your invoices, outstanding balance, and payment history." />
+      <PageHeader
+        title="My Payments"
+        subtitle="Your invoices, outstanding balance, and payment history."
+      />
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="max-w-xs">
-          <AdminMetricCard label="Outstanding balance" value={`R${outstanding.toLocaleString('en-ZA')}`} />
+          <AdminMetricCard
+            label="Outstanding balance"
+            value={`R${outstanding.toLocaleString('en-ZA')}`}
+          />
         </div>
         <Link href="/my-payments/report">
           <Button variant="primary">Report a payment</Button>
@@ -156,25 +162,56 @@ export default async function MyPaymentsPage() {
             <table className="w-full text-left text-sm">
               <thead className="border-b border-light-border bg-light-surfaceStrong dark:border-dark-border dark:bg-dark-surfaceStrong">
                 <tr>
-                  <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Invoice #</th>
-                  <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Description</th>
-                  <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Due date</th>
-                  <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Amount</th>
-                  <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Paid</th>
-                  <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Balance</th>
-                  <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Status</th>
-                  <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">PDF</th>
+                  <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                    Invoice #
+                  </th>
+                  <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                    Description
+                  </th>
+                  <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                    Due date
+                  </th>
+                  <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                    Amount
+                  </th>
+                  <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                    Paid
+                  </th>
+                  <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                    Balance
+                  </th>
+                  <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                    Status
+                  </th>
+                  <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                    PDF
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {invoices.map((inv) => (
-                  <tr key={inv.id} className="border-b border-light-border last:border-0 dark:border-dark-border">
-                    <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">{inv.invoiceNumber}</td>
-                    <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">{inv.description}</td>
-                    <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">{inv.period}</td>
-                    <td className="px-4 py-3 tabular text-light-textPrimary dark:text-dark-textPrimary">R{inv.amount.toLocaleString('en-ZA')}</td>
-                    <td className="px-4 py-3 tabular text-light-textPrimary dark:text-dark-textPrimary">R{inv.paid.toLocaleString('en-ZA')}</td>
-                    <td className="px-4 py-3 tabular text-light-textPrimary dark:text-dark-textPrimary">R{inv.balance.toLocaleString('en-ZA')}</td>
+                  <tr
+                    key={inv.id}
+                    className="border-b border-light-border last:border-0 dark:border-dark-border"
+                  >
+                    <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">
+                      {inv.invoiceNumber}
+                    </td>
+                    <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">
+                      {inv.description}
+                    </td>
+                    <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">
+                      {inv.period}
+                    </td>
+                    <td className="px-4 py-3 tabular text-light-textPrimary dark:text-dark-textPrimary">
+                      R{inv.amount.toLocaleString('en-ZA')}
+                    </td>
+                    <td className="px-4 py-3 tabular text-light-textPrimary dark:text-dark-textPrimary">
+                      R{inv.paid.toLocaleString('en-ZA')}
+                    </td>
+                    <td className="px-4 py-3 tabular text-light-textPrimary dark:text-dark-textPrimary">
+                      R{inv.balance.toLocaleString('en-ZA')}
+                    </td>
                     <td className="px-4 py-3">{inv.displayStatus}</td>
                     <td className="px-4 py-3">
                       <a
@@ -205,37 +242,70 @@ export default async function MyPaymentsPage() {
             <table className="w-full text-left text-sm">
               <thead className="border-b border-light-border bg-light-surfaceStrong dark:border-dark-border dark:bg-dark-surfaceStrong">
                 <tr>
-                  <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Date</th>
-                  <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Invoice #</th>
-                  <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Description</th>
-                  <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Amount</th>
-                  <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Method</th>
-                  <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Reference</th>
-                  <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">Status</th>
+                  <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                    Date
+                  </th>
+                  <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                    Invoice #
+                  </th>
+                  <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                    Description
+                  </th>
+                  <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                    Amount
+                  </th>
+                  <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                    Method
+                  </th>
+                  <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                    Reference
+                  </th>
+                  <th className="px-4 py-3 font-medium text-light-textSecondary dark:text-dark-textSecondary">
+                    Status
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {payments.map((p) => (
-                  <tr key={p.id} className="border-b border-light-border last:border-0 dark:border-dark-border">
-                    <td className={`px-4 py-3 ${p.reversedAt ? 'text-light-textMuted line-through dark:text-dark-textMuted' : 'text-light-textPrimary dark:text-dark-textPrimary'}`}>
+                  <tr
+                    key={p.id}
+                    className="border-b border-light-border last:border-0 dark:border-dark-border"
+                  >
+                    <td
+                      className={`px-4 py-3 ${p.reversedAt ? 'text-light-textMuted line-through dark:text-dark-textMuted' : 'text-light-textPrimary dark:text-dark-textPrimary'}`}
+                    >
                       {p.paidAt}
                     </td>
-                    <td className={`px-4 py-3 ${p.reversedAt ? 'text-light-textMuted line-through dark:text-dark-textMuted' : 'text-light-textPrimary dark:text-dark-textPrimary'}`}>
+                    <td
+                      className={`px-4 py-3 ${p.reversedAt ? 'text-light-textMuted line-through dark:text-dark-textMuted' : 'text-light-textPrimary dark:text-dark-textPrimary'}`}
+                    >
                       {p.invoiceNumber}
                     </td>
-                    <td className={`px-4 py-3 ${p.reversedAt ? 'text-light-textMuted line-through dark:text-dark-textMuted' : 'text-light-textPrimary dark:text-dark-textPrimary'}`}>
+                    <td
+                      className={`px-4 py-3 ${p.reversedAt ? 'text-light-textMuted line-through dark:text-dark-textMuted' : 'text-light-textPrimary dark:text-dark-textPrimary'}`}
+                    >
                       {p.description}
                     </td>
-                    <td className={`px-4 py-3 tabular ${p.reversedAt ? 'text-light-textMuted line-through dark:text-dark-textMuted' : 'text-light-textPrimary dark:text-dark-textPrimary'}`}>
+                    <td
+                      className={`px-4 py-3 tabular ${p.reversedAt ? 'text-light-textMuted line-through dark:text-dark-textMuted' : 'text-light-textPrimary dark:text-dark-textPrimary'}`}
+                    >
                       R{p.amount.toLocaleString('en-ZA')}
                     </td>
-                    <td className="px-4 py-3 capitalize text-light-textPrimary dark:text-dark-textPrimary">{p.method ?? '—'}</td>
-                    <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">{p.reference ?? '—'}</td>
+                    <td className="px-4 py-3 capitalize text-light-textPrimary dark:text-dark-textPrimary">
+                      {p.method ?? '—'}
+                    </td>
+                    <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">
+                      {p.reference ?? '—'}
+                    </td>
                     <td className="px-4 py-3">
                       {p.reversedAt ? (
-                        <span className="text-xs text-light-statusOverdue dark:text-dark-statusOverdue">Reversed</span>
+                        <span className="text-xs text-light-statusOverdue dark:text-dark-statusOverdue">
+                          Reversed
+                        </span>
                       ) : (
-                        <span className="text-xs text-light-statusPaid dark:text-dark-statusPaid">Paid</span>
+                        <span className="text-xs text-light-statusPaid dark:text-dark-statusPaid">
+                          Paid
+                        </span>
                       )}
                     </td>
                   </tr>

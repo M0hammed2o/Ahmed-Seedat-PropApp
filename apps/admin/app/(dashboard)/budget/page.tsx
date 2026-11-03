@@ -31,7 +31,10 @@ function currency(amount: number): string {
   }).format(amount);
 }
 
-function statusFor(planned: number | null, percentUsed: number | null): { label: string; tone: PillTone } {
+function statusFor(
+  planned: number | null,
+  percentUsed: number | null,
+): { label: string; tone: PillTone } {
   if (planned === null) return { label: 'Not configured', tone: 'neutral' };
   if (percentUsed === null) return { label: 'On track', tone: 'success' };
   if (percentUsed >= 100) return { label: 'Over budget', tone: 'destructive' };
@@ -69,7 +72,9 @@ const DEMO_ROWS: BudgetRow[] = [
 export default async function BudgetPage({ searchParams }: SearchParams) {
   const { propertyId, month: monthParam } = await searchParams;
   const monthOptions = lastTwelveMonthOptions();
-  const month = monthOptions.some((o) => o.value === monthParam) ? monthParam! : monthOptions[0]!.value;
+  const month = monthOptions.some((o) => o.value === monthParam)
+    ? monthParam!
+    : monthOptions[0]!.value;
   const monthLabel = monthOptions.find((o) => o.value === month)?.label ?? month;
 
   const { rows, propertyOptions } = ADMIN_DEMO_MODE
@@ -152,7 +157,10 @@ export default async function BudgetPage({ searchParams }: SearchParams) {
                   return (
                     <tr key={row.propertyId} className="border-b border-border last:border-0">
                       <td className="px-5 py-3 font-medium text-foreground">
-                        <Link href={`/properties/${row.propertyId}?tab=Finances`} className="hover:underline">
+                        <Link
+                          href={`/properties/${row.propertyId}?tab=Finances`}
+                          className="hover:underline"
+                        >
                           {row.propertyNickname}
                         </Link>
                       </td>
@@ -168,11 +176,19 @@ export default async function BudgetPage({ searchParams }: SearchParams) {
                       <td className="px-5 py-3">
                         {bva?.percentUsed != null ? (
                           <div className="flex items-center gap-2">
-                            <span className="tabular w-12 shrink-0 text-foreground">{bva.percentUsed}%</span>
+                            <span className="tabular w-12 shrink-0 text-foreground">
+                              {bva.percentUsed}%
+                            </span>
                             <div className="w-20">
                               <Meter
                                 value={bva.percentUsed}
-                                tone={bva.percentUsed >= 100 ? 'destructive' : bva.percentUsed >= 80 ? 'warning' : 'success'}
+                                tone={
+                                  bva.percentUsed >= 100
+                                    ? 'destructive'
+                                    : bva.percentUsed >= 80
+                                      ? 'warning'
+                                      : 'success'
+                                }
                               />
                             </div>
                           </div>

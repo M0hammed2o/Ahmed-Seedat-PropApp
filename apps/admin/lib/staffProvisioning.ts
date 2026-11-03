@@ -1,6 +1,10 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { OrganizationMemberRole, PropertyAccessMode, StaffPropertyRole } from '@propvault/types';
+import type {
+  OrganizationMemberRole,
+  PropertyAccessMode,
+  StaffPropertyRole,
+} from '@propvault/types';
 import { branding } from '@propvault/config';
 import { dispatchEmail } from './emailDispatch';
 import { getAppUrl } from './appUrl';

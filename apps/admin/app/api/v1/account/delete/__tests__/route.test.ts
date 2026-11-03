@@ -13,7 +13,10 @@ const mockGetUser = vi.fn();
 const mockSignOut = vi.fn(async () => ({ error: null }));
 type AuthResult = { data: unknown; error: { message: string } | null };
 const mockUpdateUserById = vi.fn(async (): Promise<AuthResult> => ({ data: {}, error: null }));
-const mockRpc = vi.fn(async (): Promise<AuthResult> => ({ data: { identities_removed: 1 }, error: null }));
+const mockRpc = vi.fn(async (): Promise<AuthResult> => ({
+  data: { identities_removed: 1 },
+  error: null,
+}));
 const mockWriteAuditEvent = vi.fn(async () => undefined);
 
 /** Every public.<table> touched through the service-role client, in order. */
@@ -28,7 +31,9 @@ function serviceTable(table: string) {
       return {
         eq(_column: string, value: unknown) {
           record.filterValue = value;
-          return Promise.resolve({ error: table === 'organization_members' ? memberUpdateError : null });
+          return Promise.resolve({
+            error: table === 'organization_members' ? memberUpdateError : null,
+          });
         },
       };
     },
@@ -101,7 +106,10 @@ describe('POST /api/v1/account/delete', () => {
         payload: { status: 'revoked' },
       }),
     );
-    const [, attributes] = mockUpdateUserById.mock.calls[0] as unknown as [string, Record<string, unknown>];
+    const [, attributes] = mockUpdateUserById.mock.calls[0] as unknown as [
+      string,
+      Record<string, unknown>,
+    ];
     expect(attributes.email).toBe(`deleted-${CALLER}@deleted.proplyst.invalid`);
     expect(attributes.ban_duration).toBeTruthy();
     // `.invalid` is reserved by RFC 2606 -- the rewritten address can never route anywhere.
@@ -114,7 +122,10 @@ describe('POST /api/v1/account/delete', () => {
     // leaving them here would only imply a guarantee this call does not provide.
     await POST();
 
-    const [, attributes] = mockUpdateUserById.mock.calls[0] as unknown as [string, Record<string, unknown>];
+    const [, attributes] = mockUpdateUserById.mock.calls[0] as unknown as [
+      string,
+      Record<string, unknown>,
+    ];
     expect(attributes).not.toHaveProperty('user_metadata');
     expect(attributes).not.toHaveProperty('phone');
   });

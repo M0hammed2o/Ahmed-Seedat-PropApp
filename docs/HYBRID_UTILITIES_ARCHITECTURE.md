@@ -5,13 +5,13 @@
 
 ## A. Audit findings that shape the design (verified in code/DB)
 
-| Finding | Consequence |
-| --- | --- |
-| Rent invoices are created **issued** by `invoice_rent_schedule()` (immutable) | "Utilities on the rent invoice" can only append to a **draft** invoice for that lease/month (`update_manual_invoice`); otherwise a separate draft utility invoice |
-| `invoice_line_items` require `unit_price >= 0`, `amount >= 0`; no credit-note concept exists | Corrections before issue: edit/void the draft. After issue: existing `void_invoice()` + regenerate. After payment: a **utility credit** applied to the next period's utility charge (never a negative invoice line) |
-| Invoices have no VAT fields; `issue_manual_invoice()` posts to 4000 Rent Income | Utility charges carry excl/VAT/incl themselves; invoice lines use the VAT-inclusive amount with the VAT shown in the description and on the utility statement. GL split of utility income/VAT recorded as debt (TD-61), not rewritten |
-| `units.size_sqm` exists; no occupant count | Floor-area allocation uses `size_sqm`; occupancy uses per-member occupant counts entered on the allocation group |
-| Main local DB is at head 171 and must be preserved | All migration testing on the throwaway stack (`propvault_su`) |
+| Finding                                                                                      | Consequence                                                                                                                                                                                                                           |
+| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Rent invoices are created **issued** by `invoice_rent_schedule()` (immutable)                | "Utilities on the rent invoice" can only append to a **draft** invoice for that lease/month (`update_manual_invoice`); otherwise a separate draft utility invoice                                                                     |
+| `invoice_line_items` require `unit_price >= 0`, `amount >= 0`; no credit-note concept exists | Corrections before issue: edit/void the draft. After issue: existing `void_invoice()` + regenerate. After payment: a **utility credit** applied to the next period's utility charge (never a negative invoice line)                   |
+| Invoices have no VAT fields; `issue_manual_invoice()` posts to 4000 Rent Income              | Utility charges carry excl/VAT/incl themselves; invoice lines use the VAT-inclusive amount with the VAT shown in the description and on the utility statement. GL split of utility income/VAT recorded as debt (TD-61), not rewritten |
+| `units.size_sqm` exists; no occupant count                                                   | Floor-area allocation uses `size_sqm`; occupancy uses per-member occupant counts entered on the allocation group                                                                                                                      |
+| Main local DB is at head 171 and must be preserved                                           | All migration testing on the throwaway stack (`propvault_su`)                                                                                                                                                                         |
 
 ## B. Supply hierarchy
 
@@ -34,18 +34,20 @@ Per property and period, from cumulative meters grouped by `measurement_kind` (c
 replacement chains respected):
 
 **Electricity**
+
 - Sources into the site = `grid_import + generation + generator_output + battery_discharge`.
 - Not consumption = `grid_export + battery_charge` (energy leaving the site or going into storage).
 - **Site supply (net)** = sources − (grid_export + battery_charge). Solar that charges the battery and is later
   discharged is therefore counted once (at discharge it re-enters; at charge it left). Solar self-consumption =
-  `generation − grid_export − battery_charge` (floored at 0 and labelled *derived* when it would be negative).
+  `generation − grid_export − battery_charge` (floored at 0 and labelled _derived_ when it would be negative).
 - **Measured consumption** = Σ `consumption` meters at the top of the hierarchy (main/check), or Σ unit meters if no
   main consumption meter. **Variance** = site supply − measured consumption (distribution losses/unmetered loads).
 - `pump_energy` and `transfer` are inside the site and never added to supply.
 
 **Water**
+
 - Sources = `source_supply` meters (municipal / borehole / rainwater / tanker by their source type) + tanker
-  deliveries from logs when no meter exists (labelled *logged, not metered*).
+  deliveries from logs when no meter exists (labelled _logged, not metered_).
 - Storage change = Δ tank level (litres) between period boundaries — **indicative only, never billing-grade**.
 - Site use (derived) = sources − Δstorage. `tank_inflow/outflow/transfer` meters are internal movements and are
   never added to supply (prevents borehole → tank → building being counted twice).
@@ -66,7 +68,7 @@ Each figure carries `basis`: `measured` | `derived` | `logged` | `missing`, plus
   consumption in each season (or by days when daily data is missing); block thresholds are prorated by the season's
   day share.
 - Proration: partial segments (move-in/out) prorate fixed charges and block thresholds by `days_in_segment /
-  days_in_period` when `prorate_blocks` is on (municipal practice; configurable).
+days_in_period` when `prorate_blocks` is on (municipal practice; configurable).
 - Versions: tariffs are append-only once referenced by a charge (trigger); a new version closes the previous one.
 - Assignment: unit-specific tariff (unit_id + utility + source type) overrides property tariff.
 - Every charge stores an **immutable calculation snapshot** (inputs, tariff version, lines); amounts cannot change once
@@ -111,16 +113,16 @@ intermediary (Water Services Act s25) — shown, never auto-resolved.
 
 ## G. As built (2026-10-10)
 
-| Area | Code | API |
-| --- | --- | --- |
-| Supply sources, levels, logs | migration 178; `ingest.ts` (bound level sensors) | `GET/POST /properties/:id/utility-sources`, `GET/PATCH/POST /properties/:id/utility-sources/:sourceId` |
-| Tariffs v2 | `tariffEngine.ts`, `tariffAdmin.ts`, `money.ts` | `GET/POST/PATCH /properties/:id/utility-tariffs`, `POST …/utility-tariffs/preview`, `POST …/utility-tariffs/import` |
-| Arrangements, shared meters | `billing.ts` | `GET/POST/PATCH /properties/:id/utility-arrangements`, `GET/POST/PATCH /properties/:id/utility-allocation-groups` |
-| Charges v2 | `billing.ts` | `GET/POST /properties/:id/utility-charges` (generate; approve/void/invoice; adjust; dispute; credit) |
-| Balance & dashboard | `hybridBalance.ts`, `hybridDashboard.ts` | `GET /properties/:id/utility-dashboard?from&to` |
-| Portfolio | `portfolio.ts` | `GET /utilities/portfolio?months` |
-| Statements | `statements.ts` | `GET/POST /properties/:id/utility-statements`, `GET (PDF)/POST /properties/:id/utility-statements/:id`, `GET /tenant-portal/utility-statements` |
-| Alerts | `hybridAlerts.ts` | daily job (`/system/smart-utility-jobs`, `/system/daily-jobs`) |
+| Area                         | Code                                             | API                                                                                                                                             |
+| ---------------------------- | ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Supply sources, levels, logs | migration 178; `ingest.ts` (bound level sensors) | `GET/POST /properties/:id/utility-sources`, `GET/PATCH/POST /properties/:id/utility-sources/:sourceId`                                          |
+| Tariffs v2                   | `tariffEngine.ts`, `tariffAdmin.ts`, `money.ts`  | `GET/POST/PATCH /properties/:id/utility-tariffs`, `POST …/utility-tariffs/preview`, `POST …/utility-tariffs/import`                             |
+| Arrangements, shared meters  | `billing.ts`                                     | `GET/POST/PATCH /properties/:id/utility-arrangements`, `GET/POST/PATCH /properties/:id/utility-allocation-groups`                               |
+| Charges v2                   | `billing.ts`                                     | `GET/POST /properties/:id/utility-charges` (generate; approve/void/invoice; adjust; dispute; credit)                                            |
+| Balance & dashboard          | `hybridBalance.ts`, `hybridDashboard.ts`         | `GET /properties/:id/utility-dashboard?from&to`                                                                                                 |
+| Portfolio                    | `portfolio.ts`                                   | `GET /utilities/portfolio?months`                                                                                                               |
+| Statements                   | `statements.ts`                                  | `GET/POST /properties/:id/utility-statements`, `GET (PDF)/POST /properties/:id/utility-statements/:id`, `GET /tenant-portal/utility-statements` |
+| Alerts                       | `hybridAlerts.ts`                                | daily job (`/system/smart-utility-jobs`, `/system/daily-jobs`)                                                                                  |
 
 Cross-row integrity added to 178: a shared group's meter, a member's group and an arrangement's group must be on the
 same property; a source's sensor integration must belong to the same organisation; rate-based tariff kinds must have

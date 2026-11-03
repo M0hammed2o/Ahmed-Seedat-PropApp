@@ -50,7 +50,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   const month = request.nextUrl.searchParams.get('month');
   if (!month) {
     return NextResponse.json(
-      { error: { code: 'validation_failed', message: 'A ?month=YYYY-MM-01 query parameter is required.' } },
+      {
+        error: {
+          code: 'validation_failed',
+          message: 'A ?month=YYYY-MM-01 query parameter is required.',
+        },
+      },
       { status: 400 },
     );
   }

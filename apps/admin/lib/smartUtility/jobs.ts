@@ -11,11 +11,23 @@ import {
   sastInstant,
   sastParts,
 } from './consumption';
-import { fetchAll, fetchAllIn, loadPoints, replacementChain, SMART_METER_COLUMNS, type SmartMeterRow } from './data';
+import {
+  fetchAll,
+  fetchAllIn,
+  loadPoints,
+  replacementChain,
+  SMART_METER_COLUMNS,
+  type SmartMeterRow,
+} from './data';
 import { runHybridAlerts } from './hybridAlerts';
 import { enabledUtilityOrgs } from './ingest';
 import { reconcile } from './reconciliation';
-import { duePeriod, generateSubmission, sendDueDeliveries, syncDeliveryStatuses } from './submissions';
+import {
+  duePeriod,
+  generateSubmission,
+  sendDueDeliveries,
+  syncDeliveryStatuses,
+} from './submissions';
 import { runPollSync } from './sync';
 import { runDemoMeterSimulation, type DemoSimulationResult } from './demoSimulator';
 
@@ -33,7 +45,8 @@ export interface SmartUtilityJobResult {
   snapshots: { created: number } | { error: string };
   reminders: { sent: number } | { error: string };
   submissions: { generated: number } | { error: string };
-  deliveries: { attempted: number; sent: number; failed: number; exhausted: number } | { error: string };
+  deliveries:
+    { attempted: number; sent: number; failed: number; exhausted: number } | { error: string };
   statusSync: { changed: number } | { error: string };
   retention: { enabled: boolean; deleted: number } | { error: string };
 }
@@ -94,8 +107,12 @@ async function insertAlerts(serviceClient: SupabaseClient, alerts: AlertInsert[]
   return created;
 }
 
-async function loadThresholds(serviceClient: SupabaseClient): Promise<Map<string, AlertThresholds & { discrepancyPct: number }>> {
-  const data = await fetchAll<Record<string, unknown> & { property_id: string }>((f, t) => serviceClient.from('utility_alert_settings').select('*').order('id').range(f, t));
+async function loadThresholds(
+  serviceClient: SupabaseClient,
+): Promise<Map<string, AlertThresholds & { discrepancyPct: number }>> {
+  const data = await fetchAll<Record<string, unknown> & { property_id: string }>((f, t) =>
+    serviceClient.from('utility_alert_settings').select('*').order('id').range(f, t),
+  );
   const map = new Map<string, AlertThresholds & { discrepancyPct: number }>();
   for (const r of data ?? []) {
     map.set(r.property_id, {
@@ -110,15 +127,32 @@ async function loadThresholds(serviceClient: SupabaseClient): Promise<Map<string
   return map;
 }
 
-function thresholdsFor(map: Map<string, AlertThresholds & { discrepancyPct: number }>, propertyId: string) {
+function thresholdsFor(
+  map: Map<string, AlertThresholds & { discrepancyPct: number }>,
+  propertyId: string,
+) {
   return map.get(propertyId) ?? { ...DEFAULT_THRESHOLDS, discrepancyPct: 15 };
 }
 
 export async function runHealthSweep(serviceClient: SupabaseClient, now: Date) {
-  const meters = await fetchAll<{ id: string; org_id: string; property_id: string; unit_id: string | null; utility_type: 'water' | 'electricity'; meter_number: string | null; serial_number: string | null; expected_interval_minutes: number; last_reading_at: string | null; health_status: string; created_at: string }>((f, t) =>
+  const meters = await fetchAll<{
+    id: string;
+    org_id: string;
+    property_id: string;
+    unit_id: string | null;
+    utility_type: 'water' | 'electricity';
+    meter_number: string | null;
+    serial_number: string | null;
+    expected_interval_minutes: number;
+    last_reading_at: string | null;
+    health_status: string;
+    created_at: string;
+  }>((f, t) =>
     serviceClient
       .from('utility_meters')
-      .select('id, org_id, property_id, unit_id, utility_type, meter_number, serial_number, expected_interval_minutes, last_reading_at, health_status, created_at')
+      .select(
+        'id, org_id, property_id, unit_id, utility_type, meter_number, serial_number, expected_interval_minutes, last_reading_at, health_status, created_at',
+      )
       .eq('active', true)
       .neq('connectivity', 'manual')
       .not('expected_interval_minutes', 'is', null)
@@ -132,7 +166,14 @@ export async function runHealthSweep(serviceClient: SupabaseClient, now: Date) {
     const staleAfter = 3 * m.expected_interval_minutes * 60_000;
     const last = new Date(m.last_reading_at ?? m.created_at).getTime();
     const age = now.getTime() - last;
-    const next = age > staleAfter + 86_400_000 ? 'offline' : age > staleAfter ? 'stale' : m.last_reading_at ? 'online' : 'unknown';
+    const next =
+      age > staleAfter + 86_400_000
+        ? 'offline'
+        : age > staleAfter
+          ? 'stale'
+          : m.last_reading_at
+            ? 'online'
+            : 'unknown';
     if (next !== m.health_status) {
       await serviceClient.from('utility_meters').update({ health_status: next }).eq('id', m.id);
     }
@@ -151,7 +192,10 @@ export async function runHealthSweep(serviceClient: SupabaseClient, now: Date) {
         message: `No reading has arrived since ${m.last_reading_at ? sastDateString(new Date(m.last_reading_at)) : 'it was added'}. Check the gateway power and connection, or the device battery.`,
         period_start: m.last_reading_at,
         period_end: now.toISOString(),
-        details: { lastReadingAt: m.last_reading_at, expectedIntervalMinutes: m.expected_interval_minutes },
+        details: {
+          lastReadingAt: m.last_reading_at,
+          expectedIntervalMinutes: m.expected_interval_minutes,
+        },
         estimated_cost: null,
         dedupe_key: `offline:${m.id}:${sastDateString(now)}`,
       });
@@ -168,26 +212,42 @@ export async function runDailyAnomalies(serviceClient: SupabaseClient, now: Date
   const historyStart = new Date(dayStart.getTime() - 14 * 86_400_000);
   const dayKey = sastDateString(dayStart);
 
-  const list = await fetchAll<SmartMeterRow>((f, t) =>
-    serviceClient
-      .from('utility_meters')
-      .select(SMART_METER_COLUMNS)
-      .eq('active', true)
-      .neq('connectivity', 'manual')
-      // Leak / night-flow / spike rules describe consumption; generation, export and battery registers differ.
-      .eq('measurement_kind', 'consumption')
-      .order('id')
-      .range(f, t) as unknown as PromiseLike<{ data: SmartMeterRow[] | null; error: { message: string } | null }>,
+  const list = await fetchAll<SmartMeterRow>(
+    (f, t) =>
+      serviceClient
+        .from('utility_meters')
+        .select(SMART_METER_COLUMNS)
+        .eq('active', true)
+        .neq('connectivity', 'manual')
+        // Leak / night-flow / spike rules describe consumption; generation, export and battery registers differ.
+        .eq('measurement_kind', 'consumption')
+        .order('id')
+        .range(f, t) as unknown as PromiseLike<{
+        data: SmartMeterRow[] | null;
+        error: { message: string } | null;
+      }>,
   );
   if (list.length === 0) return { metersAnalysed: 0, alertsCreated: 0 };
 
   const unitIds = [...new Set(list.map((m) => m.unit_id).filter((u): u is string => !!u))];
-  const units = await fetchAllIn<{ id: string; status: string; unit_label: string }>(unitIds, (c, f, t) =>
-    serviceClient.from('units').select('id, status, unit_label').in('id', c).order('id').range(f, t),
+  const units = await fetchAllIn<{ id: string; status: string; unit_label: string }>(
+    unitIds,
+    (c, f, t) =>
+      serviceClient
+        .from('units')
+        .select('id, status, unit_label')
+        .in('id', c)
+        .order('id')
+        .range(f, t),
   );
   const unitById = new Map((units ?? []).map((u) => [u.id, u]));
   const thresholds = await loadThresholds(serviceClient);
-  const points = await loadPoints(serviceClient, list.map((m) => m.id), historyStart, dayEnd);
+  const points = await loadPoints(
+    serviceClient,
+    list.map((m) => m.id),
+    historyStart,
+    dayEnd,
+  );
 
   const alerts: AlertInsert[] = [];
   for (const m of list) {
@@ -200,7 +260,9 @@ export async function runDailyAnomalies(serviceClient: SupabaseClient, now: Date
         ? bucketConsumption(pts, dayStart, dayEnd, 60, cfg, 3).map((b) => b.consumption)
         : [];
     const unit = m.unit_id ? unitById.get(m.unit_id) : undefined;
-    const label = unit ? `${unit.unit_label} ${m.utility_type} meter` : `${m.meter_role} ${m.utility_type} meter`;
+    const label = unit
+      ? `${unit.unit_label} ${m.utility_type} meter`
+      : `${m.meter_role} ${m.utility_type} meter`;
     const candidates = analyseDay({
       utilityType: m.utility_type,
       meterLabel: label,
@@ -224,7 +286,11 @@ export async function runDailyAnomalies(serviceClient: SupabaseClient, now: Date
         period_start: dayStart.toISOString(),
         period_end: dayEnd.toISOString(),
         details: c.details,
-        estimated_cost: estimateCost(m.utility_type, c.excessConsumption, m.tariff_per_unit === null ? null : Number(m.tariff_per_unit)),
+        estimated_cost: estimateCost(
+          m.utility_type,
+          c.excessConsumption,
+          m.tariff_per_unit === null ? null : Number(m.tariff_per_unit),
+        ),
         dedupe_key: `${c.rule}:${m.id}:${dayKey}`,
       });
     }
@@ -242,11 +308,16 @@ export async function reconcileProperty(
 ) {
   const all =
     meters ??
-    (((await client.from('utility_meters').select(SMART_METER_COLUMNS).eq('property_id', propertyId)).data ?? []) as SmartMeterRow[]);
+    (((
+      await client.from('utility_meters').select(SMART_METER_COLUMNS).eq('property_id', propertyId)
+    ).data ?? []) as SmartMeterRow[]);
   // Main-vs-submeter reconciliation compares consumption registers only; hybrid supply (grid, solar, battery,
   // generator, borehole) is balanced separately in hybridBalance.ts.
-  const isConsumption = (m: SmartMeterRow) => (m.measurement_kind ?? 'consumption') === 'consumption';
-  const mains = all.filter((m) => m.active && isConsumption(m) && (m.meter_role === 'main' || m.meter_role === 'check'));
+  const isConsumption = (m: SmartMeterRow) =>
+    (m.measurement_kind ?? 'consumption') === 'consumption';
+  const mains = all.filter(
+    (m) => m.active && isConsumption(m) && (m.meter_role === 'main' || m.meter_role === 'check'),
+  );
   const points = await loadPoints(
     client,
     all.map((m) => m.id),
@@ -255,12 +326,18 @@ export async function reconcileProperty(
   );
   const chainConsumption = (m: SmartMeterRow) =>
     consumptionForChain(
-      replacementChain(m, all).map((c) => ({ points: points.get(c.id) ?? [], config: { registerDigits: c.register_digits } })),
+      replacementChain(m, all).map((c) => ({
+        points: points.get(c.id) ?? [],
+        config: { registerDigits: c.register_digits },
+      })),
       period.start,
       period.end,
     );
 
-  const { data: units } = await client.from('units').select('id, unit_label').eq('property_id', propertyId);
+  const { data: units } = await client
+    .from('units')
+    .select('id, unit_label')
+    .eq('property_id', propertyId);
   const unitLabel = new Map((units ?? []).map((u) => [u.id, u.unit_label]));
 
   return mains.map((main) => {
@@ -283,7 +360,11 @@ export async function reconcileProperty(
         const c = chainConsumption(s);
         return {
           meterId: s.id,
-          label: (s.unit_id && unitLabel.get(s.unit_id)) || s.meter_number || s.serial_number || 'Submeter',
+          label:
+            (s.unit_id && unitLabel.get(s.unit_id)) ||
+            s.meter_number ||
+            s.serial_number ||
+            'Submeter',
           consumption: c.consumption,
           quality: c.quality,
         };
@@ -299,12 +380,25 @@ export async function runMonthlyReconciliation(serviceClient: SupabaseClient, no
   // is reconciled exactly once.
   const today = sastParts(now);
   const mainMeters = await fetchAll<{ property_id: string }>((f, t) =>
-    serviceClient.from('utility_meters').select('property_id').eq('active', true).in('meter_role', ['main', 'check']).order('id').range(f, t),
+    serviceClient
+      .from('utility_meters')
+      .select('property_id')
+      .eq('active', true)
+      .in('meter_role', ['main', 'check'])
+      .order('id')
+      .range(f, t),
   );
   const propertyIds = [...new Set(mainMeters.map((m) => m.property_id))];
   if (propertyIds.length === 0) return { scopes: 0, alertsCreated: 0 };
-  const settings = await fetchAllIn<{ property_id: string; billing_day: number }>(propertyIds, (c, f, t) =>
-    serviceClient.from('municipal_submission_settings').select('property_id, billing_day').in('property_id', c).order('id').range(f, t),
+  const settings = await fetchAllIn<{ property_id: string; billing_day: number }>(
+    propertyIds,
+    (c, f, t) =>
+      serviceClient
+        .from('municipal_submission_settings')
+        .select('property_id, billing_day')
+        .in('property_id', c)
+        .order('id')
+        .range(f, t),
   );
   const billingDay = new Map((settings ?? []).map((s) => [s.property_id, s.billing_day as number]));
   const thresholds = await loadThresholds(serviceClient);
@@ -355,18 +449,31 @@ export async function runMonthlyReconciliation(serviceClient: SupabaseClient, no
  */
 export async function runMonthlySnapshots(serviceClient: SupabaseClient, now: Date) {
   const today = sastParts(now);
-  const list = await fetchAll<SmartMeterRow>((f, t) =>
-    serviceClient
-      .from('utility_meters')
-      .select(SMART_METER_COLUMNS)
-      .or(`active.eq.true,decommissioned_at.gte.${new Date(now.getTime() - 62 * 86_400_000).toISOString()}`)
-      .order('id')
-      .range(f, t) as unknown as PromiseLike<{ data: SmartMeterRow[] | null; error: { message: string } | null }>,
+  const list = await fetchAll<SmartMeterRow>(
+    (f, t) =>
+      serviceClient
+        .from('utility_meters')
+        .select(SMART_METER_COLUMNS)
+        .or(
+          `active.eq.true,decommissioned_at.gte.${new Date(now.getTime() - 62 * 86_400_000).toISOString()}`,
+        )
+        .order('id')
+        .range(f, t) as unknown as PromiseLike<{
+        data: SmartMeterRow[] | null;
+        error: { message: string } | null;
+      }>,
   );
   if (list.length === 0) return { created: 0 };
   const propertyIds = [...new Set(list.map((m) => m.property_id))];
-  const settings = await fetchAllIn<{ property_id: string; billing_day: number }>(propertyIds, (c, f, t) =>
-    serviceClient.from('municipal_submission_settings').select('property_id, billing_day').in('property_id', c).order('id').range(f, t),
+  const settings = await fetchAllIn<{ property_id: string; billing_day: number }>(
+    propertyIds,
+    (c, f, t) =>
+      serviceClient
+        .from('municipal_submission_settings')
+        .select('property_id, billing_day')
+        .in('property_id', c)
+        .order('id')
+        .range(f, t),
   );
   const billingDay = new Map((settings ?? []).map((s) => [s.property_id, s.billing_day as number]));
   const due = list.filter((m) => today.day === (billingDay.get(m.property_id) ?? 1));
@@ -376,9 +483,16 @@ export async function runMonthlySnapshots(serviceClient: SupabaseClient, now: Da
   for (const m of due) byProperty.set(m.property_id, [...(byProperty.get(m.property_id) ?? []), m]);
   for (const [propertyId, ms] of byProperty) {
     const period = lastCompleteBillingPeriod(now, billingDay.get(propertyId) ?? 1);
-    const points = await loadPoints(serviceClient, ms.map((m) => m.id), new Date(period.start.getTime() - 3 * 86_400_000), new Date(period.end.getTime() + 3 * 86_400_000));
+    const points = await loadPoints(
+      serviceClient,
+      ms.map((m) => m.id),
+      new Date(period.start.getTime() - 3 * 86_400_000),
+      new Date(period.end.getTime() + 3 * 86_400_000),
+    );
     const rows = ms.map((m) => {
-      const c = consumptionForPeriod(points.get(m.id) ?? [], period.start, period.end, { registerDigits: m.register_digits });
+      const c = consumptionForPeriod(points.get(m.id) ?? [], period.start, period.end, {
+        registerDigits: m.register_digits,
+      });
       return {
         org_id: m.org_id,
         property_id: m.property_id,
@@ -426,15 +540,28 @@ export async function runApprovalReminders(serviceClient: SupabaseClient, now: D
       relatedEntityId: sub.id,
       minRole: 'accountant',
     });
-    await serviceClient.from('municipal_submissions').update({ reminder_sent_at: now.toISOString() }).eq('id', sub.id);
+    await serviceClient
+      .from('municipal_submissions')
+      .update({ reminder_sent_at: now.toISOString() })
+      .eq('id', sub.id);
     sent += 1;
   }
   return { sent };
 }
 
 export async function runDueSubmissions(serviceClient: SupabaseClient, now: Date) {
-  const settings = await fetchAll<{ property_id: string; org_id: string; billing_day: number; lead_days: number }>((f, t) =>
-    serviceClient.from('municipal_submission_settings').select('property_id, org_id, billing_day, lead_days').eq('enabled', true).order('id').range(f, t),
+  const settings = await fetchAll<{
+    property_id: string;
+    org_id: string;
+    billing_day: number;
+    lead_days: number;
+  }>((f, t) =>
+    serviceClient
+      .from('municipal_submission_settings')
+      .select('property_id, org_id, billing_day, lead_days')
+      .eq('enabled', true)
+      .order('id')
+      .range(f, t),
   );
   const enabled = await enabledUtilityOrgs(serviceClient);
   let generated = 0;
@@ -442,7 +569,12 @@ export async function runDueSubmissions(serviceClient: SupabaseClient, now: Date
     if (!enabled.has(s.org_id as string)) continue;
     const period = duePeriod(now, s.billing_day, s.lead_days);
     if (!period) continue;
-    const res = await generateSubmission(serviceClient, { propertyId: s.property_id, period, actorUserId: null, now });
+    const res = await generateSubmission(serviceClient, {
+      propertyId: s.property_id,
+      period,
+      actorUserId: null,
+      now,
+    });
     if (res.created) generated += 1;
   }
   return { generated };
@@ -460,13 +592,17 @@ export async function runSmartUtilityJob(
     pollSync: await step(() => runPollSync(serviceClient, { now })),
     health: await step(() => runHealthSweep(serviceClient, now)),
     anomalies: await step(() => runDailyAnomalies(serviceClient, now)),
-    hybridAlerts: await step(() => runHybridAlerts(serviceClient, now, (alerts) => insertAlerts(serviceClient, alerts))),
+    hybridAlerts: await step(() =>
+      runHybridAlerts(serviceClient, now, (alerts) => insertAlerts(serviceClient, alerts)),
+    ),
     reconciliation: await step(() => runMonthlyReconciliation(serviceClient, now)),
     snapshots: await step(() => runMonthlySnapshots(serviceClient, now)),
     reminders: await step(() => runApprovalReminders(serviceClient, now)),
     submissions: await step(() => runDueSubmissions(serviceClient, now)),
     deliveries: await step(() => sendDueDeliveries(serviceClient, { now })),
-    statusSync: await step(async () => ({ changed: await syncDeliveryStatuses(serviceClient, now) })),
+    statusSync: await step(async () => ({
+      changed: await syncDeliveryStatuses(serviceClient, now),
+    })),
     retention: await step(() => runTelemetryRetention(serviceClient, now)),
   };
 }
@@ -482,7 +618,10 @@ export async function runTelemetryRetention(serviceClient: SupabaseClient, now: 
   const keep = Math.max(400, Math.floor(days));
   // One hour of margin: the database checks against ITS clock, which may lag this server's by a little.
   const cutoff = new Date(now.getTime() - keep * 86_400_000 - 3_600_000);
-  const { data, error } = await serviceClient.rpc('downsample_meter_telemetry', { p_cutoff: cutoff.toISOString(), p_limit: 50_000 });
+  const { data, error } = await serviceClient.rpc('downsample_meter_telemetry', {
+    p_cutoff: cutoff.toISOString(),
+    p_limit: 50_000,
+  });
   if (error) throw new Error(`telemetry retention failed: ${error.message}`);
   return { enabled: true, deleted: Number(data ?? 0) };
 }

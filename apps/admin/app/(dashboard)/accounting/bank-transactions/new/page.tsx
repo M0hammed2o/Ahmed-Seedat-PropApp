@@ -76,8 +76,10 @@ export default async function NewBankTransactionPage() {
   if (propertiesResult.error)
     throw new Error(`Failed to load properties: ${propertiesResult.error.message}`);
   if (unitsResult.error) throw new Error(`Failed to load units: ${unitsResult.error.message}`);
-  if (tenantsResult.error) throw new Error(`Failed to load tenants: ${tenantsResult.error.message}`);
-  if (vendorsResult.error) throw new Error(`Failed to load vendors: ${vendorsResult.error.message}`);
+  if (tenantsResult.error)
+    throw new Error(`Failed to load tenants: ${tenantsResult.error.message}`);
+  if (vendorsResult.error)
+    throw new Error(`Failed to load vendors: ${vendorsResult.error.message}`);
 
   return (
     <BankTransactionForm

@@ -74,9 +74,10 @@ export function PropertyOwnersPanel({
   const [newEmail, setNewEmail] = useState('');
   const [newPhone, setNewPhone] = useState('');
   const [newOwnerType, setNewOwnerType] = useState<OwnerType>('individual');
-  const [currentUser, setCurrentUser] = useState<{ email: string | null; name: string | null } | null>(
-    null,
-  );
+  const [currentUser, setCurrentUser] = useState<{
+    email: string | null;
+    name: string | null;
+  } | null>(null);
   const [selfLinkNote, setSelfLinkNote] = useState<string | null>(null);
   const [editingOwnerId, setEditingOwnerId] = useState<string | null>(null);
   const [editPct, setEditPct] = useState('');

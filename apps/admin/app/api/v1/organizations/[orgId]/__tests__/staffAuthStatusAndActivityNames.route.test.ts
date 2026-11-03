@@ -35,9 +35,8 @@ const { GET: getActivity } = await import('../activity/route');
 const { POST: postRole } = await import('../members/[userId]/role/route');
 const { POST: postRevoke } = await import('../members/[userId]/revoke/route');
 const { POST: postMode } = await import('../members/[userId]/mode/route');
-const { POST: postGrantAccess, DELETE: deleteAccess } = await import(
-  '../members/[userId]/property-access/route'
-);
+const { POST: postGrantAccess, DELETE: deleteAccess } =
+  await import('../members/[userId]/property-access/route');
 const { POST: postProvision } = await import('../staff-provisions/route');
 
 const SUPABASE_URL = 'http://127.0.0.1:54321';
@@ -124,8 +123,20 @@ describeIfSupabase(
       createdOrgIds.push(orgId);
 
       await serviceClient.from('organization_members').insert([
-        { org_id: orgId, user_id: principalId, role: 'principal', status: 'active', joined_at: new Date().toISOString() },
-        { org_id: orgId, user_id: managerId, role: 'manager', status: 'active', joined_at: new Date().toISOString() },
+        {
+          org_id: orgId,
+          user_id: principalId,
+          role: 'principal',
+          status: 'active',
+          joined_at: new Date().toISOString(),
+        },
+        {
+          org_id: orgId,
+          user_id: managerId,
+          role: 'manager',
+          status: 'active',
+          joined_at: new Date().toISOString(),
+        },
       ]);
 
       principalToken = await passwordGrantToken(principalEmail, TEST_PASSWORD);
@@ -154,10 +165,15 @@ describeIfSupabase(
 
     describe('Activity actor-name fallback', () => {
       it('an actor WITH a profile display_name shows that name', async () => {
-        await serviceClient.from('profiles').update({ display_name: 'Faatimah Moosa' }).eq('id', principalId);
+        await serviceClient
+          .from('profiles')
+          .update({ display_name: 'Faatimah Moosa' })
+          .eq('id', principalId);
         mockAuthorizationHeader = `Bearer ${principalToken}`;
         const res = await postRole(
-          jsonRequest(`http://localhost/api/v1/organizations/${orgId}/members/${managerId}/role`, { role: 'agent' }),
+          jsonRequest(`http://localhost/api/v1/organizations/${orgId}/members/${managerId}/role`, {
+            role: 'agent',
+          }),
           { params: Promise.resolve({ orgId, userId: managerId }) },
         );
         expect(res.status).toBe(200);
@@ -167,7 +183,9 @@ describeIfSupabase(
           { params: Promise.resolve({ orgId }) },
         );
         const body = await activityRes.json();
-        const row = body.activity.find((a: { action: string }) => a.action === 'staff.role_changed');
+        const row = body.activity.find(
+          (a: { action: string }) => a.action === 'staff.role_changed',
+        );
         expect(row.actorDisplayName).toBe('Faatimah Moosa');
         expect(row.actorDisplayName).not.toBe(principalId);
       });
@@ -177,7 +195,9 @@ describeIfSupabase(
         // freshly-created auth user in this test suite).
         mockAuthorizationHeader = `Bearer ${principalToken}`;
         const res = await postRole(
-          jsonRequest(`http://localhost/api/v1/organizations/${orgId}/members/${managerId}/role`, { role: 'agent' }),
+          jsonRequest(`http://localhost/api/v1/organizations/${orgId}/members/${managerId}/role`, {
+            role: 'agent',
+          }),
           { params: Promise.resolve({ orgId, userId: managerId }) },
         );
         expect(res.status).toBe(200);
@@ -187,7 +207,9 @@ describeIfSupabase(
           { params: Promise.resolve({ orgId }) },
         );
         const body = await activityRes.json();
-        const row = body.activity.find((a: { action: string }) => a.action === 'staff.role_changed');
+        const row = body.activity.find(
+          (a: { action: string }) => a.action === 'staff.role_changed',
+        );
         expect(row.actorDisplayName).toBe(principalEmail);
         expect(row.actorDisplayName).not.toBe(principalId);
         expect(row.actorDisplayName).not.toBe('Unknown user');
@@ -226,7 +248,9 @@ describeIfSupabase(
 
         mockAuthorizationHeader = `Bearer ${principalToken}`;
         const activityRes = await getActivity(
-          getRequest(`http://localhost/api/v1/organizations/${orgId}/activity?actorUserId=${phoneUserId}`),
+          getRequest(
+            `http://localhost/api/v1/organizations/${orgId}/activity?actorUserId=${phoneUserId}`,
+          ),
           { params: Promise.resolve({ orgId }) },
         );
         const body = await activityRes.json();
@@ -256,7 +280,10 @@ describeIfSupabase(
         });
         // Change the CURRENT profile name to something different -- if the fallback logic were
         // wrongly re-resolving instead of trusting the stored snapshot, this would leak through.
-        await serviceClient.from('profiles').update({ display_name: 'A Totally Different Current Name' }).eq('id', principalId);
+        await serviceClient
+          .from('profiles')
+          .update({ display_name: 'A Totally Different Current Name' })
+          .eq('id', principalId);
 
         mockAuthorizationHeader = `Bearer ${principalToken}`;
         const activityRes = await getActivity(
@@ -276,7 +303,10 @@ describeIfSupabase(
       it('Manager: role change -> 403 (not 400/500)', async () => {
         mockAuthorizationHeader = `Bearer ${managerToken}`;
         const res = await postRole(
-          jsonRequest(`http://localhost/api/v1/organizations/${orgId}/members/${principalId}/role`, { role: 'viewer' }),
+          jsonRequest(
+            `http://localhost/api/v1/organizations/${orgId}/members/${principalId}/role`,
+            { role: 'viewer' },
+          ),
           { params: Promise.resolve({ orgId, userId: principalId }) },
         );
         expect(res.status).toBe(403);
@@ -293,7 +323,10 @@ describeIfSupabase(
       it('Manager: property-access mode change -> 403', async () => {
         mockAuthorizationHeader = `Bearer ${managerToken}`;
         const res = await postMode(
-          jsonRequest(`http://localhost/api/v1/organizations/${orgId}/members/${principalId}/mode`, { mode: 'selected' }),
+          jsonRequest(
+            `http://localhost/api/v1/organizations/${orgId}/members/${principalId}/mode`,
+            { mode: 'selected' },
+          ),
           { params: Promise.resolve({ orgId, userId: principalId }) },
         );
         expect(res.status).toBe(403);
@@ -302,15 +335,25 @@ describeIfSupabase(
       it('Manager: grant property access -> 403', async () => {
         const { data: property } = await serviceClient
           .from('properties')
-          .insert({ org_id: orgId, nickname: 'Auth Status Test Property', address_line1: '1 St', city: 'Cape Town', country: 'ZA', property_type: 'house' })
+          .insert({
+            org_id: orgId,
+            nickname: 'Auth Status Test Property',
+            address_line1: '1 St',
+            city: 'Cape Town',
+            country: 'ZA',
+            property_type: 'house',
+          })
           .select('id')
           .single();
         mockAuthorizationHeader = `Bearer ${managerToken}`;
         const res = await postGrantAccess(
-          jsonRequest(`http://localhost/api/v1/organizations/${orgId}/members/${managerId}/property-access`, {
-            propertyId: property!.id,
-            propertyRole: 'read_only',
-          }),
+          jsonRequest(
+            `http://localhost/api/v1/organizations/${orgId}/members/${managerId}/property-access`,
+            {
+              propertyId: property!.id,
+              propertyRole: 'read_only',
+            },
+          ),
           { params: Promise.resolve({ orgId, userId: managerId }) },
         );
         expect(res.status).toBe(403);
@@ -319,7 +362,14 @@ describeIfSupabase(
       it('Manager: revoke property access -> 403', async () => {
         const { data: property } = await serviceClient
           .from('properties')
-          .insert({ org_id: orgId, nickname: 'Auth Status Test Property 2', address_line1: '2 St', city: 'Cape Town', country: 'ZA', property_type: 'house' })
+          .insert({
+            org_id: orgId,
+            nickname: 'Auth Status Test Property 2',
+            address_line1: '2 St',
+            city: 'Cape Town',
+            country: 'ZA',
+            property_type: 'house',
+          })
           .select('id')
           .single();
         mockAuthorizationHeader = `Bearer ${managerToken}`;
@@ -350,27 +400,41 @@ describeIfSupabase(
       it('Principal: the same operations remain allowed', async () => {
         mockAuthorizationHeader = `Bearer ${principalToken}`;
         const roleRes = await postRole(
-          jsonRequest(`http://localhost/api/v1/organizations/${orgId}/members/${managerId}/role`, { role: 'agent' }),
+          jsonRequest(`http://localhost/api/v1/organizations/${orgId}/members/${managerId}/role`, {
+            role: 'agent',
+          }),
           { params: Promise.resolve({ orgId, userId: managerId }) },
         );
         expect(roleRes.status).toBe(200);
 
         const modeRes = await postMode(
-          jsonRequest(`http://localhost/api/v1/organizations/${orgId}/members/${managerId}/mode`, { mode: 'selected' }),
+          jsonRequest(`http://localhost/api/v1/organizations/${orgId}/members/${managerId}/mode`, {
+            mode: 'selected',
+          }),
           { params: Promise.resolve({ orgId, userId: managerId }) },
         );
         expect(modeRes.status).toBe(200);
 
         const { data: property } = await serviceClient
           .from('properties')
-          .insert({ org_id: orgId, nickname: 'Principal Allowed Property', address_line1: '3 St', city: 'Cape Town', country: 'ZA', property_type: 'house' })
+          .insert({
+            org_id: orgId,
+            nickname: 'Principal Allowed Property',
+            address_line1: '3 St',
+            city: 'Cape Town',
+            country: 'ZA',
+            property_type: 'house',
+          })
           .select('id')
           .single();
         const grantRes = await postGrantAccess(
-          jsonRequest(`http://localhost/api/v1/organizations/${orgId}/members/${managerId}/property-access`, {
-            propertyId: property!.id,
-            propertyRole: 'read_only',
-          }),
+          jsonRequest(
+            `http://localhost/api/v1/organizations/${orgId}/members/${managerId}/property-access`,
+            {
+              propertyId: property!.id,
+              propertyRole: 'read_only',
+            },
+          ),
           { params: Promise.resolve({ orgId, userId: managerId }) },
         );
         expect(grantRes.status).toBe(201);

@@ -57,7 +57,12 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
   const row = data as TokenApplicationRow;
   if (!row.valid) {
     return NextResponse.json(
-      { error: { code: row.error_code ?? 'invalid_token', message: 'This link is no longer valid.' } },
+      {
+        error: {
+          code: row.error_code ?? 'invalid_token',
+          message: 'This link is no longer valid.',
+        },
+      },
       { status: 410 },
     );
   }
@@ -65,9 +70,12 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
   // application_document_requirements has no applicant-facing RLS grant at all (staff-only) --
   // the requirement list is fetched via this token-authenticated RPC instead, never a direct
   // table read.
-  const { data: requirementRows } = await supabase.rpc('get_application_document_requirements_by_token', {
-    p_token: token,
-  });
+  const { data: requirementRows } = await supabase.rpc(
+    'get_application_document_requirements_by_token',
+    {
+      p_token: token,
+    },
+  );
   const documentRequirements = (
     (requirementRows ?? []) as {
       requirement_key: string;

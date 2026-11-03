@@ -2,7 +2,17 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { manualMeterReadingSchema } from '@propvault/validation';
 import { getServiceRoleClient } from '@/lib/supabase/server';
 import { writeAuditEvent } from '@/lib/audit';
-import { canWriteUtilities, forbidden, jsonError, notFound, parseJson, requireUser, serverError, utilitiesDisabled, utilitiesEnabledForOrg } from '@/lib/smartUtility/http';
+import {
+  canWriteUtilities,
+  forbidden,
+  jsonError,
+  notFound,
+  parseJson,
+  requireUser,
+  serverError,
+  utilitiesDisabled,
+  utilitiesEnabledForOrg,
+} from '@/lib/smartUtility/http';
 import { loadReadableMeter } from '@/lib/smartUtility/meters';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -18,14 +28,23 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   const to = request.nextUrl.searchParams.get('to');
   let query = auth.supabase
     .from('meter_telemetry_readings')
-    .select('id, read_at, raw_value, value, source, status, status_reason, document_id, notes, ingested_at, verification_status, verified_at, verification_note, recorded_by')
+    .select(
+      'id, read_at, raw_value, value, source, status, status_reason, document_id, notes, ingested_at, verification_status, verified_at, verification_note, recorded_by',
+    )
     .eq('meter_id', id)
     .order('read_at', { ascending: false })
     .limit(500);
-  if (from && !Number.isNaN(Date.parse(from))) query = query.gte('read_at', new Date(from).toISOString());
+  if (from && !Number.isNaN(Date.parse(from)))
+    query = query.gte('read_at', new Date(from).toISOString());
   if (to && !Number.isNaN(Date.parse(to))) query = query.lte('read_at', new Date(to).toISOString());
   const { data, error } = await query;
-  if (error) return serverError('telemetry_list_failed', 'Could not load readings.', 'telemetry.list', error);
+  if (error)
+    return serverError(
+      'telemetry_list_failed',
+      'Could not load readings.',
+      'telemetry.list',
+      error,
+    );
   const factor = meter.utility_type === 'water' ? 1 / 1000 : 1;
   return NextResponse.json({
     displayUnit: meter.utility_type === 'water' ? 'kL' : 'kWh',
@@ -60,7 +79,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   if ('response' in parsed) return parsed.response;
   const meter = await loadReadableMeter(auth.supabase, id);
   if (!meter) return notFound('Meter');
-  if (!(await canWriteUtilities(auth.supabase, meter.org_id, meter.property_id))) return forbidden();
+  if (!(await canWriteUtilities(auth.supabase, meter.org_id, meter.property_id)))
+    return forbidden();
   if (!(await utilitiesEnabledForOrg(meter.org_id))) return utilitiesDisabled();
   if (!meter.active) return jsonError(409, 'meter_inactive', 'This meter has been decommissioned.');
 
@@ -79,7 +99,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       .is('deleted_at', null)
       .maybeSingle();
     if (!doc || doc.property_id !== meter.property_id) {
-      return jsonError(400, 'invalid_document', 'The photo must be uploaded to this property first.');
+      return jsonError(
+        400,
+        'invalid_document',
+        'The photo must be uploaded to this property first.',
+      );
     }
   }
 
@@ -89,7 +113,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   const multiplier = Number(meter.multiplier);
   const offset = Number(meter.value_offset ?? 0);
   if (base < offset) {
-    return jsonError(400, 'below_offset', 'The reading is lower than the meter’s configured starting reading.');
+    return jsonError(
+      400,
+      'below_offset',
+      'The reading is lower than the meter’s configured starting reading.',
+    );
   }
   const raw = Math.round(((base - offset) / multiplier) * 10_000) / 10_000;
 
@@ -114,11 +142,25 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     .select('id')
     .single();
   if (error) {
-    if (error.code === '23505') return jsonError(409, 'duplicate_reading', 'A reading already exists for this meter at that time.');
-    return serverError('manual_reading_failed', 'Could not save the reading.', 'telemetry.manual', error);
+    if (error.code === '23505')
+      return jsonError(
+        409,
+        'duplicate_reading',
+        'A reading already exists for this meter at that time.',
+      );
+    return serverError(
+      'manual_reading_failed',
+      'Could not save the reading.',
+      'telemetry.manual',
+      error,
+    );
   }
 
-  const { data: current } = await service.from('utility_meters').select('last_reading_at').eq('id', meter.id).single();
+  const { data: current } = await service
+    .from('utility_meters')
+    .select('last_reading_at')
+    .eq('id', meter.id)
+    .single();
   if (!current?.last_reading_at || new Date(current.last_reading_at) < readAt) {
     await service
       .from('utility_meters')
@@ -132,7 +174,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     action: 'meter_reading.manual',
     entityType: 'meter_telemetry_readings',
     entityId: data.id,
-    after: { meterId: meter.id, readAt: readAt.toISOString(), reading: parsed.data.reading, hasPhoto: !!parsed.data.documentId },
+    after: {
+      meterId: meter.id,
+      readAt: readAt.toISOString(),
+      reading: parsed.data.reading,
+      hasPhoto: !!parsed.data.documentId,
+    },
   });
   return NextResponse.json({ readingId: data.id }, { status: 201 });
 }

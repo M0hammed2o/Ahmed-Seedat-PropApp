@@ -75,14 +75,18 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     );
   }
   if (!lease) {
-    return NextResponse.json({ error: { code: 'not_found', message: 'Lease not found.' } }, { status: 404 });
+    return NextResponse.json(
+      { error: { code: 'not_found', message: 'Lease not found.' } },
+      { status: 404 },
+    );
   }
 
   // The file is written by the server (clients have no Storage write policy, migration
   // 20260101000171), so the permission the storage.objects INSERT policy used to enforce is checked
   // here, before anything is scanned or stored: agent+ with manager/owner access to the property --
   // the same bar lease_documents_insert_staff already sets for the version row.
-  const propertyId = (lease as unknown as { units: { property_id: string } | null }).units?.property_id;
+  const propertyId = (lease as unknown as { units: { property_id: string } | null }).units
+    ?.property_id;
   const canWrite =
     Boolean(propertyId) &&
     (await requireOrgRole(supabase, lease.org_id, 'agent')) &&
@@ -105,7 +109,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     form = await request.formData();
   } catch {
     return NextResponse.json(
-      { error: { code: 'invalid_form_data', message: 'Request body must be multipart/form-data.' } },
+      {
+        error: { code: 'invalid_form_data', message: 'Request body must be multipart/form-data.' },
+      },
       { status: 400 },
     );
   }
@@ -125,7 +131,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
   if (!(UPLOAD_MIME_TYPES as readonly string[]).includes(file.type)) {
     return NextResponse.json(
-      { error: { code: 'unsupported_mime_type', message: `Unsupported file type: ${file.type}. Use PDF or DOCX.` } },
+      {
+        error: {
+          code: 'unsupported_mime_type',
+          message: `Unsupported file type: ${file.type}. Use PDF or DOCX.`,
+        },
+      },
       { status: 400 },
     );
   }

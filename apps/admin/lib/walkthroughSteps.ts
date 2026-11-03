@@ -112,6 +112,7 @@ const ALL_STEPS: WalkthroughStepDefinition[] = [
 ];
 
 export function getWalkthroughSteps(planTier: PlanTier | null): WalkthroughStep[] {
-  return ALL_STEPS.filter((step) => !step.plans || !planTier || step.plans.includes(planTier))
-    .map(({ plans: _plans, ...step }) => step);
+  return ALL_STEPS.filter((step) => !step.plans || !planTier || step.plans.includes(planTier)).map(
+    ({ plans: _plans, ...step }) => step,
+  );
 }

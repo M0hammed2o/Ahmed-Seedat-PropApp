@@ -73,7 +73,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       {
         error: {
           code: 'recurring_costs_list_failed',
-          message: safeErrorMessage(error, 'Could not load rates/levy history.', 'recurring_property_costs.list'),
+          message: safeErrorMessage(
+            error,
+            'Could not load rates/levy history.',
+            'recurring_property_costs.list',
+          ),
         },
       },
       { status: 500 },

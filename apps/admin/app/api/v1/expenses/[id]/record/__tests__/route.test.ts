@@ -17,10 +17,12 @@ const mockCookieJar = new Map<string, string>();
 
 vi.mock('next/headers', () => ({
   headers: async () => ({
-    get: (name: string) => (name.toLowerCase() === 'authorization' ? mockAuthorizationHeader : null),
+    get: (name: string) =>
+      name.toLowerCase() === 'authorization' ? mockAuthorizationHeader : null,
   }),
   cookies: async () => ({
-    get: (name: string) => (mockCookieJar.has(name) ? { value: mockCookieJar.get(name) } : undefined),
+    get: (name: string) =>
+      mockCookieJar.has(name) ? { value: mockCookieJar.get(name) } : undefined,
     set: (name: string, value: string) => {
       mockCookieJar.set(name, value);
     },
@@ -70,173 +72,211 @@ function recordRequest(id: string, body: unknown) {
   });
 }
 
-describeIfSupabase('POST /api/v1/expenses/:id/record evidence gate (real local Supabase integration)', () => {
-  const serviceClient: SupabaseClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY!, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-
-  let orgId: string;
-  let propertyId: string;
-  let accountantId: string;
-  let receiptCategoryId: string;
-
-  beforeEach(async () => {
-    mockCookieJar.clear();
-    const email = `expense-record-evidence-${Date.now()}@propertyvault.example`;
-    const password = 'TestPassw0rd!23';
-    const created = await adminFetch('/auth/v1/admin/users', { email, password, email_confirm: true });
-    accountantId = created.id;
-
-    const tokenRes = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
-      method: 'POST',
-      headers: { apikey: ANON_KEY!, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
-    const tokenBody = await tokenRes.json();
-    mockAuthorizationHeader = `Bearer ${tokenBody.access_token}`;
-
-    const orgRows = await adminFetch('/rest/v1/organizations', {
-      legal_name: `Expense Evidence Gate Vitest Org ${Date.now()}`,
-      org_type: 'agency',
-    });
-    orgId = orgRows[0].id;
-    await adminFetch('/rest/v1/organization_members', {
-      org_id: orgId,
-      user_id: accountantId,
-      role: 'accountant',
-      status: 'active',
-      joined_at: new Date().toISOString(),
+describeIfSupabase(
+  'POST /api/v1/expenses/:id/record evidence gate (real local Supabase integration)',
+  () => {
+    const serviceClient: SupabaseClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY!, {
+      auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    // record_expense() needs a real chart of accounts -- orgs created via the sanctioned
-    // create_organization() RPC get this automatically (20260101000035), but this REST-created
-    // fixture org does not, so it's seeded directly here (mirrors 20260101000142's own backfill:
-    // just the accounts the 'Other'-category/pending-not-paid-immediately posting path needs).
-    await serviceClient.from('chart_of_accounts').insert([
-      { org_id: orgId, code: '2000', name: 'Accounts Payable', account_type: 'liability', ledger_class: 'business', is_system: true },
-      { org_id: orgId, code: '5900', name: 'Other Expense', account_type: 'expense', ledger_class: 'business', is_system: true },
-    ]);
+    let orgId: string;
+    let propertyId: string;
+    let accountantId: string;
+    let receiptCategoryId: string;
 
-    const { data: property } = await serviceClient
-      .from('properties')
-      .insert({ org_id: orgId, nickname: 'Expense Evidence Property', address_line1: '1 Test St', city: 'Cape Town', country: 'ZA', property_type: 'house' })
-      .select('id')
-      .single();
-    propertyId = property!.id;
+    beforeEach(async () => {
+      mockCookieJar.clear();
+      const email = `expense-record-evidence-${Date.now()}@propertyvault.example`;
+      const password = 'TestPassw0rd!23';
+      const created = await adminFetch('/auth/v1/admin/users', {
+        email,
+        password,
+        email_confirm: true,
+      });
+      accountantId = created.id;
 
-    const { data: category } = await serviceClient
-      .from('document_categories')
-      .select('id')
-      .eq('slug', 'receipt')
-      .single();
-    receiptCategoryId = category!.id;
-  });
+      const tokenRes = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+        method: 'POST',
+        headers: { apikey: ANON_KEY!, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const tokenBody = await tokenRes.json();
+      mockAuthorizationHeader = `Bearer ${tokenBody.access_token}`;
 
-  afterEach(async () => {
-    mockAuthorizationHeader = null;
-    await serviceClient.from('audit_events').delete().eq('org_id', orgId);
-    await serviceClient.from('expenses').delete().eq('org_id', orgId);
-    await serviceClient.from('documents').delete().eq('org_id', orgId);
-    await serviceClient.from('chart_of_accounts').delete().eq('org_id', orgId);
-    await serviceClient.from('properties').delete().eq('id', propertyId);
-    await serviceClient.from('organizations').delete().eq('id', orgId);
-    await serviceClient.auth.admin.deleteUser(accountantId);
-  });
-
-  async function createExpense(documentId: string | null) {
-    const { data } = await serviceClient
-      .from('expenses')
-      .insert({
+      const orgRows = await adminFetch('/rest/v1/organizations', {
+        legal_name: `Expense Evidence Gate Vitest Org ${Date.now()}`,
+        org_type: 'agency',
+      });
+      orgId = orgRows[0].id;
+      await adminFetch('/rest/v1/organization_members', {
         org_id: orgId,
-        property_id: propertyId,
-        category: 'Other',
-        amount: 500,
-        status: 'pending',
-        document_id: documentId,
-      })
-      .select('id')
-      .single();
-    return data!.id as string;
-  }
+        user_id: accountantId,
+        role: 'accountant',
+        status: 'active',
+        joined_at: new Date().toISOString(),
+      });
 
-  async function createDocument() {
-    const { data } = await serviceClient
-      .from('documents')
-      .insert({
-        org_id: orgId,
-        property_id: propertyId,
-        category_id: receiptCategoryId,
-        document_type: 'receipt',
-        storage_path: `${orgId}/${propertyId}/${crypto.randomUUID()}.pdf`,
-        original_file_name: 'evidence.pdf',
-        mime_type: 'application/pdf',
-        file_size_bytes: 1024,
-        checksum_sha256: 'a'.repeat(64),
-      })
-      .select('id')
-      .single();
-    return data!.id as string;
-  }
+      // record_expense() needs a real chart of accounts -- orgs created via the sanctioned
+      // create_organization() RPC get this automatically (20260101000035), but this REST-created
+      // fixture org does not, so it's seeded directly here (mirrors 20260101000142's own backfill:
+      // just the accounts the 'Other'-category/pending-not-paid-immediately posting path needs).
+      await serviceClient.from('chart_of_accounts').insert([
+        {
+          org_id: orgId,
+          code: '2000',
+          name: 'Accounts Payable',
+          account_type: 'liability',
+          ledger_class: 'business',
+          is_system: true,
+        },
+        {
+          org_id: orgId,
+          code: '5900',
+          name: 'Other Expense',
+          account_type: 'expense',
+          ledger_class: 'business',
+          is_system: true,
+        },
+      ]);
 
-  it('rejects posting without evidence and without an exceptionReason', async () => {
-    const expenseId = await createExpense(null);
+      const { data: property } = await serviceClient
+        .from('properties')
+        .insert({
+          org_id: orgId,
+          nickname: 'Expense Evidence Property',
+          address_line1: '1 Test St',
+          city: 'Cape Town',
+          country: 'ZA',
+          property_type: 'house',
+        })
+        .select('id')
+        .single();
+      propertyId = property!.id;
 
-    const response = await POST(recordRequest(expenseId, {}), { params: Promise.resolve({ id: expenseId }) });
-    expect(response.status).toBe(400);
-    const body = await response.json();
-    expect(body.error.code).toBe('evidence_required');
+      const { data: category } = await serviceClient
+        .from('document_categories')
+        .select('id')
+        .eq('slug', 'receipt')
+        .single();
+      receiptCategoryId = category!.id;
+    });
 
-    const { data: expense } = await serviceClient.from('expenses').select('status').eq('id', expenseId).single();
-    expect(expense!.status).toBe('pending');
-  });
+    afterEach(async () => {
+      mockAuthorizationHeader = null;
+      await serviceClient.from('audit_events').delete().eq('org_id', orgId);
+      await serviceClient.from('expenses').delete().eq('org_id', orgId);
+      await serviceClient.from('documents').delete().eq('org_id', orgId);
+      await serviceClient.from('chart_of_accounts').delete().eq('org_id', orgId);
+      await serviceClient.from('properties').delete().eq('id', propertyId);
+      await serviceClient.from('organizations').delete().eq('id', orgId);
+      await serviceClient.auth.admin.deleteUser(accountantId);
+    });
 
-  it('posts successfully without evidence when a valid exceptionReason is given, and writes the exception audit event', async () => {
-    const expenseId = await createExpense(null);
+    async function createExpense(documentId: string | null) {
+      const { data } = await serviceClient
+        .from('expenses')
+        .insert({
+          org_id: orgId,
+          property_id: propertyId,
+          category: 'Other',
+          amount: 500,
+          status: 'pending',
+          document_id: documentId,
+        })
+        .select('id')
+        .single();
+      return data!.id as string;
+    }
 
-    const response = await POST(
-      recordRequest(expenseId, { exceptionReason: 'Verbal confirmation from vendor, invoice to follow later' }),
-      { params: Promise.resolve({ id: expenseId }) },
-    );
-    expect(response.status).toBe(200);
-    const body = await response.json();
-    expect(body.expense.status).toBe('recorded');
+    async function createDocument() {
+      const { data } = await serviceClient
+        .from('documents')
+        .insert({
+          org_id: orgId,
+          property_id: propertyId,
+          category_id: receiptCategoryId,
+          document_type: 'receipt',
+          storage_path: `${orgId}/${propertyId}/${crypto.randomUUID()}.pdf`,
+          original_file_name: 'evidence.pdf',
+          mime_type: 'application/pdf',
+          file_size_bytes: 1024,
+          checksum_sha256: 'a'.repeat(64),
+        })
+        .select('id')
+        .single();
+      return data!.id as string;
+    }
 
-    const { count: exceptionAuditCount } = await serviceClient
-      .from('audit_events')
-      .select('id', { count: 'exact', head: true })
-      .eq('entity_id', expenseId)
-      .eq('action', 'expense.posted_without_evidence');
-    expect(exceptionAuditCount).toBe(1);
+    it('rejects posting without evidence and without an exceptionReason', async () => {
+      const expenseId = await createExpense(null);
 
-    const { count: recordAuditCount } = await serviceClient
-      .from('audit_events')
-      .select('id', { count: 'exact', head: true })
-      .eq('entity_id', expenseId)
-      .eq('action', 'expense.record');
-    expect(recordAuditCount).toBe(1);
-  });
+      const response = await POST(recordRequest(expenseId, {}), {
+        params: Promise.resolve({ id: expenseId }),
+      });
+      expect(response.status).toBe(400);
+      const body = await response.json();
+      expect(body.error.code).toBe('evidence_required');
 
-  it('posts successfully with evidence attached, without needing exceptionReason, and does not write the exception audit event', async () => {
-    const documentId = await createDocument();
-    const expenseId = await createExpense(documentId);
+      const { data: expense } = await serviceClient
+        .from('expenses')
+        .select('status')
+        .eq('id', expenseId)
+        .single();
+      expect(expense!.status).toBe('pending');
+    });
 
-    const response = await POST(recordRequest(expenseId, {}), { params: Promise.resolve({ id: expenseId }) });
-    expect(response.status).toBe(200);
-    const body = await response.json();
-    expect(body.expense.status).toBe('recorded');
+    it('posts successfully without evidence when a valid exceptionReason is given, and writes the exception audit event', async () => {
+      const expenseId = await createExpense(null);
 
-    const { count: exceptionAuditCount } = await serviceClient
-      .from('audit_events')
-      .select('id', { count: 'exact', head: true })
-      .eq('entity_id', expenseId)
-      .eq('action', 'expense.posted_without_evidence');
-    expect(exceptionAuditCount).toBe(0);
+      const response = await POST(
+        recordRequest(expenseId, {
+          exceptionReason: 'Verbal confirmation from vendor, invoice to follow later',
+        }),
+        { params: Promise.resolve({ id: expenseId }) },
+      );
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.expense.status).toBe('recorded');
 
-    const { count: recordAuditCount } = await serviceClient
-      .from('audit_events')
-      .select('id', { count: 'exact', head: true })
-      .eq('entity_id', expenseId)
-      .eq('action', 'expense.record');
-    expect(recordAuditCount).toBe(1);
-  });
-});
+      const { count: exceptionAuditCount } = await serviceClient
+        .from('audit_events')
+        .select('id', { count: 'exact', head: true })
+        .eq('entity_id', expenseId)
+        .eq('action', 'expense.posted_without_evidence');
+      expect(exceptionAuditCount).toBe(1);
+
+      const { count: recordAuditCount } = await serviceClient
+        .from('audit_events')
+        .select('id', { count: 'exact', head: true })
+        .eq('entity_id', expenseId)
+        .eq('action', 'expense.record');
+      expect(recordAuditCount).toBe(1);
+    });
+
+    it('posts successfully with evidence attached, without needing exceptionReason, and does not write the exception audit event', async () => {
+      const documentId = await createDocument();
+      const expenseId = await createExpense(documentId);
+
+      const response = await POST(recordRequest(expenseId, {}), {
+        params: Promise.resolve({ id: expenseId }),
+      });
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.expense.status).toBe('recorded');
+
+      const { count: exceptionAuditCount } = await serviceClient
+        .from('audit_events')
+        .select('id', { count: 'exact', head: true })
+        .eq('entity_id', expenseId)
+        .eq('action', 'expense.posted_without_evidence');
+      expect(exceptionAuditCount).toBe(0);
+
+      const { count: recordAuditCount } = await serviceClient
+        .from('audit_events')
+        .select('id', { count: 'exact', head: true })
+        .eq('entity_id', expenseId)
+        .eq('action', 'expense.record');
+      expect(recordAuditCount).toBe(1);
+    });
+  },
+);

@@ -15,10 +15,12 @@ const mockCookieJar = new Map<string, string>();
 
 vi.mock('next/headers', () => ({
   headers: async () => ({
-    get: (name: string) => (name.toLowerCase() === 'authorization' ? mockAuthorizationHeader : null),
+    get: (name: string) =>
+      name.toLowerCase() === 'authorization' ? mockAuthorizationHeader : null,
   }),
   cookies: async () => ({
-    get: (name: string) => (mockCookieJar.has(name) ? { value: mockCookieJar.get(name) } : undefined),
+    get: (name: string) =>
+      mockCookieJar.has(name) ? { value: mockCookieJar.get(name) } : undefined,
     set: (name: string, value: string) => {
       mockCookieJar.set(name, value);
     },
@@ -86,7 +88,11 @@ describeIfSupabase(
       mockCookieJar.clear();
       const email = `maint-notify-manager-${Date.now()}@propertyvault.example`;
       const password = 'TestPassw0rd!23';
-      const created = await adminFetch('/auth/v1/admin/users', { email, password, email_confirm: true });
+      const created = await adminFetch('/auth/v1/admin/users', {
+        email,
+        password,
+        email_confirm: true,
+      });
       managerId = created.id;
 
       const tokenRes = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
@@ -146,9 +152,11 @@ describeIfSupabase(
         status: 'active',
         joined_at: new Date().toISOString(),
       });
-      await serviceClient
-        .from('property_access')
-        .insert({ property_id: propertyId, user_id: scopedStaffId, property_role: 'administrator' });
+      await serviceClient.from('property_access').insert({
+        property_id: propertyId,
+        user_id: scopedStaffId,
+        property_role: 'administrator',
+      });
 
       // Unscoped staff: org role agent+ but NO property_access grant on this property -- must be
       // excluded (RLS/tenant-isolation safety: no real access to this specific property).
@@ -186,7 +194,10 @@ describeIfSupabase(
 
     afterEach(async () => {
       mockAuthorizationHeader = null;
-      await serviceClient.from('notifications').delete().eq('related_entity_type', 'maintenance_ticket');
+      await serviceClient
+        .from('notifications')
+        .delete()
+        .eq('related_entity_type', 'maintenance_ticket');
       await serviceClient.from('maintenance_tickets').delete().eq('org_id', orgId);
       await serviceClient.from('property_access').delete().eq('property_id', propertyId);
       await serviceClient.from('units').delete().eq('id', unitId);

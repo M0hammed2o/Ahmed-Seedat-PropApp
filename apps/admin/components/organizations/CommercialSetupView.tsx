@@ -225,7 +225,9 @@ export function CommercialSetupView({ orgId, plans }: Props) {
               Recurring subscription
             </dt>
             <dd className="text-light-textPrimary dark:text-dark-textPrimary">
-              {selectedPlan ? formatMoney(Number(selectedPlan.base_price), selectedPlan.currency) : '—'}
+              {selectedPlan
+                ? formatMoney(Number(selectedPlan.base_price), selectedPlan.currency)
+                : '—'}
               {interval === 'monthly' ? '/mo' : '/yr'}
             </dd>
           </div>

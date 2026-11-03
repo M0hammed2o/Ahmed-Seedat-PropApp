@@ -102,7 +102,11 @@ export function TenantLeasePropertyPicker({
           >
             Record existing lease
           </Button>
-          <Button type="button" disabled={!propertyId || !unitId} onClick={() => proceed('prepare')}>
+          <Button
+            type="button"
+            disabled={!propertyId || !unitId}
+            onClick={() => proceed('prepare')}
+          >
             Create new lease
           </Button>
         </div>

@@ -4,12 +4,54 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { ChoosePlanClient } from '../ChoosePlanClient';
 
 const PLANS = [
-  { code: 'starter_monthly', name: 'Starter', billing_cycle: 'monthly', base_price: 299, currency: 'ZAR', feature_limits: null },
-  { code: 'starter_annual', name: 'Starter', billing_cycle: 'annual', base_price: 3050, currency: 'ZAR', feature_limits: null },
-  { code: 'professional_monthly', name: 'Professional', billing_cycle: 'monthly', base_price: 699, currency: 'ZAR', feature_limits: null },
-  { code: 'professional_annual', name: 'Professional', billing_cycle: 'annual', base_price: 7130, currency: 'ZAR', feature_limits: null },
-  { code: 'business_monthly', name: 'Business', billing_cycle: 'monthly', base_price: 1999, currency: 'ZAR', feature_limits: null },
-  { code: 'business_annual', name: 'Business', billing_cycle: 'annual', base_price: 20390, currency: 'ZAR', feature_limits: null },
+  {
+    code: 'starter_monthly',
+    name: 'Starter',
+    billing_cycle: 'monthly',
+    base_price: 299,
+    currency: 'ZAR',
+    feature_limits: null,
+  },
+  {
+    code: 'starter_annual',
+    name: 'Starter',
+    billing_cycle: 'annual',
+    base_price: 3050,
+    currency: 'ZAR',
+    feature_limits: null,
+  },
+  {
+    code: 'professional_monthly',
+    name: 'Professional',
+    billing_cycle: 'monthly',
+    base_price: 699,
+    currency: 'ZAR',
+    feature_limits: null,
+  },
+  {
+    code: 'professional_annual',
+    name: 'Professional',
+    billing_cycle: 'annual',
+    base_price: 7130,
+    currency: 'ZAR',
+    feature_limits: null,
+  },
+  {
+    code: 'business_monthly',
+    name: 'Business',
+    billing_cycle: 'monthly',
+    base_price: 1999,
+    currency: 'ZAR',
+    feature_limits: null,
+  },
+  {
+    code: 'business_annual',
+    name: 'Business',
+    billing_cycle: 'annual',
+    base_price: 20390,
+    currency: 'ZAR',
+    feature_limits: null,
+  },
 ];
 
 const originalLocation = window.location;
@@ -36,7 +78,10 @@ afterEach(() => {
 // selected -- that <dd> is never inside a <button>, so filtering for a <button> ancestor reliably
 // isolates the selectable tier CARD from the read-only summary echo.
 function getTierCard(name: string): HTMLElement {
-  const card = screen.getAllByText(name).map((el) => el.closest('button')).find(Boolean);
+  const card = screen
+    .getAllByText(name)
+    .map((el) => el.closest('button'))
+    .find(Boolean);
   if (!card) throw new Error(`No tier card button found for "${name}"`);
   return card;
 }

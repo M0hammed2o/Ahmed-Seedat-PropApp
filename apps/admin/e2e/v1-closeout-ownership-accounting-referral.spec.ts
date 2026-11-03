@@ -1,6 +1,12 @@
 import { test, expect, type Page } from '@playwright/test';
 import { BASE_URL } from '../playwright.config';
-import { setUpOrg, createProperty, createUnit, getUnitStatus, COLD_ROUTE_MS } from './fixtures/orgWorkflow';
+import {
+  setUpOrg,
+  createProperty,
+  createUnit,
+  getUnitStatus,
+  COLD_ROUTE_MS,
+} from './fixtures/orgWorkflow';
 import { createConfirmedPlatformAdmin } from './fixtures/platformAdmin';
 import { generateTotpCode } from './fixtures/totp';
 
@@ -104,7 +110,9 @@ test.describe('Flow D: ownership', () => {
     expect(ownersAfterRemove.propertyOwners).toHaveLength(1);
 
     // The owner IDENTITY record itself was never deleted -- only the property relationship.
-    const allOwners = await (await page.request.get(`/api/v1/owners?filter[org_id]=${orgId}`)).json();
+    const allOwners = await (
+      await page.request.get(`/api/v1/owners?filter[org_id]=${orgId}`)
+    ).json();
     expect(
       (allOwners.owners as { name: string }[]).some((o) => o.name === 'External Co-Owner'),
     ).toBe(true);
@@ -172,9 +180,7 @@ test.describe('Flow E: expense with evidence, posted to the ledger, visible in b
     await expect(page.getByText('View attached evidence →')).toBeVisible({ timeout: 15_000 });
 
     // === Post it to the ledger (evidence already attached -- no exception-reason box) ===
-    await expect(
-      page.getByText('No evidence is attached', { exact: false }),
-    ).not.toBeVisible();
+    await expect(page.getByText('No evidence is attached', { exact: false })).not.toBeVisible();
     await page.getByRole('button', { name: 'Record expense' }).click();
     await expect(page.getByText(/Posted to the ledger/)).toBeVisible({ timeout: COLD_ROUTE_MS });
 
@@ -183,9 +189,9 @@ test.describe('Flow E: expense with evidence, posted to the ledger, visible in b
     const expensesList = await (
       await page.request.get(`/api/v1/expenses?filter[org_id]=${orgId}`)
     ).json();
-    const recordedExpense = (expensesList.expenses as { id: string; status: string; journalEntryId: string | null }[]).find(
-      (e) => e.id === expenseId,
-    );
+    const recordedExpense = (
+      expensesList.expenses as { id: string; status: string; journalEntryId: string | null }[]
+    ).find((e) => e.id === expenseId);
     expect(recordedExpense?.status).toBe('recorded');
     expect(recordedExpense?.journalEntryId).toBeTruthy();
 
@@ -210,7 +216,11 @@ test.describe('Flow F: property accounting reconciles with portfolio accounting'
     page,
   }) => {
     const { orgId } = await setUpOrg(page.request, 'closeout-reconciliation');
-    const propertyId = await createProperty(page.request, orgId, 'Closeout Reconciliation Property');
+    const propertyId = await createProperty(
+      page.request,
+      orgId,
+      'Closeout Reconciliation Property',
+    );
     const unitId = await createUnit(page.request, propertyId, 'Unit R1');
 
     const tenantResponse = await page.request.post('/api/v1/tenants', {
@@ -244,13 +254,23 @@ test.describe('Flow F: property accounting reconciles with portfolio accounting'
     // Plus an expense, so Expenses/Net income are non-trivial too.
     const expenseResponse = await page.request.post('/api/v1/expenses', {
       headers: { Origin: BASE_URL },
-      data: { orgId, propertyId, category: 'Maintenance', categoryCode: 'maintenance', amount: 500, notes: 'Reconciliation test expense' },
+      data: {
+        orgId,
+        propertyId,
+        category: 'Maintenance',
+        categoryCode: 'maintenance',
+        amount: 500,
+        notes: 'Reconciliation test expense',
+      },
     });
     expect(expenseResponse.ok()).toBe(true);
     const expense = await expenseResponse.json();
     await page.request.post(`/api/v1/expenses/${expense.expense.id}/record`, {
       headers: { Origin: BASE_URL },
-      data: { paidImmediately: true, exceptionReason: 'E2E reconciliation fixture, no evidence needed' },
+      data: {
+        paidImmediately: true,
+        exceptionReason: 'E2E reconciliation fixture, no evidence needed',
+      },
     });
 
     await page.goto(`/properties/${propertyId}`);

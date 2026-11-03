@@ -20,7 +20,7 @@ export function meterInsertRow(orgId: string, propertyId: string, d: SmartMeterC
     serial_number: d.serialNumber || null,
     connectivity: d.connectivity,
     integration_id: d.connectivity === 'manual' ? null : (d.integrationId ?? null),
-    external_device_id: d.connectivity === 'manual' ? null : (d.externalDeviceId?.trim() || null),
+    external_device_id: d.connectivity === 'manual' ? null : d.externalDeviceId?.trim() || null,
     external_channel: d.connectivity === 'manual' ? '' : (d.externalChannel ?? ''),
     multiplier: d.multiplier,
     value_offset: d.valueOffset,
@@ -40,7 +40,11 @@ export function meterInsertRow(orgId: string, propertyId: string, d: SmartMeterC
 /** Maps the database triggers' integrity errors to 400s the UI can show. */
 export function meterWriteError(error: { code?: string; message: string }) {
   if (error.code === '23505') {
-    return jsonError(409, 'device_already_bound', 'That device and channel already feed another active meter.');
+    return jsonError(
+      409,
+      'device_already_bound',
+      'That device and channel already feed another active meter.',
+    );
   }
   for (const known of [
     'Building does not belong to this property',
@@ -53,14 +57,17 @@ export function meterWriteError(error: { code?: string; message: string }) {
     if (error.message.includes(known)) return jsonError(400, 'invalid_meter_link', known + '.');
   }
   if (error.message.includes('utility_meters_measurement_kind_utility')) {
-    return jsonError(400, 'invalid_measurement_kind', 'That measurement does not apply to this utility (e.g. grid import is electricity only).');
+    return jsonError(
+      400,
+      'invalid_measurement_kind',
+      'That measurement does not apply to this utility (e.g. grid import is electricity only).',
+    );
   }
   if (error.message.includes('unit_id does not belong to property_id')) {
     return jsonError(400, 'invalid_meter_link', 'The unit does not belong to this property.');
   }
   return null;
 }
-
 
 export interface MeterAccessRow {
   id: string;

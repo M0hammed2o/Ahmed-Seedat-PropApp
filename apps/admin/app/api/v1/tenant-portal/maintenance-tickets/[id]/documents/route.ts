@@ -84,7 +84,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     form = await request.formData();
   } catch {
     return NextResponse.json(
-      { error: { code: 'invalid_form_data', message: 'Request body must be multipart/form-data.' } },
+      {
+        error: { code: 'invalid_form_data', message: 'Request body must be multipart/form-data.' },
+      },
       { status: 400 },
     );
   }

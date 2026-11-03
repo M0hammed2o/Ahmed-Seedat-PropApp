@@ -37,7 +37,11 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
       {
         error: {
           code: 'maintenance_ticket_fetch_failed',
-          message: safeErrorMessage(error, 'Could not load this maintenance ticket.', 'maintenanceTickets.get'),
+          message: safeErrorMessage(
+            error,
+            'Could not load this maintenance ticket.',
+            'maintenanceTickets.get',
+          ),
         },
       },
       { status: 500 },
@@ -78,7 +82,11 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       {
         error: {
           code: 'maintenance_ticket_fetch_failed',
-          message: safeErrorMessage(fetchError, 'Could not load this maintenance ticket.', 'maintenanceTickets.update.fetch'),
+          message: safeErrorMessage(
+            fetchError,
+            'Could not load this maintenance ticket.',
+            'maintenanceTickets.update.fetch',
+          ),
         },
       },
       { status: 500 },

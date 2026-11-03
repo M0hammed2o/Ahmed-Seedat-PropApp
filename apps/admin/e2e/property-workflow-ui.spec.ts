@@ -89,13 +89,10 @@ test.describe('property setup guidance', () => {
     expect(leaseResponse.ok()).toBe(true);
     const lease = await leaseResponse.json();
 
-    const assignmentResponse = await page.request.post(
-      `/api/v1/leases/${lease.lease.id}/tenants`,
-      {
-        headers: { Origin: BASE_URL },
-        data: { tenantId: tenant.tenant.id, isPrimary: true },
-      },
-    );
+    const assignmentResponse = await page.request.post(`/api/v1/leases/${lease.lease.id}/tenants`, {
+      headers: { Origin: BASE_URL },
+      data: { tenantId: tenant.tenant.id, isPrimary: true },
+    });
     expect(assignmentResponse.ok()).toBe(true);
 
     // V1 only considers an in-force lease complete; a newly-created draft must keep the setup

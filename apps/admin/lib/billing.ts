@@ -119,7 +119,8 @@ async function findOrCreateCurrentSubscriptionForCheckout(
         .single();
       if (refetchError || !winner)
         throw new Error(
-          refetchError?.message ?? 'Failed to resolve subscription after a concurrent checkout race',
+          refetchError?.message ??
+            'Failed to resolve subscription after a concurrent checkout race',
         );
       return { id: winner.id, reused: true };
     }
@@ -666,7 +667,9 @@ async function handleTrialActivationWebhookEvent(
   // failure, matching the identical try/catch posture the main payment_succeeded branch below
   // already uses for the same call.
   try {
-    await serviceClient.rpc('create_subscription_invoice_for_payment', { p_payment_id: payment.id });
+    await serviceClient.rpc('create_subscription_invoice_for_payment', {
+      p_payment_id: payment.id,
+    });
   } catch (err) {
     console.error('[billing] trial-activation invoice creation failed', {
       paymentId: payment.id,
@@ -702,7 +705,9 @@ async function handleTrialActivationWebhookEvent(
         legalName: orgRow?.legal_name,
         planName: planRow?.name,
         trialEndsAt: orgRow?.trial_ends_at,
-        recurringAmount: planRow ? formatMoney(Number(planRow.base_price), planRow.currency) : undefined,
+        recurringAmount: planRow
+          ? formatMoney(Number(planRow.base_price), planRow.currency)
+          : undefined,
       },
       relatedEntityType: `billing_event:${event.providerEventId}`,
       relatedEntityId: orgId,
@@ -1009,7 +1014,12 @@ export async function processBillingWebhookEvent(
       if (Math.abs(expectedAmount - Number(event.amount)) > 0.01) {
         console.error(
           '[billing] recurring-charge amount mismatch -- refusing to record or grant entitlement',
-          { orgId, subscriptionId: payment.subscription_id, expectedAmount, receivedAmount: event.amount },
+          {
+            orgId,
+            subscriptionId: payment.subscription_id,
+            expectedAmount,
+            receivedAmount: event.amount,
+          },
         );
         throw new Error(
           `billing_amount_mismatch: subscription ${payment.subscription_id} expected ${expectedAmount}, gateway reported ${event.amount}`,

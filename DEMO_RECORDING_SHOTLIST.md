@@ -26,22 +26,22 @@ debug build. Record at 1080×2400.
 
 ## What the demo portfolio shows
 
-| Surface | Value |
-|---|---|
-| Collected in September | **R44,500** of **R53,000** billed — **84%**, **R8,500** outstanding |
-| Occupancy | **71%** across **3 properties** (5 of 7 units let) |
-| Operating costs | Water R2,840 · Electricity R3,500 · Rates & taxes R9,250 · Levies R1,800 · Other R8,050 — **total R25,440** |
-| Budget | R25,440 of R30,800 — **82.6%** used, R5,360 remaining |
-| Monthly net position | **+R19,060** (green) |
-| Needs attention | **5** — 2 critical, 3 warnings |
+| Surface                | Value                                                                                                       |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Collected in September | **R44,500** of **R53,000** billed — **84%**, **R8,500** outstanding                                         |
+| Occupancy              | **71%** across **3 properties** (5 of 7 units let)                                                          |
+| Operating costs        | Water R2,840 · Electricity R3,500 · Rates & taxes R9,250 · Levies R1,800 · Other R8,050 — **total R25,440** |
+| Budget                 | R25,440 of R30,800 — **82.6%** used, R5,360 remaining                                                       |
+| Monthly net position   | **+R19,060** (green)                                                                                        |
+| Needs attention        | **5** — 2 critical, 3 warnings                                                                              |
 
 **Properties**
 
-| Property | Type | Let | Collected | Budget state |
-|---|---|---|---|---|
-| Lembede Place Offices | Commercial | 1/2 · 50% | R12,000 | On track (72%) |
-| Hillcrest Family Home | Residential | 1/1 · 100% | R15,000 | Over budget (107%) |
-| Marine Parade Apartments | Residential | 3/4 · 75% | R17,000 | Approaching (88.5%) |
+| Property                 | Type        | Let        | Collected | Budget state        |
+| ------------------------ | ----------- | ---------- | --------- | ------------------- |
+| Lembede Place Offices    | Commercial  | 1/2 · 50%  | R12,000   | On track (72%)      |
+| Hillcrest Family Home    | Residential | 1/1 · 100% | R15,000   | Over budget (107%)  |
+| Marine Parade Apartments | Residential | 3/4 · 75%  | R17,000   | Approaching (88.5%) |
 
 **Tenants on camera:** Craig Williams, Naledi Khumalo, Thandeka Mokoena, Sipho Ndlovu (the overdue
 one), and Khanya Design Studio (the commercial tenant in Suite A). All fictional.
@@ -53,21 +53,21 @@ one), and Khanya Design Studio (the commercial tenant in Suite A). All fictional
 Each clip is a single take, 3–8 seconds. Start each one already on the named screen unless the clip
 is about the navigation itself.
 
-| # | Clip | Duration | Exactly what to do | What it demonstrates |
-|---|---|---|---|---|
-| A | Owner Home — the money first | 6 s | Open on Home, hold 2 s on "Collected in September · R44,500", then slow-scroll to Operating costs | The dashboard leads with cash actually collected, and with what is still outstanding |
-| B | Operating costs breakdown | 5 s | Continue the scroll through Water → Total expenses R25,440 | Per-category operating spend, not one lump figure |
-| C | Budget and net position | 6 s | Hold on Budget (82.6% used), then on the green **+R19,060** | Spend against plan, then the month's actual position, with the caption stating what it excludes |
-| D | Needs attention | 6 s | Hold on the badge (5) and the four preview rows, then tap **View all 5** | Alerts ranked by severity, bounded so they never bury the page |
-| E | The full alert list | 5 s | On the Needs attention screen, tap **Critical**, then **Rent** | Filterable, grouped, plain-language alerts |
-| F | Quick actions | 4 s | Back to Home, hold on the four tiles, then tap **Add expense** | One tap from Home to the most common owner action |
-| G | Add expense | 8 s | Pick a property chip, tap a category chip, type an amount, scroll to **Save expense**. Back out — do not save | Property/category chips, receipt attach, and the keyboard never blocking Save |
-| H | Properties list | 6 s | Bottom nav → Properties, slow-scroll past all three cards | Occupancy bars, per-property collected, budget pills |
-| I | Property detail | 7 s | Tap **Lembede Place Offices**, hold on Finances (Rent planned / Collected / Outstanding / Total expenses / Operating position) | The same figures a landlord would ask an agent for, per property |
-| J | Rent status | 5 s | Home → Quick actions → **Rent status**, switch the property chip to **Marine Parade Apartments** | Per-tenant Expected / Paid / Outstanding, with Paid and Overdue states side by side |
-| K | Invoices and the overdue one | 6 s | Home → **Record payment** → scroll the list → tap **INV-000007** (Sipho Ndlovu, Overdue) | Every amount labelled Balance; settled invoices muted and "Paid", the overdue one bold with a red chip and a Record payment CTA |
-| L | Activity | 5 s | Bottom nav → **Activity** | A real running history: payments received, expense recorded, rent overdue |
-| M | More — the full surface area | 6 s | Bottom nav → More, **start the shot below the account card** and slow-scroll from Portfolio through Finances | Shows the product is more than a dashboard: ledger, tenants, maintenance, notices, utilities, budget |
+| #   | Clip                         | Duration | Exactly what to do                                                                                                             | What it demonstrates                                                                                                            |
+| --- | ---------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| A   | Owner Home — the money first | 6 s      | Open on Home, hold 2 s on "Collected in September · R44,500", then slow-scroll to Operating costs                              | The dashboard leads with cash actually collected, and with what is still outstanding                                            |
+| B   | Operating costs breakdown    | 5 s      | Continue the scroll through Water → Total expenses R25,440                                                                     | Per-category operating spend, not one lump figure                                                                               |
+| C   | Budget and net position      | 6 s      | Hold on Budget (82.6% used), then on the green **+R19,060**                                                                    | Spend against plan, then the month's actual position, with the caption stating what it excludes                                 |
+| D   | Needs attention              | 6 s      | Hold on the badge (5) and the four preview rows, then tap **View all 5**                                                       | Alerts ranked by severity, bounded so they never bury the page                                                                  |
+| E   | The full alert list          | 5 s      | On the Needs attention screen, tap **Critical**, then **Rent**                                                                 | Filterable, grouped, plain-language alerts                                                                                      |
+| F   | Quick actions                | 4 s      | Back to Home, hold on the four tiles, then tap **Add expense**                                                                 | One tap from Home to the most common owner action                                                                               |
+| G   | Add expense                  | 8 s      | Pick a property chip, tap a category chip, type an amount, scroll to **Save expense**. Back out — do not save                  | Property/category chips, receipt attach, and the keyboard never blocking Save                                                   |
+| H   | Properties list              | 6 s      | Bottom nav → Properties, slow-scroll past all three cards                                                                      | Occupancy bars, per-property collected, budget pills                                                                            |
+| I   | Property detail              | 7 s      | Tap **Lembede Place Offices**, hold on Finances (Rent planned / Collected / Outstanding / Total expenses / Operating position) | The same figures a landlord would ask an agent for, per property                                                                |
+| J   | Rent status                  | 5 s      | Home → Quick actions → **Rent status**, switch the property chip to **Marine Parade Apartments**                               | Per-tenant Expected / Paid / Outstanding, with Paid and Overdue states side by side                                             |
+| K   | Invoices and the overdue one | 6 s      | Home → **Record payment** → scroll the list → tap **INV-000007** (Sipho Ndlovu, Overdue)                                       | Every amount labelled Balance; settled invoices muted and "Paid", the overdue one bold with a red chip and a Record payment CTA |
+| L   | Activity                     | 5 s      | Bottom nav → **Activity**                                                                                                      | A real running history: payments received, expense recorded, rent overdue                                                       |
+| M   | More — the full surface area | 6 s      | Bottom nav → More, **start the shot below the account card** and slow-scroll from Portfolio through Finances                   | Shows the product is more than a dashboard: ledger, tenants, maintenance, notices, utilities, budget                            |
 
 ### Optional closing clip
 

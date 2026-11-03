@@ -29,7 +29,12 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
   const canManage = await requireOrgRole(supabase, orgId, 'principal');
   if (!canManage) {
     return NextResponse.json(
-      { error: { code: 'forbidden', message: 'You do not have permission to revoke this provision.' } },
+      {
+        error: {
+          code: 'forbidden',
+          message: 'You do not have permission to revoke this provision.',
+        },
+      },
       { status: 403 },
     );
   }

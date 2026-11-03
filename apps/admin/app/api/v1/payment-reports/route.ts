@@ -44,7 +44,11 @@ export async function GET(request: NextRequest) {
       {
         error: {
           code: 'payment_reports_list_failed',
-          message: safeErrorMessage(error, 'Could not load payment reports.', 'paymentReports.list'),
+          message: safeErrorMessage(
+            error,
+            'Could not load payment reports.',
+            'paymentReports.list',
+          ),
         },
       },
       { status: 500 },

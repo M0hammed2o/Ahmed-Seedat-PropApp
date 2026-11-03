@@ -46,7 +46,12 @@ export async function POST() {
     .eq('user_id', userId);
   if (memberError) {
     return NextResponse.json(
-      { error: { code: 'account_deletion_failed', message: 'Could not revoke organisation access.' } },
+      {
+        error: {
+          code: 'account_deletion_failed',
+          message: 'Could not revoke organisation access.',
+        },
+      },
       { status: 500 },
     );
   }
@@ -63,7 +68,12 @@ export async function POST() {
   });
   if (authError) {
     return NextResponse.json(
-      { error: { code: 'account_deletion_failed', message: 'Could not remove the sign-in identity.' } },
+      {
+        error: {
+          code: 'account_deletion_failed',
+          message: 'Could not remove the sign-in identity.',
+        },
+      },
       { status: 500 },
     );
   }

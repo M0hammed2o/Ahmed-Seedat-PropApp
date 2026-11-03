@@ -34,7 +34,16 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     .order('paid_at', { ascending: false });
   if (error) {
     return NextResponse.json(
-      { error: { code: 'invoice_payments_fetch_failed', message: safeErrorMessage(error, 'Could not load payments for this invoice.', 'invoices/[id]/payments.list') } },
+      {
+        error: {
+          code: 'invoice_payments_fetch_failed',
+          message: safeErrorMessage(
+            error,
+            'Could not load payments for this invoice.',
+            'invoices/[id]/payments.list',
+          ),
+        },
+      },
       { status: 500 },
     );
   }
@@ -62,18 +71,35 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     .maybeSingle();
   if (fetchError) {
     return NextResponse.json(
-      { error: { code: 'invoice_fetch_failed', message: safeErrorMessage(fetchError, 'Could not load this invoice.', 'invoices/[id]/payments.fetch') } },
+      {
+        error: {
+          code: 'invoice_fetch_failed',
+          message: safeErrorMessage(
+            fetchError,
+            'Could not load this invoice.',
+            'invoices/[id]/payments.fetch',
+          ),
+        },
+      },
       { status: 500 },
     );
   }
   if (!existing) {
-    return NextResponse.json({ error: { code: 'not_found', message: 'Invoice not found.' } }, { status: 404 });
+    return NextResponse.json(
+      { error: { code: 'not_found', message: 'Invoice not found.' } },
+      { status: 404 },
+    );
   }
 
   const canWrite = await requireOrgRole(supabase, existing.org_id, 'accountant');
   if (!canWrite) {
     return NextResponse.json(
-      { error: { code: 'forbidden', message: 'You do not have permission to record payments for this organization.' } },
+      {
+        error: {
+          code: 'forbidden',
+          message: 'You do not have permission to record payments for this organization.',
+        },
+      },
       { status: 403 },
     );
   }
@@ -113,7 +139,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     .is('reversed_at', null);
   if (paymentsError) {
     return NextResponse.json(
-      { error: { code: 'invoice_payments_fetch_failed', message: safeErrorMessage(paymentsError, 'Could not load existing payments for this invoice.', 'invoices/[id]/payments.precheck') } },
+      {
+        error: {
+          code: 'invoice_payments_fetch_failed',
+          message: safeErrorMessage(
+            paymentsError,
+            'Could not load existing payments for this invoice.',
+            'invoices/[id]/payments.precheck',
+          ),
+        },
+      },
       { status: 500 },
     );
   }
@@ -148,7 +183,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       {
         error: {
           code: 'invoice_payment_failed',
-          message: safeErrorMessage(rpcError, 'Could not record this payment.', 'invoices/[id]/payments.create'),
+          message: safeErrorMessage(
+            rpcError,
+            'Could not record this payment.',
+            'invoices/[id]/payments.create',
+          ),
         },
       },
       { status: 400 },
@@ -162,7 +201,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     .single();
   if (reloadError) {
     return NextResponse.json(
-      { error: { code: 'invoice_payment_fetch_failed', message: 'Payment was recorded, but could not be reloaded. Please refresh.' } },
+      {
+        error: {
+          code: 'invoice_payment_fetch_failed',
+          message: 'Payment was recorded, but could not be reloaded. Please refresh.',
+        },
+      },
       { status: 500 },
     );
   }

@@ -171,8 +171,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     };
   });
 
-  const nextCursor =
-    rows.length === limit ? (rows[rows.length - 1]?.created_at ?? null) : null;
+  const nextCursor = rows.length === limit ? (rows[rows.length - 1]?.created_at ?? null) : null;
 
   return NextResponse.json({ activity, nextCursor });
 }

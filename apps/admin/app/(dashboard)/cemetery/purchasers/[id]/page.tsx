@@ -5,8 +5,21 @@ import { Panel } from '@/components/ui/Panel';
 import { StatTile } from '@/components/cemetery/StatTile';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { getCemeteryContext } from '@/lib/cemetery/access';
-import { loadCemeteries, loadPayments, loadSites, withBalances, type PurchaserRow, type SaleRow } from '@/lib/cemetery/data';
-import { BURIAL_STATUS_LABEL, PAYMENT_METHOD_LABEL, formatDate, formatZar, tenureTerms } from '@/lib/cemetery/terms';
+import {
+  loadCemeteries,
+  loadPayments,
+  loadSites,
+  withBalances,
+  type PurchaserRow,
+  type SaleRow,
+} from '@/lib/cemetery/data';
+import {
+  BURIAL_STATUS_LABEL,
+  PAYMENT_METHOD_LABEL,
+  formatDate,
+  formatZar,
+  tenureTerms,
+} from '@/lib/cemetery/terms';
 import { UUID } from '@/lib/cemetery/http';
 
 export const dynamic = 'force-dynamic';
@@ -19,11 +32,19 @@ export default async function PurchaserPage({ params }: { params: Promise<{ id: 
   const { id } = await params;
   if (!UUID.test(id)) notFound();
   const supabase = await getServerSupabaseClient();
-  const { data } = await supabase.from('cemetery_purchasers').select('*').eq('id', id).maybeSingle();
+  const { data } = await supabase
+    .from('cemetery_purchasers')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
   if (!data) notFound();
   const p = data as PurchaserRow;
   const [{ data: salesData }, sites, cemeteries] = await Promise.all([
-    supabase.from('cemetery_sales').select('*').eq('purchaser_id', id).order('sale_date', { ascending: false }),
+    supabase
+      .from('cemetery_sales')
+      .select('*')
+      .eq('purchaser_id', id)
+      .order('sale_date', { ascending: false }),
     loadSites(supabase),
     loadCemeteries(supabase),
   ]);
@@ -49,7 +70,10 @@ export default async function PurchaserPage({ params }: { params: Promise<{ id: 
             subtitle={`${terms.holder} · ${active.length} grave site${active.length === 1 ? '' : 's'}${reserved.length ? ` · ${reserved.length} reserved` : ''}`}
             actions={
               ctx.canManage ? (
-                <Link href={`/cemetery/purchasers/${p.id}/edit`} className="flex h-9 items-center rounded-xl border border-border bg-card px-3.5 text-[13px] font-medium text-foreground">
+                <Link
+                  href={`/cemetery/purchasers/${p.id}/edit`}
+                  className="flex h-9 items-center rounded-xl border border-border bg-card px-3.5 text-[13px] font-medium text-foreground"
+                >
                   Edit
                 </Link>
               ) : undefined
@@ -68,7 +92,14 @@ export default async function PurchaserPage({ params }: { params: Promise<{ id: 
             <Item label="Contact number" value={p.phone ?? '—'} />
             <Item label="E-mail" value={p.email ?? '—'} />
             <Item label="Address" value={p.address ?? '—'} wide />
-            <Item label="Next of kin / authorised contact" value={p.next_of_kin_name ? `${p.next_of_kin_name}${p.next_of_kin_relationship ? ` (${p.next_of_kin_relationship})` : ''}` : '—'} />
+            <Item
+              label="Next of kin / authorised contact"
+              value={
+                p.next_of_kin_name
+                  ? `${p.next_of_kin_name}${p.next_of_kin_relationship ? ` (${p.next_of_kin_relationship})` : ''}`
+                  : '—'
+              }
+            />
             <Item label="Their contact number" value={p.next_of_kin_phone ?? '—'} />
             <Item label="Internal notes" value={p.notes ?? '—'} wide />
           </dl>
@@ -81,9 +112,15 @@ export default async function PurchaserPage({ params }: { params: Promise<{ id: 
               {active.map((s) => {
                 const site = siteById.get(s.site_id);
                 return (
-                  <li key={s.id} className="flex items-center justify-between gap-3 px-5 py-3 text-sm">
+                  <li
+                    key={s.id}
+                    className="flex items-center justify-between gap-3 px-5 py-3 text-sm"
+                  >
                     <div>
-                      <Link href={`/cemetery/sites/${s.site_id}`} className="font-semibold text-primary hover:underline">
+                      <Link
+                        href={`/cemetery/sites/${s.site_id}`}
+                        className="font-semibold text-primary hover:underline"
+                      >
                         {site?.reference ?? '—'}
                       </Link>
                       <span className="ml-2 text-xs text-muted-foreground">
@@ -96,18 +133,28 @@ export default async function PurchaserPage({ params }: { params: Promise<{ id: 
                         · {formatDate(s.sale_date)}
                       </p>
                     </div>
-                    <span className={`tabular text-right text-xs font-semibold ${s.balance > 0 ? 'text-destructive' : 'text-success'}`}>
+                    <span
+                      className={`tabular text-right text-xs font-semibold ${s.balance > 0 ? 'text-destructive' : 'text-success'}`}
+                    >
                       {s.balance > 0 ? `${formatZar(s.balance)} due` : 'Paid'}
                     </span>
                   </li>
                 );
               })}
               {reserved.map((s) => (
-                <li key={s.id} className="flex items-center justify-between gap-3 px-5 py-3 text-sm">
-                  <Link href={`/cemetery/sites/${s.id}`} className="font-semibold text-primary hover:underline">
+                <li
+                  key={s.id}
+                  className="flex items-center justify-between gap-3 px-5 py-3 text-sm"
+                >
+                  <Link
+                    href={`/cemetery/sites/${s.id}`}
+                    className="font-semibold text-primary hover:underline"
+                  >
                     {s.reference}
                   </Link>
-                  <span className="text-xs text-muted-foreground">Reserved{s.reserved_until ? ` until ${formatDate(s.reserved_until)}` : ''}</span>
+                  <span className="text-xs text-muted-foreground">
+                    Reserved{s.reserved_until ? ` until ${formatDate(s.reserved_until)}` : ''}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -133,14 +180,23 @@ export default async function PurchaserPage({ params }: { params: Promise<{ id: 
                 {payments.map((pay) => (
                   <tr key={pay.id}>
                     <td className="px-5 py-2">
-                      <Link href={`/cemetery/receipts/${pay.id}`} className="font-medium text-primary hover:underline">
+                      <Link
+                        href={`/cemetery/receipts/${pay.id}`}
+                        className="font-medium text-primary hover:underline"
+                      >
                         {pay.receipt_number}
                       </Link>
                     </td>
-                    <td className="px-3 py-2">{siteById.get(saleById.get(pay.sale_id)?.site_id ?? '')?.reference ?? '—'}</td>
+                    <td className="px-3 py-2">
+                      {siteById.get(saleById.get(pay.sale_id)?.site_id ?? '')?.reference ?? '—'}
+                    </td>
                     <td className="px-3 py-2 text-muted-foreground">{formatDate(pay.paid_on)}</td>
-                    <td className="px-3 py-2 text-muted-foreground">{PAYMENT_METHOD_LABEL[pay.method]}</td>
-                    <td className="tabular px-5 py-2 text-right font-medium">{formatZar(pay.amount, { cents: true })}</td>
+                    <td className="px-3 py-2 text-muted-foreground">
+                      {PAYMENT_METHOD_LABEL[pay.method]}
+                    </td>
+                    <td className="tabular px-5 py-2 text-right font-medium">
+                      {formatZar(pay.amount, { cents: true })}
+                    </td>
                   </tr>
                 ))}
               </tbody>

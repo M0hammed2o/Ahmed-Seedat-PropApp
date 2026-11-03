@@ -423,7 +423,10 @@ function TenantDetailView({
               <p className="truncate text-[13px] text-light-textMuted dark:text-dark-textMuted">
                 {leaseContext && leaseContext.propertyId && leaseContext.unitId ? (
                   <>
-                    <Link href={`/properties/${leaseContext.propertyId}`} className="hover:underline">
+                    <Link
+                      href={`/properties/${leaseContext.propertyId}`}
+                      className="hover:underline"
+                    >
                       {leaseContext.propertyNickname}
                     </Link>
                     {' · '}
@@ -551,7 +554,10 @@ function TenantDetailView({
                       href={`/documents/${d.id}`}
                       className="flex items-center gap-2 px-2 py-2 text-[13px] text-light-textPrimary hover:underline dark:text-dark-textPrimary"
                     >
-                      <FileText className="h-4 w-4 shrink-0 text-light-textMuted dark:text-dark-textMuted" aria-hidden="true" />
+                      <FileText
+                        className="h-4 w-4 shrink-0 text-light-textMuted dark:text-dark-textMuted"
+                        aria-hidden="true"
+                      />
                       <span className="truncate">{d.originalFileName}</span>
                     </Link>
                   </li>
@@ -569,7 +575,9 @@ function TenantDetailView({
               <div className="space-y-1 text-[13px]">
                 <p className="font-medium text-light-textPrimary dark:text-dark-textPrimary">
                   {tenant.emergencyContactName || '—'}
-                  {tenant.emergencyContactRelationship ? ` · ${tenant.emergencyContactRelationship}` : ''}
+                  {tenant.emergencyContactRelationship
+                    ? ` · ${tenant.emergencyContactRelationship}`
+                    : ''}
                 </p>
                 {tenant.emergencyContactPhone ? (
                   <p className="flex items-center gap-1.5 text-light-textMuted dark:text-dark-textMuted">
@@ -587,7 +595,10 @@ function TenantDetailView({
                   {canEdit ? (
                     <>
                       {' '}
-                      <Link href={`/tenants/${tenant.id}/edit`} className="text-light-accent hover:underline dark:text-dark-accent">
+                      <Link
+                        href={`/tenants/${tenant.id}/edit`}
+                        className="text-light-accent hover:underline dark:text-dark-accent"
+                      >
                         Add contact
                       </Link>
                     </>
@@ -603,11 +614,17 @@ function TenantDetailView({
         <Panel title={`Tenancy history (${tenancyHistory.length})`} bodyClassName="p-0">
           <ul className="divide-y divide-light-border dark:divide-dark-border">
             {tenancyHistory.map((h) => (
-              <li key={h.lease.id} className="flex items-center justify-between gap-3 px-5 py-3.5 text-[13px]">
+              <li
+                key={h.lease.id}
+                className="flex items-center justify-between gap-3 px-5 py-3.5 text-[13px]"
+              >
                 <div className="min-w-0">
                   <p className="truncate font-medium text-light-textPrimary dark:text-dark-textPrimary">
                     {h.propertyId && h.unitId ? (
-                      <Link href={`/properties/${h.propertyId}/units/${h.unitId}`} className="hover:underline">
+                      <Link
+                        href={`/properties/${h.propertyId}/units/${h.unitId}`}
+                        className="hover:underline"
+                      >
                         {[h.propertyNickname, h.unitLabel].filter(Boolean).join(' · ')}
                       </Link>
                     ) : (
@@ -615,7 +632,8 @@ function TenantDetailView({
                     )}
                   </p>
                   <p className="text-[11px] text-light-textMuted dark:text-dark-textMuted">
-                    {longDate(h.lease.startDate)} – {h.lease.endDate ? longDate(h.lease.endDate) : 'ongoing'}
+                    {longDate(h.lease.startDate)} –{' '}
+                    {h.lease.endDate ? longDate(h.lease.endDate) : 'ongoing'}
                     {' · '}
                     {currency(h.lease.rentAmount)}/{h.lease.rentFrequency}
                   </p>
@@ -742,7 +760,11 @@ function PaymentsTab({ payments }: { payments: TenantPaymentLedgerRow[] }) {
             </div>
             <div className="flex shrink-0 items-center gap-3">
               <span className="text-xs text-light-textMuted dark:text-dark-textMuted">
-                {new Date(p.paidAt).toLocaleDateString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric' })}
+                {new Date(p.paidAt).toLocaleDateString('en-ZA', {
+                  day: '2-digit',
+                  month: 'short',
+                  year: 'numeric',
+                })}
               </span>
               <span
                 className={

@@ -2,7 +2,17 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { municipalTemplateApprovalSchema } from '@propvault/validation';
 import { getServiceRoleClient } from '@/lib/supabase/server';
 import { writeAuditEvent } from '@/lib/audit';
-import { canWriteUtilities, forbidden, jsonError, loadReadableProperty, notFound, parseJson, requireUser, serverError, utilitiesDisabled } from '@/lib/smartUtility/http';
+import {
+  canWriteUtilities,
+  forbidden,
+  jsonError,
+  loadReadableProperty,
+  notFound,
+  parseJson,
+  requireUser,
+  serverError,
+  utilitiesDisabled,
+} from '@/lib/smartUtility/http';
 import { buildPreview } from '@/lib/smartUtility/preview';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -28,19 +38,37 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const p = await buildPreview(service, property.id, null);
     if (p.hash !== parsed.data.templateHash) {
-      return jsonError(409, 'preview_outdated', 'The email changed since you previewed it. Preview it again before approving.');
+      return jsonError(
+        409,
+        'preview_outdated',
+        'The email changed since you previewed it. Preview it again before approving.',
+      );
     }
     if (p.rendered.to.length === 0) {
-      return jsonError(409, 'no_authorised_recipients', 'Add and authorise at least one recipient before approving.');
+      return jsonError(
+        409,
+        'no_authorised_recipients',
+        'Add and authorise at least one recipient before approving.',
+      );
     }
     const now = new Date().toISOString();
     const { data, error } = await service
       .from('municipal_submission_settings')
-      .update({ template_hash: p.hash, template_approved_at: now, template_approved_by: auth.user.id })
+      .update({
+        template_hash: p.hash,
+        template_approved_at: now,
+        template_approved_by: auth.user.id,
+      })
       .eq('property_id', property.id)
       .select('id')
       .single();
-    if (error || !data) return serverError('approve_failed', 'Save the settings first, then approve.', 'municipal_template.approve', error ?? new Error('no settings'));
+    if (error || !data)
+      return serverError(
+        'approve_failed',
+        'Save the settings first, then approve.',
+        'municipal_template.approve',
+        error ?? new Error('no settings'),
+      );
     await writeAuditEvent(service, {
       orgId: property.org_id,
       actorUserId: auth.user.id,
@@ -59,7 +87,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     });
     return NextResponse.json({ approved: true, templateHash: p.hash, approvedAt: now });
   } catch (error) {
-    return serverError('approve_failed', 'Could not approve the template.', 'municipal_template.approve', error);
+    return serverError(
+      'approve_failed',
+      'Could not approve the template.',
+      'municipal_template.approve',
+      error,
+    );
   }
 }
 
@@ -74,7 +107,12 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
   const service = getServiceRoleClient();
   await service
     .from('municipal_submission_settings')
-    .update({ template_hash: null, template_approved_at: null, template_approved_by: null, schedule_enabled: false })
+    .update({
+      template_hash: null,
+      template_approved_at: null,
+      template_approved_by: null,
+      schedule_enabled: false,
+    })
     .eq('property_id', property.id);
   await writeAuditEvent(service, {
     orgId: property.org_id,

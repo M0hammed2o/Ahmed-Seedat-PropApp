@@ -7,8 +7,13 @@ const PAGE = 1000;
 
 /** Reads every row (PostgREST caps a response at 1,000 rows by default; a silently truncated read made large
  * organisations' insights flip between "stale" and "new" on every run). The query must be ordered. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function allRows(page: (from: number, to: number) => PromiseLike<{ data: any[] | null; error: { message: string } | null }>) {
+async function allRows(
+  page: (
+    from: number,
+    to: number,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ) => PromiseLike<{ data: any[] | null; error: { message: string } | null }>,
+) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rows: any[] = [];
   for (let from = 0; ; from += PAGE) {
@@ -126,43 +131,63 @@ async function evaluateRules(
     openTicketsResult,
     unpaidInvoicesResult,
   ] = await Promise.all([
-    hints && !hints.rentOverdue ? EMPTY : allRows((f, t) => client
-      .from('rent_schedules')
-      .select('id, due_date, amount, lease_id')
-      .eq('org_id', orgId)
-      .eq('status', 'overdue')
-      .order('id')
-      .range(f, t)),
-    hints && !hints.rentPending ? EMPTY : allRows((f, t) => client
-      .from('rent_schedules')
-      .select('id, due_date, amount, lease_id')
-      .eq('org_id', orgId)
-      .eq('status', 'pending')
-      .gte('due_date', today) // upper bound (due within the current week) filtered in JS below
-      .order('id')
-      .range(f, t)),
-    hints && !hints.leases ? EMPTY : allRows((f, t) => client
-      .from('leases')
-      .select('id, end_date')
-      .eq('org_id', orgId)
-      .eq('status', 'active')
-      .not('end_date', 'is', null)
-      .order('id')
-      .range(f, t)),
-    hints && !hints.tickets ? EMPTY : allRows((f, t) => client
-      .from('maintenance_tickets')
-      .select('id, summary, priority, status, created_at')
-      .eq('org_id', orgId)
-      .in('status', ['to_do', 'in_progress', 'pending_approval'])
-      .order('id')
-      .range(f, t)),
-    hints && !hints.invoices ? EMPTY : allRows((f, t) => client
-      .from('invoices')
-      .select('id, period, amount, status, voided_at')
-      .eq('org_id', orgId)
-      .neq('status', 'paid')
-      .order('id')
-      .range(f, t)),
+    hints && !hints.rentOverdue
+      ? EMPTY
+      : allRows((f, t) =>
+          client
+            .from('rent_schedules')
+            .select('id, due_date, amount, lease_id')
+            .eq('org_id', orgId)
+            .eq('status', 'overdue')
+            .order('id')
+            .range(f, t),
+        ),
+    hints && !hints.rentPending
+      ? EMPTY
+      : allRows((f, t) =>
+          client
+            .from('rent_schedules')
+            .select('id, due_date, amount, lease_id')
+            .eq('org_id', orgId)
+            .eq('status', 'pending')
+            .gte('due_date', today) // upper bound (due within the current week) filtered in JS below
+            .order('id')
+            .range(f, t),
+        ),
+    hints && !hints.leases
+      ? EMPTY
+      : allRows((f, t) =>
+          client
+            .from('leases')
+            .select('id, end_date')
+            .eq('org_id', orgId)
+            .eq('status', 'active')
+            .not('end_date', 'is', null)
+            .order('id')
+            .range(f, t),
+        ),
+    hints && !hints.tickets
+      ? EMPTY
+      : allRows((f, t) =>
+          client
+            .from('maintenance_tickets')
+            .select('id, summary, priority, status, created_at')
+            .eq('org_id', orgId)
+            .in('status', ['to_do', 'in_progress', 'pending_approval'])
+            .order('id')
+            .range(f, t),
+        ),
+    hints && !hints.invoices
+      ? EMPTY
+      : allRows((f, t) =>
+          client
+            .from('invoices')
+            .select('id, period, amount, status, voided_at')
+            .eq('org_id', orgId)
+            .neq('status', 'paid')
+            .order('id')
+            .range(f, t),
+        ),
   ]);
   // `invoices.status` is never set to 'paid' anywhere in this codebase -- paid/balance is derived
   // from invoice_payments, exactly as loadInvoicesWithBalances() does it. Without these rows the
@@ -174,7 +199,12 @@ async function evaluateRules(
     const ids = (unpaidInvoicesResult.data ?? []).map((i) => i.id as string);
     const rows: { invoice_id: string; amount: number }[] = [];
     for (let i = 0; i < ids.length; i += 150) {
-      const r = await client.from('invoice_payments').select('invoice_id, amount').in('invoice_id', ids.slice(i, i + 150)).is('reversed_at', null).limit(5000);
+      const r = await client
+        .from('invoice_payments')
+        .select('invoice_id, amount')
+        .in('invoice_id', ids.slice(i, i + 150))
+        .is('reversed_at', null)
+        .limit(5000);
       if (r.error) return { data: null, error: r.error };
       rows.push(...((r.data ?? []) as { invoice_id: string; amount: number }[]));
     }
@@ -305,7 +335,9 @@ async function evaluateRules(
   // Independent rule groups: run concurrently (each pushes keyed insights; order does not matter).
   await Promise.all([
     hints && !hints.budgets ? Promise.resolve() : evaluateBudgetRules(client, orgId, now, insights),
-    hints && !hints.meters ? Promise.resolve() : evaluateUtilityAnomalyRules(client, orgId, insights),
+    hints && !hints.meters
+      ? Promise.resolve()
+      : evaluateUtilityAnomalyRules(client, orgId, insights),
   ]);
 
   return insights;
@@ -326,7 +358,8 @@ async function evaluateBudgetRules(
     .select('id, property_id, planned_amount')
     .eq('org_id', orgId)
     .eq('month', monthStart);
-  if (budgetsError) throw new Error(`Portfolio Intelligence budget query failed: ${budgetsError.message}`);
+  if (budgetsError)
+    throw new Error(`Portfolio Intelligence budget query failed: ${budgetsError.message}`);
   if (!budgets || budgets.length === 0) return;
 
   const propertyIds = budgets.map((b) => b.property_id as string);
@@ -336,7 +369,8 @@ async function evaluateBudgetRules(
     .eq('org_id', orgId)
     .in('property_id', propertyIds)
     .gte('invoice_date', monthStart);
-  if (expensesError) throw new Error(`Portfolio Intelligence expense query failed: ${expensesError.message}`);
+  if (expensesError)
+    throw new Error(`Portfolio Intelligence expense query failed: ${expensesError.message}`);
 
   const actualByProperty = new Map<string, number>();
   const nextMonthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1))
@@ -407,7 +441,8 @@ async function evaluateUtilityAnomalyRules(
     .select('id, utility_type, property_id')
     .eq('org_id', orgId)
     .eq('active', true);
-  if (metersError) throw new Error(`Portfolio Intelligence meter query failed: ${metersError.message}`);
+  if (metersError)
+    throw new Error(`Portfolio Intelligence meter query failed: ${metersError.message}`);
   if (!meters || meters.length === 0) return;
 
   const meterIds = meters.map((m) => m.id as string);
@@ -416,7 +451,8 @@ async function evaluateUtilityAnomalyRules(
     .select('meter_id, period_month, consumption')
     .in('meter_id', meterIds)
     .order('period_month', { ascending: true });
-  if (readingsError) throw new Error(`Portfolio Intelligence reading query failed: ${readingsError.message}`);
+  if (readingsError)
+    throw new Error(`Portfolio Intelligence reading query failed: ${readingsError.message}`);
 
   const readingsByMeter = new Map<string, { periodMonth: string; consumption: number | null }[]>();
   for (const row of readings ?? []) {
@@ -503,14 +539,19 @@ export async function reconcilePortfolioInsights(
   // would reappear minutes later. dismissed_at stays filtered: that is this function's own
   // auto-resolve marker for conditions that stopped being true.
   // No undismissed insight (per the candidate query) and nothing fresh: nothing to insert, update or auto-resolve.
-  if (hints && !hints.insights && fresh.length === 0) return { inserted: 0, updated: 0, autoResolved: 0 };
-  const { data: existingRows, error: existingError } = await (hints && !hints.insights ? EMPTY : allRows((f, t) => client
-    .from('portfolio_insights')
-    .select('id, insight_type, data_source, severity, message, acknowledged_at')
-    .eq('org_id', orgId)
-    .is('dismissed_at', null)
-    .order('id')
-    .range(f, t)));
+  if (hints && !hints.insights && fresh.length === 0)
+    return { inserted: 0, updated: 0, autoResolved: 0 };
+  const { data: existingRows, error: existingError } = await (hints && !hints.insights
+    ? EMPTY
+    : allRows((f, t) =>
+        client
+          .from('portfolio_insights')
+          .select('id, insight_type, data_source, severity, message, acknowledged_at')
+          .eq('org_id', orgId)
+          .is('dismissed_at', null)
+          .order('id')
+          .range(f, t),
+      ));
   if (existingError)
     throw new Error(`Failed to load existing portfolio_insights: ${existingError.message}`);
 
@@ -570,7 +611,8 @@ export async function reconcilePortfolioInsights(
       ),
     );
     const failed = results.find((r) => r.error);
-    if (failed?.error) throw new Error(`Failed to update portfolio_insights rows: ${failed.error.message}`);
+    if (failed?.error)
+      throw new Error(`Failed to update portfolio_insights rows: ${failed.error.message}`);
     updated += chunk.length;
   });
 

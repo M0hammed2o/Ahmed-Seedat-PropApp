@@ -189,11 +189,14 @@ describe('resolveDocumentIntelligence', () => {
     'GOOGLE_CLOUD_LOCATION',
     'GOOGLE_DOCUMENT_AI_PROCESSOR_ID',
     'GOOGLE_DOCUMENT_AI_CREDENTIALS_JSON',
-  ])('production + PARTIAL Google config (missing %s) -> unavailable, never the mock', (missing) => {
-    const env: Record<string, string | undefined> = { ...PROD, ...GOOGLE_COMPLETE };
-    delete env[missing];
-    expect(resolveDocumentIntelligence(env).status).toBe('unavailable');
-  });
+  ])(
+    'production + PARTIAL Google config (missing %s) -> unavailable, never the mock',
+    (missing) => {
+      const env: Record<string, string | undefined> = { ...PROD, ...GOOGLE_COMPLETE };
+      delete env[missing];
+      expect(resolveDocumentIntelligence(env).status).toBe('unavailable');
+    },
+  );
 
   it('production + malformed credentials JSON -> unavailable, never the mock', () => {
     const env = { ...PROD, ...GOOGLE_COMPLETE, GOOGLE_DOCUMENT_AI_CREDENTIALS_JSON: '{not json' };
@@ -271,7 +274,10 @@ describe('describeDocumentIntelligenceStatus', () => {
     GOOGLE_CLOUD_PROJECT_ID: 'proj',
     GOOGLE_CLOUD_LOCATION: 'eu',
     GOOGLE_DOCUMENT_AI_PROCESSOR_ID: 'proc',
-    GOOGLE_DOCUMENT_AI_CREDENTIALS_JSON: JSON.stringify({ client_email: 'a@b.c', private_key: 'k' }),
+    GOOGLE_DOCUMENT_AI_CREDENTIALS_JSON: JSON.stringify({
+      client_email: 'a@b.c',
+      private_key: 'k',
+    }),
   };
 
   it('reports Google as connected when it is configured', () => {

@@ -184,9 +184,7 @@ const PLATFORM_WHATSAPP_NUMBER = '+27000000000'; // TO_BE_CONFIRMED
  * setting the variable at all. A misconfigured redirect must suppress the send, never leak past it.
  */
 export type WhatsAppUatOverride =
-  | { kind: 'inactive' }
-  | { kind: 'redirect'; to: string }
-  | { kind: 'blocked'; reason: string };
+  { kind: 'inactive' } | { kind: 'redirect'; to: string } | { kind: 'blocked'; reason: string };
 
 export function resolveWhatsAppUatOverride(intendedNumber: string): WhatsAppUatOverride {
   const override = process.env.WHATSAPP_UAT_OVERRIDE_NUMBER?.trim();

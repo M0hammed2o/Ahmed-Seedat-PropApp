@@ -53,11 +53,15 @@ const REQUIRED_MERGE_FIELDS: LeaseMergeFieldKey[] = [
 ];
 
 export type LeaseMergeResult =
-  | { ok: true; buffer: Buffer }
-  | { ok: false; reason: string; missingFields?: string[] };
+  { ok: true; buffer: Buffer } | { ok: false; reason: string; missingFields?: string[] };
 
-export function mergeLeaseTemplate(templateBuffer: Buffer, fields: LeaseMergeFields): LeaseMergeResult {
-  const missingFields = REQUIRED_MERGE_FIELDS.filter((key) => !fields[key] || fields[key]!.trim() === '');
+export function mergeLeaseTemplate(
+  templateBuffer: Buffer,
+  fields: LeaseMergeFields,
+): LeaseMergeResult {
+  const missingFields = REQUIRED_MERGE_FIELDS.filter(
+    (key) => !fields[key] || fields[key]!.trim() === '',
+  );
   if (missingFields.length > 0) {
     return {
       ok: false,
@@ -70,7 +74,10 @@ export function mergeLeaseTemplate(templateBuffer: Buffer, fields: LeaseMergeFie
   try {
     zip = new PizZip(templateBuffer);
   } catch {
-    return { ok: false, reason: 'The lease template is not a valid DOCX (not a readable zip archive).' };
+    return {
+      ok: false,
+      reason: 'The lease template is not a valid DOCX (not a readable zip archive).',
+    };
   }
 
   let doc: Docxtemplater;

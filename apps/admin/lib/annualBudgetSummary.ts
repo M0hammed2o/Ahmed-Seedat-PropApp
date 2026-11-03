@@ -25,6 +25,7 @@ export function summarizeAnnualBudget(
     annualPlanned,
     annualActual,
     annualRemaining: annualPlanned - annualActual,
-    annualPercentUsed: annualPlanned === 0 ? null : Math.round((annualActual / annualPlanned) * 1000) / 10,
+    annualPercentUsed:
+      annualPlanned === 0 ? null : Math.round((annualActual / annualPlanned) * 1000) / 10,
   };
 }

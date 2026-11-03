@@ -26,26 +26,24 @@ export default function DeleteAccountPage() {
       </h1>
       <p className="mt-3 text-light-textSecondary dark:text-dark-textSecondary">
         {branding.productName} is property-management software published by{' '}
-        {platformBillingEntity.legalEntityName ?? branding.productName}.
-        This page explains how to delete your account and exactly what happens to your information.
+        {platformBillingEntity.legalEntityName ?? branding.productName}. This page explains how to
+        delete your account and exactly what happens to your information.
       </p>
 
       <h2 className="mt-10 font-display text-lg font-semibold">Delete it yourself, in the app</h2>
       <p className="mt-3 text-light-textSecondary dark:text-dark-textSecondary">
         Open <strong>More → Account &amp; security → Delete account</strong> (tenants:{' '}
-        <strong>Profile → Account &amp; security → Delete account</strong>), then confirm.
-        You are signing in to the app already, which is how we know the request is really yours.
-        Deletion happens immediately and cannot be undone.
+        <strong>Profile → Account &amp; security → Delete account</strong>), then confirm. You are
+        signing in to the app already, which is how we know the request is really yours. Deletion
+        happens immediately and cannot be undone.
       </p>
       <p className="mt-3 text-light-textSecondary dark:text-dark-textSecondary">
         There is no delete button on this website. If you cannot use the app &mdash; you have
-        uninstalled it, or you can no longer sign in &mdash; use the route below and we will do
-        it for you.
+        uninstalled it, or you can no longer sign in &mdash; use the route below and we will do it
+        for you.
       </p>
 
-      <h2 className="mt-10 font-display text-lg font-semibold">
-        If you can no longer sign in
-      </h2>
+      <h2 className="mt-10 font-display text-lg font-semibold">If you can no longer sign in</h2>
       {supportEmailConfigured ? (
         <p className="mt-3 text-light-textSecondary dark:text-dark-textSecondary">
           If you have uninstalled the app or lost access to your sign-in details, email{' '}
@@ -56,8 +54,8 @@ export default function DeleteAccountPage() {
             {branding.supportEmail}
           </a>{' '}
           from the address on the account, with the subject{' '}
-          <strong>Account deletion request</strong>. We verify the request and complete the
-          deletion within 30 days.
+          <strong>Account deletion request</strong>. We verify the request and complete the deletion
+          within 30 days.
         </p>
       ) : (
         <p className="mt-3 text-light-textSecondary dark:text-dark-textSecondary">

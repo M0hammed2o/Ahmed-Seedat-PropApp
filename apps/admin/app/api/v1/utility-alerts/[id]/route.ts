@@ -1,6 +1,15 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { utilityAlertUpdateSchema } from '@propvault/validation';
-import { canWriteUtilities, forbidden, notFound, parseJson, requireUser, serverError, utilitiesDisabled, utilitiesEnabledForOrg } from '@/lib/smartUtility/http';
+import {
+  canWriteUtilities,
+  forbidden,
+  notFound,
+  parseJson,
+  requireUser,
+  serverError,
+  utilitiesDisabled,
+  utilitiesEnabledForOrg,
+} from '@/lib/smartUtility/http';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -17,7 +26,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     .eq('id', id)
     .maybeSingle();
   if (!alert) return notFound('Alert');
-  if (!(await canWriteUtilities(auth.supabase, alert.org_id, alert.property_id))) return forbidden();
+  if (!(await canWriteUtilities(auth.supabase, alert.org_id, alert.property_id)))
+    return forbidden();
   if (!(await utilitiesEnabledForOrg(alert.org_id))) return utilitiesDisabled();
   const now = new Date().toISOString();
   const status = parsed.data.status;
@@ -30,6 +40,12 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       resolved_at: status === 'resolved' ? now : null,
     })
     .eq('id', id);
-  if (error) return serverError('alert_update_failed', 'Could not update the alert.', 'utility_alerts.update', error);
+  if (error)
+    return serverError(
+      'alert_update_failed',
+      'Could not update the alert.',
+      'utility_alerts.update',
+      error,
+    );
   return NextResponse.json({ status });
 }

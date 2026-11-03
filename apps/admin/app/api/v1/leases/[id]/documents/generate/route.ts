@@ -82,7 +82,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     );
   }
   if (!lease) {
-    return NextResponse.json({ error: { code: 'not_found', message: 'Lease not found.' } }, { status: 404 });
+    return NextResponse.json(
+      { error: { code: 'not_found', message: 'Lease not found.' } },
+      { status: 404 },
+    );
   }
 
   // The merged document is written by the server (clients have no Storage write policy, migration
@@ -114,7 +117,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     .eq('lease_id', id)
     .eq('is_primary', true)
     .maybeSingle();
-  const tenant = (leaseTenant as unknown as { tenants: { full_name: string; email: string | null; phone: string | null } | null } | null)?.tenants;
+  const tenant = (
+    leaseTenant as unknown as {
+      tenants: { full_name: string; email: string | null; phone: string | null } | null;
+    } | null
+  )?.tenants;
 
   const { data: template, error: templateError } = await supabase
     .from('lease_templates')
@@ -137,7 +144,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
   if (template.mime_type !== DOCX_MIME) {
     return NextResponse.json(
-      { error: { code: 'unsupported_template_type', message: 'Only DOCX templates can be merged. Use manual upload for PDF templates.' } },
+      {
+        error: {
+          code: 'unsupported_template_type',
+          message: 'Only DOCX templates can be merged. Use manual upload for PDF templates.',
+        },
+      },
       { status: 400 },
     );
   }
@@ -176,7 +188,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       } | null;
     }
   ).units;
-  const org = (lease as unknown as { organizations: { trading_name: string | null; legal_name: string } | null }).organizations;
+  const org = (
+    lease as unknown as {
+      organizations: { trading_name: string | null; legal_name: string } | null;
+    }
+  ).organizations;
 
   const fields: LeaseMergeFields = {
     tenant_full_name: tenant?.full_name ?? '',
@@ -192,7 +208,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     lease_start_date: lease.start_date ?? '',
     lease_end_date: lease.end_date ?? '',
     rental_due_day: parsed.data.rentalDueDay != null ? String(parsed.data.rentalDueDay) : '',
-    annual_escalation: parsed.data.annualEscalationPct != null ? `${parsed.data.annualEscalationPct}%` : '',
+    annual_escalation:
+      parsed.data.annualEscalationPct != null ? `${parsed.data.annualEscalationPct}%` : '',
     landlord_name: org?.trading_name ?? org?.legal_name ?? '',
     organisation_name: org?.legal_name ?? '',
     approved_occupants: parsed.data.approvedOccupants ?? '',

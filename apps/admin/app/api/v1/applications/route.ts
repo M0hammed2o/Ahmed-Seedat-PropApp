@@ -169,7 +169,11 @@ export async function POST(request: NextRequest) {
       {
         error: {
           code: 'unit_fetch_failed',
-          message: safeErrorMessage(unitFetchError, 'Could not load this unit.', 'applications.create.unitFetch'),
+          message: safeErrorMessage(
+            unitFetchError,
+            'Could not load this unit.',
+            'applications.create.unitFetch',
+          ),
         },
       },
       { status: 500 },

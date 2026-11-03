@@ -10,7 +10,10 @@ import { setUpOrg, createProperty, createUnit, COLD_ROUTE_MS } from './fixtures/
 
 const CRITICAL_FORM_PATHS = (propertyId: string, unitId: string) => [
   { name: 'New application', path: `/properties/${propertyId}/units/${unitId}/applications/new` },
-  { name: 'Record existing lease', path: `/properties/${propertyId}/units/${unitId}/leases/new/existing` },
+  {
+    name: 'Record existing lease',
+    path: `/properties/${propertyId}/units/${unitId}/leases/new/existing`,
+  },
   { name: 'Add expense', path: '/accounting/expenses/new' },
   { name: 'Property detail', path: `/properties/${propertyId}` },
   { name: 'Dashboard', path: '/dashboard' },
@@ -39,7 +42,9 @@ test.describe('Browser quality: console errors on critical forms (desktop)', () 
     // A hydration mismatch always surfaces as a real React console.error -- explicitly named in
     // the closeout brief's quality checklist alongside plain console errors.
     const hydrationErrors = consoleErrors.filter((e) => /hydration/i.test(e));
-    expect(hydrationErrors, `Hydration errors found:\n${hydrationErrors.join('\n')}`).toHaveLength(0);
+    expect(hydrationErrors, `Hydration errors found:\n${hydrationErrors.join('\n')}`).toHaveLength(
+      0,
+    );
     expect(pageErrors, `Uncaught page errors found:\n${pageErrors.join('\n')}`).toHaveLength(0);
     expect(consoleErrors, `Console errors found:\n${consoleErrors.join('\n')}`).toHaveLength(0);
   });

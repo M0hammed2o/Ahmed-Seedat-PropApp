@@ -148,7 +148,8 @@ const TEMPLATE_SUBJECTS: Record<EmailTemplateName, (vars: Record<string, unknown
     `An update on your application for ${v.propertyLabel ?? 'your rental'}`,
   lease_ready: (v) => `Your lease for ${v.propertyLabel ?? 'your rental'} is ready`,
   municipal_meter_reading_report: (v) => String(v.subject ?? 'Meter readings'),
-  utility_statement_ready: (v) => `Your utility statement for ${v.period ?? 'this period'} — ${v.propertyLabel ?? 'your rental'}`,
+  utility_statement_ready: (v) =>
+    `Your utility statement for ${v.period ?? 'this period'} — ${v.propertyLabel ?? 'your rental'}`,
 };
 
 // Plain-text bodies -- the required MIME text/plain fallback for every real send (never removed
@@ -221,14 +222,14 @@ const TEMPLATE_BODY: Record<EmailTemplateName, (vars: Record<string, unknown>) =
 —
 Sent on behalf of ${v.preparedFor ?? 'the property owner'} via ${branding.productName}.`
       : [
-      'Good day,',
-      '',
-      'Please find the meter readings below for the property and period stated. The same readings are attached as CSV and PDF.',
-      '',
-      ...(Array.isArray(v.textLines) ? (v.textLines as string[]) : []),
-      '',
-      `Sent on behalf of ${v.preparedFor ?? 'the property owner'} via ${branding.productName}.`,
-    ].join('\n'),
+          'Good day,',
+          '',
+          'Please find the meter readings below for the property and period stated. The same readings are attached as CSV and PDF.',
+          '',
+          ...(Array.isArray(v.textLines) ? (v.textLines as string[]) : []),
+          '',
+          `Sent on behalf of ${v.preparedFor ?? 'the property owner'} via ${branding.productName}.`,
+        ].join('\n'),
   utility_statement_ready: (v) =>
     [
       `Your utility statement for ${v.propertyLabel ?? 'your rental'} (${v.period ?? 'this period'}) is attached as a PDF.`,
@@ -464,7 +465,7 @@ const TEMPLATE_HTML_CONTENT: Record<
   }),
   application_submitted: (v, _appUrl) => ({
     eyebrow: 'Application received',
-    heading: 'Thanks — we\'ve received your application',
+    heading: "Thanks — we've received your application",
     intro: `Your application for ${v.propertyLabel ?? 'your rental'} has been submitted. ${v.orgName ?? 'The landlord'} will review it and be in touch.`,
     cta: v.applyUrl ? { label: 'Review your application', url: String(v.applyUrl) } : undefined,
   }),
@@ -503,11 +504,16 @@ const TEMPLATE_HTML_CONTENT: Record<
     // are paragraphs. Otherwise the default intro + reading lines.
     intro:
       typeof v.bodyText === 'string'
-        ? (String(v.bodyText).split('\n').find((l) => l.trim().length > 0) ?? '')
+        ? (String(v.bodyText)
+            .split('\n')
+            .find((l) => l.trim().length > 0) ?? '')
         : 'Please find the meter readings for the property and period below. The same readings are attached as CSV and PDF.',
     paragraphs:
       typeof v.bodyText === 'string'
-        ? String(v.bodyText).split('\n').filter((l) => l.trim().length > 0).slice(1)
+        ? String(v.bodyText)
+            .split('\n')
+            .filter((l) => l.trim().length > 0)
+            .slice(1)
         : Array.isArray(v.textLines)
           ? (v.textLines as string[]).filter((l) => l.trim().length > 0)
           : undefined,
@@ -524,7 +530,10 @@ const TEMPLATE_HTML_CONTENT: Record<
       ...(v.totalLabel ? [`Total for the period: ${v.totalLabel}.`] : []),
       'If something looks wrong, contact your landlord or agent so it can be checked before payment.',
     ],
-    infoBox: { label: 'Sent on behalf of', text: `${v.orgName ?? 'your landlord'} via ${branding.productName}` },
+    infoBox: {
+      label: 'Sent on behalf of',
+      text: `${v.orgName ?? 'your landlord'} via ${branding.productName}`,
+    },
   }),
 };
 

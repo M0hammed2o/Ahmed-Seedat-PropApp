@@ -3,7 +3,13 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { PdfImage } from './municipalReport';
 import { renderReportPdf } from './municipalReport';
 import { billingPeriodContaining } from './consumption';
-import { loadTemplateContext, nextSendDate, previewWarnings, renderPack, type TemplateContext } from './reporting';
+import {
+  loadTemplateContext,
+  nextSendDate,
+  previewWarnings,
+  renderPack,
+  type TemplateContext,
+} from './reporting';
 import { buildReportForProperty, loadPhotoFiles, loadPropertyForReport } from './submissions';
 import { normaliseFields, templateHash, type TemplateSettings } from './templates';
 
@@ -33,10 +39,16 @@ export async function buildPreview(
   const template: TemplateSettings = draft
     ? {
         ...ctx.template,
-        ...(draft.subjectTemplate !== undefined ? { subjectTemplate: draft.subjectTemplate || null } : {}),
+        ...(draft.subjectTemplate !== undefined
+          ? { subjectTemplate: draft.subjectTemplate || null }
+          : {}),
         ...(draft.bodyTemplate !== undefined ? { bodyTemplate: draft.bodyTemplate || null } : {}),
-        ...(draft.customMessage !== undefined ? { customMessage: draft.customMessage || null } : {}),
-        ...(draft.accountHolderName !== undefined ? { accountHolderName: draft.accountHolderName || null } : {}),
+        ...(draft.customMessage !== undefined
+          ? { customMessage: draft.customMessage || null }
+          : {}),
+        ...(draft.accountHolderName !== undefined
+          ? { accountHolderName: draft.accountHolderName || null }
+          : {}),
         ...(draft.includeFields ? { includeFields: normaliseFields(draft.includeFields) } : {}),
       }
     : ctx.template;
@@ -54,7 +66,8 @@ export async function buildPreview(
     period,
     now,
   );
-  const includePhotos = (s.include_photos as boolean | undefined ?? true) && template.includeFields.photos;
+  const includePhotos =
+    ((s.include_photos as boolean | undefined) ?? true) && template.includeFields.photos;
   const files = includePhotos ? await loadPhotoFiles(serviceClient, property.org_id, report) : [];
   const rendered = renderPack(report, template, files.length);
   const hash = templateHash(template);
@@ -74,7 +87,9 @@ export async function buildPreview(
   };
 }
 
-export async function renderPreviewPdf(preview: Awaited<ReturnType<typeof buildPreview>>): Promise<Buffer> {
+export async function renderPreviewPdf(
+  preview: Awaited<ReturnType<typeof buildPreview>>,
+): Promise<Buffer> {
   const images: PdfImage[] = [];
   // Matched by document id (TD-60): a photo that could not be loaded no longer shifts later captions onto the
   // wrong meter.
@@ -82,7 +97,12 @@ export async function renderPreviewPdf(preview: Awaited<ReturnType<typeof buildP
   for (const m of preview.report.meters) {
     for (const docId of m.evidenceDocumentIds) {
       const f = byDocument.get(docId);
-      if (f) images.push({ meterId: m.meterId, buffer: Buffer.from(f.contentBase64, 'base64'), caption: `Meter photo (${m.meterNumber ?? m.serialNumber ?? ''})` });
+      if (f)
+        images.push({
+          meterId: m.meterId,
+          buffer: Buffer.from(f.contentBase64, 'base64'),
+          caption: `Meter photo (${m.meterNumber ?? m.serialNumber ?? ''})`,
+        });
     }
   }
   return renderReportPdf(preview.report, { fields: preview.template.includeFields, images });

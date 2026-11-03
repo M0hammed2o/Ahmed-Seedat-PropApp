@@ -65,7 +65,11 @@ interface ApplicationWhatsAppContext {
 async function dispatchIfEligible(
   serviceClient: SupabaseClient,
   ctx: ApplicationWhatsAppContext,
-  templateName: 'application_invitation' | 'application_documents_requested' | 'application_approved' | 'application_declined',
+  templateName:
+    | 'application_invitation'
+    | 'application_documents_requested'
+    | 'application_approved'
+    | 'application_declined',
   variables: Record<string, string>,
 ): Promise<DispatchWhatsAppResult & { eligibility: ApplicantWhatsAppEligibility }> {
   const eligibility = await checkApplicantWhatsAppEligibility(serviceClient, ctx.applicationId);
@@ -127,7 +131,10 @@ export async function dispatchApplicationApprovedWhatsApp(
     serviceClient,
     ctx,
     'application_approved',
-    buildApplicationApprovedVariables({ organizationName: branding.organizationName, propertyLabel: ctx.propertyLabel }),
+    buildApplicationApprovedVariables({
+      organizationName: branding.organizationName,
+      propertyLabel: ctx.propertyLabel,
+    }),
   );
 }
 
@@ -140,6 +147,9 @@ export async function dispatchApplicationDeclinedWhatsApp(
     serviceClient,
     ctx,
     'application_declined',
-    buildApplicationDeclinedVariables({ organizationName: branding.organizationName, propertyLabel: ctx.propertyLabel }),
+    buildApplicationDeclinedVariables({
+      organizationName: branding.organizationName,
+      propertyLabel: ctx.propertyLabel,
+    }),
   );
 }

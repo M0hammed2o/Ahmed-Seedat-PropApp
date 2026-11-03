@@ -2,7 +2,16 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { smartMeterUpdateSchema } from '@propvault/validation';
 import { getServiceRoleClient } from '@/lib/supabase/server';
 import { writeAuditEvent } from '@/lib/audit';
-import { canWriteUtilities, forbidden, notFound, parseJson, requireUser, serverError, utilitiesDisabled, utilitiesEnabledForOrg } from '@/lib/smartUtility/http';
+import {
+  canWriteUtilities,
+  forbidden,
+  notFound,
+  parseJson,
+  requireUser,
+  serverError,
+  utilitiesDisabled,
+  utilitiesEnabledForOrg,
+} from '@/lib/smartUtility/http';
 import { loadReadableMeter, meterWriteError } from '@/lib/smartUtility/meters';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -19,7 +28,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   if ('response' in parsed) return parsed.response;
   const meter = await loadReadableMeter(auth.supabase, id);
   if (!meter) return notFound('Meter');
-  if (!(await canWriteUtilities(auth.supabase, meter.org_id, meter.property_id))) return forbidden();
+  if (!(await canWriteUtilities(auth.supabase, meter.org_id, meter.property_id)))
+    return forbidden();
   if (!(await utilitiesEnabledForOrg(meter.org_id))) return utilitiesDisabled();
 
   const d = parsed.data;
@@ -55,7 +65,15 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
   const { error } = await auth.supabase.from('utility_meters').update(update).eq('id', id);
   if (error) {
-    return meterWriteError(error) ?? serverError('smart_meter_update_failed', 'Could not update this meter.', 'smart_meters.update', error);
+    return (
+      meterWriteError(error) ??
+      serverError(
+        'smart_meter_update_failed',
+        'Could not update this meter.',
+        'smart_meters.update',
+        error,
+      )
+    );
   }
   await writeAuditEvent(getServiceRoleClient(), {
     orgId: meter.org_id,

@@ -12,14 +12,23 @@ import {
   dispatchApplicationDeclinedWhatsApp,
 } from '@/lib/applicationNotifications';
 
-async function loadPropertyLabel(serviceClient: SupabaseClient, applicationId: string): Promise<string> {
+async function loadPropertyLabel(
+  serviceClient: SupabaseClient,
+  applicationId: string,
+): Promise<string> {
   const { data } = await serviceClient
     .from('applications')
     .select('units(unit_label, properties(nickname))')
     .eq('id', applicationId)
     .maybeSingle();
-  const units = (data as unknown as { units: { unit_label: string; properties: { nickname: string } | null } | null } | null)?.units;
-  return units?.properties?.nickname ? `${units.properties.nickname} — ${units.unit_label}` : (units?.unit_label ?? 'your rental');
+  const units = (
+    data as unknown as {
+      units: { unit_label: string; properties: { nickname: string } | null } | null;
+    } | null
+  )?.units;
+  return units?.properties?.nickname
+    ? `${units.properties.nickname} — ${units.unit_label}`
+    : (units?.unit_label ?? 'your rental');
 }
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -55,7 +64,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       {
         error: {
           code: 'application_fetch_failed',
-          message: safeErrorMessage(fetchError, 'Could not load this application.', 'applications/[id]/decide.fetch'),
+          message: safeErrorMessage(
+            fetchError,
+            'Could not load this application.',
+            'applications/[id]/decide.fetch',
+          ),
         },
       },
       { status: 500 },
@@ -203,7 +216,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       {
         error: {
           code: 'application_fetch_failed',
-          message: safeErrorMessage(refetchError, 'Could not reload this application.', 'applications/[id]/decide.refetch'),
+          message: safeErrorMessage(
+            refetchError,
+            'Could not reload this application.',
+            'applications/[id]/decide.refetch',
+          ),
         },
       },
       { status: 500 },

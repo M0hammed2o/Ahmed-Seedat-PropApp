@@ -8,20 +8,21 @@ hosted database. Every step below needs the owner's go-ahead (§9 lists the exac
 
 Apply in order, each in its own transaction (the Supabase CLI does this):
 
-| # | Migration | Purpose | Reversible? |
-| --- | --- | --- | --- |
-| 172–174 | (live in production per project memory, head 172 on 2026-09-14 and 174 later; **verify the head first**) | storage path ownership, CoA/insight ack, deleted-account PII | — |
-| 175 | `smart_utility_metering` | meter hierarchy, telemetry, integrations, alerts, municipal packs; property-level utility RLS | rollback script (§2) |
-| 176 | `smart_utilities_engine_billing_reporting` | poll engine, encrypted credentials, catalogue requests, tariffs/charges v1, templates | rollback script |
-| 177 | `utility_meter_location` | meter location column | rollback script |
-| 178 | `hybrid_utilities` | supply sources, measurement kinds, tariffs v2, arrangements, allocation, charges v2, statements | rollback script |
-| 179 | `utilities_hardening` | org/property binding, evidence check, overlap exclusion (btree_gist), invoice-void release, reading counts, `organizations.utilities_enabled` | rollback script; **fails on purpose** if overlapping live utility charges exist (none in production) |
-| 180 | `portfolio_intelligence_candidates` | candidate-org function for the daily job | rollback script |
-| 181 | `utilities_phase3` | batch telemetry insert, opt-in retention, legacy monthly readings mirrored into telemetry (+ backfill), `true_up` charge type, one true-up credit per estimate | rollback script |
-| 182 | `utilities_off_by_default` | `utilities_enabled` defaults to false; every existing organisation set to false (pilot org switched on explicitly, §5) | rollback script (drops the column) |
-| 183 | `utilities_rls_set_based` | utilities RLS evaluated per property instead of per row (same visibility; portfolio query 24.6 s → 0.7 s at scale) | rollback script |
+| #       | Migration                                                                                                | Purpose                                                                                                                                                        | Reversible?                                                                                          |
+| ------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| 172–174 | (live in production per project memory, head 172 on 2026-09-14 and 174 later; **verify the head first**) | storage path ownership, CoA/insight ack, deleted-account PII                                                                                                   | —                                                                                                    |
+| 175     | `smart_utility_metering`                                                                                 | meter hierarchy, telemetry, integrations, alerts, municipal packs; property-level utility RLS                                                                  | rollback script (§2)                                                                                 |
+| 176     | `smart_utilities_engine_billing_reporting`                                                               | poll engine, encrypted credentials, catalogue requests, tariffs/charges v1, templates                                                                          | rollback script                                                                                      |
+| 177     | `utility_meter_location`                                                                                 | meter location column                                                                                                                                          | rollback script                                                                                      |
+| 178     | `hybrid_utilities`                                                                                       | supply sources, measurement kinds, tariffs v2, arrangements, allocation, charges v2, statements                                                                | rollback script                                                                                      |
+| 179     | `utilities_hardening`                                                                                    | org/property binding, evidence check, overlap exclusion (btree_gist), invoice-void release, reading counts, `organizations.utilities_enabled`                  | rollback script; **fails on purpose** if overlapping live utility charges exist (none in production) |
+| 180     | `portfolio_intelligence_candidates`                                                                      | candidate-org function for the daily job                                                                                                                       | rollback script                                                                                      |
+| 181     | `utilities_phase3`                                                                                       | batch telemetry insert, opt-in retention, legacy monthly readings mirrored into telemetry (+ backfill), `true_up` charge type, one true-up credit per estimate | rollback script                                                                                      |
+| 182     | `utilities_off_by_default`                                                                               | `utilities_enabled` defaults to false; every existing organisation set to false (pilot org switched on explicitly, §5)                                         | rollback script (drops the column)                                                                   |
+| 183     | `utilities_rls_set_based`                                                                                | utilities RLS evaluated per property instead of per row (same visibility; portfolio query 24.6 s → 0.7 s at scale)                                             | rollback script                                                                                      |
 
 **Rehearsal evidence (local, disposable stack `propvault_su`, 2026-10-11).**
+
 - **Data:** a data-only copy of the local database at head 171:
   - 2,725 organisations, 1,886 properties, 477 leases;
   - 1,766 invoices, 1,722 payments, 620 journal entries;
@@ -48,6 +49,7 @@ Apply in order, each in its own transaction (the Supabase CLI does this):
 `psql -1 -v ON_ERROR_STOP=1 -f supabase/rollback/20260101000175_183_utilities_down.sql`.
 
 What it does:
+
 - **Refuses** while real utility data exists: charges, statements, municipal packs, tariffs, supply sources, or
   telemetry other than mirrored monthly readings. Dropping those would destroy customer records; **restore from the
   dump/PITR instead**.
@@ -59,6 +61,7 @@ What it does:
 check against 174 → up again. All 7 migrations re-applied; 120/120 readings mirrored again.
 
 The checks against 174 after the down step:
+
 - `pg_dump --schema-only` of `public` is **identical** to 174 (only pg_dump's random `\restrict` token differs);
 - data fingerprint **identical**;
 - extension list **identical**;
@@ -68,16 +71,16 @@ After go-live, prefer **forward fixes**. Use PITR only for data loss.
 
 ## 3. Environment variables and secrets
 
-| Variable | Staging | Production | Notes |
-| --- | --- | --- | --- |
-| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | staging project | production project | existing |
-| `CRON_JOB_SECRET` | random 32+ chars | random 32+ chars | scheduler → `/api/v1/system/*` (constant-time compare, TD-68 fixed) |
-| `RESEND_API_KEY`, `RESEND_FROM_ADDRESS` | **unset (mock)** or a sandbox domain | as today | staging must not e-mail real recipients |
-| `SMART_UTILITY_AUTO_SUBMISSION_ENABLED` | **unset** | **unset** until the owner approves automatic municipal sending | |
-| `SMART_UTILITY_TENANT_STATEMENTS_ENABLED` | **unset** | **unset** until approved | statements stay downloadable/visible after approval |
-| `SMART_UTILITY_CREDENTIALS_KEY` | random 32 bytes base64 only if testing ThingsBoard | only if poll integrations are offered | secret store only; DNS-rebinding fix (TD-66) is in; still untested against a live server |
-| `SMART_UTILITY_TELEMETRY_RETENTION_DAYS` | **unset** (retention off) | unset for the pilot | **new (181)**. When set: older telemetry is thinned to each day's first/last reading plus manual/evidenced/flagged ones. Clamped to ≥ 400; irreversible for deleted rows |
-| `CLOUDMERSIVE_API_KEY` | as today | as today | photo evidence scanning |
+| Variable                                                                                 | Staging                                            | Production                                                     | Notes                                                                                                                                                                    |
+| ---------------------------------------------------------------------------------------- | -------------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | staging project                                    | production project                                             | existing                                                                                                                                                                 |
+| `CRON_JOB_SECRET`                                                                        | random 32+ chars                                   | random 32+ chars                                               | scheduler → `/api/v1/system/*` (constant-time compare, TD-68 fixed)                                                                                                      |
+| `RESEND_API_KEY`, `RESEND_FROM_ADDRESS`                                                  | **unset (mock)** or a sandbox domain               | as today                                                       | staging must not e-mail real recipients                                                                                                                                  |
+| `SMART_UTILITY_AUTO_SUBMISSION_ENABLED`                                                  | **unset**                                          | **unset** until the owner approves automatic municipal sending |                                                                                                                                                                          |
+| `SMART_UTILITY_TENANT_STATEMENTS_ENABLED`                                                | **unset**                                          | **unset** until approved                                       | statements stay downloadable/visible after approval                                                                                                                      |
+| `SMART_UTILITY_CREDENTIALS_KEY`                                                          | random 32 bytes base64 only if testing ThingsBoard | only if poll integrations are offered                          | secret store only; DNS-rebinding fix (TD-66) is in; still untested against a live server                                                                                 |
+| `SMART_UTILITY_TELEMETRY_RETENTION_DAYS`                                                 | **unset** (retention off)                          | unset for the pilot                                            | **new (181)**. When set: older telemetry is thinned to each day's first/last reading plus manual/evidenced/flagged ones. Clamped to ≥ 400; irreversible for deleted rows |
+| `CLOUDMERSIVE_API_KEY`                                                                   | as today                                           | as today                                                       | photo evidence scanning                                                                                                                                                  |
 
 Never copy `apps/admin/.env.local` (it holds live keys) into staging or CI. Playwright now blanks every external
 provider key itself (TD-59).
@@ -108,6 +111,7 @@ update public.organizations set utilities_enabled = true where id = '<pilot org 
 ```
 
 What a switched-off organisation gets:
+
 - 403 `utilities_disabled` from every Smart Utilities write route and from device ingestion;
 - no poll sync (its server is never contacted);
 - no utility alerts, no approval reminders, and no municipal generation or sending.
@@ -116,6 +120,7 @@ Legacy monthly readings (Android capture, Finances) are not gated and keep worki
 into telemetry, which is harmless.
 
 No path creates or sends anything automatically without authorisation:
+
 - **Charges:** only created when a manager presses Calculate. They are always drafts, and invoices are always drafts.
 - **Tenant statements:** need approval, plus `SMART_UTILITY_TENANT_STATEMENTS_ENABLED`, plus a person pressing Send.
 - **Municipal packs:** need an approved template hash, an authorised recipient, an enabled schedule and
@@ -166,14 +171,14 @@ See `UTILITIES_REMAINING_BLOCKERS.md` (current) and `UTILITIES_PRODUCTION_READIN
 
 ## 9. Approvals needed before anything leaves this machine
 
-| # | Action | Who approves | Prerequisite |
-| --- | --- | --- | --- |
-| 1 | Push the local commits to the remote | owner | review the commit list |
-| 2 | Apply 175–183 to **staging** | owner | a separate staging Supabase project exists (DEPLOYMENT.md; Unknown whether it does yet); dump of staging taken |
-| 3 | Set staging env vars (§3) — sending flags unset, Resend mock/sandbox | owner | secret store access |
-| 4 | Choose the pilot organisation; run §5 statements on staging | owner | org id |
-| 5 | Production: apply 175–183 | owner, separately | staging smoke tests pass; PITR + dump verified |
-| 6 | Any real tariff, any real tenant charge, any municipal send | owner + legal check per site | `UTILITIES_REMAINING_BLOCKERS.md` |
+| #   | Action                                                               | Who approves                 | Prerequisite                                                                                                   |
+| --- | -------------------------------------------------------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| 1   | Push the local commits to the remote                                 | owner                        | review the commit list                                                                                         |
+| 2   | Apply 175–183 to **staging**                                         | owner                        | a separate staging Supabase project exists (DEPLOYMENT.md; Unknown whether it does yet); dump of staging taken |
+| 3   | Set staging env vars (§3) — sending flags unset, Resend mock/sandbox | owner                        | secret store access                                                                                            |
+| 4   | Choose the pilot organisation; run §5 statements on staging          | owner                        | org id                                                                                                         |
+| 5   | Production: apply 175–183                                            | owner, separately            | staging smoke tests pass; PITR + dump verified                                                                 |
+| 6   | Any real tariff, any real tenant charge, any municipal send          | owner + legal check per site | `UTILITIES_REMAINING_BLOCKERS.md`                                                                              |
 
 ## 10. Exact staging commands (run only after approvals 1–4)
 
@@ -213,6 +218,6 @@ npx supabase db push --linked
 ```
 
 **Rollback on staging:** `psql "$STAGING_DB_URL" -1 -v ON_ERROR_STOP=1 -f supabase/rollback/20260101000175_183_utilities_down.sql`.
+
 - It refuses once real utility data exists; restore the step-2 dump instead.
 - The app commit must be rolled back together with the schema.
-

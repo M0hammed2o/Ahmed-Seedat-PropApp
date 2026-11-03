@@ -29,7 +29,12 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
   const canManage = await requireOrgRole(supabase, orgId, 'principal');
   if (!canManage) {
     return NextResponse.json(
-      { error: { code: 'forbidden', message: 'You do not have permission to view staff provisions.' } },
+      {
+        error: {
+          code: 'forbidden',
+          message: 'You do not have permission to view staff provisions.',
+        },
+      },
       { status: 403 },
     );
   }
@@ -203,9 +208,6 @@ async function handlePOST(request: NextRequest, params: RouteParams['params']) {
     if (message.includes('Principal cannot be assigned')) {
       return NextResponse.json({ error: { code: 'forbidden', message } }, { status: 403 });
     }
-    return NextResponse.json(
-      { error: { code: 'provision_failed', message } },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: { code: 'provision_failed', message } }, { status: 500 });
   }
 }

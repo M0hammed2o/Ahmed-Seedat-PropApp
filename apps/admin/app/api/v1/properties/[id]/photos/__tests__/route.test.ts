@@ -17,10 +17,12 @@ const mockCookieJar = new Map<string, string>();
 
 vi.mock('next/headers', () => ({
   headers: async () => ({
-    get: (name: string) => (name.toLowerCase() === 'authorization' ? mockAuthorizationHeader : null),
+    get: (name: string) =>
+      name.toLowerCase() === 'authorization' ? mockAuthorizationHeader : null,
   }),
   cookies: async () => ({
-    get: (name: string) => (mockCookieJar.has(name) ? { value: mockCookieJar.get(name) } : undefined),
+    get: (name: string) =>
+      mockCookieJar.has(name) ? { value: mockCookieJar.get(name) } : undefined,
     set: (name: string, value: string) => {
       mockCookieJar.set(name, value);
     },
@@ -97,10 +99,11 @@ function getRequest(propertyId: string): NextRequest {
 }
 
 function patchRequest(propertyId: string, photoId: string, body: unknown): NextRequest {
-  return new NextRequest(
-    `http://localhost/api/v1/properties/${propertyId}/photos/${photoId}`,
-    { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
-  );
+  return new NextRequest(`http://localhost/api/v1/properties/${propertyId}/photos/${photoId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
 }
 
 function deleteRequest(propertyId: string, photoId: string): NextRequest {
@@ -237,7 +240,10 @@ describeIfSupabase(
         .from('property_photos')
         .select('id')
         .eq('property_id', propertyId);
-      const { data: docs } = await admin.from('documents').select('id').eq('property_id', propertyId);
+      const { data: docs } = await admin
+        .from('documents')
+        .select('id')
+        .eq('property_id', propertyId);
       expect(photos).toHaveLength(1);
       expect(docs).toHaveLength(1);
     });
@@ -245,21 +251,29 @@ describeIfSupabase(
     // Test D + cover determinism: a second photo does not become cover; the first stays cover.
     it('a second uploaded photo does not become cover -- the deterministic first-wins rule holds', async () => {
       const png1 = await realPngBuffer();
-      const first = await POST(uploadRequest(propertyId, new File([png1], 'a.png', { type: 'image/png' })), {
-        params: Promise.resolve({ id: propertyId }),
-      });
+      const first = await POST(
+        uploadRequest(propertyId, new File([png1], 'a.png', { type: 'image/png' })),
+        {
+          params: Promise.resolve({ id: propertyId }),
+        },
+      );
       const firstBody = await first.json();
 
       const png2 = await realPngBuffer();
-      const second = await POST(uploadRequest(propertyId, new File([png2], 'b.png', { type: 'image/png' })), {
-        params: Promise.resolve({ id: propertyId }),
-      });
+      const second = await POST(
+        uploadRequest(propertyId, new File([png2], 'b.png', { type: 'image/png' })),
+        {
+          params: Promise.resolve({ id: propertyId }),
+        },
+      );
       const secondBody = await second.json();
 
       expect(firstBody.photo.isCover).toBe(true);
       expect(secondBody.photo.isCover).toBe(false);
 
-      const list = await GET(getRequest(propertyId), { params: Promise.resolve({ id: propertyId }) });
+      const list = await GET(getRequest(propertyId), {
+        params: Promise.resolve({ id: propertyId }),
+      });
       const listBody = await list.json();
       const cover = listBody.photos.find((p: { isCover: boolean }) => p.isCover);
       expect(cover.id).toBe(firstBody.photo.id);
@@ -270,19 +284,28 @@ describeIfSupabase(
     // rendering isn't reachable from a route-level test.
     it('setting a non-cover photo as cover demotes the old one -- exactly one cover remains', async () => {
       const png1 = await realPngBuffer();
-      const first = await POST(uploadRequest(propertyId, new File([png1], 'a.png', { type: 'image/png' })), {
-        params: Promise.resolve({ id: propertyId }),
-      });
+      const first = await POST(
+        uploadRequest(propertyId, new File([png1], 'a.png', { type: 'image/png' })),
+        {
+          params: Promise.resolve({ id: propertyId }),
+        },
+      );
       const firstBody = await first.json();
       const png2 = await realPngBuffer();
-      const second = await POST(uploadRequest(propertyId, new File([png2], 'b.png', { type: 'image/png' })), {
-        params: Promise.resolve({ id: propertyId }),
-      });
+      const second = await POST(
+        uploadRequest(propertyId, new File([png2], 'b.png', { type: 'image/png' })),
+        {
+          params: Promise.resolve({ id: propertyId }),
+        },
+      );
       const secondBody = await second.json();
 
-      const patchResponse = await PATCH(patchRequest(propertyId, secondBody.photo.id, { isCover: true }), {
-        params: Promise.resolve({ id: propertyId, photoId: secondBody.photo.id }),
-      });
+      const patchResponse = await PATCH(
+        patchRequest(propertyId, secondBody.photo.id, { isCover: true }),
+        {
+          params: Promise.resolve({ id: propertyId, photoId: secondBody.photo.id }),
+        },
+      );
       expect(patchResponse.status).toBe(200);
 
       const admin = await import('@supabase/supabase-js').then(({ createClient }) =>
@@ -307,14 +330,20 @@ describeIfSupabase(
     // Test F: removing the cover promotes the next photo -- valid fallback, never a broken state.
     it('removing the cover photo promotes the oldest remaining photo to cover', async () => {
       const png1 = await realPngBuffer();
-      const first = await POST(uploadRequest(propertyId, new File([png1], 'a.png', { type: 'image/png' })), {
-        params: Promise.resolve({ id: propertyId }),
-      });
+      const first = await POST(
+        uploadRequest(propertyId, new File([png1], 'a.png', { type: 'image/png' })),
+        {
+          params: Promise.resolve({ id: propertyId }),
+        },
+      );
       const firstBody = await first.json();
       const png2 = await realPngBuffer();
-      const second = await POST(uploadRequest(propertyId, new File([png2], 'b.png', { type: 'image/png' })), {
-        params: Promise.resolve({ id: propertyId }),
-      });
+      const second = await POST(
+        uploadRequest(propertyId, new File([png2], 'b.png', { type: 'image/png' })),
+        {
+          params: Promise.resolve({ id: propertyId }),
+        },
+      );
       const secondBody = await second.json();
 
       const deleteResponse = await DELETE(deleteRequest(propertyId, firstBody.photo.id), {
@@ -339,9 +368,12 @@ describeIfSupabase(
     // returning null for a property with zero photos, exercised in the page-level code path).
     it('removing the only photo leaves the property with zero photo rows, not a dangling cover', async () => {
       const png = await realPngBuffer();
-      const uploaded = await POST(uploadRequest(propertyId, new File([png], 'a.png', { type: 'image/png' })), {
-        params: Promise.resolve({ id: propertyId }),
-      });
+      const uploaded = await POST(
+        uploadRequest(propertyId, new File([png], 'a.png', { type: 'image/png' })),
+        {
+          params: Promise.resolve({ id: propertyId }),
+        },
+      );
       const uploadedBody = await uploaded.json();
 
       await DELETE(deleteRequest(propertyId, uploadedBody.photo.id), {
@@ -362,7 +394,7 @@ describeIfSupabase(
     // 20260101000086) is what actually gates this; proven here by the GET list route itself
     // returning zero photos for an outsider (RLS on property_photos blocks the read before a
     // signed URL is ever generated for them).
-    it('an outsider with no org membership cannot see this property\'s photos at all', async () => {
+    it("an outsider with no org membership cannot see this property's photos at all", async () => {
       const png = await realPngBuffer();
       await POST(uploadRequest(propertyId, new File([png], 'a.png', { type: 'image/png' })), {
         params: Promise.resolve({ id: propertyId }),
@@ -370,7 +402,11 @@ describeIfSupabase(
 
       const emailOutsider = `photo-outsider2-${Date.now()}@propertyvault.example`;
       const password = 'TestPassw0rd!23';
-      await adminFetch('/auth/v1/admin/users', { email: emailOutsider, password, email_confirm: true });
+      await adminFetch('/auth/v1/admin/users', {
+        email: emailOutsider,
+        password,
+        email_confirm: true,
+      });
       const tokenRes = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
         method: 'POST',
         headers: { apikey: ANON_KEY!, 'Content-Type': 'application/json' },
@@ -379,7 +415,9 @@ describeIfSupabase(
       const tokenBody = await tokenRes.json();
       mockAuthorizationHeader = `Bearer ${tokenBody.access_token}`;
 
-      const list = await GET(getRequest(propertyId), { params: Promise.resolve({ id: propertyId }) });
+      const list = await GET(getRequest(propertyId), {
+        params: Promise.resolve({ id: propertyId }),
+      });
       const listBody = await list.json();
       expect(listBody.photos).toHaveLength(0);
     });
@@ -387,14 +425,20 @@ describeIfSupabase(
     // Audit events: upload, cover-change, removal.
     it('upload, set-cover, and remove each write a property_photos audit event with no secrets', async () => {
       const png1 = await realPngBuffer();
-      const first = await POST(uploadRequest(propertyId, new File([png1], 'a.png', { type: 'image/png' })), {
-        params: Promise.resolve({ id: propertyId }),
-      });
+      const first = await POST(
+        uploadRequest(propertyId, new File([png1], 'a.png', { type: 'image/png' })),
+        {
+          params: Promise.resolve({ id: propertyId }),
+        },
+      );
       const firstBody = await first.json();
       const png2 = await realPngBuffer();
-      const second = await POST(uploadRequest(propertyId, new File([png2], 'b.png', { type: 'image/png' })), {
-        params: Promise.resolve({ id: propertyId }),
-      });
+      const second = await POST(
+        uploadRequest(propertyId, new File([png2], 'b.png', { type: 'image/png' })),
+        {
+          params: Promise.resolve({ id: propertyId }),
+        },
+      );
       const secondBody = await second.json();
 
       await PATCH(patchRequest(propertyId, secondBody.photo.id, { isCover: true }), {

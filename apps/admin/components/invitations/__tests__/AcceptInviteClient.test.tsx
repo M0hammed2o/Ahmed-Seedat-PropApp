@@ -62,14 +62,19 @@ describe('AcceptInviteClient', () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: false,
       json: async () => ({
-        error: { code: 'invite_not_found', message: 'Invite not found, expired, or not addressed to your account.' },
+        error: {
+          code: 'invite_not_found',
+          message: 'Invite not found, expired, or not addressed to your account.',
+        },
       }),
     }) as unknown as typeof fetch;
 
     render(<AcceptInviteClient token="a-real-token" />);
 
     await waitFor(() =>
-      expect(screen.getByText('Invite not found, expired, or not addressed to your account.')).toBeTruthy(),
+      expect(
+        screen.getByText('Invite not found, expired, or not addressed to your account.'),
+      ).toBeTruthy(),
     );
   });
 });

@@ -309,11 +309,19 @@ describe("builder output count matches the registry's own expectedVariableCount,
     ],
     [
       'application_invitation',
-      buildApplicationInvitationVariables({ organizationName: 'a', propertyLabel: 'b', applyUrl: 'c' }),
+      buildApplicationInvitationVariables({
+        organizationName: 'a',
+        propertyLabel: 'b',
+        applyUrl: 'c',
+      }),
     ],
     [
       'application_documents_requested',
-      buildApplicationDocumentsRequestedVariables({ organizationName: 'a', propertyLabel: 'b', applyUrl: 'c' }),
+      buildApplicationDocumentsRequestedVariables({
+        organizationName: 'a',
+        propertyLabel: 'b',
+        applyUrl: 'c',
+      }),
     ],
     [
       'application_approved',

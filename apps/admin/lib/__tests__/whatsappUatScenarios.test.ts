@@ -153,7 +153,6 @@ const scenarios: Scenario[] = [
   },
 ];
 
-
 describe('WhatsApp UAT scenarios (real dispatch pipeline, mock provider unless credentials set)', () => {
   it('every supported template dispatches successfully with realistic persona variables', async () => {
     const { data: org } = await supabase
@@ -162,7 +161,9 @@ describe('WhatsApp UAT scenarios (real dispatch pipeline, mock provider unless c
       .ilike('legal_name', 'Proplyst Demo Portfolio%')
       .maybeSingle();
     if (!org) {
-      console.warn('Demo portfolio org not found -- run scripts/seed-proplyst-video-demo.mjs first.');
+      console.warn(
+        'Demo portfolio org not found -- run scripts/seed-proplyst-video-demo.mjs first.',
+      );
       return;
     }
 
@@ -219,7 +220,9 @@ describe('WhatsApp UAT scenarios (real dispatch pipeline, mock provider unless c
       .ilike('legal_name', 'Proplyst Demo Portfolio%')
       .maybeSingle();
     if (!org) {
-      console.warn('Demo portfolio org not found -- run scripts/seed-proplyst-video-demo.mjs first.');
+      console.warn(
+        'Demo portfolio org not found -- run scripts/seed-proplyst-video-demo.mjs first.',
+      );
       return;
     }
 

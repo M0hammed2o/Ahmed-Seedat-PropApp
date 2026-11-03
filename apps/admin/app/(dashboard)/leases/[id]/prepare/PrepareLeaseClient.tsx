@@ -78,7 +78,11 @@ export function PrepareLeaseClient({
     const templatesBody = await templatesRes.json();
     const documentsBody = await documentsRes.json();
     const prepBody = await prepRes.json();
-    setTemplates((templatesBody.leaseTemplates ?? []).filter((t: LeaseTemplateSummary) => t.status === 'active'));
+    setTemplates(
+      (templatesBody.leaseTemplates ?? []).filter(
+        (t: LeaseTemplateSummary) => t.status === 'active',
+      ),
+    );
     setDocuments(documentsBody.leaseDocuments ?? []);
     setPreparation(prepBody.leasePreparation ?? null);
   }, [orgId, leaseId]);
@@ -134,7 +138,10 @@ export function PrepareLeaseClient({
     try {
       const form = new FormData();
       form.set('file', file);
-      const response = await fetch(`/api/v1/leases/${leaseId}/documents`, { method: 'POST', body: form });
+      const response = await fetch(`/api/v1/leases/${leaseId}/documents`, {
+        method: 'POST',
+        body: form,
+      });
       const body = await response.json();
       if (!response.ok) {
         setError(body.error?.message ?? 'Upload failed.');
@@ -215,7 +222,11 @@ export function PrepareLeaseClient({
   }
 
   const canGenerateOrUpload = leaseStatus === 'draft';
-  const canReview = canGenerateOrUpload && currentDocument?.status === 'draft' && preparation?.status !== 'reviewed' && preparation?.status !== 'sent';
+  const canReview =
+    canGenerateOrUpload &&
+    currentDocument?.status === 'draft' &&
+    preparation?.status !== 'reviewed' &&
+    preparation?.status !== 'sent';
   const canSend = canGenerateOrUpload && preparation?.status === 'reviewed';
   const alreadySent = preparation?.status === 'sent';
   const canActivate =
@@ -261,7 +272,11 @@ export function PrepareLeaseClient({
           <div className="space-y-3">
             <label className="block text-xs">
               <span className="text-light-textMuted dark:text-dark-textMuted">Template</span>
-              <select value={templateId} onChange={(e) => setTemplateId(e.target.value)} className={inputClass}>
+              <select
+                value={templateId}
+                onChange={(e) => setTemplateId(e.target.value)}
+                className={inputClass}
+              >
                 <option value="">Select a template…</option>
                 {templates.map((t) => (
                   <option key={t.id} value={t.id}>
@@ -271,16 +286,30 @@ export function PrepareLeaseClient({
               </select>
             </label>
             <label className="block text-xs">
-              <span className="text-light-textMuted dark:text-dark-textMuted">Approved occupants</span>
-              <input value={approvedOccupants} onChange={(e) => setApprovedOccupants(e.target.value)} className={inputClass} />
+              <span className="text-light-textMuted dark:text-dark-textMuted">
+                Approved occupants
+              </span>
+              <input
+                value={approvedOccupants}
+                onChange={(e) => setApprovedOccupants(e.target.value)}
+                className={inputClass}
+              />
             </label>
             <label className="block text-xs">
               <span className="text-light-textMuted dark:text-dark-textMuted">Parking</span>
-              <input value={parking} onChange={(e) => setParking(e.target.value)} className={inputClass} />
+              <input
+                value={parking}
+                onChange={(e) => setParking(e.target.value)}
+                className={inputClass}
+              />
             </label>
             <label className="block text-xs">
               <span className="text-light-textMuted dark:text-dark-textMuted">Utilities</span>
-              <input value={utilities} onChange={(e) => setUtilities(e.target.value)} className={inputClass} />
+              <input
+                value={utilities}
+                onChange={(e) => setUtilities(e.target.value)}
+                className={inputClass}
+              />
             </label>
           </div>
           <div className="space-y-3">
@@ -296,7 +325,9 @@ export function PrepareLeaseClient({
               />
             </label>
             <label className="block text-xs">
-              <span className="text-light-textMuted dark:text-dark-textMuted">Annual escalation (%)</span>
+              <span className="text-light-textMuted dark:text-dark-textMuted">
+                Annual escalation (%)
+              </span>
               <input
                 type="number"
                 min={0}
@@ -307,7 +338,9 @@ export function PrepareLeaseClient({
               />
             </label>
             <label className="block text-xs">
-              <span className="text-light-textMuted dark:text-dark-textMuted">Special conditions</span>
+              <span className="text-light-textMuted dark:text-dark-textMuted">
+                Special conditions
+              </span>
               <textarea
                 value={specialConditions}
                 onChange={(e) => setSpecialConditions(e.target.value)}
@@ -318,15 +351,17 @@ export function PrepareLeaseClient({
           </div>
         </div>
         <p className="mt-3 text-xs text-light-textMuted dark:text-dark-textMuted">
-          Rent R{rentAmount.toLocaleString('en-ZA')} · Start {startDate ?? 'not set'} — edit these on the lease itself
-          before generating if they need to change.
+          Rent R{rentAmount.toLocaleString('en-ZA')} · Start {startDate ?? 'not set'} — edit these
+          on the lease itself before generating if they need to change.
         </p>
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <Button disabled={busy || !canGenerateOrUpload || !templateId} onClick={generate}>
             {busy ? 'Working…' : 'Generate lease draft'}
           </Button>
           <span className="text-xs text-light-textMuted dark:text-dark-textMuted">or</span>
-          <label className={canGenerateOrUpload ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}>
+          <label
+            className={canGenerateOrUpload ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}
+          >
             <input
               type="file"
               accept="application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -347,7 +382,9 @@ export function PrepareLeaseClient({
 
       <Panel title="2. Document history">
         {documents.length === 0 ? (
-          <p className="text-sm text-light-textMuted dark:text-dark-textMuted">No lease document yet.</p>
+          <p className="text-sm text-light-textMuted dark:text-dark-textMuted">
+            No lease document yet.
+          </p>
         ) : (
           <ul className="divide-y divide-light-border dark:divide-dark-border">
             {documents.map((d) => (
@@ -357,7 +394,9 @@ export function PrepareLeaseClient({
                     v{d.version} — {d.kind} — {d.originalFileName ?? 'lease.docx'}
                   </span>
                   <span className="flex items-center gap-2">
-                    <span className="text-xs text-light-textMuted dark:text-dark-textMuted">{d.status}</span>
+                    <span className="text-xs text-light-textMuted dark:text-dark-textMuted">
+                      {d.status}
+                    </span>
                     <DownloadLink leaseId={leaseId} documentId={d.id} />
                   </span>
                 </div>
@@ -471,7 +510,11 @@ interface LeaseExtractedField {
   confidence: number;
 }
 
-const LEASE_OCR_FIELD_TARGETS: { key: string; label: string; patchKey: 'rentAmount' | 'depositAmount' | 'startDate' | 'endDate' }[] = [
+const LEASE_OCR_FIELD_TARGETS: {
+  key: string;
+  label: string;
+  patchKey: 'rentAmount' | 'depositAmount' | 'startDate' | 'endDate';
+}[] = [
   { key: 'rentAmount', label: 'Monthly rent', patchKey: 'rentAmount' },
   { key: 'depositAmount', label: 'Deposit', patchKey: 'depositAmount' },
   { key: 'leaseStartDate', label: 'Start date', patchKey: 'startDate' },
@@ -520,12 +563,17 @@ function LeaseOcrSuggestions({
     }
   }
 
-  async function applyField(patchKey: 'rentAmount' | 'depositAmount' | 'startDate' | 'endDate', rawValue: string) {
+  async function applyField(
+    patchKey: 'rentAmount' | 'depositAmount' | 'startDate' | 'endDate',
+    rawValue: string,
+  ) {
     const finalValue = edits[patchKey] ?? rawValue;
     setApplying(patchKey);
     try {
       const payload: Record<string, unknown> =
-        patchKey === 'rentAmount' || patchKey === 'depositAmount' ? { [patchKey]: Number(finalValue) } : { [patchKey]: finalValue };
+        patchKey === 'rentAmount' || patchKey === 'depositAmount'
+          ? { [patchKey]: Number(finalValue) }
+          : { [patchKey]: finalValue };
       const response = await fetch(`/api/v1/leases/${leaseId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -542,7 +590,9 @@ function LeaseOcrSuggestions({
       <Button type="button" variant="secondary" size="sm" disabled={scanning} onClick={scan}>
         {scanning ? 'Scanning…' : fields ? 'Re-scan' : 'Suggest values from this document'}
       </Button>
-      {error ? <p className="mt-1 text-xs text-light-danger dark:text-dark-danger">{error}</p> : null}
+      {error ? (
+        <p className="mt-1 text-xs text-light-danger dark:text-dark-danger">{error}</p>
+      ) : null}
       {fields ? (
         <div className="mt-2 space-y-1">
           {LEASE_OCR_FIELD_TARGETS.map(({ key, label, patchKey }) => {
@@ -551,7 +601,9 @@ function LeaseOcrSuggestions({
             const currentValue = edits[patchKey] ?? String(field.value);
             return (
               <div key={key} className="flex items-center gap-2 text-xs">
-                <span className="w-28 shrink-0 text-light-textMuted dark:text-dark-textMuted">{label}</span>
+                <span className="w-28 shrink-0 text-light-textMuted dark:text-dark-textMuted">
+                  {label}
+                </span>
                 <input
                   value={currentValue}
                   onChange={(e) => setEdits((prev) => ({ ...prev, [patchKey]: e.target.value }))}

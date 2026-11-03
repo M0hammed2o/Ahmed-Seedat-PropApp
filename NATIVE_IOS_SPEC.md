@@ -373,6 +373,7 @@ native.
 ---
 
 ## 16. Addendum — reconciled against shipped reality (auto/session hardening pass, WORKLOG.md
+
 this date)
 
 This document was written before `apps/android` existed and before several backend changes since

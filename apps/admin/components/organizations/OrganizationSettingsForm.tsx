@@ -271,8 +271,7 @@ export function InvoiceSettingsForm({ organization }: { organization: Organizati
       <form onSubmit={handleSubmit} className="space-y-4">
         <p className="text-xs text-light-textMuted dark:text-dark-textMuted">
           Shown on tenant invoice PDFs (Accounting → Invoices), alongside your legal name,
-          registration and VAT numbers above. Changing these does not alter invoices already
-          issued.
+          registration and VAT numbers above. Changing these does not alter invoices already issued.
         </p>
         {error ? (
           <p className="rounded-md border border-light-danger bg-light-danger/10 px-3 py-2 text-xs text-light-danger dark:border-dark-danger dark:bg-dark-danger/10 dark:text-dark-danger">
@@ -291,7 +290,10 @@ export function InvoiceSettingsForm({ organization }: { organization: Organizati
             className={inputClass}
           />
         </Field>
-        <Field label="Payment instructions (bank details, reference format, etc.)" error={fieldErrors.invoicePaymentInstructions}>
+        <Field
+          label="Payment instructions (bank details, reference format, etc.)"
+          error={fieldErrors.invoicePaymentInstructions}
+        >
           <textarea
             rows={3}
             value={form.invoicePaymentInstructions}
@@ -299,7 +301,10 @@ export function InvoiceSettingsForm({ organization }: { organization: Organizati
             className={inputClass}
           />
         </Field>
-        <Field label="Default notes for new manual invoices (optional, can still be edited per invoice)" error={fieldErrors.invoiceNotesDefault}>
+        <Field
+          label="Default notes for new manual invoices (optional, can still be edited per invoice)"
+          error={fieldErrors.invoiceNotesDefault}
+        >
           <textarea
             rows={2}
             value={form.invoiceNotesDefault}

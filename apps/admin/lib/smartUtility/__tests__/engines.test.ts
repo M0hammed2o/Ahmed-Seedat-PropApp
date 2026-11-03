@@ -13,18 +13,33 @@ import {
 } from '../consumption';
 import { reconcile } from '../reconciliation';
 import { analyseDay, DEFAULT_THRESHOLDS, estimateCost } from '../anomalies';
-import { decodeEm300Di, parseGenericJson, parseMilesight, parseShelly, AdapterError } from '../adapters';
+import {
+  decodeEm300Di,
+  parseGenericJson,
+  parseMilesight,
+  parseShelly,
+  AdapterError,
+} from '../adapters';
 import { bearerFrom, hashToken, issueToken, parseTokenPrefix, tokenMatchesHash } from '../tokens';
 
 // Pure-engine tests for Smart Utility Monitoring (docs/SMART_UTILITY_ARCHITECTURE.md §3, §5–§7).
 
-function pt(iso: string, raw: number, multiplier = 1, status: MeterReadingPoint['status'] = 'valid'): MeterReadingPoint {
+function pt(
+  iso: string,
+  raw: number,
+  multiplier = 1,
+  status: MeterReadingPoint['status'] = 'valid',
+): MeterReadingPoint {
   return { readAt: iso, rawValue: raw, value: raw * multiplier, multiplier, status };
 }
 
 describe('consumption engine', () => {
   it('computes consumption from validated cumulative differences', () => {
-    const iv = computeIntervals([pt('2026-10-01T00:00Z', 100), pt('2026-10-01T01:00Z', 130), pt('2026-10-01T02:00Z', 130)]);
+    const iv = computeIntervals([
+      pt('2026-10-01T00:00Z', 100),
+      pt('2026-10-01T01:00Z', 130),
+      pt('2026-10-01T02:00Z', 130),
+    ]);
     expect(iv.map((i) => i.consumption)).toEqual([30, 0]);
     expect(iv.every((i) => i.kind === 'normal')).toBe(true);
   });
@@ -42,26 +57,42 @@ describe('consumption engine', () => {
 
   it('treats a plausible wrap of a 5-digit register as a rollover, not negative consumption', () => {
     // 99,990 → 00,015 on a 5-digit register = 25 units
-    expect(classifyDecrease(99990, 15, { registerDigits: 5 })).toEqual({ kind: 'rollover', rawDelta: 25 });
-    const iv = computeIntervals([pt('2026-10-01T00:00Z', 99990, 0.5), pt('2026-10-01T01:00Z', 15, 0.5)], { registerDigits: 5 });
+    expect(classifyDecrease(99990, 15, { registerDigits: 5 })).toEqual({
+      kind: 'rollover',
+      rawDelta: 25,
+    });
+    const iv = computeIntervals(
+      [pt('2026-10-01T00:00Z', 99990, 0.5), pt('2026-10-01T01:00Z', 15, 0.5)],
+      { registerDigits: 5 },
+    );
     expect(iv[0]).toMatchObject({ kind: 'rollover', consumption: 12.5 });
   });
 
   it('treats a drop without a plausible rollover as a reset with UNKNOWN consumption (never negative)', () => {
-    const iv = computeIntervals([pt('2026-10-01T00:00Z', 5000), pt('2026-10-01T01:00Z', 3)], { registerDigits: null });
+    const iv = computeIntervals([pt('2026-10-01T00:00Z', 5000), pt('2026-10-01T01:00Z', 3)], {
+      registerDigits: null,
+    });
     expect(iv[0]).toMatchObject({ kind: 'reset', consumption: null });
     // a huge "wrap" (>50 % of span) is also a reset
     expect(classifyDecrease(10, 9, { registerDigits: 5 }).kind).toBe('reset');
   });
 
   it('re-baselines after a reset: later intervals count from the new value', () => {
-    const iv = computeIntervals([pt('2026-10-01T00:00Z', 5000), pt('2026-10-01T01:00Z', 3), pt('2026-10-01T02:00Z', 10)]);
+    const iv = computeIntervals([
+      pt('2026-10-01T00:00Z', 5000),
+      pt('2026-10-01T01:00Z', 3),
+      pt('2026-10-01T02:00Z', 10),
+    ]);
     expect(iv.map((i) => i.consumption)).toEqual([null, 7]);
   });
 
   it('handles a multiplier change without reinterpreting history', () => {
     // pulses at 1 L/pulse, then reconfigured to 0.5 L/pulse with the counter continuing
-    const iv = computeIntervals([pt('2026-10-01T00:00Z', 100, 1), pt('2026-10-01T01:00Z', 120, 1), pt('2026-10-01T02:00Z', 140, 0.5)]);
+    const iv = computeIntervals([
+      pt('2026-10-01T00:00Z', 100, 1),
+      pt('2026-10-01T01:00Z', 120, 1),
+      pt('2026-10-01T02:00Z', 140, 0.5),
+    ]);
     expect(iv[0]!.consumption).toBe(20);
     // value 120 → 70 while raw rose: ambiguous, flagged rather than negative
     expect(iv[1]).toMatchObject({ kind: 'reset', consumption: null });
@@ -69,7 +100,12 @@ describe('consumption engine', () => {
 
   it('interpolates period boundaries between readings (complete quality)', () => {
     const r = consumptionForPeriod(
-      [pt('2026-09-30T22:00Z', 1000), pt('2026-10-01T02:00Z', 1040), pt('2026-10-31T20:00Z', 4040), pt('2026-11-01T00:00Z', 4080)],
+      [
+        pt('2026-09-30T22:00Z', 1000),
+        pt('2026-10-01T02:00Z', 1040),
+        pt('2026-10-31T20:00Z', 4040),
+        pt('2026-11-01T00:00Z', 4080),
+      ],
       new Date('2026-10-01T00:00Z'),
       new Date('2026-10-31T22:00Z'),
     );
@@ -88,14 +124,23 @@ describe('consumption engine', () => {
   });
 
   it('reports insufficient data instead of guessing', () => {
-    expect(consumptionForPeriod([pt('2026-10-05T00:00Z', 1)], new Date('2026-10-01'), new Date('2026-11-01')).quality).toBe(
-      'insufficient',
-    );
+    expect(
+      consumptionForPeriod(
+        [pt('2026-10-05T00:00Z', 1)],
+        new Date('2026-10-01'),
+        new Date('2026-11-01'),
+      ).quality,
+    ).toBe('insufficient');
   });
 
   it('flags a reset inside the period as partial', () => {
     const r = consumptionForPeriod(
-      [pt('2026-10-01T00:00Z', 500), pt('2026-10-10T00:00Z', 900), pt('2026-10-11T00:00Z', 2), pt('2026-10-31T00:00Z', 102)],
+      [
+        pt('2026-10-01T00:00Z', 500),
+        pt('2026-10-10T00:00Z', 900),
+        pt('2026-10-11T00:00Z', 2),
+        pt('2026-10-31T00:00Z', 102),
+      ],
       new Date('2026-10-01T00:00Z'),
       new Date('2026-10-31T00:00Z'),
     );
@@ -120,8 +165,17 @@ describe('consumption engine', () => {
   });
 
   it('buckets hourly consumption and leaves unknown buckets null', () => {
-    const pts = [pt('2026-10-01T00:00Z', 0), pt('2026-10-01T01:00Z', 10), pt('2026-10-01T02:00Z', 30)];
-    const b = bucketConsumption(pts, new Date('2026-10-01T00:00Z'), new Date('2026-10-01T03:00Z'), 60);
+    const pts = [
+      pt('2026-10-01T00:00Z', 0),
+      pt('2026-10-01T01:00Z', 10),
+      pt('2026-10-01T02:00Z', 30),
+    ];
+    const b = bucketConsumption(
+      pts,
+      new Date('2026-10-01T00:00Z'),
+      new Date('2026-10-01T03:00Z'),
+      60,
+    );
     expect(b.map((x) => x.consumption)).toEqual([10, 20, null]);
   });
 });
@@ -214,26 +268,49 @@ describe('rule-based anomalies', () => {
 
   it('does not flag night flow when any night hour is zero', () => {
     const hourly = Array.from({ length: 24 }, (_, h) => (h === 3 ? 0 : 12));
-    expect(analyseDay({ ...base, utilityType: 'water', hourly, dayTotal: 100 }).some((a) => a.rule === 'water_continuous_night_flow')).toBe(false);
+    expect(
+      analyseDay({ ...base, utilityType: 'water', hourly, dayTotal: 100 }).some(
+        (a) => a.rule === 'water_continuous_night_flow',
+      ),
+    ).toBe(false);
   });
 
   it('flags a spike against the trailing median with an absolute floor', () => {
-    expect(analyseDay({ ...base, utilityType: 'water', hourly: [], dayTotal: 1000 }).map((a) => a.rule)).toContain('consumption_spike');
+    expect(
+      analyseDay({ ...base, utilityType: 'water', hourly: [], dayTotal: 1000 }).map((a) => a.rule),
+    ).toContain('consumption_spike');
     // 3.5× but under the 200 L floor
-    expect(analyseDay({ ...base, history: [10, 10, 10, 10, 10], utilityType: 'water', hourly: [], dayTotal: 35 })).toHaveLength(0);
+    expect(
+      analyseDay({
+        ...base,
+        history: [10, 10, 10, 10, 10],
+        utilityType: 'water',
+        hourly: [],
+        dayTotal: 35,
+      }),
+    ).toHaveLength(0);
   });
 
   it('flags consumption in a vacant unit', () => {
     expect(
-      analyseDay({ ...base, unitVacant: true, utilityType: 'electricity', hourly: [], dayTotal: 6, history: [] }).map((a) => a.rule),
+      analyseDay({
+        ...base,
+        unitVacant: true,
+        utilityType: 'electricity',
+        hourly: [],
+        dayTotal: 6,
+        history: [],
+      }).map((a) => a.rule),
     ).toEqual(['vacant_unit_consumption']);
   });
 
   it('flags a high overnight electricity base load', () => {
     const hourly = Array.from({ length: 24 }, (_, h) => (h < 5 ? 1.0 : 1.2));
-    expect(analyseDay({ ...base, utilityType: 'electricity', hourly, dayTotal: 27, history: [] }).map((a) => a.rule)).toContain(
-      'electricity_night_base_load',
-    );
+    expect(
+      analyseDay({ ...base, utilityType: 'electricity', hourly, dayTotal: 27, history: [] }).map(
+        (a) => a.rule,
+      ),
+    ).toContain('electricity_night_base_load');
   });
 
   it('estimates cost from the tariff (water tariff per kL)', () => {
@@ -253,34 +330,71 @@ describe('provider adapters', () => {
 
   it('decodes EM300-DI history records (0x20 0xCE, mode 2)', () => {
     const ts = 1_790_000_000;
-    const rec = [0x20, 0xce, ts & 0xff, (ts >> 8) & 0xff, (ts >> 16) & 0xff, (ts >>> 24) & 0xff, 0, 0, 0, 2, 0, 0x64, 0, 0, 0];
+    const rec = [
+      0x20,
+      0xce,
+      ts & 0xff,
+      (ts >> 8) & 0xff,
+      (ts >> 16) & 0xff,
+      (ts >>> 24) & 0xff,
+      0,
+      0,
+      0,
+      2,
+      0,
+      0x64,
+      0,
+      0,
+      0,
+    ];
     expect(decodeEm300Di(Uint8Array.from(rec)).history).toEqual([{ timestamp: ts, pulse: 100 }]);
   });
 
   it('parses a Milesight network-server uplink with raw base64 data', () => {
     const readings = parseMilesight(
-      { devEUI: '24e124136b000001', fCnt: 7, time: '2026-10-08T10:00:00Z', data: Buffer.from(em300Bytes).toString('base64') },
+      {
+        devEUI: '24e124136b000001',
+        fCnt: 7,
+        time: '2026-10-08T10:00:00Z',
+        data: Buffer.from(em300Bytes).toString('base64'),
+      },
       new Date(),
     );
     expect(readings).toEqual([
-      expect.objectContaining({ externalDeviceId: '24E124136B000001', rawValue: 10000, channel: '' }),
+      expect.objectContaining({
+        externalDeviceId: '24E124136B000001',
+        rawValue: 10000,
+        channel: '',
+      }),
     ]);
     expect(readings[0]!.eventId).toContain(':fcnt:7:');
   });
 
   it('prefers a gateway-decoded object', () => {
-    const r = parseMilesight({ devEUI: '24E124136B000001', object: { pulse: 42 } }, new Date('2026-10-08T00:00Z'));
+    const r = parseMilesight(
+      { devEUI: '24E124136B000001', object: { pulse: 42 } },
+      new Date('2026-10-08T00:00Z'),
+    );
     expect(r[0]!.rawValue).toBe(42);
   });
 
   it('rejects a Milesight uplink without devEUI or counter', () => {
     expect(() => parseMilesight({ data: 'AA==' }, new Date())).toThrow(AdapterError);
-    expect(() => parseMilesight({ devEUI: '24E124136B000001', object: { temperature: 20 } }, new Date())).toThrow(AdapterError);
+    expect(() =>
+      parseMilesight({ devEUI: '24E124136B000001', object: { temperature: 20 } }, new Date()),
+    ).toThrow(AdapterError);
   });
 
   it('parses Shelly EMData / EM1Data / Input counters (direct or NotifyStatus shape)', () => {
     const r = parseShelly(
-      { src: 'shellypro3em-abc123', params: { ts: 1_790_000_000, 'emdata:0': { total_act: 12345.6, a_total_act_energy: 4000 }, 'em1data:1': { total_act_energy: 77 } } },
+      {
+        src: 'shellypro3em-abc123',
+        params: {
+          ts: 1_790_000_000,
+          'emdata:0': { total_act: 12345.6, a_total_act_energy: 4000 },
+          'em1data:1': { total_act_energy: 77 },
+        },
+      },
       new Date(),
     );
     expect(r.map((x) => [x.channel, x.rawValue])).toEqual([
@@ -288,16 +402,35 @@ describe('provider adapters', () => {
       ['a', 4000],
       ['em1:1', 77],
     ]);
-    expect(parseShelly({ src: 'shellyplusuni-1', 'input:0': { counts: { total: 9 } } }, new Date())[0]!.channel).toBe('input:0');
+    expect(
+      parseShelly({ src: 'shellyplusuni-1', 'input:0': { counts: { total: 9 } } }, new Date())[0]!
+        .channel,
+    ).toBe('input:0');
   });
 
   it('validates generic JSON readings', () => {
-    expect(parseGenericJson({ readings: [{ deviceId: 'sdm-1', channel: 'kwh', value: 10.5, readAt: '2026-10-08T08:00:00+02:00' }] }, new Date())[0]).toMatchObject({
+    expect(
+      parseGenericJson(
+        {
+          readings: [
+            { deviceId: 'sdm-1', channel: 'kwh', value: 10.5, readAt: '2026-10-08T08:00:00+02:00' },
+          ],
+        },
+        new Date(),
+      )[0],
+    ).toMatchObject({
       externalDeviceId: 'sdm-1',
       rawValue: 10.5,
     });
-    expect(() => parseGenericJson({ readings: [{ deviceId: 'x', value: -1 }] }, new Date())).toThrow(/non-negative/);
-    expect(() => parseGenericJson({ readings: [{ deviceId: 'x', value: 1, readAt: 'not a date' }] }, new Date())).toThrow(/timestamp/);
+    expect(() =>
+      parseGenericJson({ readings: [{ deviceId: 'x', value: -1 }] }, new Date()),
+    ).toThrow(/non-negative/);
+    expect(() =>
+      parseGenericJson(
+        { readings: [{ deviceId: 'x', value: 1, readAt: 'not a date' }] },
+        new Date(),
+      ),
+    ).toThrow(/timestamp/);
     expect(() => parseGenericJson({}, new Date())).toThrow(AdapterError);
   });
 });

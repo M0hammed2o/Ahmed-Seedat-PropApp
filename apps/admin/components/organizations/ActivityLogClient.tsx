@@ -120,7 +120,9 @@ function describeChanges(
     const beforeVal = before[key];
     const afterVal = after[key];
     if (JSON.stringify(beforeVal) !== JSON.stringify(afterVal)) {
-      changes.push(`${humanizeFieldName(key)}: ${formatValue(beforeVal)} → ${formatValue(afterVal)}`);
+      changes.push(
+        `${humanizeFieldName(key)}: ${formatValue(beforeVal)} → ${formatValue(afterVal)}`,
+      );
     }
   }
   return changes.length > 0 ? changes.slice(0, 4).join(' · ') : null;

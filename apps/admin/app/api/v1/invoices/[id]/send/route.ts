@@ -38,7 +38,11 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       {
         error: {
           code: 'invoice_fetch_failed',
-          message: safeErrorMessage(fetchError, 'Could not load this invoice.', 'invoices/[id]/send.fetch'),
+          message: safeErrorMessage(
+            fetchError,
+            'Could not load this invoice.',
+            'invoices/[id]/send.fetch',
+          ),
         },
       },
       { status: 500 },
@@ -108,7 +112,8 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       {
         error: {
           code: 'invoice_send_failed',
-          message: 'Could not send this invoice email. Please try again, or contact support if this continues.',
+          message:
+            'Could not send this invoice email. Please try again, or contact support if this continues.',
         },
       },
       { status: 502 },

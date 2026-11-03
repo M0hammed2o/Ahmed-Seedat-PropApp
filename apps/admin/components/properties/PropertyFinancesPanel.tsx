@@ -174,7 +174,9 @@ export function PropertyFinancesPanel({
     load();
   }, [load]);
 
-  const currentRates = costs.find((c) => c.costType === 'rates_and_taxes' && !c.unitId && !c.effectiveTo);
+  const currentRates = costs.find(
+    (c) => c.costType === 'rates_and_taxes' && !c.unitId && !c.effectiveTo,
+  );
   const currentLevy = costs.find((c) => c.costType === 'levy' && !c.unitId && !c.effectiveTo);
   const currentWater = settings.find((s) => s.utilityType === 'water' && !s.unitId);
   const currentElectricity = settings.find((s) => s.utilityType === 'electricity' && !s.unitId);
@@ -284,7 +286,10 @@ export function PropertyFinancesPanel({
         {budgetVsActual?.plannedAmount !== null && budgetVsActual?.plannedAmount !== undefined ? (
           <>
             <div className="mb-3 grid grid-cols-4 gap-3 text-xs">
-              <Metric label="Planned" value={`R ${budgetVsActual.plannedAmount.toLocaleString()}`} />
+              <Metric
+                label="Planned"
+                value={`R ${budgetVsActual.plannedAmount.toLocaleString()}`}
+              />
               <Metric label="Actual" value={`R ${budgetVsActual.actualAmount.toLocaleString()}`} />
               <Metric
                 label="Remaining"
@@ -306,7 +311,9 @@ export function PropertyFinancesPanel({
             </div>
           </>
         ) : (
-          <p className="mb-3 text-xs text-muted-foreground">Budget not configured for this month yet.</p>
+          <p className="mb-3 text-xs text-muted-foreground">
+            Budget not configured for this month yet.
+          </p>
         )}
         {manageable ? (
           <form onSubmit={handleBudgetSubmit} className="flex items-end gap-2">
@@ -329,7 +336,12 @@ export function PropertyFinancesPanel({
         ) : null}
       </Panel>
 
-      <AnnualBudgetPanel propertyId={propertyId} orgId={orgId} canManage={manageable} demoMode={demoMode} />
+      <AnnualBudgetPanel
+        propertyId={propertyId}
+        orgId={orgId}
+        canManage={manageable}
+        demoMode={demoMode}
+      />
     </div>
   );
 }
@@ -366,25 +378,33 @@ function FinancialSetupSummary({
         <div>
           <dt className="text-muted-foreground">Rates &amp; taxes</dt>
           <dd className="mt-0.5 font-medium text-foreground">
-            {currentRates ? `R ${currentRates.amount.toLocaleString()}/mo (property-level)` : 'Not configured'}
+            {currentRates
+              ? `R ${currentRates.amount.toLocaleString()}/mo (property-level)`
+              : 'Not configured'}
           </dd>
         </div>
         <div>
           <dt className="text-muted-foreground">Levies</dt>
           <dd className="mt-0.5 font-medium text-foreground">
-            {currentLevy ? `R ${currentLevy.amount.toLocaleString()}/mo` : 'Not applicable, or set per unit'}
+            {currentLevy
+              ? `R ${currentLevy.amount.toLocaleString()}/mo`
+              : 'Not applicable, or set per unit'}
           </dd>
         </div>
         <div>
           <dt className="text-muted-foreground">Water</dt>
           <dd className="mt-0.5 font-medium text-foreground">
-            {currentWater ? RESPONSIBILITY_LABELS[currentWater.responsibilityMode] : 'Not configured'}
+            {currentWater
+              ? RESPONSIBILITY_LABELS[currentWater.responsibilityMode]
+              : 'Not configured'}
           </dd>
         </div>
         <div>
           <dt className="text-muted-foreground">Electricity</dt>
           <dd className="mt-0.5 font-medium text-foreground">
-            {currentElectricity ? RESPONSIBILITY_LABELS[currentElectricity.responsibilityMode] : 'Not configured'}
+            {currentElectricity
+              ? RESPONSIBILITY_LABELS[currentElectricity.responsibilityMode]
+              : 'Not configured'}
           </dd>
         </div>
       </dl>
@@ -431,15 +451,17 @@ function FinancialSetupForm({
 }) {
   const [ratesLevel, setRatesLevel] = useState<RatesLevel>('property');
   const [ratesAmount, setRatesAmount] = useState(currentRates ? String(currentRates.amount) : '');
-  const [leviesApplicable, setLeviesApplicable] = useState<'yes' | 'no' | ''>(currentLevy ? 'yes' : '');
+  const [leviesApplicable, setLeviesApplicable] = useState<'yes' | 'no' | ''>(
+    currentLevy ? 'yes' : '',
+  );
   const [leviesLevel, setLeviesLevel] = useState<RatesLevel>('property');
   const [leviesAmount, setLeviesAmount] = useState(currentLevy ? String(currentLevy.amount) : '');
   const [waterResponsibility, setWaterResponsibility] = useState<UtilityResponsibilityMode | ''>(
     currentWater?.responsibilityMode ?? '',
   );
-  const [electricityResponsibility, setElectricityResponsibility] = useState<UtilityResponsibilityMode | ''>(
-    currentElectricity?.responsibilityMode ?? '',
-  );
+  const [electricityResponsibility, setElectricityResponsibility] = useState<
+    UtilityResponsibilityMode | ''
+  >(currentElectricity?.responsibilityMode ?? '');
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -542,8 +564,8 @@ function FinancialSetupForm({
         <fieldset className="space-y-2">
           <legend className="text-xs font-semibold">Rates &amp; taxes</legend>
           <p className="text-[11px] text-muted-foreground">
-            An expected recurring amount, not proof of an actual payment -- editable at any time, and
-            never posted as an expense on its own.
+            An expected recurring amount, not proof of an actual payment -- editable at any time,
+            and never posted as an expense on its own.
           </p>
           <div className="flex gap-4 text-xs">
             <label className="flex items-center gap-1.5">
@@ -567,7 +589,9 @@ function FinancialSetupForm({
           </div>
           {ratesLevel === 'property' ? (
             <label className="block text-xs">
-              <span className="text-muted-foreground">Expected monthly rates &amp; taxes (R, blank = not applicable)</span>
+              <span className="text-muted-foreground">
+                Expected monthly rates &amp; taxes (R, blank = not applicable)
+              </span>
               <input
                 type="number"
                 min="0"
@@ -659,7 +683,9 @@ function FinancialSetupForm({
               <span className="text-muted-foreground">Water</span>
               <select
                 value={waterResponsibility}
-                onChange={(e) => setWaterResponsibility(e.target.value as UtilityResponsibilityMode | '')}
+                onChange={(e) =>
+                  setWaterResponsibility(e.target.value as UtilityResponsibilityMode | '')
+                }
                 className="mt-1 block w-full rounded-md border border-light-border bg-transparent px-3 py-2 text-sm dark:border-dark-border"
               >
                 <option value="">Not configured</option>
@@ -674,7 +700,9 @@ function FinancialSetupForm({
               <span className="text-muted-foreground">Electricity</span>
               <select
                 value={electricityResponsibility}
-                onChange={(e) => setElectricityResponsibility(e.target.value as UtilityResponsibilityMode | '')}
+                onChange={(e) =>
+                  setElectricityResponsibility(e.target.value as UtilityResponsibilityMode | '')
+                }
                 className="mt-1 block w-full rounded-md border border-light-border bg-transparent px-3 py-2 text-sm dark:border-dark-border"
               >
                 <option value="">Not configured</option>
@@ -686,7 +714,8 @@ function FinancialSetupForm({
               </select>
             </label>
           </div>
-          {waterResponsibility === 'tenant_prepaid' || electricityResponsibility === 'tenant_prepaid' ? (
+          {waterResponsibility === 'tenant_prepaid' ||
+          electricityResponsibility === 'tenant_prepaid' ? (
             <p className="text-[11px] text-muted-foreground">
               Tenant prepaid means the tenant buys their own prepaid water/electricity vouchers --
               you don&apos;t need to record those purchases as portfolio expenses.
@@ -743,10 +772,20 @@ function AnnualBudgetPanel({
     if (demoMode) {
       // A realistic partial year -- most months set, the current one still open, matching what an
       // owner who has only just started budgeting would actually see.
-      const monthKeys = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}-01`);
+      const monthKeys = Array.from(
+        { length: 12 },
+        (_, i) => `${year}-${String(i + 1).padStart(2, '0')}-01`,
+      );
       const demoMonths = monthKeys.map((m, i) => ({ month: m, planned: i < 8 ? 5000 : null }));
       setMonths(demoMonths);
-      setAnnual({ year, monthsPlanned: 8, annualPlanned: 40000, annualActual: 33600, annualRemaining: 6400, annualPercentUsed: 84 });
+      setAnnual({
+        year,
+        monthsPlanned: 8,
+        annualPlanned: 40000,
+        annualActual: 33600,
+        annualRemaining: 6400,
+        annualPercentUsed: 84,
+      });
       setLoaded(true);
       return;
     }
@@ -837,29 +876,52 @@ function AnnualBudgetPanel({
         <>
           <div className="mb-3 grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
             <Metric label="Months with a budget set" value={`${annual?.monthsPlanned ?? 0} / 12`} />
-            <Metric label="Annual planned" value={`R ${(annual?.annualPlanned ?? 0).toLocaleString()}`} />
-            <Metric label="Annual actual" value={`R ${(annual?.annualActual ?? 0).toLocaleString()}`} />
+            <Metric
+              label="Annual planned"
+              value={`R ${(annual?.annualPlanned ?? 0).toLocaleString()}`}
+            />
+            <Metric
+              label="Annual actual"
+              value={`R ${(annual?.annualActual ?? 0).toLocaleString()}`}
+            />
             <Metric
               label="Annual remaining"
-              value={annual?.annualPercentUsed === null ? '—' : `R ${(annual?.annualRemaining ?? 0).toLocaleString()}`}
+              value={
+                annual?.annualPercentUsed === null
+                  ? '—'
+                  : `R ${(annual?.annualRemaining ?? 0).toLocaleString()}`
+              }
             />
           </div>
           {annual?.annualPercentUsed !== null && annual?.annualPercentUsed !== undefined ? (
             <div className="mb-4">
               <Meter
                 value={annual.annualPercentUsed}
-                tone={annual.annualPercentUsed >= 100 ? 'destructive' : annual.annualPercentUsed >= 80 ? 'warning' : 'success'}
+                tone={
+                  annual.annualPercentUsed >= 100
+                    ? 'destructive'
+                    : annual.annualPercentUsed >= 80
+                      ? 'warning'
+                      : 'success'
+                }
               />
-              <p className="mt-1 text-[11px] text-muted-foreground">{annual.annualPercentUsed}% of the {year} planned total used so far</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                {annual.annualPercentUsed}% of the {year} planned total used so far
+              </p>
             </div>
           ) : null}
 
           <div className="mb-4 grid grid-cols-3 gap-2 text-xs sm:grid-cols-4">
             {months.map((m) => {
-              const label = new Date(`${m.month}T00:00:00Z`).toLocaleDateString('en-ZA', { month: 'short' });
+              const label = new Date(`${m.month}T00:00:00Z`).toLocaleDateString('en-ZA', {
+                month: 'short',
+              });
               const isEditing = editingMonth === m.month;
               return (
-                <div key={m.month} className="rounded-md border border-light-border p-2 dark:border-dark-border">
+                <div
+                  key={m.month}
+                  className="rounded-md border border-light-border p-2 dark:border-dark-border"
+                >
                   <p className="text-muted-foreground">{label}</p>
                   {isEditing ? (
                     <div className="mt-1 flex gap-1">
@@ -872,7 +934,12 @@ function AnnualBudgetPanel({
                         onChange={(e) => setEditingAmount(e.target.value)}
                         className="w-16 rounded border border-light-border bg-transparent px-1 py-0.5 dark:border-dark-border"
                       />
-                      <button type="button" onClick={() => saveMonth(m.month)} disabled={busy} className="text-light-accent dark:text-dark-accent">
+                      <button
+                        type="button"
+                        onClick={() => saveMonth(m.month)}
+                        disabled={busy}
+                        className="text-light-accent dark:text-dark-accent"
+                      >
                         ✓
                       </button>
                     </div>
@@ -897,7 +964,9 @@ function AnnualBudgetPanel({
           {canManage ? (
             <form onSubmit={handleDistribute} className="flex items-end gap-2">
               <label className="block text-xs">
-                <span className="text-muted-foreground">Distribute an annual total evenly across {year}&apos;s 12 months (R)</span>
+                <span className="text-muted-foreground">
+                  Distribute an annual total evenly across {year}&apos;s 12 months (R)
+                </span>
                 <input
                   type="number"
                   min="0"

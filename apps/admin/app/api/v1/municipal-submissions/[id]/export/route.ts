@@ -1,6 +1,10 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { jsonError, notFound, requireUser } from '@/lib/smartUtility/http';
-import { renderReportCsv, renderReportPdf, type MunicipalReport } from '@/lib/smartUtility/municipalReport';
+import {
+  renderReportCsv,
+  renderReportPdf,
+  type MunicipalReport,
+} from '@/lib/smartUtility/municipalReport';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -13,7 +17,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   const auth = await requireUser();
   if ('response' in auth) return auth.response;
   const format = request.nextUrl.searchParams.get('format') ?? 'pdf';
-  if (format !== 'csv' && format !== 'pdf') return jsonError(400, 'invalid_format', 'format must be csv or pdf.');
+  if (format !== 'csv' && format !== 'pdf')
+    return jsonError(400, 'invalid_format', 'format must be csv or pdf.');
   const { data: sub } = await auth.supabase
     .from('municipal_submissions')
     .select('id, report')

@@ -1,8 +1,26 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { parseChirpStack, parseTts, PROVIDERS, thingsboardPoll, thingsboardVerify, validateBaseUrl } from '../providers';
-import { decryptCredentials, encryptCredentials, isCredentialsKeyConfigured, CredentialsKeyMissingError } from '../secrets';
+import {
+  parseChirpStack,
+  parseTts,
+  PROVIDERS,
+  thingsboardPoll,
+  thingsboardVerify,
+  validateBaseUrl,
+} from '../providers';
+import {
+  decryptCredentials,
+  encryptCredentials,
+  isCredentialsKeyConfigured,
+  CredentialsKeyMissingError,
+} from '../secrets';
 import { computeCharge, validateBlocks } from '../tariffs';
-import { DEFAULT_INCLUDE_FIELDS, normaliseFields, renderEmail, templateHash, unknownPlaceholders } from '../templates';
+import {
+  DEFAULT_INCLUDE_FIELDS,
+  normaliseFields,
+  renderEmail,
+  templateHash,
+  unknownPlaceholders,
+} from '../templates';
 import { backoffMinutes } from '../sync';
 
 /** Deterministic resolver for tests (tb.example.com does not resolve in real DNS). */
@@ -19,7 +37,13 @@ describe('ChirpStack v4 adapter', () => {
   const up = {
     deduplicationId: '3ac7e3c4-4401-4b8d-9386-a5c902f9202d',
     time: '2026-10-10T08:00:00.000Z',
-    deviceInfo: { tenantId: 't', applicationId: 'a', deviceName: 'em300', devEui: '24e1241300000aa1', tags: {} },
+    deviceInfo: {
+      tenantId: 't',
+      applicationId: 'a',
+      deviceName: 'em300',
+      devEui: '24e1241300000aa1',
+      tags: {},
+    },
     fCnt: 12,
     fPort: 85,
     data: EM300_PULSE_10000,
@@ -28,14 +52,22 @@ describe('ChirpStack v4 adapter', () => {
   it('decodes a codec-less EM300-DI frame from base64 data as channel "pulse"', () => {
     const r = parseChirpStack(up, new Date(), new URLSearchParams('event=up'));
     expect(r).toEqual([
-      expect.objectContaining({ externalDeviceId: '24E1241300000AA1', channel: 'pulse', rawValue: 10000 }),
+      expect.objectContaining({
+        externalDeviceId: '24E1241300000AA1',
+        channel: 'pulse',
+        rawValue: 10000,
+      }),
     ]);
     expect(r[0]!.eventId).toBe('cs:3ac7e3c4-4401-4b8d-9386-a5c902f9202d:pulse');
     expect(r[0]!.readAt.toISOString()).toBe('2026-10-10T08:00:00.000Z');
   });
 
   it('uses every numeric field of a decoded object as a channel', () => {
-    const r = parseChirpStack({ ...up, object: { pulse: 42, battery: 92, gpio: 'off' } }, new Date(), new URLSearchParams());
+    const r = parseChirpStack(
+      { ...up, object: { pulse: 42, battery: 92, gpio: 'off' } },
+      new Date(),
+      new URLSearchParams(),
+    );
     expect(r.map((x) => [x.channel, x.rawValue])).toEqual([
       ['pulse', 42],
       ['battery', 92],
@@ -43,30 +75,55 @@ describe('ChirpStack v4 adapter', () => {
   });
 
   it('acknowledges non-uplink events without readings', () => {
-    expect(parseChirpStack({ anything: true }, new Date(), new URLSearchParams('event=join'))).toEqual([]);
+    expect(
+      parseChirpStack({ anything: true }, new Date(), new URLSearchParams('event=join')),
+    ).toEqual([]);
   });
 
   it('rejects an uplink without devEui or without decodable data', () => {
-    expect(() => parseChirpStack({ ...up, deviceInfo: {} }, new Date(), new URLSearchParams())).toThrow(AdapterError);
-    expect(() => parseChirpStack({ ...up, data: 'AQI=' }, new Date(), new URLSearchParams())).toThrow(/codec/);
+    expect(() =>
+      parseChirpStack({ ...up, deviceInfo: {} }, new Date(), new URLSearchParams()),
+    ).toThrow(AdapterError);
+    expect(() =>
+      parseChirpStack({ ...up, data: 'AQI=' }, new Date(), new URLSearchParams()),
+    ).toThrow(/codec/);
   });
 });
 
 describe('The Things Stack v3 adapter', () => {
   const msg = {
-    end_device_ids: { device_id: 'em300', application_ids: { application_id: 'proplyst' }, dev_eui: '24E1241300000BB2' },
+    end_device_ids: {
+      device_id: 'em300',
+      application_ids: { application_id: 'proplyst' },
+      dev_eui: '24E1241300000BB2',
+    },
     received_at: '2026-10-10T08:00:01Z',
-    uplink_message: { f_cnt: 7, f_port: 85, frm_payload: EM300_PULSE_10000, received_at: '2026-10-10T08:00:00Z' },
+    uplink_message: {
+      f_cnt: 7,
+      f_port: 85,
+      frm_payload: EM300_PULSE_10000,
+      received_at: '2026-10-10T08:00:00Z',
+    },
   };
 
   it('decodes frm_payload and prefers the network-server receive time', () => {
     const r = parseTts(msg, new Date());
-    expect(r[0]).toMatchObject({ externalDeviceId: '24E1241300000BB2', channel: 'pulse', rawValue: 10000 });
+    expect(r[0]).toMatchObject({
+      externalDeviceId: '24E1241300000BB2',
+      channel: 'pulse',
+      rawValue: 10000,
+    });
     expect(r[0]!.readAt.toISOString()).toBe('2026-10-10T08:00:00.000Z');
   });
 
   it('uses decoded_payload fields when a formatter is configured', () => {
-    const r = parseTts({ ...msg, uplink_message: { ...msg.uplink_message, decoded_payload: { water_counter: 1234.5 } } }, new Date());
+    const r = parseTts(
+      {
+        ...msg,
+        uplink_message: { ...msg.uplink_message, decoded_payload: { water_counter: 1234.5 } },
+      },
+      new Date(),
+    );
     expect(r.map((x) => x.channel)).toEqual(['water_counter']);
   });
 
@@ -78,7 +135,19 @@ describe('The Things Stack v3 adapter', () => {
 describe('base URL SSRF guard', () => {
   it('accepts public https URLs and rejects http, private IPs, localhost, credentials and IPv6 literals', () => {
     expect(validateBaseUrl('https://tb.example.com').hostname).toBe('tb.example.com');
-    for (const bad of ['http://tb.example.com', 'https://10.0.0.5', 'https://192.168.1.1', 'https://172.16.0.1', 'https://169.254.169.254', 'https://100.64.0.1', 'https://198.18.0.1', 'https://localhost', 'https://user:pw@tb.example.com', 'https://[::1]', 'not a url']) {
+    for (const bad of [
+      'http://tb.example.com',
+      'https://10.0.0.5',
+      'https://192.168.1.1',
+      'https://172.16.0.1',
+      'https://169.254.169.254',
+      'https://100.64.0.1',
+      'https://198.18.0.1',
+      'https://localhost',
+      'https://user:pw@tb.example.com',
+      'https://[::1]',
+      'not a url',
+    ]) {
       expect(() => validateBaseUrl(bad)).toThrow(AdapterError);
     }
     expect(validateBaseUrl('http://localhost:8080', true).port).toBe('8080');
@@ -88,7 +157,9 @@ describe('base URL SSRF guard', () => {
 describe('ThingsBoard poll adapter (mocked HTTP)', () => {
   const DEVICE = '0e3c1b30-5a5b-11ef-8a50-1b2c3d4e5f60';
   function mockFetch(handler: (url: URL, init?: RequestInit) => Response) {
-    return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => handler(new URL(String(input)), init)) as unknown as typeof fetch;
+    return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) =>
+      handler(new URL(String(input)), init),
+    ) as unknown as typeof fetch;
   }
 
   it('reads time-series values with an API key header and converts string values', async () => {
@@ -97,10 +168,21 @@ describe('ThingsBoard poll adapter (mocked HTTP)', () => {
     const fetchImpl = mockFetch((url, init) => {
       redirects.push(init?.redirect);
       seen.push({ url, auth: new Headers(init?.headers).get('X-Authorization') });
-      return Response.json({ energy: [{ ts: 1791000000000, value: '1234.5' }, { ts: 1791000900000, value: '1235.0' }], other: [] });
+      return Response.json({
+        energy: [
+          { ts: 1791000000000, value: '1234.5' },
+          { ts: 1791000900000, value: '1235.0' },
+        ],
+        other: [],
+      });
     });
     const out = await thingsboardPoll(
-      { config: { baseUrl: 'https://tb.example.com' }, credentials: { apiKey: 'k1' }, fetchImpl, lookupImpl: publicDns },
+      {
+        config: { baseUrl: 'https://tb.example.com' },
+        credentials: { apiKey: 'k1' },
+        fetchImpl,
+        lookupImpl: publicDns,
+      },
       [{ deviceId: DEVICE, channel: 'energy' }],
       new Date(1790990000000),
       new Date(1791001000000),
@@ -116,25 +198,76 @@ describe('ThingsBoard poll adapter (mocked HTTP)', () => {
 
   it('falls back to the (deprecated) JWT login with username/password', async () => {
     const fetchImpl = mockFetch((url, init) => {
-      if (url.pathname === '/api/auth/login') return Response.json({ token: 'jwt1', refreshToken: 'r' });
+      if (url.pathname === '/api/auth/login')
+        return Response.json({ token: 'jwt1', refreshToken: 'r' });
       expect(new Headers(init?.headers).get('X-Authorization')).toBe('Bearer jwt1');
       return Response.json({ energy: [] });
     });
-    await thingsboardPoll({ config: { baseUrl: 'https://tb.example.com' }, credentials: { username: 'u', password: 'p' }, fetchImpl, lookupImpl: publicDns }, [{ deviceId: DEVICE, channel: 'energy' }], new Date(0), new Date());
+    await thingsboardPoll(
+      {
+        config: { baseUrl: 'https://tb.example.com' },
+        credentials: { username: 'u', password: 'p' },
+        fetchImpl,
+        lookupImpl: publicDns,
+      },
+      [{ deviceId: DEVICE, channel: 'energy' }],
+      new Date(0),
+      new Date(),
+    );
   });
 
   it('surfaces HTTP failures as errors (so sync backs off) and verify reports bad credentials', async () => {
     const fail = mockFetch(() => new Response('nope', { status: 500 }));
-    await expect(thingsboardPoll({ config: { baseUrl: 'https://tb.example.com' }, credentials: { apiKey: 'k' }, fetchImpl: fail, lookupImpl: publicDns }, [{ deviceId: DEVICE, channel: 'energy' }], new Date(0), new Date())).rejects.toThrow(/HTTP 500/);
+    await expect(
+      thingsboardPoll(
+        {
+          config: { baseUrl: 'https://tb.example.com' },
+          credentials: { apiKey: 'k' },
+          fetchImpl: fail,
+          lookupImpl: publicDns,
+        },
+        [{ deviceId: DEVICE, channel: 'energy' }],
+        new Date(0),
+        new Date(),
+      ),
+    ).rejects.toThrow(/HTTP 500/);
     const denied = mockFetch(() => new Response('', { status: 401 }));
-    expect(await thingsboardVerify({ config: { baseUrl: 'https://tb.example.com' }, credentials: { apiKey: 'bad' }, fetchImpl: denied, lookupImpl: publicDns })).toEqual({ ok: false, message: 'ThingsBoard rejected the credentials.' });
+    expect(
+      await thingsboardVerify({
+        config: { baseUrl: 'https://tb.example.com' },
+        credentials: { apiKey: 'bad' },
+        fetchImpl: denied,
+        lookupImpl: publicDns,
+      }),
+    ).toEqual({ ok: false, message: 'ThingsBoard rejected the credentials.' });
     const ok = mockFetch(() => Response.json({ id: { id: 'x' } }));
-    expect((await thingsboardVerify({ config: { baseUrl: 'https://tb.example.com' }, credentials: { apiKey: 'k' }, fetchImpl: ok, lookupImpl: publicDns })).ok).toBe(true);
+    expect(
+      (
+        await thingsboardVerify({
+          config: { baseUrl: 'https://tb.example.com' },
+          credentials: { apiKey: 'k' },
+          fetchImpl: ok,
+          lookupImpl: publicDns,
+        })
+      ).ok,
+    ).toBe(true);
   });
 
   it('rejects a non-UUID device id instead of building a path from it', async () => {
     const fetchImpl = mockFetch(() => Response.json({}));
-    await expect(thingsboardPoll({ config: { baseUrl: 'https://tb.example.com' }, credentials: { apiKey: 'k' }, fetchImpl, lookupImpl: publicDns }, [{ deviceId: '../../admin', channel: 'energy' }], new Date(0), new Date())).rejects.toThrow(/not a UUID/);
+    await expect(
+      thingsboardPoll(
+        {
+          config: { baseUrl: 'https://tb.example.com' },
+          credentials: { apiKey: 'k' },
+          fetchImpl,
+          lookupImpl: publicDns,
+        },
+        [{ deviceId: '../../admin', channel: 'energy' }],
+        new Date(0),
+        new Date(),
+      ),
+    ).rejects.toThrow(/not a UUID/);
   });
 });
 
@@ -209,7 +342,13 @@ describe('tariffs', () => {
   });
   it('charges only the fixed amount for zero use and validates block order', () => {
     expect(computeCharge(0, { fixedCharge: 50, blocks }).total).toBe(50);
-    expect(validateBlocks([{ upTo: 5, rate: 1 }, { upTo: 3, rate: 2 }, { upTo: null, rate: 3 }])).toMatch(/greater than 5/);
+    expect(
+      validateBlocks([
+        { upTo: 5, rate: 1 },
+        { upTo: 3, rate: 2 },
+        { upTo: null, rate: 3 },
+      ]),
+    ).toMatch(/greater than 5/);
     expect(validateBlocks([{ upTo: 5, rate: 1 }])).toMatch(/open-ended/);
     expect(() => computeCharge(-1, { fixedCharge: 0, blocks })).toThrow();
   });
@@ -226,19 +365,38 @@ describe('municipal templates', () => {
     period: { start: '2026-09-25', end: '2026-10-24' },
     meters: [
       {
-        meterId: 'm1', utilityType: 'water', meterNumber: 'TSH-W-1', serialNumber: 'SN9', unit: 'kL',
-        previousReading: 1010, previousReadingAt: '2026-09-24T10:00:00Z', currentReading: 1035.5,
-        currentReadingAt: '2026-10-20T10:00:00Z', consumption: 25.5, verification: 'photo_verified',
-        verificationNote: 'Read from the municipal meter; photo evidence on file.', evidenceDocumentIds: [],
+        meterId: 'm1',
+        utilityType: 'water',
+        meterNumber: 'TSH-W-1',
+        serialNumber: 'SN9',
+        unit: 'kL',
+        previousReading: 1010,
+        previousReadingAt: '2026-09-24T10:00:00Z',
+        currentReading: 1035.5,
+        currentReadingAt: '2026-10-20T10:00:00Z',
+        consumption: 25.5,
+        verification: 'photo_verified',
+        verificationNote: 'Read from the municipal meter; photo evidence on file.',
+        evidenceDocumentIds: [],
       },
     ],
     notes: [],
   };
-  const base = { subjectTemplate: null, bodyTemplate: null, includeFields: DEFAULT_INCLUDE_FIELDS, customMessage: 'Gate code 1234', accountHolderName: 'J Smith', ccEmails: [], recipients: ['agent@example.com'] };
+  const base = {
+    subjectTemplate: null,
+    bodyTemplate: null,
+    includeFields: DEFAULT_INCLUDE_FIELDS,
+    customMessage: 'Gate code 1234',
+    accountHolderName: 'J Smith',
+    ccEmails: [],
+    recipients: ['agent@example.com'],
+  };
 
   it('renders the default template with readings, account and custom message', () => {
     const e = renderEmail(report, base);
-    expect(e.subject).toBe('Meter readings for 1 Meter St, Pretoria — account 5001234567 (2026-10-24)');
+    expect(e.subject).toBe(
+      'Meter readings for 1 Meter St, Pretoria — account 5001234567 (2026-10-24)',
+    );
     // en-ZA groups thousands with a (non-breaking) space: "1 010".
     expect(e.bodyText).toMatch(/Previous reading: 1\s010 kL on 2026-09-24/);
     expect(e.bodyText).toMatch(/Current reading: 1\s035[.,]5 kL on 2026-10-20/);
@@ -247,7 +405,15 @@ describe('municipal templates', () => {
   });
 
   it('honours field toggles', () => {
-    const e = renderEmail(report, { ...base, includeFields: { ...DEFAULT_INCLUDE_FIELDS, previousReading: false, consumption: false, accountNumber: false } });
+    const e = renderEmail(report, {
+      ...base,
+      includeFields: {
+        ...DEFAULT_INCLUDE_FIELDS,
+        previousReading: false,
+        consumption: false,
+        accountNumber: false,
+      },
+    });
     expect(e.bodyText).not.toContain('Previous reading');
     expect(e.bodyText).not.toContain('Consumption:');
     expect(e.subject).toContain('(not included)');
@@ -259,12 +425,19 @@ describe('municipal templates', () => {
     expect(templateHash({ ...base, customMessage: 'Gate code 9999' })).not.toBe(h);
     expect(templateHash({ ...base, recipients: ['other@example.com'] })).not.toBe(h);
     expect(templateHash({ ...base, ccEmails: ['cc@example.com'] })).not.toBe(h);
-    expect(templateHash({ ...base, includeFields: { ...DEFAULT_INCLUDE_FIELDS, photos: false } })).not.toBe(h);
-    expect(templateHash({ ...base, recipients: ['B@x.com', 'a@x.com'] })).toBe(templateHash({ ...base, recipients: ['a@x.com', 'b@x.com'] }));
+    expect(
+      templateHash({ ...base, includeFields: { ...DEFAULT_INCLUDE_FIELDS, photos: false } }),
+    ).not.toBe(h);
+    expect(templateHash({ ...base, recipients: ['B@x.com', 'a@x.com'] })).toBe(
+      templateHash({ ...base, recipients: ['a@x.com', 'b@x.com'] }),
+    );
   });
 
   it('flags unknown placeholders and normalises stored field toggles', () => {
     expect(unknownPlaceholders('Hi {{property_name}} {{bank_details}}')).toEqual(['bank_details']);
-    expect(normaliseFields({ photos: false, junk: 1 })).toEqual({ ...DEFAULT_INCLUDE_FIELDS, photos: false });
+    expect(normaliseFields({ photos: false, junk: 1 })).toEqual({
+      ...DEFAULT_INCLUDE_FIELDS,
+      photos: false,
+    });
   });
 });

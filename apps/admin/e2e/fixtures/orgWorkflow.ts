@@ -41,13 +41,23 @@ export async function activateTrialForTests(orgId: string): Promise<void> {
  * same for their synthetic org, via the service-role key, exactly like activateTrialForTests above. */
 export async function enableSmartUtilitiesForTests(orgId: string): Promise<void> {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!serviceRoleKey) throw new Error('SUPABASE_SERVICE_ROLE_KEY is not set -- cannot enable Smart Utilities for E2E setup.');
+  if (!serviceRoleKey)
+    throw new Error(
+      'SUPABASE_SERVICE_ROLE_KEY is not set -- cannot enable Smart Utilities for E2E setup.',
+    );
   const response = await fetch(`${SUPABASE_URL}/rest/v1/organizations?id=eq.${orgId}`, {
     method: 'PATCH',
-    headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}`, 'Content-Type': 'application/json' },
+    headers: {
+      apikey: serviceRoleKey,
+      Authorization: `Bearer ${serviceRoleKey}`,
+      'Content-Type': 'application/json',
+    },
     body: JSON.stringify({ utilities_enabled: true }),
   });
-  if (!response.ok) throw new Error(`Failed to enable Smart Utilities for E2E org ${orgId} (${response.status}): ${await response.text()}`);
+  if (!response.ok)
+    throw new Error(
+      `Failed to enable Smart Utilities for E2E org ${orgId} (${response.status}): ${await response.text()}`,
+    );
 }
 
 /** Creates an organization through the real API, then gives that synthetic E2E organization the

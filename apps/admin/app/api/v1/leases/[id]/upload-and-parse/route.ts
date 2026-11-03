@@ -5,10 +5,7 @@ import { requireOrgRole } from '@/lib/portfolio';
 import { canUseOcr } from '@/lib/subscriptionEntitlements';
 import { resolveDocumentIntelligence } from '@/lib/providers/documentIntelligence';
 import { documentExtractionUnavailableResponse } from '@/lib/documentExtractionResponses';
-import {
-  createProtectedSignedUrl,
-  requireCleanScanBeforeProcessing,
-} from '@/lib/protectedStorage';
+import { createProtectedSignedUrl, requireCleanScanBeforeProcessing } from '@/lib/protectedStorage';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -135,7 +132,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     );
   }
 
-  let document: { id: string; org_id: string; storage_path: string; mime_type: string } | null = null;
+  let document: { id: string; org_id: string; storage_path: string; mime_type: string } | null =
+    null;
   if (parsed.data.documentId) {
     const { data, error: documentError } = await supabase
       .from('documents')

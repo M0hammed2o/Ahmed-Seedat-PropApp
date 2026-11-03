@@ -369,9 +369,13 @@ test.describe('property -> unit -> application -> tenant -> lease -> occupancy -
       data: { rentAmount: 7000, depositAmount: 0, startDate: '2026-01-01' },
     });
     await uploadLeaseDocument(request, decided.leaseId);
-    await request.post(`/api/v1/leases/${decided.leaseId}/review`, { headers: { Origin: BASE_URL } });
+    await request.post(`/api/v1/leases/${decided.leaseId}/review`, {
+      headers: { Origin: BASE_URL },
+    });
     await request.post(`/api/v1/leases/${decided.leaseId}/send`, { headers: { Origin: BASE_URL } });
-    await request.post(`/api/v1/leases/${decided.leaseId}/confirm-signed`, { headers: { Origin: BASE_URL } });
+    await request.post(`/api/v1/leases/${decided.leaseId}/confirm-signed`, {
+      headers: { Origin: BASE_URL },
+    });
     await request.post(`/api/v1/leases/${decided.leaseId}/activate`, {
       headers: { Origin: BASE_URL },
     });

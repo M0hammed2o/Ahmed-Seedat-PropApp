@@ -25,7 +25,10 @@ export async function loadUnitOccupancyByProperty(
   const result = new Map<string, UnitOccupancy>();
   if (propertyIds.length === 0) return result;
 
-  const { data: units } = await supabase.from('units').select('id, property_id').in('property_id', propertyIds);
+  const { data: units } = await supabase
+    .from('units')
+    .select('id, property_id')
+    .in('property_id', propertyIds);
   const unitRows = (units ?? []) as { id: string; property_id: string }[];
   if (unitRows.length === 0) return result;
 
@@ -41,7 +44,10 @@ export async function loadUnitOccupancyByProperty(
   const { data: leases } = await supabase
     .from('leases')
     .select('unit_id')
-    .in('unit_id', unitRows.map((u) => u.id))
+    .in(
+      'unit_id',
+      unitRows.map((u) => u.id),
+    )
     .eq('status', 'active');
   const leaseRows = (leases ?? []) as { unit_id: string }[];
 

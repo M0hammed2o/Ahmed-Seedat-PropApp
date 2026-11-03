@@ -20,7 +20,10 @@ type SearchParams = { searchParams: Promise<{ tenantId?: string }> };
  * was built for. "Create new lease" is the digital applicant-style flow and has no equivalent
  * pre-selection concept, so it's left exactly as it was.
  */
-export default async function NewLeaseChoicePage({ params, searchParams }: RouteParams & SearchParams) {
+export default async function NewLeaseChoicePage({
+  params,
+  searchParams,
+}: RouteParams & SearchParams) {
   const { id: propertyId, unitId } = await params;
   const { tenantId } = await searchParams;
   const existingHref = tenantId
@@ -53,20 +56,24 @@ export default async function NewLeaseChoicePage({ params, searchParams }: Route
       <div className="grid gap-4 sm:grid-cols-2">
         <Link href={`/properties/${propertyId}/units/${unitId}/leases/new/prepare`}>
           <Panel bodyClassName="p-5" className="h-full transition-shadow hover:shadow-lift">
-            <h3 className="font-display text-base font-semibold text-foreground">Create new lease</h3>
+            <h3 className="font-display text-base font-semibold text-foreground">
+              Create new lease
+            </h3>
             <p className="mt-1.5 text-[13px] text-muted-foreground">
-              Start a brand-new lease for this unit — commercial terms, generate the document,
-              send it to the tenant for review, and get it signed through Proplyst.
+              Start a brand-new lease for this unit — commercial terms, generate the document, send
+              it to the tenant for review, and get it signed through Proplyst.
             </p>
           </Panel>
         </Link>
 
         <Link href={existingHref}>
           <Panel bodyClassName="p-5" className="h-full transition-shadow hover:shadow-lift">
-            <h3 className="font-display text-base font-semibold text-foreground">Record existing lease</h3>
+            <h3 className="font-display text-base font-semibold text-foreground">
+              Record existing lease
+            </h3>
             <p className="mt-1.5 text-[13px] text-muted-foreground">
-              Importing an existing portfolio? Record a tenancy that was already agreed and
-              signed outside Proplyst — no re-signature, no "ready for review" notice.
+              Importing an existing portfolio? Record a tenancy that was already agreed and signed
+              outside Proplyst — no re-signature, no "ready for review" notice.
             </p>
           </Panel>
         </Link>

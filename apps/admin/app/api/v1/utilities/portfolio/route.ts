@@ -11,8 +11,15 @@ export async function GET(request: NextRequest) {
   if ('response' in auth) return auth.response;
   const months = Number(request.nextUrl.searchParams.get('months') ?? 12);
   try {
-    return NextResponse.json(await loadUtilityPortfolio(auth.supabase, { months: Number.isFinite(months) ? months : 12 }));
+    return NextResponse.json(
+      await loadUtilityPortfolio(auth.supabase, { months: Number.isFinite(months) ? months : 12 }),
+    );
   } catch (error) {
-    return serverError('utility_portfolio_failed', 'Could not load the utilities portfolio.', 'utility_portfolio.load', error);
+    return serverError(
+      'utility_portfolio_failed',
+      'Could not load the utilities portfolio.',
+      'utility_portfolio.load',
+      error,
+    );
   }
 }

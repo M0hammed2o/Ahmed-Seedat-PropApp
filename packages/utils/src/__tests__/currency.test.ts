@@ -8,9 +8,7 @@ describe('formatSouthAfricanNumber', () => {
 
   it('uses a comma decimal separator and trims optional trailing zeroes', () => {
     expect(formatSouthAfricanNumber(13800.5)).toBe('13\u00a0800,5');
-    expect(formatSouthAfricanNumber(13800.5, { minimumFractionDigits: 2 })).toBe(
-      '13\u00a0800,50',
-    );
+    expect(formatSouthAfricanNumber(13800.5, { minimumFractionDigits: 2 })).toBe('13\u00a0800,50');
   });
 
   it('preserves negative values and rounds to the configured precision', () => {

@@ -75,15 +75,22 @@ describe('dispatchWhatsApp -- failure resilience (WORKLOG.md 2026-08-27)', () =>
     mockSendTemplateMessage.mockRejectedValue(new Error('ECONNREFUSED talking to Meta'));
     const client = buildFakeServiceClient({ existingMessage: null });
 
-    const result = await dispatchWhatsApp(client as unknown as Parameters<typeof dispatchWhatsApp>[0], {
-      orgId: 'org-1',
-      toPhone: '+27821234567',
-      templateName: 'lease_ready',
-      variables: { organizationName: 'Acme', propertyLabel: 'Property A', leaseUrl: 'https://x/my-lease' },
-      relatedEntityType: 'leases',
-      relatedEntityId: 'lease-1',
-      actorUserId: null,
-    });
+    const result = await dispatchWhatsApp(
+      client as unknown as Parameters<typeof dispatchWhatsApp>[0],
+      {
+        orgId: 'org-1',
+        toPhone: '+27821234567',
+        templateName: 'lease_ready',
+        variables: {
+          organizationName: 'Acme',
+          propertyLabel: 'Property A',
+          leaseUrl: 'https://x/my-lease',
+        },
+        relatedEntityType: 'leases',
+        relatedEntityId: 'lease-1',
+        actorUserId: null,
+      },
+    );
 
     expect(result.sent).toBe(false);
     expect(result.reason).toBe('send_failed');
@@ -96,15 +103,22 @@ describe('dispatchWhatsApp -- failure resilience (WORKLOG.md 2026-08-27)', () =>
       insertError: { message: 'relation "whatsapp_messages" constraint violation' },
     });
 
-    const result = await dispatchWhatsApp(client as unknown as Parameters<typeof dispatchWhatsApp>[0], {
-      orgId: 'org-1',
-      toPhone: '+27821234567',
-      templateName: 'lease_ready',
-      variables: { organizationName: 'Acme', propertyLabel: 'Property A', leaseUrl: 'https://x/my-lease' },
-      relatedEntityType: 'leases',
-      relatedEntityId: 'lease-1',
-      actorUserId: null,
-    });
+    const result = await dispatchWhatsApp(
+      client as unknown as Parameters<typeof dispatchWhatsApp>[0],
+      {
+        orgId: 'org-1',
+        toPhone: '+27821234567',
+        templateName: 'lease_ready',
+        variables: {
+          organizationName: 'Acme',
+          propertyLabel: 'Property A',
+          leaseUrl: 'https://x/my-lease',
+        },
+        relatedEntityType: 'leases',
+        relatedEntityId: 'lease-1',
+        actorUserId: null,
+      },
+    );
 
     expect(result.sent).toBe(false);
     expect(result.reason).toBe('send_failed');
@@ -116,15 +130,18 @@ describe('dispatchWhatsApp -- failure resilience (WORKLOG.md 2026-08-27)', () =>
     );
     const client = buildFakeServiceClient({ existingMessage: null });
 
-    const result = await dispatchWhatsApp(client as unknown as Parameters<typeof dispatchWhatsApp>[0], {
-      orgId: 'org-1',
-      toPhone: '+27821234567',
-      templateName: 'lease_ready',
-      variables: {},
-      relatedEntityType: 'leases',
-      relatedEntityId: 'lease-1',
-      actorUserId: null,
-    });
+    const result = await dispatchWhatsApp(
+      client as unknown as Parameters<typeof dispatchWhatsApp>[0],
+      {
+        orgId: 'org-1',
+        toPhone: '+27821234567',
+        templateName: 'lease_ready',
+        variables: {},
+        relatedEntityType: 'leases',
+        relatedEntityId: 'lease-1',
+        actorUserId: null,
+      },
+    );
 
     expect(JSON.stringify(result)).not.toContain('abc123');
     expect(JSON.stringify(result)).not.toContain('secret token');
@@ -134,15 +151,18 @@ describe('dispatchWhatsApp -- failure resilience (WORKLOG.md 2026-08-27)', () =>
     mockSendTemplateMessage.mockResolvedValue({ providerMessageId: 'wamid-2' });
     const client = buildFakeServiceClient({ existingMessage: null, insertedId: 'msg-42' });
 
-    const result = await dispatchWhatsApp(client as unknown as Parameters<typeof dispatchWhatsApp>[0], {
-      orgId: 'org-1',
-      toPhone: '+27821234567',
-      templateName: 'lease_ready',
-      variables: {},
-      relatedEntityType: 'leases',
-      relatedEntityId: 'lease-1',
-      actorUserId: null,
-    });
+    const result = await dispatchWhatsApp(
+      client as unknown as Parameters<typeof dispatchWhatsApp>[0],
+      {
+        orgId: 'org-1',
+        toPhone: '+27821234567',
+        templateName: 'lease_ready',
+        variables: {},
+        relatedEntityType: 'leases',
+        relatedEntityId: 'lease-1',
+        actorUserId: null,
+      },
+    );
 
     expect(result.sent).toBe(true);
     expect(result.whatsappMessageId).toBe('msg-42');
@@ -159,18 +179,23 @@ describe('dispatchWhatsApp -- failure resilience (WORKLOG.md 2026-08-27)', () =>
   // spy on the registry check (not a file-wide mock, which would also defang the "control case"
   // success test above), so this safety property keeps direct test coverage.
   it('the approval gate blocks a real send and never calls the provider when isWhatsAppTemplateApproved() is false', async () => {
-    const approvalSpy = vi.spyOn(whatsappTemplates, 'isWhatsAppTemplateApproved').mockReturnValue(false);
+    const approvalSpy = vi
+      .spyOn(whatsappTemplates, 'isWhatsAppTemplateApproved')
+      .mockReturnValue(false);
     const client = buildFakeServiceClient({ existingMessage: null });
 
-    const result = await dispatchWhatsApp(client as unknown as Parameters<typeof dispatchWhatsApp>[0], {
-      orgId: 'org-1',
-      toPhone: '+27821234567',
-      templateName: 'lease_ready',
-      variables: {},
-      relatedEntityType: 'leases',
-      relatedEntityId: 'lease-1',
-      actorUserId: null,
-    });
+    const result = await dispatchWhatsApp(
+      client as unknown as Parameters<typeof dispatchWhatsApp>[0],
+      {
+        orgId: 'org-1',
+        toPhone: '+27821234567',
+        templateName: 'lease_ready',
+        variables: {},
+        relatedEntityType: 'leases',
+        relatedEntityId: 'lease-1',
+        actorUserId: null,
+      },
+    );
 
     expect(result.sent).toBe(false);
     expect(result.reason).toBe('template_not_approved');

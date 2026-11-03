@@ -50,8 +50,7 @@ export function MatchTransactionControl({
         destination === 'rent'
           ? `/api/v1/bank-transactions/${bankTransactionId}/confirm-match`
           : `/api/v1/bank-transactions/${bankTransactionId}/match-expense`;
-      const body =
-        destination === 'rent' ? { rentScheduleId } : { expenseId };
+      const body = destination === 'rent' ? { rentScheduleId } : { expenseId };
       const response = await fetch(path, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

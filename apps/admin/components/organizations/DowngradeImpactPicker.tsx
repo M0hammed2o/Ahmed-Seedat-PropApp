@@ -41,7 +41,12 @@ const SECTIONS: {
 }[] = [
   { key: 'properties', selectionKey: 'propertyIds', singular: 'property', plural: 'properties' },
   { key: 'staff', selectionKey: 'staffMemberIds', singular: 'staff member', plural: 'staff' },
-  { key: 'owners', selectionKey: 'ownerIds', singular: 'external owner', plural: 'external owners' },
+  {
+    key: 'owners',
+    selectionKey: 'ownerIds',
+    singular: 'external owner',
+    plural: 'external owners',
+  },
 ];
 
 /**
@@ -54,10 +59,7 @@ const SECTIONS: {
  * sees, and implicitly confirms, precisely what will happen before clicking Confirm.
  */
 export function DowngradeImpactPicker({ impact, selection, onChange }: Props) {
-  const sections = useMemo(
-    () => SECTIONS.filter((s) => impact[s.key].overBy > 0),
-    [impact],
-  );
+  const sections = useMemo(() => SECTIONS.filter((s) => impact[s.key].overBy > 0), [impact]);
 
   if (sections.length === 0) return null;
 
@@ -90,8 +92,8 @@ export function DowngradeImpactPicker({ impact, selection, onChange }: Props) {
               </span>
             </p>
             <p className="mt-1 text-xs text-light-textMuted dark:text-dark-textMuted">
-              Choose up to {allowance} {allowance === 1 ? s.singular : s.plural} to keep active.
-              The rest will be restricted (not deleted) until you upgrade or add capacity. Selected:{' '}
+              Choose up to {allowance} {allowance === 1 ? s.singular : s.plural} to keep active. The
+              rest will be restricted (not deleted) until you upgrade or add capacity. Selected:{' '}
               {checked.length}/{allowance}.
             </p>
             <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto rounded-md border border-light-border p-2 dark:border-dark-border">
@@ -126,7 +128,9 @@ export function DowngradeImpactPicker({ impact, selection, onChange }: Props) {
  * would have chosen -- shown explicitly, never silently applied. */
 export function defaultDowngradeSelection(impact: DowngradeImpact): DowngradeSelection {
   return {
-    propertyIds: impact.properties.items.slice(0, impact.properties.newAllowance ?? 0).map((i) => i.id),
+    propertyIds: impact.properties.items
+      .slice(0, impact.properties.newAllowance ?? 0)
+      .map((i) => i.id),
     staffMemberIds: impact.staff.items.slice(0, impact.staff.newAllowance ?? 0).map((i) => i.id),
     ownerIds: impact.owners.items.slice(0, impact.owners.newAllowance ?? 0).map((i) => i.id),
   };

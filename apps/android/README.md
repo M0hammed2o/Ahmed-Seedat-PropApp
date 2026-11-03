@@ -139,16 +139,16 @@ runs this pass — see `WORKLOG.md` for the full transcript and exact test count
   policy, this pass just wires it, replacing the prior pass's session-local-only workaround),
   Alerts (shared in-app notification centre, same as owner).
 - **Maintenance photo/file attachments** (new this pass): `POST /api/v1/tenant-portal/
-  maintenance-tickets/:id/documents` (ownership verified via the caller's own session client
+maintenance-tickets/:id/documents` (ownership verified via the caller's own session client
   before a service-role write, same pattern `/api/v1/tenant-portal/payment-reports`'s own upload
   already established; the created document's `lease_id` is set to the ticket's own lease, so
   `documents_select_tenant_self` already grants read-back access with zero new RLS). `GET
-  /api/v1/documents` extended with `filter[maintenance_ticket_id]`. Photo/file picker, upload
+/api/v1/documents` extended with `filter[maintenance_ticket_id]`. Photo/file picker, upload
   progress/error/retry, and an attachments list with tap-to-view on the ticket detail screen.
 - **App Links, now complete** (this pass): `AppLinkParser.kt` + `PendingDeepLinkStore` resume an
   authenticated, role-matching link straight to its native sub-screen (`/my-payments`,
   `/my-maintenance[/{id}]`, `/my-documents`, `/notices`, `/owner-portal/{payments,maintenance,
-  summary,settings}`, ...) across both nested `NavHost`s; unauthenticated retains the pending
+summary,settings}`, ...) across both nested `NavHost`s; unauthenticated retains the pending
   target through sign-in; role-mismatched or genuinely unrecognized paths (including `/activate`'s
   web-only account-creation flow, and several `/owner-portal/*`/`/leases/...` paths with no native
   screen yet) safely fall back to the resolved role's own portal home. Verification itself still

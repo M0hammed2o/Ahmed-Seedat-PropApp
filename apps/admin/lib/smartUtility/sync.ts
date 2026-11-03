@@ -3,7 +3,12 @@ import { pinnedFetch } from './pinnedFetch';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { notifyPropertyStaff } from '../notify';
 import { writeAuditEvent } from '../audit';
-import { enabledUtilityOrgs, storeReadings, type IngestResult, type IntegrationRow } from './ingest';
+import {
+  enabledUtilityOrgs,
+  storeReadings,
+  type IngestResult,
+  type IntegrationRow,
+} from './ingest';
 import { getProvider, type PollContext } from './providers';
 import { decryptCredentials } from './secrets';
 
@@ -39,14 +44,20 @@ export interface SyncOutcome {
 export async function syncIntegration(
   serviceClient: SupabaseClient,
   integration: PollIntegrationRow,
-  opts: { now?: Date; fetchImpl?: typeof fetch; actorUserId?: string | null; lookupImpl?: (hostname: string) => Promise<string[]> } = {},
+  opts: {
+    now?: Date;
+    fetchImpl?: typeof fetch;
+    actorUserId?: string | null;
+    lookupImpl?: (hostname: string) => Promise<string[]>;
+  } = {},
 ): Promise<SyncOutcome> {
   const now = opts.now ?? new Date();
   const interval = integration.sync_interval_minutes ?? 60;
   const provider = getProvider(integration.provider);
   try {
     if (!provider?.poll) throw new Error(`${integration.provider} is not a polling provider`);
-    if (!integration.credentials_ciphertext) throw new Error('No credentials stored for this connection.');
+    if (!integration.credentials_ciphertext)
+      throw new Error('No credentials stored for this connection.');
     const ctx: PollContext = {
       config: integration.provider_config ?? {},
       credentials: decryptCredentials(integration.credentials_ciphertext, integration.id),
@@ -62,12 +73,17 @@ export async function syncIntegration(
     if (error) throw new Error(error.message);
     const devices = (meters ?? [])
       .filter((m) => m.external_device_id)
-      .map((m) => ({ deviceId: m.external_device_id as string, channel: m.external_channel as string }));
+      .map((m) => ({
+        deviceId: m.external_device_id as string,
+        channel: m.external_channel as string,
+      }));
 
     const since = new Date(
       Math.max(
         now.getTime() - MAX_BACKFILL_MS,
-        integration.last_sync_at ? new Date(integration.last_sync_at).getTime() - 15 * 60_000 : now.getTime() - DEFAULT_LOOKBACK_MS,
+        integration.last_sync_at
+          ? new Date(integration.last_sync_at).getTime() - 15 * 60_000
+          : now.getTime() - DEFAULT_LOOKBACK_MS,
       ),
     );
     const readings = devices.length ? await provider.poll(ctx, devices, since, now) : [];
@@ -93,7 +109,12 @@ export async function syncIntegration(
         entityId: integration.id,
       });
     }
-    return { integrationId: integration.id, ok: true, message: `Synced ${readings.length} reading(s).`, result };
+    return {
+      integrationId: integration.id,
+      ok: true,
+      message: `Synced ${readings.length} reading(s).`,
+      result,
+    };
   } catch (err) {
     const message = (err instanceof Error ? err.message : 'Sync failed').slice(0, 500);
     const failures = integration.consecutive_failures + 1;
@@ -103,7 +124,9 @@ export async function syncIntegration(
         last_sync_status: 'error',
         last_sync_error: message,
         consecutive_failures: failures,
-        next_sync_at: new Date(now.getTime() + backoffMinutes(interval, failures) * 60_000).toISOString(),
+        next_sync_at: new Date(
+          now.getTime() + backoffMinutes(interval, failures) * 60_000,
+        ).toISOString(),
       })
       .eq('id', integration.id);
     if (failures === FAILURES_BEFORE_ALERT) {
@@ -131,7 +154,11 @@ const POLL_COLUMNS =
   'id, org_id, property_id, provider, name, status, token_hash, previous_token_hash, previous_token_expires_at, credentials_ciphertext, provider_config, sync_interval_minutes, last_sync_at, consecutive_failures';
 
 export async function loadPollIntegration(serviceClient: SupabaseClient, id: string) {
-  const { data } = await serviceClient.from('meter_integrations').select(POLL_COLUMNS).eq('id', id).maybeSingle();
+  const { data } = await serviceClient
+    .from('meter_integrations')
+    .select(POLL_COLUMNS)
+    .eq('id', id)
+    .maybeSingle();
   return (data as PollIntegrationRow | null) ?? null;
 }
 

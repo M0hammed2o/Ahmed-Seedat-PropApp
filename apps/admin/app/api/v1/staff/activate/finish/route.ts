@@ -26,10 +26,7 @@ export async function POST() {
   const { data, error } = await supabase.rpc('activate_staff_provision');
   if (error) {
     const message = error.message ?? 'Failed to activate your account.';
-    return NextResponse.json(
-      { error: { code: 'activation_failed', message } },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: { code: 'activation_failed', message } }, { status: 400 });
   }
 
   return NextResponse.json({ ok: true, orgId: data });

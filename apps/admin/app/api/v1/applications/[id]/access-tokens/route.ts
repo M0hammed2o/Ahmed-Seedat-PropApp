@@ -31,14 +31,18 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 
   const { data: token, error } = await supabase
     .from('application_access_tokens')
-    .select('id, delivery_channel, destination_hint, expires_at, last_accessed_at, revoked_at, created_at')
+    .select(
+      'id, delivery_channel, destination_hint, expires_at, last_accessed_at, revoked_at, created_at',
+    )
     .eq('application_id', id)
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
   if (error) {
     return NextResponse.json(
-      { error: { code: 'access_token_fetch_failed', message: 'Could not load invitation status.' } },
+      {
+        error: { code: 'access_token_fetch_failed', message: 'Could not load invitation status.' },
+      },
       { status: 500 },
     );
   }
@@ -144,7 +148,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
   const { data: application } = await supabase
     .from('applications')
-    .select('org_id, applicant_email, organizations(trading_name, legal_name), units(unit_label, properties(nickname))')
+    .select(
+      'org_id, applicant_email, organizations(trading_name, legal_name), units(unit_label, properties(nickname))',
+    )
     .eq('id', id)
     .maybeSingle();
   const app = application as unknown as {
@@ -171,7 +177,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         toAddress: app.applicant_email,
         templateName: 'application_invitation',
         templateVars: {
-          orgName: app.organizations?.trading_name ?? app.organizations?.legal_name ?? 'Your landlord',
+          orgName:
+            app.organizations?.trading_name ?? app.organizations?.legal_name ?? 'Your landlord',
           propertyLabel: app.units?.properties?.nickname
             ? `${app.units.properties.nickname} — ${app.units.unit_label}`
             : (app.units?.unit_label ?? 'a rental'),

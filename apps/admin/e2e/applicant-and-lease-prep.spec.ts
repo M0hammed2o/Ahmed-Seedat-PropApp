@@ -76,7 +76,9 @@ test.describe('applicant portal (real browser)', () => {
 
     // Correct property/unit context, no blank/dead page. Generous timeout on this first assertion
     // only -- a brand-new dev-mode route's first hit includes on-demand JIT compilation.
-    await expect(page.getByRole('heading', { name: 'Rental application' })).toBeVisible({ timeout: 45000 });
+    await expect(page.getByRole('heading', { name: 'Rental application' })).toBeVisible({
+      timeout: 45000,
+    });
     await expect(page.getByText(/Applicant UI Property/)).toBeVisible();
     await expect(page.getByText(/Unit A1/)).toBeVisible();
 
@@ -109,9 +111,7 @@ test.describe('applicant portal (real browser)', () => {
     // An ID scan legitimately returns multiple field suggestions, each with its own confidence.
     // Scope this assertion to the full-name suggestion instead of matching every confidence label
     // in the document row (the date-of-birth suggestion has its own, separate confidence).
-    await expect(
-      fullNameResult.locator('..').getByText(/^Confidence: \d+%$/),
-    ).toBeVisible();
+    await expect(fullNameResult.locator('..').getByText(/^Confidence: \d+%$/)).toBeVisible();
     await idRow.getByRole('button', { name: 'Use this value' }).first().click();
 
     // The applied value now appears in the form's Full legal name field.
@@ -162,7 +162,13 @@ test.describe('lease preparation (real browser)', () => {
     // Application -> approve -> draft lease (already-proven backend, real browser session).
     const applicationResponse = await page.request.post('/api/v1/applications', {
       headers: { Origin: BASE_URL },
-      data: { orgId, propertyId, unitId, applicantName: 'Lease Prep UI Tenant', applicantEmail: 'lp-ui@example.com' },
+      data: {
+        orgId,
+        propertyId,
+        unitId,
+        applicantName: 'Lease Prep UI Tenant',
+        applicantEmail: 'lp-ui@example.com',
+      },
     });
     const application = await applicationResponse.json();
     const decideResponse = await page.request.post(
@@ -182,7 +188,9 @@ test.describe('lease preparation (real browser)', () => {
     await expect(page.getByText(/Prepare lease/)).toBeVisible({ timeout: 45000 });
     await expect(page.getByText(/Lease Prep UI Property/)).toBeVisible();
 
-    await page.getByLabel('Template').selectOption({ label: template.leaseTemplate.name as string });
+    await page
+      .getByLabel('Template')
+      .selectOption({ label: template.leaseTemplate.name as string });
     await page.getByLabel('Approved occupants').fill('Lease Prep UI Tenant');
     await page.getByLabel('Parking').fill('1 bay');
 
@@ -219,7 +227,9 @@ test.describe('lease preparation (real browser)', () => {
 
     // === Staff-confirmed-signed acceptance path, then activation ===
     await page.getByRole('button', { name: 'Record signed copy received' }).click();
-    await expect(page.getByText(/Recorded — a signed copy was received/)).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(/Recorded — a signed copy was received/)).toBeVisible({
+      timeout: 15000,
+    });
 
     await page.goto(`/leases/${leaseId}`);
     await page.getByRole('button', { name: 'Activate lease' }).click({ timeout: 30000 });

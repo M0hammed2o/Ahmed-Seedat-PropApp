@@ -359,7 +359,9 @@ export function ChoosePlanClient({ plans, initialTier, initialInterval }: Props)
                 <dt className="text-light-textSecondary dark:text-dark-textSecondary">
                   First billing date
                 </dt>
-                <dd className="text-light-textPrimary dark:text-dark-textPrimary">{trialEndDate}</dd>
+                <dd className="text-light-textPrimary dark:text-dark-textPrimary">
+                  {trialEndDate}
+                </dd>
               </div>
             </dl>
 

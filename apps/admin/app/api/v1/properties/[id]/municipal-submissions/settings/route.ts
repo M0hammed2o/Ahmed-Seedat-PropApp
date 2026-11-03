@@ -2,8 +2,22 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { municipalSubmissionSettingsSchema } from '@propvault/validation';
 import { getServiceRoleClient } from '@/lib/supabase/server';
 import { getMunicipality } from '@/lib/smartUtility/catalog';
-import { canWriteUtilities, forbidden, jsonError, loadReadableProperty, notFound, parseJson, requireUser, serverError, utilitiesDisabled } from '@/lib/smartUtility/http';
-import { approvalIsCurrent, invalidateTemplateApproval, loadTemplateContext } from '@/lib/smartUtility/reporting';
+import {
+  canWriteUtilities,
+  forbidden,
+  jsonError,
+  loadReadableProperty,
+  notFound,
+  parseJson,
+  requireUser,
+  serverError,
+  utilitiesDisabled,
+} from '@/lib/smartUtility/http';
+import {
+  approvalIsCurrent,
+  invalidateTemplateApproval,
+  loadTemplateContext,
+} from '@/lib/smartUtility/reporting';
 import { normaliseFields, unknownPlaceholders } from '@/lib/smartUtility/templates';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -27,19 +41,35 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
   const d = parsed.data;
   if (d.municipalityCode && !getMunicipality(d.municipalityCode)) {
-    return jsonError(400, 'unknown_municipality', 'Choose a municipality from the list (or "Other").');
+    return jsonError(
+      400,
+      'unknown_municipality',
+      'Choose a municipality from the list (or "Other").',
+    );
   }
   const municipality = getMunicipality(d.municipalityCode);
-  if (d.mode === 'automatic' && municipality && !municipality.emailSubmission && municipality.code !== 'other') {
+  if (
+    d.mode === 'automatic' &&
+    municipality &&
+    !municipality.emailSubmission &&
+    municipality.code !== 'other'
+  ) {
     return jsonError(
       400,
       'automatic_not_supported',
       `${municipality.name} has no verified email submission channel, so automatic sending is not available. Use manual mode and submit through the municipality's own app or portal.`,
     );
   }
-  const unknown = [...unknownPlaceholders(d.subjectTemplate ?? ''), ...unknownPlaceholders(d.bodyTemplate ?? '')];
+  const unknown = [
+    ...unknownPlaceholders(d.subjectTemplate ?? ''),
+    ...unknownPlaceholders(d.bodyTemplate ?? ''),
+  ];
   if (unknown.length) {
-    return jsonError(400, 'unknown_placeholders', `Unknown placeholders: ${unknown.map((u) => `{{${u}}}`).join(', ')}.`);
+    return jsonError(
+      400,
+      'unknown_placeholders',
+      `Unknown placeholders: ${unknown.map((u) => `{{${u}}}`).join(', ')}.`,
+    );
   }
 
   const service = getServiceRoleClient();
@@ -63,14 +93,23 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   if (d.bodyTemplate !== undefined) row.body_template = d.bodyTemplate || null;
   if (d.includeFields !== undefined) row.include_fields = normaliseFields(d.includeFields);
 
-  const { error } = await auth.supabase.from('municipal_submission_settings').upsert(row, { onConflict: 'property_id' });
-  if (error) return serverError('submission_settings_failed', 'Could not save the settings.', 'submission_settings.upsert', error);
+  const { error } = await auth.supabase
+    .from('municipal_submission_settings')
+    .upsert(row, { onConflict: 'property_id' });
+  if (error)
+    return serverError(
+      'submission_settings_failed',
+      'Could not save the settings.',
+      'submission_settings.upsert',
+      error,
+    );
 
   // Account number / municipality also appear in the sent pack, so they count as content too.
   const after = await loadTemplateContext(service, property.id);
   const contentChanged =
     after.currentHash !== before.currentHash ||
-    (before.settings?.municipal_account_number ?? null) !== (row.municipal_account_number ?? null) ||
+    (before.settings?.municipal_account_number ?? null) !==
+      (row.municipal_account_number ?? null) ||
     (before.settings?.municipality_code ?? null) !== (row.municipality_code ?? null) ||
     // Photos are attachments of the sent email, so switching them on/off is a content change too.
     (before.settings ? before.settings.include_photos !== row.include_photos : false);
@@ -88,19 +127,35 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const ctx = approvalWithdrawn ? await loadTemplateContext(service, property.id) : after;
     if (d.scheduleEnabled) {
       if (!approvalIsCurrent(ctx)) {
-        return jsonError(409, 'template_not_approved', 'Preview and approve the email before enabling scheduled sending.', {
-          saved: true,
-        });
+        return jsonError(
+          409,
+          'template_not_approved',
+          'Preview and approve the email before enabling scheduled sending.',
+          {
+            saved: true,
+          },
+        );
       }
       if (ctx.authorisedRecipients.length === 0) {
-        return jsonError(409, 'no_authorised_recipients', 'Add and authorise at least one recipient first.', { saved: true });
+        return jsonError(
+          409,
+          'no_authorised_recipients',
+          'Add and authorise at least one recipient first.',
+          { saved: true },
+        );
       }
     }
     const { error: schedError } = await service
       .from('municipal_submission_settings')
       .update({ schedule_enabled: d.scheduleEnabled })
       .eq('property_id', property.id);
-    if (schedError) return serverError('schedule_failed', 'Could not change scheduled sending.', 'submission_settings.schedule', schedError);
+    if (schedError)
+      return serverError(
+        'schedule_failed',
+        'Could not change scheduled sending.',
+        'submission_settings.schedule',
+        schedError,
+      );
   }
   return NextResponse.json({ saved: true, approvalWithdrawn });
 }

@@ -3,16 +3,25 @@ import { parsePlanSelection, buildChoosePlanSelfPath } from '../planSelection';
 
 describe('parsePlanSelection', () => {
   it('accepts every valid tier/interval combination', () => {
-    expect(parsePlanSelection('starter', 'monthly')).toEqual({ tier: 'starter', interval: 'monthly' });
+    expect(parsePlanSelection('starter', 'monthly')).toEqual({
+      tier: 'starter',
+      interval: 'monthly',
+    });
     expect(parsePlanSelection('professional', 'annual')).toEqual({
       tier: 'professional',
       interval: 'annual',
     });
-    expect(parsePlanSelection('business', 'monthly')).toEqual({ tier: 'business', interval: 'monthly' });
+    expect(parsePlanSelection('business', 'monthly')).toEqual({
+      tier: 'business',
+      interval: 'monthly',
+    });
   });
 
   it('defaults an invalid/unrecognized plan tier to null rather than trusting it', () => {
-    expect(parsePlanSelection('enterprise', 'monthly')).toEqual({ tier: null, interval: 'monthly' });
+    expect(parsePlanSelection('enterprise', 'monthly')).toEqual({
+      tier: null,
+      interval: 'monthly',
+    });
     expect(parsePlanSelection('<script>alert(1)</script>', 'monthly').tier).toBeNull();
   });
 

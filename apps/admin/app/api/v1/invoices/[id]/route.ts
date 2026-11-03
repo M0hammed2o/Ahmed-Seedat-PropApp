@@ -32,15 +32,27 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     );
   }
 
-  const { data: invoice, error } = await supabase.from('invoices').select('*').eq('id', id).maybeSingle();
+  const { data: invoice, error } = await supabase
+    .from('invoices')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
   if (error) {
     return NextResponse.json(
-      { error: { code: 'invoice_fetch_failed', message: safeErrorMessage(error, 'Could not load this invoice.', 'invoices/[id].fetch') } },
+      {
+        error: {
+          code: 'invoice_fetch_failed',
+          message: safeErrorMessage(error, 'Could not load this invoice.', 'invoices/[id].fetch'),
+        },
+      },
       { status: 500 },
     );
   }
   if (!invoice) {
-    return NextResponse.json({ error: { code: 'not_found', message: 'Invoice not found.' } }, { status: 404 });
+    return NextResponse.json(
+      { error: { code: 'not_found', message: 'Invoice not found.' } },
+      { status: 404 },
+    );
   }
 
   const { data: lineItems, error: lineError } = await supabase
@@ -50,7 +62,16 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     .order('sort_order', { ascending: true });
   if (lineError) {
     return NextResponse.json(
-      { error: { code: 'invoice_line_items_fetch_failed', message: safeErrorMessage(lineError, 'Could not load invoice line items.', 'invoices/[id].lineItems') } },
+      {
+        error: {
+          code: 'invoice_line_items_fetch_failed',
+          message: safeErrorMessage(
+            lineError,
+            'Could not load invoice line items.',
+            'invoices/[id].lineItems',
+          ),
+        },
+      },
       { status: 500 },
     );
   }
@@ -64,7 +85,10 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     // lineItems above are still returned; `balance` is simply omitted this one time and the
     // caller can retry, matching this route's own established per-field error tolerance
     // elsewhere (PATCH below tolerates the reload half-failing too).
-    console.error('[invoices/[id].balance]', balanceError instanceof Error ? balanceError.message : balanceError);
+    console.error(
+      '[invoices/[id].balance]',
+      balanceError instanceof Error ? balanceError.message : balanceError,
+    );
   }
 
   return NextResponse.json({
@@ -102,12 +126,24 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     .maybeSingle();
   if (fetchError) {
     return NextResponse.json(
-      { error: { code: 'invoice_fetch_failed', message: safeErrorMessage(fetchError, 'Could not load this invoice.', 'invoices/[id].patch.fetch') } },
+      {
+        error: {
+          code: 'invoice_fetch_failed',
+          message: safeErrorMessage(
+            fetchError,
+            'Could not load this invoice.',
+            'invoices/[id].patch.fetch',
+          ),
+        },
+      },
       { status: 500 },
     );
   }
   if (!existing) {
-    return NextResponse.json({ error: { code: 'not_found', message: 'Invoice not found.' } }, { status: 404 });
+    return NextResponse.json(
+      { error: { code: 'not_found', message: 'Invoice not found.' } },
+      { status: 404 },
+    );
   }
 
   const canWrite = await requireOrgRole(supabase, existing.org_id, 'accountant');
@@ -171,10 +207,15 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     );
   }
 
-  const [{ data: invoice, error: invoiceError }, { data: lineItems, error: lineError }] = await Promise.all([
-    supabase.from('invoices').select('*').eq('id', id).single(),
-    supabase.from('invoice_line_items').select('*').eq('invoice_id', id).order('sort_order', { ascending: true }),
-  ]);
+  const [{ data: invoice, error: invoiceError }, { data: lineItems, error: lineError }] =
+    await Promise.all([
+      supabase.from('invoices').select('*').eq('id', id).single(),
+      supabase
+        .from('invoice_line_items')
+        .select('*')
+        .eq('invoice_id', id)
+        .order('sort_order', { ascending: true }),
+    ]);
   if (invoiceError || lineError) {
     return NextResponse.json(
       {

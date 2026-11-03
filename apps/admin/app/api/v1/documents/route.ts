@@ -50,7 +50,8 @@ export async function GET(request: NextRequest) {
     .limit(limit);
 
   if (propertyIdFilter) query = query.eq('property_id', propertyIdFilter);
-  if (maintenanceTicketIdFilter) query = query.eq('maintenance_ticket_id', maintenanceTicketIdFilter);
+  if (maintenanceTicketIdFilter)
+    query = query.eq('maintenance_ticket_id', maintenanceTicketIdFilter);
   if (cursor) query = query.or(beforeCursorFilter(cursor));
 
   const { data, error } = await query;

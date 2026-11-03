@@ -7,6 +7,7 @@ Read in this order, then implement. Do not ask the designer to re-explain; every
 3. `HANDOFF_STATUS.md` — what exists and what does not (Property Detail, Activity, Tenant Payments/Requests/Profile, Notifications have no mock yet; do not invent them, follow the Navy Deck list pattern if unavoidable).
 
 Reference mocks (open in a browser, this folder, `support.js` alongside):
+
 - `B-Auth.dc.html` — all 19 auth/biometric states. Set `platform="android"`.
 - `B-OwnerHome.dc.html`, `B-Properties.dc.html`, `B-TenantHome.dc.html` — approved screens.
 - `Proplyst Auth States.dc.html` — flow rules + every state in frames.
@@ -15,6 +16,7 @@ Reference mocks (open in a browser, this folder, `support.js` alongside):
 Assets to copy into `res/`: `assets/logo-mark.png`, `assets/logo-wordmark.png` (tint white on navy), `assets/prop-*.png` (dev placeholders only).
 
 Rules
+
 - Visual/UX changes only. Do not touch auth security, session/refresh logic, biometric architecture, repositories, APIs or migrations.
 - Biometrics unlock a locally stored session; they never replace server sign-in.
 - Keep the floating white pill bottom nav (accepted deviation).

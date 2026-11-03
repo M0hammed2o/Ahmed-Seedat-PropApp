@@ -34,7 +34,11 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
       {
         error: {
           code: 'unit_fetch_failed',
-          message: safeErrorMessage(fetchError, 'Could not load this unit.', 'units/[id]/deletion-eligibility.fetch'),
+          message: safeErrorMessage(
+            fetchError,
+            'Could not load this unit.',
+            'units/[id]/deletion-eligibility.fetch',
+          ),
         },
       },
       { status: 500 },

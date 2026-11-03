@@ -94,10 +94,7 @@ export function LandingPage() {
         <section className="relative overflow-hidden px-6 py-20 text-center sm:py-28">
           {/* Restrained ambient depth -- two soft, blurred accent blobs anchored off-center, never
               overlapping the readable text column. Pure CSS, no image asset. */}
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 overflow-hidden"
-          >
+          <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
             <div className="absolute -top-24 left-1/2 h-72 w-72 -translate-x-[80%] rounded-full bg-light-accent/10 blur-3xl dark:bg-dark-accent/10" />
             <div className="absolute -top-10 left-1/2 h-80 w-80 translate-x-[10%] rounded-full bg-light-accent/5 blur-3xl dark:bg-dark-accent/5" />
           </div>

@@ -1,5 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { loadReadableProperty, notFound, requireUser, serverError, utilitiesDisabled } from '@/lib/smartUtility/http';
+import {
+  loadReadableProperty,
+  notFound,
+  requireUser,
+  serverError,
+  utilitiesDisabled,
+} from '@/lib/smartUtility/http';
 import { loadSmartUtilityOverview } from '@/lib/smartUtility/overview';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -21,6 +27,11 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     const overview = await loadSmartUtilityOverview(auth.supabase, id);
     return NextResponse.json({ property, ...overview });
   } catch (error) {
-    return serverError('smart_utility_overview_failed', 'Could not load utility monitoring.', 'smart_utility.overview', error);
+    return serverError(
+      'smart_utility_overview_failed',
+      'Could not load utility monitoring.',
+      'smart_utility.overview',
+      error,
+    );
   }
 }

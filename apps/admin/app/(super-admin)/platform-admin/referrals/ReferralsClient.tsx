@@ -24,7 +24,11 @@ export interface ReferralAttributionRow {
 }
 
 function formatDate(value: string) {
-  return new Date(value).toLocaleDateString('en-ZA', { year: 'numeric', month: 'short', day: 'numeric' });
+  return new Date(value).toLocaleDateString('en-ZA', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
 }
 
 /**
@@ -119,7 +123,11 @@ export function ReferralsClient({
               className="mt-1 w-40 rounded-lg border border-light-border bg-transparent px-3 py-2 text-sm text-light-textPrimary outline-none focus:border-light-accent/40 focus:ring-4 focus:ring-light-accent/10 dark:border-dark-border dark:text-dark-textPrimary"
             />
           </div>
-          <Button type="submit" variant="primary" disabled={creating || !name.trim() || !referralCode.trim()}>
+          <Button
+            type="submit"
+            variant="primary"
+            disabled={creating || !name.trim() || !referralCode.trim()}
+          >
             {creating ? 'Adding…' : 'Add partner'}
           </Button>
         </form>
@@ -142,7 +150,10 @@ export function ReferralsClient({
             <tbody>
               {partners.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-4 text-sm text-light-textMuted dark:text-dark-textMuted">
+                  <td
+                    colSpan={6}
+                    className="py-4 text-sm text-light-textMuted dark:text-dark-textMuted"
+                  >
                     No referral partners yet.
                   </td>
                 </tr>
@@ -209,13 +220,19 @@ export function ReferralsClient({
             <tbody>
               {initialOrganizations.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-4 text-sm text-light-textMuted dark:text-dark-textMuted">
+                  <td
+                    colSpan={5}
+                    className="py-4 text-sm text-light-textMuted dark:text-dark-textMuted"
+                  >
                     No organizations have a referral attribution yet.
                   </td>
                 </tr>
               ) : (
                 initialOrganizations.map((row) => (
-                  <tr key={row.orgId} className="border-b border-light-border/60 dark:border-dark-border/60">
+                  <tr
+                    key={row.orgId}
+                    className="border-b border-light-border/60 dark:border-dark-border/60"
+                  >
                     <td className="py-2 pr-4 text-light-textPrimary dark:text-dark-textPrimary">
                       {row.orgLegalName}
                     </td>
@@ -229,7 +246,9 @@ export function ReferralsClient({
                       {formatDate(row.attributedAt)}
                     </td>
                     <td className="py-2 pr-0 text-light-textSecondary dark:text-dark-textSecondary">
-                      {row.planName ? `${row.planName} (${row.subscriptionStatus ?? 'unknown'})` : '—'}
+                      {row.planName
+                        ? `${row.planName} (${row.subscriptionStatus ?? 'unknown'})`
+                        : '—'}
                     </td>
                   </tr>
                 ))

@@ -84,7 +84,11 @@ export async function POST(request: NextRequest) {
       {
         error: {
           code: 'lease_lookup_failed',
-          message: safeErrorMessage(leaseTenantError, 'Could not verify your lease.', 'tenantPortal.maintenanceTickets.leaseLookup'),
+          message: safeErrorMessage(
+            leaseTenantError,
+            'Could not verify your lease.',
+            'tenantPortal.maintenanceTickets.leaseLookup',
+          ),
         },
       },
       { status: 500 },

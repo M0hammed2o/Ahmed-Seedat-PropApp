@@ -1,6 +1,10 @@
 import Link from 'next/link';
 import { Download } from 'lucide-react';
-import { MAINTENANCE_STATUSES, RENT_SCHEDULE_STATUSES, type OwnerFinancialSummary } from '@propvault/types';
+import {
+  MAINTENANCE_STATUSES,
+  RENT_SCHEDULE_STATUSES,
+  type OwnerFinancialSummary,
+} from '@propvault/types';
 import { MiniBarChart } from '@/components/ui/MiniBarChart';
 import { MiniLineChart } from '@/components/ui/MiniLineChart';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -12,7 +16,11 @@ import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 import { resolvePortalSession } from '@/lib/orgSession';
 import { resolveSummaryMonth, resolvePeriodRange } from '@/lib/dashboardKpis';
 import { fetchAllPagesResult } from '@/lib/pagedRead';
-import { loadPaidCentsByLeasePeriod, earliestPeriodNeeded, schedulePaid } from '@/lib/rentCollection';
+import {
+  loadPaidCentsByLeasePeriod,
+  earliestPeriodNeeded,
+  schedulePaid,
+} from '@/lib/rentCollection';
 import { southAfricanDateOf, southAfricanNow, southAfricanToday } from '@/lib/southAfricanTime';
 import { loadPortfolioFinancialOverview } from '@/lib/financialOverview';
 import { FinancialOverviewSection } from '@/components/dashboard/FinancialOverviewSection';
@@ -386,35 +394,59 @@ async function loadData(): Promise<ReportsData> {
     fetchAllPagesResult<{ lease_id: string; due_date: string; amount: number; status: string }>(
       'rent schedule',
       (f, t) =>
-        supabase.from('rent_schedules').select('id, lease_id, due_date, amount, status').order('id').range(f, t),
+        supabase
+          .from('rent_schedules')
+          .select('id, lease_id, due_date, amount, status')
+          .order('id')
+          .range(f, t),
     ),
-    fetchAllPagesResult<{ created_at: string; amount: number; status: string }>('expenses', (f, t) =>
-      supabase.from('expenses').select('id, created_at, amount, status').order('id').range(f, t),
+    fetchAllPagesResult<{ created_at: string; amount: number; status: string }>(
+      'expenses',
+      (f, t) =>
+        supabase.from('expenses').select('id, created_at, amount, status').order('id').range(f, t),
     ),
     fetchAllPagesResult<{ status: string }>('maintenance tickets', (f, t) =>
       supabase.from('maintenance_tickets').select('id, status').order('id').range(f, t),
     ),
-    fetchAllPagesResult<{ unit_id: string; start_date: string; end_date: string | null; status: string }>(
-      'leases',
-      (f, t) => supabase.from('leases').select('id, unit_id, start_date, end_date, status').order('id').range(f, t),
+    fetchAllPagesResult<{
+      unit_id: string;
+      start_date: string;
+      end_date: string | null;
+      status: string;
+    }>('leases', (f, t) =>
+      supabase
+        .from('leases')
+        .select('id, unit_id, start_date, end_date, status')
+        .order('id')
+        .range(f, t),
     ),
     fetchAllPagesResult<{ id: string; amount: number; period: string; voided_at: string | null }>(
       'invoices',
-      (f, t) => supabase.from('invoices').select('id, amount, period, voided_at').order('id').range(f, t),
-    ),
-    fetchAllPagesResult<{ invoice_id: string; amount: number; paid_at: string; reversed_at: string | null }>(
-      'invoice payments',
       (f, t) =>
-        supabase.from('invoice_payments').select('id, invoice_id, amount, paid_at, reversed_at').order('id').range(f, t),
+        supabase.from('invoices').select('id, amount, period, voided_at').order('id').range(f, t),
     ),
-    fetchAllPagesResult<{ amount: number; status: string; created_at: string }>('vendor bills', (f, t) =>
+    fetchAllPagesResult<{
+      invoice_id: string;
+      amount: number;
+      paid_at: string;
+      reversed_at: string | null;
+    }>('invoice payments', (f, t) =>
       supabase
-        .from('vendor_bills')
-        .select('id, amount, status, created_at')
-        .not('maintenance_ticket_id', 'is', null)
-        .gte('created_at', yearStart)
+        .from('invoice_payments')
+        .select('id, invoice_id, amount, paid_at, reversed_at')
         .order('id')
         .range(f, t),
+    ),
+    fetchAllPagesResult<{ amount: number; status: string; created_at: string }>(
+      'vendor bills',
+      (f, t) =>
+        supabase
+          .from('vendor_bills')
+          .select('id, amount, status, created_at')
+          .not('maintenance_ticket_id', 'is', null)
+          .gte('created_at', yearStart)
+          .order('id')
+          .range(f, t),
     ),
   ]);
   if (propertiesResult.error)
@@ -434,7 +466,10 @@ async function loadData(): Promise<ReportsData> {
   // the same definition the dashboard and accounting overview use.
   const firstMonthIso = `${monthKeys[0]}-01`;
   const paidByLeasePeriod = await loadPaidCentsByLeasePeriod(supabase, {
-    fromPeriod: earliestPeriodNeeded(rentRowsAll, firstMonthIso < yearStart ? firstMonthIso : yearStart),
+    fromPeriod: earliestPeriodNeeded(
+      rentRowsAll,
+      firstMonthIso < yearStart ? firstMonthIso : yearStart,
+    ),
   });
   const incomeByMonth = new Map(monthKeys.map((k) => [k, 0]));
   for (const row of rentRowsAll) {
@@ -543,7 +578,8 @@ async function loadData(): Promise<ReportsData> {
       .reduce((a, p) => a + Number(p.amount), 0);
     const paidBy = new Map<string, number>();
     for (const p of invoicePayments) {
-      if (p.paid_at <= asOf) paidBy.set(p.invoice_id, (paidBy.get(p.invoice_id) ?? 0) + Number(p.amount));
+      if (p.paid_at <= asOf)
+        paidBy.set(p.invoice_id, (paidBy.get(p.invoice_id) ?? 0) + Number(p.amount));
     }
     const outstanding = invoices
       .filter((i) => i.period <= asOf)
@@ -552,7 +588,8 @@ async function loadData(): Promise<ReportsData> {
     const occupiedUnits = new Set(
       leases
         .filter(
-          (l) => l.status !== 'draft' && l.start_date <= asOf && (!l.end_date || l.end_date >= asOf),
+          (l) =>
+            l.status !== 'draft' && l.start_date <= asOf && (!l.end_date || l.end_date >= asOf),
         )
         .map((l) => l.unit_id),
     ).size;

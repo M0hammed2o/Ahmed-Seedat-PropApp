@@ -4,7 +4,16 @@ import { getServiceRoleClient } from '@/lib/supabase/server';
 import { writeAuditEvent } from '@/lib/audit';
 import { requireOrgRole } from '@/lib/portfolio';
 import { getAppUrl } from '@/lib/appUrl';
-import { canWriteUtilities, jsonError, loadReadableProperty, notFound, parseJson, requireUser, serverError, utilitiesDisabled } from '@/lib/smartUtility/http';
+import {
+  canWriteUtilities,
+  jsonError,
+  loadReadableProperty,
+  notFound,
+  parseJson,
+  requireUser,
+  serverError,
+  utilitiesDisabled,
+} from '@/lib/smartUtility/http';
 import { issueToken } from '@/lib/smartUtility/tokens';
 import { AdapterError } from '@/lib/smartUtility/adapters';
 import { getProvider, validateBaseUrl } from '@/lib/smartUtility/providers';
@@ -33,7 +42,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     (await requireOrgRole(auth.supabase, property.org_id, 'manager')) &&
     (await canWriteUtilities(auth.supabase, property.org_id, property.id));
   if (!allowed) {
-    return jsonError(403, 'forbidden', 'Only an organisation manager or principal can connect meter hardware.');
+    return jsonError(
+      403,
+      'forbidden',
+      'Only an organisation manager or principal can connect meter hardware.',
+    );
   }
 
   const provider = getProvider(parsed.data.provider)!;
@@ -45,7 +58,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     try {
       validateBaseUrl(parsed.data.config.baseUrl, process.env.NODE_ENV !== 'production');
     } catch (err) {
-      return jsonError(400, 'invalid_config', err instanceof AdapterError ? err.message : 'Invalid server address.');
+      return jsonError(
+        400,
+        'invalid_config',
+        err instanceof AdapterError ? err.message : 'Invalid server address.',
+      );
     }
     const creds = parsed.data.credentials ?? {};
     const allowed = new Set(provider.credentialFields.map((f) => f.key));
@@ -78,12 +95,19 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       sync_mode: provider.mode,
       provider_config: provider.mode === 'poll' ? parsed.data.config : {},
       credentials_ciphertext: credentialsCiphertext,
-      sync_interval_minutes: provider.mode === 'poll' ? (parsed.data.syncIntervalMinutes ?? 60) : null,
+      sync_interval_minutes:
+        provider.mode === 'poll' ? (parsed.data.syncIntervalMinutes ?? 60) : null,
       next_sync_at: provider.mode === 'poll' ? new Date().toISOString() : null,
     })
     .select('id, provider, name, token_prefix, status, sync_mode, created_at')
     .single();
-  if (error) return serverError('integration_create_failed', 'Could not create the integration.', 'meter_integrations.insert', error);
+  if (error)
+    return serverError(
+      'integration_create_failed',
+      'Could not create the integration.',
+      'meter_integrations.insert',
+      error,
+    );
 
   await writeAuditEvent(service, {
     orgId: property.org_id,

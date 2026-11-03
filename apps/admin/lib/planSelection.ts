@@ -27,7 +27,9 @@ export function parsePlanSelection(
   return {
     tier: rawTier && VALID_TIERS.has(rawTier as PlanTier) ? (rawTier as PlanTier) : null,
     interval:
-      rawInterval && VALID_INTERVALS.has(rawInterval as Interval) ? (rawInterval as Interval) : null,
+      rawInterval && VALID_INTERVALS.has(rawInterval as Interval)
+        ? (rawInterval as Interval)
+        : null,
   };
 }
 

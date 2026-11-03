@@ -21,7 +21,7 @@ Every domain model and DTO mirrors `apps/android`'s own data layer field-for-fie
 app that has actually been built, tested — 171 unit tests passing — and verified this pass) and,
 transitively, `packages/types`/`packages/validation`'s shapes — never invented independently. See
 `NATIVE_IOS_SPEC.md` §16.1 for the explicit scope reconciliation: this V1 targets Android's
-*actual shipped* capability set, not this spec document's own more ambitious original vision.
+_actual shipped_ capability set, not this spec document's own more ambitious original vision.
 
 ## Bringing this into a real Xcode project
 

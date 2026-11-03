@@ -2,7 +2,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { test, expect, type Page } from '@playwright/test';
 import { BASE_URL } from '../playwright.config';
-import { setUpOrg, createProperty, createUnit, enableSmartUtilitiesForTests } from './fixtures/orgWorkflow';
+import {
+  setUpOrg,
+  createProperty,
+  createUnit,
+  enableSmartUtilitiesForTests,
+} from './fixtures/orgWorkflow';
 
 // Smart Utilities browser walk-through (docs/SMART_UTILITIES_PROGRESS.md): the Utilities tab, the
 // Add Smart Meter wizard + catalogue honesty labels, a manual reading and its review, the
@@ -14,16 +19,23 @@ const slowExpect = expect.configure({ timeout: 45_000 });
 
 const SHOTS = path.resolve(__dirname, '../../../docs/qa/smart-utilities-2026-10-10');
 fs.mkdirSync(SHOTS, { recursive: true });
-const shot = (page: Page, name: string) => page.screenshot({ path: path.join(SHOTS, `${name}.png`), fullPage: true });
+const shot = (page: Page, name: string) =>
+  page.screenshot({ path: path.join(SHOTS, `${name}.png`), fullPage: true });
 
 async function openUtilities(page: Page, propertyId: string) {
   await page.goto(`/properties/${propertyId}`);
   await page.waitForLoadState('networkidle');
-  await page.getByRole('button', { name: 'Utilities', exact: true }).or(page.getByRole('tab', { name: 'Utilities', exact: true })).first().click();
+  await page
+    .getByRole('button', { name: 'Utilities', exact: true })
+    .or(page.getByRole('tab', { name: 'Utilities', exact: true }))
+    .first()
+    .click();
   await slowExpect(page.getByText('Utility monitoring')).toBeVisible({ timeout: 30_000 });
 }
 
-test('landlord adds a meter from the catalogue, records and reviews a reading, and approves the municipal email', async ({ page }) => {
+test('landlord adds a meter from the catalogue, records and reviews a reading, and approves the municipal email', async ({
+  page,
+}) => {
   test.setTimeout(240_000);
   const { orgId } = await setUpOrg(page.request, 'smart-utilities');
   await enableSmartUtilitiesForTests(orgId); // off by default since migration 182
@@ -36,7 +48,9 @@ test('landlord adds a meter from the catalogue, records and reviews a reading, a
   // --- Add Smart Meter wizard
   await page.getByRole('button', { name: 'Add meter' }).click();
   await page.getByRole('button', { name: 'Next: choose meter' }).click();
-  const manual = page.locator('li').filter({ hasText: 'Traditional water meter (manual readings + photo)' });
+  const manual = page
+    .locator('li')
+    .filter({ hasText: 'Traditional water meter (manual readings + photo)' });
   await slowExpect(manual.getByText('Verified and ready')).toBeVisible();
   const milesight = page.locator('li').filter({ hasText: 'Milesight EM300-DI' });
   await slowExpect(milesight.getByText('Supported — awaiting hardware testing')).toBeVisible();
@@ -55,9 +69,14 @@ test('landlord adds a meter from the catalogue, records and reviews a reading, a
   await slowExpect(page.getByText('Boundary box, left of gate')).toBeVisible();
 
   // --- A manual reading (API, same session) then review it in the UI
-  const overview = await (await page.request.get(`/api/v1/properties/${propertyId}/smart-utility`)).json();
+  const overview = await (
+    await page.request.get(`/api/v1/properties/${propertyId}/smart-utility`)
+  ).json();
   const meterId = overview.meters[0].id as string;
-  for (const [h, kl] of [[48, 1010], [1, 1035.5]] as const) {
+  for (const [h, kl] of [
+    [48, 1010],
+    [1, 1035.5],
+  ] as const) {
     const r = await page.request.post(`/api/v1/smart-meters/${meterId}/telemetry`, {
       headers: { Origin: BASE_URL },
       data: { readAt: new Date(Date.now() - h * 3_600_000).toISOString(), reading: kl },
@@ -65,7 +84,11 @@ test('landlord adds a meter from the catalogue, records and reviews a reading, a
     expect(r.status()).toBe(201);
   }
   await page.reload();
-  await page.getByRole('button', { name: 'Utilities', exact: true }).or(page.getByRole('tab', { name: 'Utilities', exact: true })).first().click();
+  await page
+    .getByRole('button', { name: 'Utilities', exact: true })
+    .or(page.getByRole('tab', { name: 'Utilities', exact: true }))
+    .first()
+    .click();
   await page.getByRole('button', { name: 'History' }).first().click();
   await slowExpect(page.getByText('Unverified').first()).toBeVisible();
   await shot(page, '05-reading-history-unverified');
@@ -75,7 +98,10 @@ test('landlord adds a meter from the catalogue, records and reviews a reading, a
   await page.getByRole('button', { name: 'Close' }).first().click();
 
   // --- Municipal settings, recipient, preview, approval
-  const muni = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Monthly municipal readings' }) }).last();
+  const muni = page
+    .locator('section')
+    .filter({ has: page.getByRole('heading', { name: 'Monthly municipal readings' }) })
+    .last();
   await muni.getByRole('combobox', { name: /^Municipality/ }).selectOption('tshwane');
   await muni.getByRole('textbox', { name: /^Municipal account/ }).fill('5000000000');
   await muni.getByLabel(/Custom message/).fill('Gate code available on request.');
@@ -102,7 +128,9 @@ test('landlord adds a meter from the catalogue, records and reviews a reading, a
   // --- Phone width: no horizontal page scroll on the Utilities tab
   await page.setViewportSize({ width: 390, height: 844 });
   await page.waitForTimeout(500);
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
   await shot(page, '09-mobile-390px');
   expect(overflow).toBeLessThanOrEqual(1);
 });

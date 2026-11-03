@@ -265,7 +265,9 @@ function DecisionPanel({
     setError(null);
     try {
       const payload =
-        mode === 'approve' ? { decision: 'approved' } : { decision: 'declined', reason: reason || null };
+        mode === 'approve'
+          ? { decision: 'approved' }
+          : { decision: 'declined', reason: reason || null };
       const response = await fetch(`/api/v1/applications/${applicationId}/decide`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -466,7 +468,9 @@ function InvitationPanel({ application, canAct }: { application: Application; ca
       <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
         Applicant invitation
       </h2>
-      {error ? <p className="mt-1 text-xs text-light-danger dark:text-dark-danger">{error}</p> : null}
+      {error ? (
+        <p className="mt-1 text-xs text-light-danger dark:text-dark-danger">{error}</p>
+      ) : null}
       {notice ? (
         <p className="mt-1 text-xs text-light-statusPaid dark:text-dark-statusPaid">{notice}</p>
       ) : null}
@@ -555,16 +559,23 @@ function DocumentRequirementsPanel({ applicationId }: { applicationId: string })
     }
   }
 
-  async function review(requirementId: string, status: 'accepted' | 'rejected', rejectionReason?: string) {
+  async function review(
+    requirementId: string,
+    status: 'accepted' | 'rejected',
+    rejectionReason?: string,
+  ) {
     setBusy(true);
     setError(null);
     setNotice(null);
     try {
-      const res = await fetch(`/api/v1/applications/${applicationId}/document-requirements/${requirementId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status, rejectionReason: rejectionReason ?? null }),
-      });
+      const res = await fetch(
+        `/api/v1/applications/${applicationId}/document-requirements/${requirementId}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status, rejectionReason: rejectionReason ?? null }),
+        },
+      );
       const body = await res.json();
       if (!res.ok) {
         setError(body.error?.message ?? 'Could not update this document.');
@@ -626,16 +637,25 @@ function DocumentRequirementsPanel({ applicationId }: { applicationId: string })
       <h2 className="text-sm font-semibold text-light-textPrimary dark:text-dark-textPrimary">
         Applicant documents
       </h2>
-      {error ? <p className="mt-1 text-xs text-light-danger dark:text-dark-danger">{error}</p> : null}
+      {error ? (
+        <p className="mt-1 text-xs text-light-danger dark:text-dark-danger">{error}</p>
+      ) : null}
       {notice ? (
         <p className="mt-1 text-xs text-light-statusPaid dark:text-dark-statusPaid">{notice}</p>
       ) : null}
       <ul className="mt-2 space-y-3">
         {requirements.map((r) => (
-          <li key={r.id} className="rounded-md border border-light-border p-3 dark:border-dark-border">
+          <li
+            key={r.id}
+            className="rounded-md border border-light-border p-3 dark:border-dark-border"
+          >
             <div className="flex items-center justify-between gap-2">
               <label className="flex items-center gap-2 text-xs text-light-textSecondary dark:text-dark-textSecondary">
-                <input type="checkbox" checked={selected.has(r.requirementKey)} onChange={() => toggle(r.requirementKey)} />
+                <input
+                  type="checkbox"
+                  checked={selected.has(r.requirementKey)}
+                  onChange={() => toggle(r.requirementKey)}
+                />
                 <span className="font-medium text-light-textPrimary dark:text-dark-textPrimary">
                   {r.label}
                   {r.isRequired ? '' : ' (optional)'}
@@ -647,7 +667,9 @@ function DocumentRequirementsPanel({ applicationId }: { applicationId: string })
             </div>
 
             {r.rejectionReason ? (
-              <p className="mt-1 text-xs text-light-danger dark:text-dark-danger">{r.rejectionReason}</p>
+              <p className="mt-1 text-xs text-light-danger dark:text-dark-danger">
+                {r.rejectionReason}
+              </p>
             ) : null}
 
             {r.documentId ? (
@@ -664,7 +686,8 @@ function DocumentRequirementsPanel({ applicationId }: { applicationId: string })
                 </button>
                 {r.ocr ? (
                   <span>
-                    OCR: {r.ocr.fieldCount} field{r.ocr.fieldCount === 1 ? '' : 's'} extracted, {Math.round(r.ocr.overallConfidence * 100)}% confidence
+                    OCR: {r.ocr.fieldCount} field{r.ocr.fieldCount === 1 ? '' : 's'} extracted,{' '}
+                    {Math.round(r.ocr.overallConfidence * 100)}% confidence
                   </span>
                 ) : null}
               </div>
@@ -693,8 +716,15 @@ function DocumentRequirementsPanel({ applicationId }: { applicationId: string })
         ))}
       </ul>
       <label className="mt-3 block text-xs">
-        <span className="text-light-textMuted dark:text-dark-textMuted">Message to applicant (optional, for requested documents above)</span>
-        <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={2} className={inputClass} />
+        <span className="text-light-textMuted dark:text-dark-textMuted">
+          Message to applicant (optional, for requested documents above)
+        </span>
+        <textarea
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          rows={2}
+          className={inputClass}
+        />
       </label>
       <Button className="mt-2" size="sm" disabled={busy || selected.size === 0} onClick={submit}>
         {busy ? 'Sending…' : 'Request selected documents'}

@@ -54,7 +54,11 @@ function formatMoney(amount: number, currency: string): string {
 }
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-ZA', { year: 'numeric', month: 'long', day: 'numeric' });
+  return new Date(iso).toLocaleDateString('en-ZA', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
 }
 
 export function renderInvoicePdf(data: InvoicePdfData): Promise<Buffer> {
@@ -91,17 +95,25 @@ export function renderInvoicePdf(data: InvoicePdfData): Promise<Buffer> {
     }
     doc.fillColor('#000000');
 
-    doc.fontSize(16).font('Helvetica-Bold').text('INVOICE', 350, 50, { width: 195, align: 'right' });
+    doc
+      .fontSize(16)
+      .font('Helvetica-Bold')
+      .text('INVOICE', 350, 50, { width: 195, align: 'right' });
     doc.fontSize(9).font('Helvetica');
     let metaY = 74;
     doc.text(`Invoice number: ${data.invoiceNumber}`, 350, metaY, { width: 195, align: 'right' });
     metaY += 13;
     if (data.status === 'draft') {
-      doc.font('Helvetica-Bold').text('DRAFT -- NOT YET ISSUED', 350, metaY, { width: 195, align: 'right' });
+      doc
+        .font('Helvetica-Bold')
+        .text('DRAFT -- NOT YET ISSUED', 350, metaY, { width: 195, align: 'right' });
       doc.font('Helvetica');
       metaY += 13;
     }
-    doc.text(`Invoice date: ${formatDate(data.invoiceDate)}`, 350, metaY, { width: 195, align: 'right' });
+    doc.text(`Invoice date: ${formatDate(data.invoiceDate)}`, 350, metaY, {
+      width: 195,
+      align: 'right',
+    });
     metaY += 13;
     doc.text(`Due date: ${formatDate(data.dueDate)}`, 350, metaY, { width: 195, align: 'right' });
     metaY += 13;
@@ -120,7 +132,10 @@ export function renderInvoicePdf(data: InvoicePdfData): Promise<Buffer> {
     }
 
     if (data.description) {
-      doc.fontSize(9).font('Helvetica').text(data.description, 50, billToY + 50, { width: 495 });
+      doc
+        .fontSize(9)
+        .font('Helvetica')
+        .text(data.description, 50, billToY + 50, { width: 495 });
     }
 
     // Line item table
@@ -130,14 +145,21 @@ export function renderInvoicePdf(data: InvoicePdfData): Promise<Buffer> {
     doc.text('Qty', 350, tableTop, { width: 50, align: 'right' });
     doc.text('Rate', 405, tableTop, { width: 65, align: 'right' });
     doc.text('Amount', 475, tableTop, { width: 70, align: 'right' });
-    doc.moveTo(50, tableTop + 14).lineTo(545, tableTop + 14).strokeColor('#dddddd').stroke();
+    doc
+      .moveTo(50, tableTop + 14)
+      .lineTo(545, tableTop + 14)
+      .strokeColor('#dddddd')
+      .stroke();
 
     doc.font('Helvetica').fontSize(9);
     let rowY = tableTop + 22;
     for (const line of data.lineItems) {
       doc.text(line.description, 50, rowY, { width: 290 });
       doc.text(String(line.quantity), 350, rowY, { width: 50, align: 'right' });
-      doc.text(formatMoney(line.unitPrice, data.currency), 405, rowY, { width: 65, align: 'right' });
+      doc.text(formatMoney(line.unitPrice, data.currency), 405, rowY, {
+        width: 65,
+        align: 'right',
+      });
       doc.text(formatMoney(line.amount, data.currency), 475, rowY, { width: 70, align: 'right' });
       rowY += 16;
     }
@@ -154,7 +176,10 @@ export function renderInvoicePdf(data: InvoicePdfData): Promise<Buffer> {
     if (data.org.paymentInstructions) {
       doc.font('Helvetica-Bold').fontSize(9).text('Payment instructions', 50, rowY, { width: 495 });
       rowY += 14;
-      doc.font('Helvetica').fontSize(9).text(data.org.paymentInstructions, 50, rowY, { width: 495 });
+      doc
+        .font('Helvetica')
+        .fontSize(9)
+        .text(data.org.paymentInstructions, 50, rowY, { width: 495 });
       rowY += 14 * Math.max(1, Math.ceil(data.org.paymentInstructions.length / 90));
     }
 

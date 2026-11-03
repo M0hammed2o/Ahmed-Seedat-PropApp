@@ -33,7 +33,9 @@ export function BreadcrumbLabelProvider({ children }: { children: React.ReactNod
     }),
     [labels],
   );
-  return <BreadcrumbLabelContext.Provider value={value}>{children}</BreadcrumbLabelContext.Provider>;
+  return (
+    <BreadcrumbLabelContext.Provider value={value}>{children}</BreadcrumbLabelContext.Provider>
+  );
 }
 
 export function useBreadcrumbLabels(): BreadcrumbLabelMap {

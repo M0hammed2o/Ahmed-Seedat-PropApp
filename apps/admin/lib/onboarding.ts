@@ -204,7 +204,10 @@ export async function skipStaffOnboardingStep(
 ): Promise<void> {
   await supabase
     .from('organization_onboarding_state')
-    .upsert({ org_id: orgId, staff_step_skipped_at: new Date().toISOString() }, { onConflict: 'org_id' });
+    .upsert(
+      { org_id: orgId, staff_step_skipped_at: new Date().toISOString() },
+      { onConflict: 'org_id' },
+    );
 }
 
 /** Marks a "viewed" onboarding intro step (payments or documents) the first time its section is

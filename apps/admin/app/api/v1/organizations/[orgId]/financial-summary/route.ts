@@ -51,7 +51,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   const month = request.nextUrl.searchParams.get('month');
   if (!month) {
     return NextResponse.json(
-      { error: { code: 'validation_failed', message: 'A ?month=YYYY-MM-01 query parameter is required.' } },
+      {
+        error: {
+          code: 'validation_failed',
+          message: 'A ?month=YYYY-MM-01 query parameter is required.',
+        },
+      },
       { status: 400 },
     );
   }
@@ -78,17 +83,28 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   const rentCollected = Number(row?.rent_collected ?? 0);
   const totalExpenses = Number(row?.total_expenses ?? 0);
   const budgetPlanned = Number(row?.budget_planned ?? 0);
-  const budgetUsedPercent = row?.budget_used_percent === null || row?.budget_used_percent === undefined
-    ? null
-    : Number(row.budget_used_percent);
+  const budgetUsedPercent =
+    row?.budget_used_percent === null || row?.budget_used_percent === undefined
+      ? null
+      : Number(row.budget_used_percent);
   const budgetRemaining = Number(row?.budget_remaining ?? 0);
 
   const budgetAlerts: BudgetAlert[] = [];
   if (budgetUsedPercent !== null) {
     if (budgetUsedPercent >= 100) {
-      budgetAlerts.push({ propertyId: orgId, month, level: 'exceeded', percentUsed: budgetUsedPercent });
+      budgetAlerts.push({
+        propertyId: orgId,
+        month,
+        level: 'exceeded',
+        percentUsed: budgetUsedPercent,
+      });
     } else if (budgetUsedPercent >= BUDGET_APPROACHING_THRESHOLD_PERCENT) {
-      budgetAlerts.push({ propertyId: orgId, month, level: 'approaching', percentUsed: budgetUsedPercent });
+      budgetAlerts.push({
+        propertyId: orgId,
+        month,
+        level: 'approaching',
+        percentUsed: budgetUsedPercent,
+      });
     }
   }
 

@@ -53,7 +53,8 @@ export function validateBlocks(blocks: TariffBlock[]): string | null {
 export function computeCharge(consumption: number, tariff: TariffInput): ChargeResult {
   const err = validateBlocks(tariff.blocks);
   if (err) throw new Error(err);
-  if (!Number.isFinite(consumption) || consumption < 0) throw new Error('Consumption must be zero or more.');
+  if (!Number.isFinite(consumption) || consumption < 0)
+    throw new Error('Consumption must be zero or more.');
   let remaining = consumption;
   let from = 0;
   const breakdown: ChargeBreakdownLine[] = [];
@@ -61,7 +62,13 @@ export function computeCharge(consumption: number, tariff: TariffInput): ChargeR
     if (remaining <= 0) break;
     const cap = b.upTo === null ? Infinity : b.upTo - from;
     const units = Math.min(remaining, cap);
-    breakdown.push({ from, to: b.upTo, units: Math.round(units * 10_000) / 10_000, rate: b.rate, amount: r2(units * b.rate) });
+    breakdown.push({
+      from,
+      to: b.upTo,
+      units: Math.round(units * 10_000) / 10_000,
+      rate: b.rate,
+      amount: r2(units * b.rate),
+    });
     remaining -= units;
     from = b.upTo ?? from + units;
   }

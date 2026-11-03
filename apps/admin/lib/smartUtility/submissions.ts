@@ -67,7 +67,10 @@ export function duePeriod(
   leadDays: number,
 ): { start: Date; end: Date } | null {
   // Period ending at the NEXT billing-day boundary on or after now.
-  const prev = lastCompleteBillingPeriod(new Date(now.getTime() + (leadDays + 1) * 86_400_000), billingDay);
+  const prev = lastCompleteBillingPeriod(
+    new Date(now.getTime() + (leadDays + 1) * 86_400_000),
+    billingDay,
+  );
   const end = prev.end;
   const windowStart = new Date(end.getTime() - leadDays * 86_400_000);
   if (now >= windowStart && now <= new Date(end.getTime() + 86_400_000)) return prev;
@@ -82,7 +85,9 @@ async function loadReportMeters(
 ): Promise<ReportMeterInput[]> {
   const { data: meters, error } = await serviceClient
     .from('utility_meters')
-    .select('id, utility_type, meter_number, serial_number, register_digits, active, decommissioned_at')
+    .select(
+      'id, utility_type, meter_number, serial_number, register_digits, active, decommissioned_at',
+    )
     .eq('property_id', propertyId)
     .eq('ownership', 'municipal')
     .order('utility_type');
@@ -96,7 +101,9 @@ async function loadReportMeters(
     const [{ data: telemetry }, { data: monthly }] = await Promise.all([
       serviceClient
         .from('meter_telemetry_readings')
-        .select('read_at, raw_value, value, multiplier, status, source, document_id, verification_status')
+        .select(
+          'read_at, raw_value, value, multiplier, status, source, document_id, verification_status',
+        )
         .eq('meter_id', m.id)
         .gte('read_at', lookback)
         .lte('read_at', periodEnd.toISOString())
@@ -163,15 +170,16 @@ export async function buildReportForProperty(
 ): Promise<MunicipalReport> {
   const meters = await loadReportMeters(serviceClient, property.id, period.start, period.end);
   const municipality = getMunicipality(cfg.municipality_code);
-  const org = (Array.isArray(property.organizations) ? property.organizations[0] : property.organizations) as
-    | { trading_name?: string | null; legal_name?: string | null }
-    | null;
+  const org = (
+    Array.isArray(property.organizations) ? property.organizations[0] : property.organizations
+  ) as { trading_name?: string | null; legal_name?: string | null } | null;
   return buildMunicipalReport({
     propertyName: property.nickname ?? 'Property',
     propertyAddress: property.full_address ?? '',
     preparedFor: org?.trading_name ?? org?.legal_name ?? null,
     municipality: municipality ? { code: municipality.code, name: municipality.name } : null,
-    municipalAccountNumber: cfg.municipal_account_number ?? property.municipal_account_number ?? null,
+    municipalAccountNumber:
+      cfg.municipal_account_number ?? property.municipal_account_number ?? null,
     periodStart: period.start,
     periodEnd: period.end,
     meters,
@@ -182,7 +190,9 @@ export async function buildReportForProperty(
 export async function loadPropertyForReport(serviceClient: SupabaseClient, propertyId: string) {
   const { data } = await serviceClient
     .from('properties')
-    .select('id, org_id, nickname, full_address, municipal_account_number, organizations(legal_name, trading_name)')
+    .select(
+      'id, org_id, nickname, full_address, municipal_account_number, organizations(legal_name, trading_name)',
+    )
     .eq('id', propertyId)
     .single();
   return data as (PropertyForReport & { org_id: string }) | null;
@@ -206,7 +216,9 @@ export async function generateSubmission(
   const now = args.now ?? new Date();
   const { data: property, error: propError } = await serviceClient
     .from('properties')
-    .select('id, org_id, nickname, full_address, municipal_account_number, organizations(legal_name, trading_name)')
+    .select(
+      'id, org_id, nickname, full_address, municipal_account_number, organizations(legal_name, trading_name)',
+    )
     .eq('id', args.propertyId)
     .single();
   if (propError || !property) throw new Error('Property not found');
@@ -245,9 +257,16 @@ export async function generateSubmission(
   const ctx = await loadTemplateContext(serviceClient, property.id);
   const mode = effectiveMode(cfg.mode);
   const canAutoSend =
-    mode === 'automatic' && ctx.scheduleEnabled && approvalIsCurrent(ctx) && ctx.authorisedRecipients.length > 0;
+    mode === 'automatic' &&
+    ctx.scheduleEnabled &&
+    approvalIsCurrent(ctx) &&
+    ctx.authorisedRecipients.length > 0;
   const status = mode === 'manual' ? 'draft' : canAutoSend ? 'scheduled' : 'pending_approval';
-  const rendered = renderPack(report, ctx.template, report.meters.reduce((n, m) => n + m.evidenceDocumentIds.length, 0));
+  const rendered = renderPack(
+    report,
+    ctx.template,
+    report.meters.reduce((n, m) => n + m.evidenceDocumentIds.length, 0),
+  );
   const { data: inserted, error } = await serviceClient
     .from('municipal_submissions')
     .insert({
@@ -263,7 +282,11 @@ export async function generateSubmission(
       scheduled_for: status === 'scheduled' ? now.toISOString() : null,
       template_hash: ctx.currentHash,
       // Audit trail: exactly what will be sent (subject, body, recipients, attachments).
-      rendered_email: { ...rendered, templateHash: ctx.currentHash, includeFields: ctx.template.includeFields },
+      rendered_email: {
+        ...rendered,
+        templateHash: ctx.currentHash,
+        includeFields: ctx.template.includeFields,
+      },
     })
     .select('id')
     .single();
@@ -330,7 +353,9 @@ export async function createDeliveries(
   // approval is not sent the pack until it is approved again.
   const frozen = (sub.rendered_email as { frozen?: FrozenPack } | null)?.frozen;
   const approvedTo = frozen ? new Set(frozen.to.map((e) => e.toLowerCase())) : null;
-  const recipients = (authorisedRows ?? []).filter((r) => !approvedTo || approvedTo.has(String(r.email).toLowerCase()));
+  const recipients = (authorisedRows ?? []).filter(
+    (r) => !approvedTo || approvedTo.has(String(r.email).toLowerCase()),
+  );
   if (recipients.length === 0) return 0;
   const { data: cfg } = await serviceClient
     .from('municipal_submission_settings')
@@ -385,7 +410,12 @@ export async function approveSubmission(
   }
   await serviceClient
     .from('municipal_submissions')
-    .update({ status: 'scheduled', approved_by: args.actorUserId, approved_at: now.toISOString(), scheduled_for: now.toISOString() })
+    .update({
+      status: 'scheduled',
+      approved_by: args.actorUserId,
+      approved_at: now.toISOString(),
+      scheduled_for: now.toISOString(),
+    })
     .eq('id', sub.id);
   await freezePack(serviceClient, sub.id, now);
   const deliveries = await createDeliveries(serviceClient, sub.id, { authorisedOnly: true });
@@ -412,7 +442,9 @@ export async function loadPhotoFiles(
   serviceClient: SupabaseClient,
   orgId: string,
   report: MunicipalReport,
-): Promise<{ documentId: string; filename: string; contentBase64: string; contentType?: string }[]> {
+): Promise<
+  { documentId: string; filename: string; contentBase64: string; contentType?: string }[]
+> {
   const ids = report.meters.flatMap((m) => m.evidenceDocumentIds);
   if (ids.length === 0) return [];
   const { data: docs } = await serviceClient
@@ -421,7 +453,12 @@ export async function loadPhotoFiles(
     .in('id', ids)
     .eq('org_id', orgId)
     .is('deleted_at', null);
-  const files: { documentId: string; filename: string; contentBase64: string; contentType?: string }[] = [];
+  const files: {
+    documentId: string;
+    filename: string;
+    contentBase64: string;
+    contentType?: string;
+  }[] = [];
   let total = 0;
   // Report order (meter by meter), so the same pack always attaches the same photos in the same order.
   const order = new Map(ids.map((id, i) => [id, i]));
@@ -431,7 +468,10 @@ export async function loadPhotoFiles(
     if (total + (d.file_size_bytes ?? 0) > MAX_PHOTO_BYTES_TOTAL) break;
     // Through the protected-storage ownership check (migration 172): the path must sit inside the
     // SUBMISSION's org folder, so a pack can never attach another organisation's file.
-    const read = await downloadProtectedObject(serviceClient, { orgId, storagePath: d.storage_path });
+    const read = await downloadProtectedObject(serviceClient, {
+      orgId,
+      storagePath: d.storage_path,
+    });
     if (!read.ok) continue;
     const buf = Buffer.from(await read.value.arrayBuffer());
     total += buf.length;
@@ -462,27 +502,43 @@ function sha256(buf: Buffer): string {
  * Freezes the attachments (exact photo documents + content hashes) and the recipient list of a pack at approval or
  * scheduling time. Idempotent: an existing frozen snapshot is never replaced.
  */
-export async function freezePack(serviceClient: SupabaseClient, submissionId: string, now: Date): Promise<FrozenPack> {
+export async function freezePack(
+  serviceClient: SupabaseClient,
+  submissionId: string,
+  now: Date,
+): Promise<FrozenPack> {
   const { data: sub } = await serviceClient
     .from('municipal_submissions')
     .select('id, org_id, property_id, report, rendered_email')
     .eq('id', submissionId)
     .single();
   if (!sub) throw new Error('Submission not found');
-  const rendered = (sub.rendered_email ?? {}) as Record<string, unknown> & { frozen?: FrozenPack; includeFields?: unknown; to?: string[]; cc?: string[] };
+  const rendered = (sub.rendered_email ?? {}) as Record<string, unknown> & {
+    frozen?: FrozenPack;
+    includeFields?: unknown;
+    to?: string[];
+    cc?: string[];
+  };
   if (rendered.frozen) return rendered.frozen;
   const { data: settings } = await serviceClient
     .from('municipal_submission_settings')
     .select('include_photos')
     .eq('property_id', sub.property_id)
     .maybeSingle();
-  const fields = rendered.includeFields ? normaliseFields(rendered.includeFields) : DEFAULT_INCLUDE_FIELDS;
+  const fields = rendered.includeFields
+    ? normaliseFields(rendered.includeFields)
+    : DEFAULT_INCLUDE_FIELDS;
   const includePhotos = (settings?.include_photos ?? true) && fields.photos;
   const photos: FrozenPack['photos'] = [];
   if (includePhotos) {
     const files = await loadPhotoFiles(serviceClient, sub.org_id, sub.report as MunicipalReport);
     for (const f of files) {
-      photos.push({ id: f.documentId, sha256: sha256(Buffer.from(f.contentBase64, 'base64')), filename: f.filename, contentType: f.contentType ?? 'image/jpeg' });
+      photos.push({
+        id: f.documentId,
+        sha256: sha256(Buffer.from(f.contentBase64, 'base64')),
+        filename: f.filename,
+        contentType: f.contentType ?? 'image/jpeg',
+      });
     }
   }
   const frozen: FrozenPack = {
@@ -492,7 +548,10 @@ export async function freezePack(serviceClient: SupabaseClient, submissionId: st
     cc: Array.isArray(rendered.cc) ? rendered.cc : [],
     frozenAt: now.toISOString(),
   };
-  await serviceClient.from('municipal_submissions').update({ rendered_email: { ...rendered, frozen } }).eq('id', sub.id);
+  await serviceClient
+    .from('municipal_submissions')
+    .update({ rendered_email: { ...rendered, frozen } })
+    .eq('id', sub.id);
   return frozen;
 }
 
@@ -502,19 +561,33 @@ async function loadFrozenPhotos(serviceClient: SupabaseClient, orgId: string, fr
   const { data: docs } = await serviceClient
     .from('documents')
     .select('id, storage_path')
-    .in('id', frozen.photos.map((p) => p.id))
+    .in(
+      'id',
+      frozen.photos.map((p) => p.id),
+    )
     .eq('org_id', orgId)
     .is('deleted_at', null);
   const byId = new Map((docs ?? []).map((d) => [d.id as string, d.storage_path as string]));
   const files: { filename: string; contentBase64: string; contentType?: string }[] = [];
   for (const p of frozen.photos) {
     const path = byId.get(p.id);
-    if (!path) throw new Error(`An approved photo (${p.filename}) is no longer available; re-approve the pack.`);
+    if (!path)
+      throw new Error(
+        `An approved photo (${p.filename}) is no longer available; re-approve the pack.`,
+      );
     const read = await downloadProtectedObject(serviceClient, { orgId, storagePath: path });
-    if (!read.ok) throw new Error(`An approved photo (${p.filename}) could not be read; re-approve the pack.`);
+    if (!read.ok)
+      throw new Error(`An approved photo (${p.filename}) could not be read; re-approve the pack.`);
     const buf = Buffer.from(await read.value.arrayBuffer());
-    if (sha256(buf) !== p.sha256) throw new Error(`An approved photo (${p.filename}) changed after approval; re-approve the pack.`);
-    files.push({ filename: p.filename, contentBase64: buf.toString('base64'), contentType: p.contentType });
+    if (sha256(buf) !== p.sha256)
+      throw new Error(
+        `An approved photo (${p.filename}) changed after approval; re-approve the pack.`,
+      );
+    files.push({
+      filename: p.filename,
+      contentBase64: buf.toString('base64'),
+      contentType: p.contentType,
+    });
   }
   return files;
 }
@@ -575,11 +648,19 @@ export async function sendDueDeliveries(
     if (!entry) {
       const { data: sub } = await serviceClient
         .from('municipal_submissions')
-        .select('report, status, property_id, org_id, scheduled_for, rendered_email, approved_by, mode')
+        .select(
+          'report, status, property_id, org_id, scheduled_for, rendered_email, approved_by, mode',
+        )
         .eq('id', d.submission_id)
         .single();
       if (!sub) continue;
-      const rendered = (sub.rendered_email as { subject?: string; bodyText?: string; includeFields?: unknown; frozen?: FrozenPack } | null) ?? null;
+      const rendered =
+        (sub.rendered_email as {
+          subject?: string;
+          bodyText?: string;
+          includeFields?: unknown;
+          frozen?: FrozenPack;
+        } | null) ?? null;
       // Packs approved before freezing existed are frozen on first send, so every retry matches the first attempt.
       const frozen = rendered?.frozen ?? (await freezePack(serviceClient, d.submission_id, now));
       let files: { filename: string; contentBase64: string; contentType?: string }[] | null = null;
@@ -594,7 +675,8 @@ export async function sendDueDeliveries(
       let automaticUnapproved = false;
       if (sub.mode === 'automatic' && !sub.approved_by) {
         const ctx = await loadTemplateContext(serviceClient, sub.property_id);
-        automaticUnapproved = !isAutoSubmissionEnabled() || !ctx.scheduleEnabled || !approvalIsCurrent(ctx);
+        automaticUnapproved =
+          !isAutoSubmissionEnabled() || !ctx.scheduleEnabled || !approvalIsCurrent(ctx);
       }
       entry = {
         report: sub.report as MunicipalReport,
@@ -608,7 +690,8 @@ export async function sendDueDeliveries(
       };
       cache.set(d.submission_id, entry);
     }
-    if (!['approved', 'scheduled', 'sending', 'partially_failed', 'failed'].includes(entry.status)) continue;
+    if (!['approved', 'scheduled', 'sending', 'partially_failed', 'failed'].includes(entry.status))
+      continue;
     if (entry.scheduledFor && new Date(entry.scheduledFor).getTime() > now.getTime()) continue;
 
     // Claim the delivery (compare-and-set on attempts) so two overlapping job runs never send it twice (MUN-D).
@@ -632,11 +715,12 @@ export async function sendDueDeliveries(
       .eq('active', true)
       .not('authorised_at', 'is', null)
       .limit(1);
-    const stopReason = !stillAuthorised || stillAuthorised.length === 0
-      ? 'Not sent: this recipient is no longer authorised.'
-      : entry.automaticUnapproved
-        ? 'Not sent: automatic sending is off or the approved template changed. Approve the pack to send it.'
-        : null;
+    const stopReason =
+      !stillAuthorised || stillAuthorised.length === 0
+        ? 'Not sent: this recipient is no longer authorised.'
+        : entry.automaticUnapproved
+          ? 'Not sent: automatic sending is off or the approved template changed. Approve the pack to send it.'
+          : null;
     if (stopReason) {
       await serviceClient
         .from('municipal_submission_deliveries')
@@ -647,9 +731,12 @@ export async function sendDueDeliveries(
       continue;
     }
     try {
-      if (entry.filesError || !entry.files) throw new Error(entry.filesError ?? 'Approved attachments unavailable.');
+      if (entry.filesError || !entry.files)
+        throw new Error(entry.filesError ?? 'Approved attachments unavailable.');
       const csv = renderReportCsv(entry.report);
-      const fields = entry.rendered?.includeFields ? normaliseFields(entry.rendered.includeFields) : DEFAULT_INCLUDE_FIELDS;
+      const fields = entry.rendered?.includeFields
+        ? normaliseFields(entry.rendered.includeFields)
+        : DEFAULT_INCLUDE_FIELDS;
       const pdf = await renderReportPdf(entry.report, { fields });
       const res = await sender(serviceClient, {
         orgId: d.org_id,
@@ -657,7 +744,9 @@ export async function sendDueDeliveries(
         templateName: 'municipal_meter_reading_report',
         // The approved snapshot is what is sent, never a re-render of the current template.
         templateVars: {
-          subject: entry.rendered?.subject ?? `Meter readings for ${entry.report.property.address} (${entry.report.period.end})`,
+          subject:
+            entry.rendered?.subject ??
+            `Meter readings for ${entry.report.property.address} (${entry.report.period.end})`,
           bodyText: entry.rendered?.bodyText,
           heading: `Meter readings — ${entry.report.property.address}`,
           preparedFor: entry.report.preparedFor,
@@ -667,8 +756,16 @@ export async function sendDueDeliveries(
         relatedEntityId: d.id,
         actorUserId: null,
         files: [
-          { filename: reportCsvFilename(entry.report), contentBase64: Buffer.from(csv, 'utf8').toString('base64'), contentType: 'text/csv' },
-          { filename: reportPdfFilename(entry.report), contentBase64: pdf.toString('base64'), contentType: 'application/pdf' },
+          {
+            filename: reportCsvFilename(entry.report),
+            contentBase64: Buffer.from(csv, 'utf8').toString('base64'),
+            contentType: 'text/csv',
+          },
+          {
+            filename: reportPdfFilename(entry.report),
+            contentBase64: pdf.toString('base64'),
+            contentType: 'application/pdf',
+          },
           ...entry.files,
         ],
       });
@@ -690,7 +787,9 @@ export async function sendDueDeliveries(
           status: 'sent',
           last_attempt_at: now.toISOString(),
           next_attempt_at: null,
-          last_error: res.deliveryConfigured ? null : 'Email provider not configured (mock): nothing left the server.',
+          last_error: res.deliveryConfigured
+            ? null
+            : 'Email provider not configured (mock): nothing left the server.',
           email_message_id: res.emailMessageId ?? null,
           provider_message_id: providerMessageId,
         })
@@ -733,13 +832,19 @@ export async function sendDueDeliveries(
 export function rollupStatus(statuses: string[], attemptsLeft: boolean[]): string {
   if (statuses.length === 0) return 'approved';
   const ok = statuses.filter((s) => s === 'sent' || s === 'delivered').length;
-  const terminalFail = statuses.filter((s, i) => s === 'bounced' || (s === 'failed' && !attemptsLeft[i])).length;
+  const terminalFail = statuses.filter(
+    (s, i) => s === 'bounced' || (s === 'failed' && !attemptsLeft[i]),
+  ).length;
   if (ok === statuses.length) return 'sent';
   if (ok + terminalFail === statuses.length) return ok > 0 ? 'partially_failed' : 'failed';
   return 'sending';
 }
 
-export async function rollupSubmissionStatus(serviceClient: SupabaseClient, submissionId: string, now: Date) {
+export async function rollupSubmissionStatus(
+  serviceClient: SupabaseClient,
+  submissionId: string,
+  now: Date,
+) {
   const { data: rows } = await serviceClient
     .from('municipal_submission_deliveries')
     .select('status, attempts')
@@ -757,7 +862,10 @@ export async function rollupSubmissionStatus(serviceClient: SupabaseClient, subm
 }
 
 /** Mirrors Resend webhook outcomes (already applied to email_messages) onto delivery rows. */
-export async function syncDeliveryStatuses(serviceClient: SupabaseClient, now: Date): Promise<number> {
+export async function syncDeliveryStatuses(
+  serviceClient: SupabaseClient,
+  now: Date,
+): Promise<number> {
   const { data: rows } = await serviceClient
     .from('municipal_submission_deliveries')
     .select('id, submission_id, email_message_id, status')
@@ -769,16 +877,24 @@ export async function syncDeliveryStatuses(serviceClient: SupabaseClient, now: D
   // One query for all messages (was one per delivery).
   const ids = (rows ?? []).map((r) => r.email_message_id as string);
   const { data: messages } = ids.length
-    ? await serviceClient.from('email_messages').select('id, status, failure_reason').in('id', ids).in('status', ['delivered', 'bounced'])
+    ? await serviceClient
+        .from('email_messages')
+        .select('id, status, failure_reason')
+        .in('id', ids)
+        .in('status', ['delivered', 'bounced'])
     : { data: [] as { id: string; status: string; failure_reason: string | null }[] };
   const byId = new Map((messages ?? []).map((m) => [m.id, m]));
   for (const r of rows ?? []) {
     const msg = byId.get(r.email_message_id as string);
-    const next = msg?.status === 'delivered' ? 'delivered' : msg?.status === 'bounced' ? 'bounced' : null;
+    const next =
+      msg?.status === 'delivered' ? 'delivered' : msg?.status === 'bounced' ? 'bounced' : null;
     if (next) {
       await serviceClient
         .from('municipal_submission_deliveries')
-        .update({ status: next, last_error: next === 'bounced' ? (msg?.failure_reason ?? 'Bounced') : null })
+        .update({
+          status: next,
+          last_error: next === 'bounced' ? (msg?.failure_reason ?? 'Bounced') : null,
+        })
         .eq('id', r.id);
       touched.add(r.submission_id);
       changed += 1;

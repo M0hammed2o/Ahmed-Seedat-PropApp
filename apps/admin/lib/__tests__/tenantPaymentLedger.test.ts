@@ -73,7 +73,11 @@ describeIfSupabase('loadTenantPaymentLedger (real local Supabase integration)', 
 
     const { data: org, error: orgError } = await serviceClient
       .from('organizations')
-      .insert({ legal_name: `Tenant Ledger Vitest Org ${suffix}`, org_type: 'agency', status: 'active' })
+      .insert({
+        legal_name: `Tenant Ledger Vitest Org ${suffix}`,
+        org_type: 'agency',
+        status: 'active',
+      })
       .select('id')
       .single();
     if (orgError) throw orgError;
@@ -82,7 +86,11 @@ describeIfSupabase('loadTenantPaymentLedger (real local Supabase integration)', 
 
     const { data: orgB, error: orgBError } = await serviceClient
       .from('organizations')
-      .insert({ legal_name: `Tenant Ledger Vitest Org B ${suffix}`, org_type: 'agency', status: 'active' })
+      .insert({
+        legal_name: `Tenant Ledger Vitest Org B ${suffix}`,
+        org_type: 'agency',
+        status: 'active',
+      })
       .select('id')
       .single();
     if (orgBError) throw orgBError;
@@ -90,12 +98,23 @@ describeIfSupabase('loadTenantPaymentLedger (real local Supabase integration)', 
     await serviceClient.rpc('seed_chart_of_accounts', { p_org_id: orgBId });
 
     await serviceClient.from('organization_members').insert([
-      { org_id: orgId, user_id: principalId, role: 'principal', status: 'active', joined_at: new Date().toISOString() },
+      {
+        org_id: orgId,
+        user_id: principalId,
+        role: 'principal',
+        status: 'active',
+        joined_at: new Date().toISOString(),
+      },
     ]);
 
     const { data: property, error: propertyError } = await serviceClient
       .from('properties')
-      .insert({ org_id: orgId, nickname: 'Ledger Test Property', address_line1: '1 Test St', city: 'Cape Town' })
+      .insert({
+        org_id: orgId,
+        nickname: 'Ledger Test Property',
+        address_line1: '1 Test St',
+        city: 'Cape Town',
+      })
       .select('id')
       .single();
     if (propertyError) throw propertyError;
@@ -119,12 +138,20 @@ describeIfSupabase('loadTenantPaymentLedger (real local Supabase integration)', 
 
     const { data: lease, error: leaseError } = await serviceClient
       .from('leases')
-      .insert({ org_id: orgId, unit_id: unitId, start_date: '2026-01-01', rent_amount: 8000, status: 'active' })
+      .insert({
+        org_id: orgId,
+        unit_id: unitId,
+        start_date: '2026-01-01',
+        rent_amount: 8000,
+        status: 'active',
+      })
       .select('id')
       .single();
     if (leaseError) throw leaseError;
     leaseId = lease.id;
-    await serviceClient.from('lease_tenants').insert({ lease_id: leaseId, tenant_id: tenantId, is_primary: true });
+    await serviceClient
+      .from('lease_tenants')
+      .insert({ lease_id: leaseId, tenant_id: tenantId, is_primary: true });
   });
 
   afterEach(async () => {
@@ -282,7 +309,12 @@ describeIfSupabase('loadTenantPaymentLedger (real local Supabase integration)', 
     // this test's principal has NO membership in org B at all.
     const { data: propertyB } = await serviceClient
       .from('properties')
-      .insert({ org_id: orgBId, nickname: 'Org B Property', address_line1: '2 Other St', city: 'Durban' })
+      .insert({
+        org_id: orgBId,
+        nickname: 'Org B Property',
+        address_line1: '2 Other St',
+        city: 'Durban',
+      })
       .select('id')
       .single();
     const { data: unitB } = await serviceClient
@@ -297,10 +329,18 @@ describeIfSupabase('loadTenantPaymentLedger (real local Supabase integration)', 
       .single();
     const { data: leaseB } = await serviceClient
       .from('leases')
-      .insert({ org_id: orgBId, unit_id: unitB!.id, start_date: '2026-01-01', rent_amount: 5000, status: 'active' })
+      .insert({
+        org_id: orgBId,
+        unit_id: unitB!.id,
+        start_date: '2026-01-01',
+        rent_amount: 5000,
+        status: 'active',
+      })
       .select('id')
       .single();
-    await serviceClient.from('lease_tenants').insert({ lease_id: leaseB!.id, tenant_id: tenantB!.id, is_primary: true });
+    await serviceClient
+      .from('lease_tenants')
+      .insert({ lease_id: leaseB!.id, tenant_id: tenantB!.id, is_primary: true });
 
     // Service-role fixture setup for org B's own invoice+payment (bypassing RLS purely to seed the
     // OTHER org's data -- the actual isolation proof below queries as the org-A principal).

@@ -19,7 +19,9 @@ try {
   reachable = false;
 }
 const describeIfSupabase = reachable ? describe : describe.skip;
-const service: SupabaseClient = createClient(SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false, autoRefreshToken: false } });
+const service: SupabaseClient = createClient(SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+  auth: { persistSession: false, autoRefreshToken: false },
+});
 
 describeIfSupabase('supply-source level ingestion (real local Supabase integration)', () => {
   const suffix = Date.now().toString(36).slice(-8).padStart(8, '0');
@@ -27,16 +29,40 @@ describeIfSupabase('supply-source level ingestion (real local Supabase integrati
   let tankId: string;
 
   beforeAll(async () => {
-    const { data: org } = await service.from('organizations').insert({ legal_name: `SRC ${suffix}`, org_type: 'agency', utilities_enabled: true /* off by default since migration 182 */ }).select('id').single();
+    const { data: org } = await service
+      .from('organizations')
+      .insert({
+        legal_name: `SRC ${suffix}`,
+        org_type: 'agency',
+        utilities_enabled: true /* off by default since migration 182 */,
+      })
+      .select('id')
+      .single();
     const { data: prop } = await service
       .from('properties')
-      .insert({ org_id: org!.id, nickname: 'SRC', address_line1: '3', city: 'Polokwane', province: 'Limpopo', postal_code: '0700' })
+      .insert({
+        org_id: org!.id,
+        nickname: 'SRC',
+        address_line1: '3',
+        city: 'Polokwane',
+        province: 'Limpopo',
+        postal_code: '0700',
+      })
       .select('id')
       .single();
     const { data: integ } = await service
       .from('meter_integrations')
-      .insert({ org_id: org!.id, property_id: prop!.id, provider: 'generic_json', name: 'Gateway', token_prefix: `src${suffix}a`, token_hash: 'b'.repeat(64) })
-      .select('id, org_id, property_id, provider, status, token_hash, previous_token_hash, previous_token_expires_at')
+      .insert({
+        org_id: org!.id,
+        property_id: prop!.id,
+        provider: 'generic_json',
+        name: 'Gateway',
+        token_prefix: `src${suffix}a`,
+        token_hash: 'b'.repeat(64),
+      })
+      .select(
+        'id, org_id, property_id, provider, status, token_hash, previous_token_hash, previous_token_expires_at',
+      )
       .single();
     integration = integ as typeof integration;
     const { data: tank } = await service
@@ -63,11 +89,41 @@ describeIfSupabase('supply-source level ingestion (real local Supabase integrati
     const now = new Date();
     const at = (minAgo: number) => new Date(now.getTime() - minAgo * 60_000);
     const readings = [
-      { externalDeviceId: 'tank-sensor-1', channel: 'level', readAt: at(60), rawValue: 72.5, eventId: 'e1' },
-      { externalDeviceId: 'tank-sensor-1', channel: 'level', readAt: at(30), rawValue: 64, eventId: 'e2' }, // a level may fall: no reset logic
-      { externalDeviceId: 'tank-sensor-1', channel: 'battery', readAt: at(30), rawValue: 3.6, eventId: 'e3' }, // unbound channel
-      { externalDeviceId: 'tank-sensor-1', channel: 'level', readAt: at(10), rawValue: 140, eventId: 'e4' }, // > 100 %
-      { externalDeviceId: 'stranger', channel: 'level', readAt: at(10), rawValue: 50, eventId: 'e5' },
+      {
+        externalDeviceId: 'tank-sensor-1',
+        channel: 'level',
+        readAt: at(60),
+        rawValue: 72.5,
+        eventId: 'e1',
+      },
+      {
+        externalDeviceId: 'tank-sensor-1',
+        channel: 'level',
+        readAt: at(30),
+        rawValue: 64,
+        eventId: 'e2',
+      }, // a level may fall: no reset logic
+      {
+        externalDeviceId: 'tank-sensor-1',
+        channel: 'battery',
+        readAt: at(30),
+        rawValue: 3.6,
+        eventId: 'e3',
+      }, // unbound channel
+      {
+        externalDeviceId: 'tank-sensor-1',
+        channel: 'level',
+        readAt: at(10),
+        rawValue: 140,
+        eventId: 'e4',
+      }, // > 100 %
+      {
+        externalDeviceId: 'stranger',
+        channel: 'level',
+        readAt: at(10),
+        rawValue: 50,
+        eventId: 'e5',
+      },
     ];
     const first = await storeReadings(service, integration, readings, { now });
     expect(first.accepted).toBe(2);
@@ -77,13 +133,20 @@ describeIfSupabase('supply-source level ingestion (real local Supabase integrati
     const replay = await storeReadings(service, integration, readings.slice(0, 2), { now });
     expect(replay).toMatchObject({ accepted: 0, duplicates: 2 });
 
-    const { data } = await service.from('utility_source_readings').select('metric, value, source').eq('source_id', tankId).order('read_at');
+    const { data } = await service
+      .from('utility_source_readings')
+      .select('metric, value, source')
+      .eq('source_id', tankId)
+      .order('read_at');
     expect(data).toEqual([
       { metric: 'tank_level_pct', value: 72.5, source: 'device' },
       { metric: 'tank_level_pct', value: 64, source: 'device' },
     ]);
     // Nothing leaked into cumulative meter telemetry.
-    const { count } = await service.from('meter_telemetry_readings').select('id', { count: 'exact', head: true }).eq('integration_id', integration.id);
+    const { count } = await service
+      .from('meter_telemetry_readings')
+      .select('id', { count: 'exact', head: true })
+      .eq('integration_id', integration.id);
     expect(count).toBe(0);
   });
 });

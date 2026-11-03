@@ -117,7 +117,7 @@ test.describe('Flow A: new tenancy (application -> invite -> approve -> prepare 
     await page.getByRole('button', { name: 'Activate lease' }).click({ timeout: 30_000 });
 
     await expect
-      .poll(async () => (await getUnitStatus(page.request, unitId)), { timeout: 15_000 })
+      .poll(async () => await getUnitStatus(page.request, unitId), { timeout: 15_000 })
       .toBe('occupied');
 
     await page.reload();
@@ -132,7 +132,11 @@ test.describe('Flow B: existing tenancy (record already-signed lease)', () => {
     page,
   }) => {
     const { orgId } = await setUpOrg(page.request, 'closeout-existing-tenancy');
-    const propertyId = await createProperty(page.request, orgId, 'Closeout Existing Tenancy Property');
+    const propertyId = await createProperty(
+      page.request,
+      orgId,
+      'Closeout Existing Tenancy Property',
+    );
     const unitId = await createUnit(page.request, propertyId, 'Unit B1');
 
     // Add an existing tenant identity first (global "Add existing tenant" path, distinct from an
@@ -181,7 +185,7 @@ test.describe('Flow B: existing tenancy (record already-signed lease)', () => {
 
     await page.getByRole('button', { name: 'Activate lease' }).click();
     await expect
-      .poll(async () => (await getUnitStatus(page.request, unitId)), { timeout: 15_000 })
+      .poll(async () => await getUnitStatus(page.request, unitId), { timeout: 15_000 })
       .toBe('occupied');
 
     // Rent schedule generation ran exactly once as part of activation: at least one row exists
@@ -241,7 +245,7 @@ test.describe('Flow C: month-to-month existing tenancy', () => {
 
     await page.getByRole('button', { name: 'Activate lease' }).click();
     await expect
-      .poll(async () => (await getUnitStatus(page.request, unitId)), { timeout: 15_000 })
+      .poll(async () => await getUnitStatus(page.request, unitId), { timeout: 15_000 })
       .toBe('occupied');
 
     const activeLeaseCheck = await (await page.request.get(`/api/v1/leases/${leaseId}`)).json();

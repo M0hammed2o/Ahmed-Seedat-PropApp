@@ -204,92 +204,74 @@ describeIfSupabase('AI Assistant routes (real local Supabase integration)', () =
   // database -- observed to occasionally exceed 5s under load without indicating any real
   // regression (the assistant routes themselves have no unbounded work -- context assembly is a
   // handful of LIMIT-10 queries, same as the rest of this codebase).
-  it(
-    'an org staff member gets a real, grounded reply about overdue rent -- never a stagedChange',
-    async () => {
-      const staffEmail = (await adminGet(`/auth/v1/admin/users/${staffUserId}`)).email;
-      mockAuthorizationHeader = `Bearer ${await signIn(staffEmail)}`;
+  it('an org staff member gets a real, grounded reply about overdue rent -- never a stagedChange', async () => {
+    const staffEmail = (await adminGet(`/auth/v1/admin/users/${staffUserId}`)).email;
+    mockAuthorizationHeader = `Bearer ${await signIn(staffEmail)}`;
 
-      const convResponse = await createConversation(
-        jsonRequest('http://localhost/api/v1/ai/conversations', { orgId }),
-      );
-      expect(convResponse.status).toBe(201);
-      const convBody = await convResponse.json();
+    const convResponse = await createConversation(
+      jsonRequest('http://localhost/api/v1/ai/conversations', { orgId }),
+    );
+    expect(convResponse.status).toBe(201);
+    const convBody = await convResponse.json();
 
-      const msgResponse = await postMessage(
-        jsonRequest(
-          `http://localhost/api/v1/ai/conversations/${convBody.conversation.id}/messages`,
-          { text: "What's overdue?" },
-        ),
-        { params: Promise.resolve({ id: convBody.conversation.id }) },
-      );
-      expect(msgResponse.status).toBe(201);
-      const msgBody = await msgResponse.json();
-      expect(msgBody.message.content).toMatch(/1 lease is overdue/i);
-      expect(msgBody.message.content).toContain('R5');
-      expect(msgBody.message.stagedChanges).toBeNull();
-    },
-    20000,
-  );
+    const msgResponse = await postMessage(
+      jsonRequest(`http://localhost/api/v1/ai/conversations/${convBody.conversation.id}/messages`, {
+        text: "What's overdue?",
+      }),
+      { params: Promise.resolve({ id: convBody.conversation.id }) },
+    );
+    expect(msgResponse.status).toBe(201);
+    const msgBody = await msgResponse.json();
+    expect(msgBody.message.content).toMatch(/1 lease is overdue/i);
+    expect(msgBody.message.content).toContain('R5');
+    expect(msgBody.message.stagedChanges).toBeNull();
+  }, 20000);
 
-  it(
-    'a tenant gets a grounded reply about their own outstanding balance via the SAME endpoint',
-    async () => {
-      const tenantEmail = (await adminGet(`/auth/v1/admin/users/${tenantUserId}`)).email;
-      mockAuthorizationHeader = `Bearer ${await signIn(tenantEmail)}`;
+  it('a tenant gets a grounded reply about their own outstanding balance via the SAME endpoint', async () => {
+    const tenantEmail = (await adminGet(`/auth/v1/admin/users/${tenantUserId}`)).email;
+    mockAuthorizationHeader = `Bearer ${await signIn(tenantEmail)}`;
 
-      const convResponse = await createConversation(
-        jsonRequest('http://localhost/api/v1/ai/conversations', { orgId }),
-      );
-      expect(convResponse.status).toBe(201);
-      const convBody = await convResponse.json();
+    const convResponse = await createConversation(
+      jsonRequest('http://localhost/api/v1/ai/conversations', { orgId }),
+    );
+    expect(convResponse.status).toBe(201);
+    const convBody = await convResponse.json();
 
-      const msgResponse = await postMessage(
-        jsonRequest(
-          `http://localhost/api/v1/ai/conversations/${convBody.conversation.id}/messages`,
-          { text: 'How much do I owe?' },
-        ),
-        { params: Promise.resolve({ id: convBody.conversation.id }) },
-      );
-      expect(msgResponse.status).toBe(201);
-      const msgBody = await msgResponse.json();
-      expect(msgBody.message.content).toContain('R5');
-      expect(msgBody.message.stagedChanges).toBeNull();
-    },
-    20000,
-  );
+    const msgResponse = await postMessage(
+      jsonRequest(`http://localhost/api/v1/ai/conversations/${convBody.conversation.id}/messages`, {
+        text: 'How much do I owe?',
+      }),
+      { params: Promise.resolve({ id: convBody.conversation.id }) },
+    );
+    expect(msgResponse.status).toBe(201);
+    const msgBody = await msgResponse.json();
+    expect(msgBody.message.content).toContain('R5');
+    expect(msgBody.message.stagedChanges).toBeNull();
+  }, 20000);
 
-  it(
-    'an outsider with no org membership and no tenancy cannot start a conversation for this org',
-    async () => {
-      const outsiderEmail = (await adminGet(`/auth/v1/admin/users/${outsiderUserId}`)).email;
-      mockAuthorizationHeader = `Bearer ${await signIn(outsiderEmail)}`;
+  it('an outsider with no org membership and no tenancy cannot start a conversation for this org', async () => {
+    const outsiderEmail = (await adminGet(`/auth/v1/admin/users/${outsiderUserId}`)).email;
+    mockAuthorizationHeader = `Bearer ${await signIn(outsiderEmail)}`;
 
-      const response = await createConversation(
-        jsonRequest('http://localhost/api/v1/ai/conversations', { orgId }),
-      );
-      expect(response.status).toBe(403);
-    },
-    20000,
-  );
+    const response = await createConversation(
+      jsonRequest('http://localhost/api/v1/ai/conversations', { orgId }),
+    );
+    expect(response.status).toBe(403);
+  }, 20000);
 
-  it(
-    'POST .../messages/:id/confirm always refuses -- V1 write-staging is disabled regardless of caller',
-    async () => {
-      const staffEmail = (await adminGet(`/auth/v1/admin/users/${staffUserId}`)).email;
-      mockAuthorizationHeader = `Bearer ${await signIn(staffEmail)}`;
+  it('POST .../messages/:id/confirm always refuses -- V1 write-staging is disabled regardless of caller', async () => {
+    const staffEmail = (await adminGet(`/auth/v1/admin/users/${staffUserId}`)).email;
+    mockAuthorizationHeader = `Bearer ${await signIn(staffEmail)}`;
 
-      const response = await confirmMessage(
-        jsonRequest(
-          'http://localhost/api/v1/ai/messages/00000000-0000-0000-0000-000000000000/confirm',
-          {},
-        ),
-        { params: Promise.resolve({ id: '00000000-0000-0000-0000-000000000000' }) },
-      );
-      expect(response.status).toBe(403);
-      const body = await response.json();
-      expect(body.error.code).toBe('ai_writes_disabled');
-    },
-    20000,
-  );
+    const response = await confirmMessage(
+      jsonRequest(
+        'http://localhost/api/v1/ai/messages/00000000-0000-0000-0000-000000000000/confirm',
+        {},
+      ),
+      { params: Promise.resolve({ id: '00000000-0000-0000-0000-000000000000' }) },
+    );
+    expect(response.status).toBe(403);
+    const body = await response.json();
+    expect(body.error.code).toBe('ai_writes_disabled');
+  }, 20000);
 });

@@ -73,7 +73,11 @@ describeIfSupabase('unit remove/archive lifecycle (real local Supabase integrati
 
     const { data: org, error: orgError } = await serviceClient
       .from('organizations')
-      .insert({ legal_name: `Unit Lifecycle Vitest Org ${suffix}`, org_type: 'agency', status: 'active' })
+      .insert({
+        legal_name: `Unit Lifecycle Vitest Org ${suffix}`,
+        org_type: 'agency',
+        status: 'active',
+      })
       .select('id')
       .single();
     if (orgError) throw orgError;
@@ -81,16 +85,39 @@ describeIfSupabase('unit remove/archive lifecycle (real local Supabase integrati
 
     const { data: property, error: propertyError } = await serviceClient
       .from('properties')
-      .insert({ org_id: orgId, nickname: 'Musgrave Heights', address_line1: '1 Test St', city: 'Durban' })
+      .insert({
+        org_id: orgId,
+        nickname: 'Musgrave Heights',
+        address_line1: '1 Test St',
+        city: 'Durban',
+      })
       .select('id')
       .single();
     if (propertyError) throw propertyError;
     propertyId = property.id;
 
     await serviceClient.from('organization_members').insert([
-      { org_id: orgId, user_id: principalId, role: 'principal', status: 'active', joined_at: new Date().toISOString() },
-      { org_id: orgId, user_id: agentId, role: 'agent', status: 'active', joined_at: new Date().toISOString() },
-      { org_id: orgId, user_id: viewerId, role: 'viewer', status: 'active', joined_at: new Date().toISOString() },
+      {
+        org_id: orgId,
+        user_id: principalId,
+        role: 'principal',
+        status: 'active',
+        joined_at: new Date().toISOString(),
+      },
+      {
+        org_id: orgId,
+        user_id: agentId,
+        role: 'agent',
+        status: 'active',
+        joined_at: new Date().toISOString(),
+      },
+      {
+        org_id: orgId,
+        user_id: viewerId,
+        role: 'viewer',
+        status: 'active',
+        joined_at: new Date().toISOString(),
+      },
     ]);
   });
 
@@ -118,7 +145,13 @@ describeIfSupabase('unit remove/archive lifecycle (real local Supabase integrati
   async function insertActiveLease(unitId: string) {
     const { data, error } = await serviceClient
       .from('leases')
-      .insert({ org_id: orgId, unit_id: unitId, start_date: '2026-01-01', rent_amount: 10000, status: 'active' })
+      .insert({
+        org_id: orgId,
+        unit_id: unitId,
+        start_date: '2026-01-01',
+        rent_amount: 10000,
+        status: 'active',
+      })
       .select('*')
       .single();
     if (error) throw error;
@@ -130,31 +163,49 @@ describeIfSupabase('unit remove/archive lifecycle (real local Supabase integrati
     const unit = await insertUnit('602');
     const principalClient = await signedInClient(principalEmail, TEST_PASSWORD);
 
-    const { data: blockers, error: blockersError } = await principalClient.rpc('get_unit_deletion_blockers', {
-      p_unit_id: unit.id,
-    });
+    const { data: blockers, error: blockersError } = await principalClient.rpc(
+      'get_unit_deletion_blockers',
+      {
+        p_unit_id: unit.id,
+      },
+    );
     expect(blockersError).toBeNull();
     expect(blockers).toEqual([]);
 
-    const { error: deleteError } = await principalClient.rpc('hard_delete_unit', { p_unit_id: unit.id });
+    const { error: deleteError } = await principalClient.rpc('hard_delete_unit', {
+      p_unit_id: unit.id,
+    });
     expect(deleteError).toBeNull();
 
-    const { data: gone } = await serviceClient.from('units').select('id').eq('id', unit.id).maybeSingle();
+    const { data: gone } = await serviceClient
+      .from('units')
+      .select('id')
+      .eq('id', unit.id)
+      .maybeSingle();
     expect(gone).toBeNull();
   });
 
   // 17. A unit with any lease history (even a past, non-active one) is blocked from hard delete.
   it('a unit with historical (non-active) lease activity is blocked from hard delete', async () => {
     const unit = await insertUnit('601');
-    await serviceClient
-      .from('leases')
-      .insert({ org_id: orgId, unit_id: unit.id, start_date: '2025-01-01', end_date: '2025-06-01', rent_amount: 8000, status: 'expired' });
+    await serviceClient.from('leases').insert({
+      org_id: orgId,
+      unit_id: unit.id,
+      start_date: '2025-01-01',
+      end_date: '2025-06-01',
+      rent_amount: 8000,
+      status: 'expired',
+    });
     const principalClient = await signedInClient(principalEmail, TEST_PASSWORD);
 
-    const { data: blockers } = await principalClient.rpc('get_unit_deletion_blockers', { p_unit_id: unit.id });
+    const { data: blockers } = await principalClient.rpc('get_unit_deletion_blockers', {
+      p_unit_id: unit.id,
+    });
     expect(blockers.length).toBeGreaterThan(0);
 
-    const { error: deleteError } = await principalClient.rpc('hard_delete_unit', { p_unit_id: unit.id });
+    const { error: deleteError } = await principalClient.rpc('hard_delete_unit', {
+      p_unit_id: unit.id,
+    });
     expect(deleteError).not.toBeNull();
   });
 
@@ -168,9 +219,17 @@ describeIfSupabase('unit remove/archive lifecycle (real local Supabase integrati
     expect(error).not.toBeNull();
     expect(error?.message).toContain('active lease');
 
-    const { data: stillOccupied } = await serviceClient.from('units').select('status').eq('id', unit.id).single();
+    const { data: stillOccupied } = await serviceClient
+      .from('units')
+      .select('status')
+      .eq('id', unit.id)
+      .single();
     expect(stillOccupied!.status).toBe('occupied');
-    const { data: stillActiveLease } = await serviceClient.from('leases').select('status').eq('id', lease.id).single();
+    const { data: stillActiveLease } = await serviceClient
+      .from('leases')
+      .select('status')
+      .eq('id', lease.id)
+      .single();
     expect(stillActiveLease!.status).toBe('active');
   });
 
@@ -180,18 +239,29 @@ describeIfSupabase('unit remove/archive lifecycle (real local Supabase integrati
   it('a unit with historical activity can be archived (though not hard-deleted), is hidden from the default listing, remains readable, and can be restored', async () => {
     const unit = await insertUnit('601');
     const otherUnit = await insertUnit('602');
-    await serviceClient
-      .from('leases')
-      .insert({ org_id: orgId, unit_id: unit.id, start_date: '2025-01-01', end_date: '2025-06-01', rent_amount: 8000, status: 'expired' });
+    await serviceClient.from('leases').insert({
+      org_id: orgId,
+      unit_id: unit.id,
+      start_date: '2025-01-01',
+      end_date: '2025-06-01',
+      rent_amount: 8000,
+      status: 'expired',
+    });
     const agentClient = await signedInClient(agentEmail, TEST_PASSWORD);
     const principalClient = await signedInClient(principalEmail, TEST_PASSWORD);
 
     const { error: archiveError } = await agentClient.rpc('archive_unit', { p_unit_id: unit.id });
     expect(archiveError).toBeNull();
-    const { data: archived } = await serviceClient.from('units').select('status').eq('id', unit.id).single();
+    const { data: archived } = await serviceClient
+      .from('units')
+      .select('status')
+      .eq('id', unit.id)
+      .single();
     expect(archived!.status).toBe('archived');
 
-    const { error: deleteError } = await principalClient.rpc('hard_delete_unit', { p_unit_id: unit.id });
+    const { error: deleteError } = await principalClient.rpc('hard_delete_unit', {
+      p_unit_id: unit.id,
+    });
     expect(deleteError).not.toBeNull();
 
     const { data: activeListing } = await agentClient
@@ -201,13 +271,21 @@ describeIfSupabase('unit remove/archive lifecycle (real local Supabase integrati
       .neq('status', 'archived');
     expect(activeListing?.map((u) => u.id)).toEqual([otherUnit.id]);
 
-    const { data: readBack, error: readError } = await agentClient.from('units').select('*').eq('id', unit.id).single();
+    const { data: readBack, error: readError } = await agentClient
+      .from('units')
+      .select('*')
+      .eq('id', unit.id)
+      .single();
     expect(readError).toBeNull();
     expect(readBack.status).toBe('archived');
 
     const { error: restoreError } = await agentClient.rpc('restore_unit', { p_unit_id: unit.id });
     expect(restoreError).toBeNull();
-    const { data: restored } = await serviceClient.from('units').select('status').eq('id', unit.id).single();
+    const { data: restored } = await serviceClient
+      .from('units')
+      .select('status')
+      .eq('id', unit.id)
+      .single();
     expect(restored!.status).toBe('vacant');
   });
 
@@ -218,10 +296,16 @@ describeIfSupabase('unit remove/archive lifecycle (real local Supabase integrati
 
     const { error: archiveError } = await viewerClient.rpc('archive_unit', { p_unit_id: unit.id });
     expect(archiveError).not.toBeNull();
-    const { error: deleteError } = await viewerClient.rpc('hard_delete_unit', { p_unit_id: unit.id });
+    const { error: deleteError } = await viewerClient.rpc('hard_delete_unit', {
+      p_unit_id: unit.id,
+    });
     expect(deleteError).not.toBeNull();
 
-    const { data: unchanged } = await serviceClient.from('units').select('status').eq('id', unit.id).single();
+    const { data: unchanged } = await serviceClient
+      .from('units')
+      .select('status')
+      .eq('id', unit.id)
+      .single();
     expect(unchanged!.status).toBe('vacant');
   });
 
@@ -233,7 +317,11 @@ describeIfSupabase('unit remove/archive lifecycle (real local Supabase integrati
     const { error } = await agentClient.rpc('hard_delete_unit', { p_unit_id: unit.id });
     expect(error).not.toBeNull();
 
-    const { data: stillThere } = await serviceClient.from('units').select('id').eq('id', unit.id).maybeSingle();
+    const { data: stillThere } = await serviceClient
+      .from('units')
+      .select('id')
+      .eq('id', unit.id)
+      .maybeSingle();
     expect(stillThere).not.toBeNull();
   });
 
@@ -250,7 +338,11 @@ describeIfSupabase('unit remove/archive lifecycle (real local Supabase integrati
 
     const { error } = await agentClient.rpc('archive_unit', { p_unit_id: unit.id });
     expect(error).not.toBeNull();
-    const { data: stillOccupied } = await serviceClient.from('units').select('status').eq('id', unit.id).single();
+    const { data: stillOccupied } = await serviceClient
+      .from('units')
+      .select('status')
+      .eq('id', unit.id)
+      .single();
     expect(stillOccupied!.status).toBe('occupied');
   });
 
@@ -274,21 +366,42 @@ describeIfSupabase('unit remove/archive lifecycle (real local Supabase integrati
 
     const { data: lease, error: leaseError } = await serviceClient
       .from('leases')
-      .insert({ org_id: orgId, unit_id: unit.id, start_date: '2026-01-01', rent_amount: 9000, status: 'draft' })
+      .insert({
+        org_id: orgId,
+        unit_id: unit.id,
+        start_date: '2026-01-01',
+        rent_amount: 9000,
+        status: 'draft',
+      })
       .select('id')
       .single();
     expect(leaseError).toBeNull();
-    await serviceClient.from('lease_tenants').insert({ lease_id: lease!.id, tenant_id: tenant!.id, is_primary: true });
+    await serviceClient
+      .from('lease_tenants')
+      .insert({ lease_id: lease!.id, tenant_id: tenant!.id, is_primary: true });
 
-    const { error: activateError } = await agentClient.rpc('activate_lease', { p_lease_id: lease!.id });
+    const { error: activateError } = await agentClient.rpc('activate_lease', {
+      p_lease_id: lease!.id,
+    });
     expect(activateError).not.toBeNull();
     expect(activateError?.message).toContain('archived');
 
-    const { data: stillDraft } = await serviceClient.from('leases').select('status').eq('id', lease!.id).single();
+    const { data: stillDraft } = await serviceClient
+      .from('leases')
+      .select('status')
+      .eq('id', lease!.id)
+      .single();
     expect(stillDraft!.status).toBe('draft');
-    const { data: stillArchived } = await serviceClient.from('units').select('status').eq('id', unit.id).single();
+    const { data: stillArchived } = await serviceClient
+      .from('units')
+      .select('status')
+      .eq('id', unit.id)
+      .single();
     expect(stillArchived!.status).toBe('archived');
-    const { data: noSchedules } = await serviceClient.from('rent_schedules').select('id').eq('lease_id', lease!.id);
+    const { data: noSchedules } = await serviceClient
+      .from('rent_schedules')
+      .select('id')
+      .eq('lease_id', lease!.id);
     expect(noSchedules).toHaveLength(0);
   });
 
@@ -306,22 +419,42 @@ describeIfSupabase('unit remove/archive lifecycle (real local Supabase integrati
       .single();
     const { data: lease } = await serviceClient
       .from('leases')
-      .insert({ org_id: orgId, unit_id: unit.id, start_date: '2026-01-01', rent_amount: 9000, status: 'draft' })
+      .insert({
+        org_id: orgId,
+        unit_id: unit.id,
+        start_date: '2026-01-01',
+        rent_amount: 9000,
+        status: 'draft',
+      })
       .select('id')
       .single();
-    await serviceClient.from('lease_tenants').insert({ lease_id: lease!.id, tenant_id: tenant!.id, is_primary: true });
+    await serviceClient
+      .from('lease_tenants')
+      .insert({ lease_id: lease!.id, tenant_id: tenant!.id, is_primary: true });
 
-    const { error: blockedError } = await agentClient.rpc('activate_lease', { p_lease_id: lease!.id });
+    const { error: blockedError } = await agentClient.rpc('activate_lease', {
+      p_lease_id: lease!.id,
+    });
     expect(blockedError).not.toBeNull();
 
     const { error: restoreError } = await agentClient.rpc('restore_unit', { p_unit_id: unit.id });
     expect(restoreError).toBeNull();
 
-    const { error: activateError } = await agentClient.rpc('activate_lease', { p_lease_id: lease!.id });
+    const { error: activateError } = await agentClient.rpc('activate_lease', {
+      p_lease_id: lease!.id,
+    });
     expect(activateError).toBeNull();
-    const { data: nowActive } = await serviceClient.from('leases').select('status').eq('id', lease!.id).single();
+    const { data: nowActive } = await serviceClient
+      .from('leases')
+      .select('status')
+      .eq('id', lease!.id)
+      .single();
     expect(nowActive!.status).toBe('active');
-    const { data: nowOccupied } = await serviceClient.from('units').select('status').eq('id', unit.id).single();
+    const { data: nowOccupied } = await serviceClient
+      .from('units')
+      .select('status')
+      .eq('id', unit.id)
+      .single();
     expect(nowOccupied!.status).toBe('occupied');
   });
 });
