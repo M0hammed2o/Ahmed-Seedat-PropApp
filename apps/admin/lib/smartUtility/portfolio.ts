@@ -1,6 +1,7 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { fetchAll, fetchAllIn } from './data';
+import { southAfricanDateOf } from '../southAfricanTime';
 
 // Portfolio utilities summary across every property the caller can read (session client → RLS). Monthly trends
 // come from job-written meter_period_snapshots, so a large portfolio never loads raw telemetry here; the property
@@ -78,7 +79,8 @@ export async function loadUtilityPortfolio(client: SupabaseClient, opts: { month
     if (!basisMeterIds.has(s.meter_id)) continue;
     const t = meterType.get(s.meter_id)!;
     const display = s.consumption === null ? 0 : t === 'water' ? Number(s.consumption) / 1000 : Number(s.consumption);
-    const key = String(s.period_start).slice(0, 7);
+    // period_start is SAST midnight stored in UTC (1 Oct 00:00 SAST = 30 Sep 22:00Z): label by the SAST month.
+    const key = southAfricanDateOf(String(s.period_start)).slice(0, 7);
     const cur = monthlyMap.get(key) ?? { water: 0, electricity: 0, partial: false };
     cur[t] += display;
     cur.partial = cur.partial || s.quality !== 'complete' || s.consumption === null;
@@ -118,7 +120,10 @@ export async function loadUtilityPortfolio(client: SupabaseClient, opts: { month
           disputed: ownCharges.filter((c) => c.dispute_status === 'open').length,
         },
         unpaidInvoices: { count: unpaidIds.length, outstanding: Math.round(unpaidIds.reduce((a, id) => a + (unpaidByInvoice.get(id) ?? 0), 0)) / 100 },
-        lastPeriod: latestByProp.get(p.id) ?? null,
+        lastPeriod: (() => {
+          const latest = latestByProp.get(p.id);
+          return latest ? { ...latest, period: southAfricanDateOf(latest.period) } : null;
+        })(),
       };
     })
     .sort((a, b) => b.alerts.critical - a.alerts.critical || b.alerts.open - a.alerts.open || a.name.localeCompare(b.name));

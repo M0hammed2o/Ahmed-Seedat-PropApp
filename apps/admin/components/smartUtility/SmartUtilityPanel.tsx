@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Panel } from '@/components/ui/Panel';
 import { MiniLineChart } from '@/components/ui/MiniLineChart';
+import { southAfricanDateOf } from '@/lib/southAfricanTime';
 import { BillingSection } from './BillingSection';
 import { HybridSection } from './HybridSection';
 import { IntegrationsSection } from './IntegrationsSection';
@@ -95,7 +96,7 @@ export function SmartUtilityPanel({ propertyId, canManage }: { propertyId: strin
           {data.totals.filter((t) => t.meterCount > 0).map((t) => {
             const series =
               granularity === 'monthly'
-                ? t.monthly.map((m) => ({ label: m.periodStart.slice(0, 7), value: m.consumption, partial: m.quality !== 'complete' }))
+                ? t.monthly.map((m) => ({ label: southAfricanDateOf(m.periodStart).slice(0, 7), value: m.consumption, partial: m.quality !== 'complete' }))
                 : (granularity === 'weekly' ? t.weekly : t.daily).map((d) => ({ label: d.date.slice(5), value: d.consumption, partial: false }));
             const pts = series.filter((d) => d.value !== null).map((d) => ({ label: d.label, value: d.value as number }));
             const gaps = series.length - pts.length;

@@ -177,6 +177,30 @@ describe('runDemoMeterSimulation', () => {
     );
   });
 
+  it('with nothing due yet, still records the latest stored reading on a meter that has none', async () => {
+    const { client, writes } = fakeDb({
+      org: { id: 'org-demo', utilities_enabled: true },
+      meters: [{ ...meter, last_reading_at: null }],
+      history,
+    });
+    const result = await runDemoMeterSimulation(client, new Date('2026-11-03T11:30:00Z'), [
+      'org-demo',
+    ]);
+    expect(result).toMatchObject({ meters: 0, inserted: 0 });
+    expect(writes.map((w) => `${w.table}:${w.op}`)).toEqual(['utility_meters:update']);
+    expect(writes[0]!.payload).toMatchObject({ last_reading_at: history.at(-1)!.read_at });
+  });
+
+  it('with nothing due and bookkeeping already current, writes nothing', async () => {
+    const { client, writes } = fakeDb({
+      org: { id: 'org-demo', utilities_enabled: true },
+      meters: [{ ...meter, last_reading_at: history.at(-1)!.read_at }],
+      history,
+    });
+    await runDemoMeterSimulation(client, new Date('2026-11-03T11:30:00Z'), ['org-demo']);
+    expect(writes).toEqual([]);
+  });
+
   it.each([
     [{ org: null }, 'organisation not found'],
     [{ org: { id: 'org-demo', utilities_enabled: false } }, 'Smart Utilities not enabled'],

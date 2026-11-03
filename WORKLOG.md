@@ -42,6 +42,17 @@ chart lost October and November. The original marketing demo (1,153) had the sam
   outstanding R183,500 = AR ledger; Rent Due lists all 1,155 schedules in order; no horizontal overflow on 7 phone
   pages.
 
+**Deployed** as `ba7cce5`. Production check with a temporary manager login: 18/18 figure checks equal SQL (same
+figures as above), Rent Due 1,155 rows in order, 7 phone pages without overflow. A template upload made by a
+temporary login leaves an immutable audit row naming it, so that login cannot be deleted; it was banned instead
+(no membership, no sessions) and the template re-attributed to the org principal.
+
+**Follow-up commit (same day):**
+- Utilities: monthly snapshot labels and "Last period" use the SAST month (a period starting 1 Oct 00:00 SAST is
+  stored as 30 Sep 22:00Z and was shown as September).
+- Demo simulator: when no reading is due yet, it still sets the meter's last-reading bookkeeping from the latest
+  stored reading, so freshly seeded meters are not marked offline.
+
 **Open:** TD-77 (remaining unpaged reads, collection-health cost, simulator allow-list in code).
 
 ## 2026-10-26 — Cemetery Management module, one-year property + cemetery demo, invoice-number defect (autonomous; NOT deployed)

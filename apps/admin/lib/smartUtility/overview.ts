@@ -12,6 +12,7 @@ import {
   sastParts,
 } from './consumption';
 import { loadPoints, replacementChain, SMART_METER_COLUMNS, type SmartMeterRow } from './data';
+import { southAfricanDateOf } from '../southAfricanTime';
 import { reconcileProperty } from './jobs';
 import { isAutoSubmissionEnabled } from './submissions';
 
@@ -90,7 +91,8 @@ export async function loadSmartUtilityOverview(client: SupabaseClient, propertyI
     const byPeriod = new Map<string, { total: number; complete: boolean; count: number }>();
     for (const row of snapshotRows ?? []) {
       if (!meterIds.includes(row.meter_id)) continue;
-      const key = String(row.period_start).slice(0, 10);
+      // SAST date of the period start (stored as UTC: 1 Oct 00:00 SAST = 30 Sep 22:00Z), so the month reads correctly.
+      const key = southAfricanDateOf(String(row.period_start));
       const cur = byPeriod.get(key) ?? { total: 0, complete: true, count: 0 };
       cur.total += row.consumption === null ? 0 : Number(row.consumption);
       cur.complete = cur.complete && row.quality === 'complete' && row.consumption !== null;

@@ -31,6 +31,10 @@ describe('southAfricanDateOf', () => {
     expect(southAfricanDateOf('2026-11-01T00:30:00+02:00')).toBe('2026-11-01');
   });
 
+  it('labels a monthly meter snapshot (SAST midnight stored in UTC) with its own month', () => {
+    expect(southAfricanDateOf('2026-09-30T22:00:00+00:00').slice(0, 7)).toBe('2026-10');
+  });
+
   it('passes a bare date through unchanged', () => {
     expect(southAfricanDateOf('2026-11-01')).toBe('2026-11-01');
   });

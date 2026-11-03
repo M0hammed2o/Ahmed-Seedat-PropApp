@@ -107,6 +107,7 @@ interface SimMeter {
   org_id: string;
   property_id: string;
   expected_interval_minutes: number;
+  last_reading_at: string | null;
 }
 
 export async function runDemoMeterSimulation(
@@ -156,7 +157,7 @@ export async function runDemoMeterSimulation(
     const meters = await fetchAll<SimMeter>((f, t) =>
       serviceClient
         .from('utility_meters')
-        .select('id, org_id, property_id, expected_interval_minutes')
+        .select('id, org_id, property_id, expected_interval_minutes, last_reading_at')
         .eq('org_id', orgId)
         .eq('connectivity', 'simulator')
         .is('integration_id', null)
@@ -186,7 +187,18 @@ export async function runDemoMeterSimulation(
         now,
         meter.id,
       );
-      if (next.length === 0) continue;
+      // Nothing due yet: still make sure the meter's bookkeeping reflects its latest stored reading
+      // (seeded readings never set it, and the health sweep would call the meter offline).
+      if (next.length === 0) {
+        const last = history[history.length - 1];
+        if (
+          last &&
+          (!meter.last_reading_at || Date.parse(meter.last_reading_at) < Date.parse(last.read_at))
+        ) {
+          await updateLastReading(serviceClient, orgId, meter.id, last.read_at, Number(last.value));
+        }
+        continue;
+      }
       result.meters += 1;
 
       const { data: insertedRows, error: insertError } = await serviceClient
@@ -213,14 +225,30 @@ export async function runDemoMeterSimulation(
       result.inserted += insertedRows?.length ?? 0;
 
       const latest = next[next.length - 1]!;
-      const { error: meterError } = await serviceClient
-        .from('utility_meters')
-        .update({ last_reading_at: latest.readAt.toISOString(), last_reading_value: latest.value })
-        .eq('id', meter.id)
-        .eq('org_id', orgId)
-        .eq('connectivity', 'simulator');
-      if (meterError) throw new Error(`demo simulator meter update failed: ${meterError.message}`);
+      await updateLastReading(
+        serviceClient,
+        orgId,
+        meter.id,
+        latest.readAt.toISOString(),
+        latest.value,
+      );
     }
   }
   return result;
+}
+
+async function updateLastReading(
+  serviceClient: SupabaseClient,
+  orgId: string,
+  meterId: string,
+  readAt: string,
+  value: number,
+) {
+  const { error } = await serviceClient
+    .from('utility_meters')
+    .update({ last_reading_at: readAt, last_reading_value: value })
+    .eq('id', meterId)
+    .eq('org_id', orgId)
+    .eq('connectivity', 'simulator');
+  if (error) throw new Error(`demo simulator meter update failed: ${error.message}`);
 }
