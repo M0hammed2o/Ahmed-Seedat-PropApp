@@ -6,6 +6,8 @@
 // lease->unit->property / property_id join) -- these functions do date-range slicing and summation
 // only, never a database read.
 
+import { OUTSTANDING_RENT_STATUSES } from './rentCollection';
+
 export type DashboardPeriod = 'this_month' | 'last_month' | 'ytd' | 'last_12_months' | 'custom';
 
 export interface PeriodRange {
@@ -100,6 +102,9 @@ export interface RentScheduleLike {
   dueDate: string;
   amount: number | string;
   status: string;
+  /** Rand received against this schedule (lib/rentCollection.ts schedulePaid). When omitted, a
+   *  `paid` schedule counts in full and any other status as nothing received. */
+  paid?: number;
 }
 
 export interface ExpenseLike {
@@ -110,10 +115,15 @@ export interface ExpenseLike {
 export interface DashboardKpiSummary {
   /** Total rent billed (every status) with a due date inside the period -- "what was scheduled." */
   expectedRent: number;
-  /** The subset of expectedRent already marked `paid`. */
+  /** Received against the period's rent, part-payments included (= rentFullyPaid + rentPartPaid). */
   rentCollected: number;
-  /** invoiced/overdue/partial rows due on-or-before the period end -- a cumulative as-of figure,
-   *  not "during the period" (an overdue amount from 3 months ago is still outstanding today). */
+  /** The subset of expectedRent whose schedules are fully `paid`. */
+  rentFullyPaid: number;
+  /** Part-payments received against period schedules that are not yet fully paid. */
+  rentPartPaid: number;
+  /** Balance still owed (amount less payments received) on invoiced/overdue/partial rows due
+   *  on-or-before the period end -- a cumulative as-of figure, not "during the period" (an overdue
+   *  amount from 3 months ago is still outstanding today). */
   outstandingRent: number;
   /** every non-void expense within the period -- matches expenses' own "actually spent"
    *  statuses, same set the existing revenue chart already uses. */
@@ -125,8 +135,6 @@ export interface DashboardKpiSummary {
    *  "reported" = awaiting, never folded into rentCollected). */
   paymentsAwaitingConfirmation: number;
 }
-
-const OUTSTANDING_RENT_STATUSES = new Set(['invoiced', 'overdue', 'partial']);
 
 /**
  * Expense statuses that count toward the dashboard's Expenses/Net income cards.
@@ -157,13 +165,22 @@ export function computeDashboardKpis(input: {
   expensesInPeriod: ExpenseLike[];
   paymentsAwaitingConfirmation: number;
 }): DashboardKpiSummary {
+  const cents = (v: unknown) => Math.round(Number(v) * 100);
+  const paidCents = (r: RentScheduleLike) =>
+    r.status === 'paid' ? cents(r.amount) : Math.min(cents(r.amount), cents(r.paid ?? 0));
+
   const expectedRent = input.rentSchedulesInPeriod.reduce((sum, r) => sum + Number(r.amount), 0);
-  const rentCollected = input.rentSchedulesInPeriod
+  const rentFullyPaidCents = input.rentSchedulesInPeriod
     .filter((r) => r.status === 'paid')
-    .reduce((sum, r) => sum + Number(r.amount), 0);
-  const outstandingRent = input.rentSchedulesAsOfPeriodEnd
-    .filter((r) => OUTSTANDING_RENT_STATUSES.has(r.status))
-    .reduce((sum, r) => sum + Number(r.amount), 0);
+    .reduce((sum, r) => sum + cents(r.amount), 0);
+  const rentPartPaidCents = input.rentSchedulesInPeriod
+    .filter((r) => r.status !== 'paid')
+    .reduce((sum, r) => sum + paidCents(r), 0);
+  const rentCollected = (rentFullyPaidCents + rentPartPaidCents) / 100;
+  const outstandingRent =
+    input.rentSchedulesAsOfPeriodEnd
+      .filter((r) => OUTSTANDING_RENT_STATUSES.has(r.status))
+      .reduce((sum, r) => sum + cents(r.amount) - paidCents(r), 0) / 100;
   const expensesTotal = input.expensesInPeriod
     .filter((e) => e.status !== VOID_EXPENSE_STATUS)
     .reduce((sum, e) => sum + Number(e.amount), 0);
@@ -171,6 +188,8 @@ export function computeDashboardKpis(input: {
   return {
     expectedRent,
     rentCollected,
+    rentFullyPaid: rentFullyPaidCents / 100,
+    rentPartPaid: rentPartPaidCents / 100,
     outstandingRent,
     expensesTotal,
     netIncome: rentCollected - expensesTotal,

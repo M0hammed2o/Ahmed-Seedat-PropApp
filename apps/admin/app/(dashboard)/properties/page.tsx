@@ -6,6 +6,14 @@ import { PropertiesStatusFilterBar } from '@/components/properties/PropertiesSta
 import type { PropertyCardData } from '@/components/properties/PropertyCard';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { fetchAllPages, fetchAllPagesResult } from '@/lib/pagedRead';
+import {
+  OUTSTANDING_RENT_STATUSES,
+  earliestPeriodNeeded,
+  loadPaidCentsByLeasePeriod,
+  scheduleOutstanding,
+  type ScheduleForCollection,
+} from '@/lib/rentCollection';
 import { mapPropertyRow } from '@/lib/portfolio';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 import { resolveCoverPhotoRowsByProperty, signCoverPhotoUrl } from '@/lib/propertyPhotos';
@@ -191,7 +199,11 @@ async function loadPropertyCards(properties: Property[]): Promise<PropertyCardDa
 
   const [unitsResult, leasesResult, coverRowsByProperty] = await Promise.all([
     supabase.from('units').select('id, property_id, status').in('property_id', propertyIds),
-    supabase.from('leases').select('id, unit_id, rent_amount, status'),
+    fetchAllPagesResult<{ id: string; unit_id: string; rent_amount: number; status: string }>(
+      'leases',
+      (from, to) =>
+        supabase.from('leases').select('id, unit_id, rent_amount, status').order('id').range(from, to),
+    ),
     resolveCoverPhotoRowsByProperty(supabase, propertyIds),
   ]);
   if (unitsResult.error) throw new Error(`Failed to load units: ${unitsResult.error.message}`);
@@ -202,14 +214,29 @@ async function loadPropertyCards(properties: Property[]): Promise<PropertyCardDa
   const activeLeases = (leasesResult.data ?? []).filter((l) => l.status === 'active');
   const activeLeaseIds = activeLeases.map((l) => l.id);
 
-  const { data: rentSchedules, error: rentError } =
+  // Only unpaid schedules matter here. Read by status and paged (lib/pagedRead.ts) rather than
+  // `lease_id=in.(<every active lease>)`, which both hit PostgREST's 1000-row cap and grows the URL.
+  const activeLeaseIdSet = new Set(activeLeaseIds);
+  const rentSchedules =
     activeLeaseIds.length > 0
-      ? await supabase
-          .from('rent_schedules')
-          .select('lease_id, amount, status')
-          .in('lease_id', activeLeaseIds)
-      : { data: [], error: null };
-  if (rentError) throw new Error(`Failed to load rent schedule: ${rentError.message}`);
+      ? (
+          await fetchAllPages<ScheduleForCollection>('rent schedule', (from, to) =>
+            supabase
+              .from('rent_schedules')
+              .select('id, lease_id, due_date, amount, status')
+              .in('status', [...OUTSTANDING_RENT_STATUSES])
+              .order('id', { ascending: true })
+              .range(from, to),
+          )
+        ).filter((r) => activeLeaseIdSet.has(r.lease_id))
+      : [];
+  // Outstanding = unpaid balance, so a part-paid schedule no longer counts at its full amount.
+  const paidByLeasePeriod =
+    rentSchedules.length > 0
+      ? await loadPaidCentsByLeasePeriod(supabase, {
+          fromPeriod: earliestPeriodNeeded(rentSchedules, '9999-12-31'),
+        })
+      : new Map<string, number>();
 
   const leaseByUnit = new Map(activeLeases.map((l) => [l.unit_id, l]));
 
@@ -217,11 +244,13 @@ async function loadPropertyCards(properties: Property[]): Promise<PropertyCardDa
   const leasePropertyById = new Map(
     activeLeases.map((l) => [l.id, unitPropertyById.get(l.unit_id)]),
   );
-  for (const r of rentSchedules ?? []) {
-    if (r.status !== 'invoiced' && r.status !== 'overdue' && r.status !== 'partial') continue;
+  for (const r of rentSchedules) {
     const propId = leasePropertyById.get(r.lease_id);
     if (!propId) continue;
-    outstandingByProperty.set(propId, (outstandingByProperty.get(propId) ?? 0) + Number(r.amount));
+    outstandingByProperty.set(
+      propId,
+      (outstandingByProperty.get(propId) ?? 0) + scheduleOutstanding(r, paidByLeasePeriod),
+    );
   }
 
   const coverUrlEntries = await Promise.all(

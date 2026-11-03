@@ -34,6 +34,14 @@ import {
 import { branding } from '@propvault/config';
 import { resolvePortalSession } from '@/lib/orgSession';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { fetchAllPages } from '@/lib/pagedRead';
+import {
+  earliestPeriodNeeded,
+  loadPaidCentsByLeasePeriod,
+  scheduleOutstanding,
+  summariseCollection,
+  type ScheduleForCollection,
+} from '@/lib/rentCollection';
 import { requireCustomerMfaIfEnrolled } from '@/lib/mfaGate';
 import { hasAcceptedCurrentLegalTerms } from '@/lib/legalConsent';
 import { isProfileComplete } from '@/lib/profileCompletion';
@@ -456,26 +464,42 @@ async function loadCollectionHealth(orgId: string): Promise<CollectionHealthData
     .eq('org_id', orgId)
     .eq('status', 'active');
   if (leasesError || !leases || leases.length === 0) return undefined;
-  const leaseIds = leases.map((l) => l.id as string);
+  const activeLeaseIds = new Set(leases.map((l) => l.id as string));
 
-  const { data: schedules, error: schedulesError } = await supabase
-    .from('rent_schedules')
-    .select('lease_id, amount, status')
-    .in('lease_id', leaseIds);
-  if (schedulesError || !schedules || schedules.length === 0) return undefined;
+  // Paged and read by org (not `lease_id=in.(...)`): an org with more than 1000 schedules used to
+  // lose rows here, and a long lease-id list can overflow the request URL. Outstanding is the
+  // unpaid BALANCE, so a part-paid schedule no longer counts at its full amount
+  // (lib/rentCollection.ts) -- the figure now agrees with accounts receivable.
+  let schedules: ScheduleForCollection[];
+  let paid: Awaited<ReturnType<typeof loadPaidCentsByLeasePeriod>>;
+  try {
+    schedules = (
+      await fetchAllPages<ScheduleForCollection>('rent schedule', (from, to) =>
+        supabase
+          .from('rent_schedules')
+          .select('id, lease_id, due_date, amount, status')
+          .eq('org_id', orgId)
+          .order('id', { ascending: true })
+          .range(from, to),
+      )
+    ).filter((r) => activeLeaseIds.has(r.lease_id));
+    if (schedules.length === 0) return undefined;
+    // Only unpaid schedules need their payments; '9999-12-31' means "none unless one is unpaid".
+    paid = await loadPaidCentsByLeasePeriod(supabase, {
+      orgId,
+      fromPeriod: earliestPeriodNeeded(schedules, '9999-12-31'),
+    });
+  } catch {
+    return undefined;
+  }
 
-  const billed = schedules.reduce((sum, r) => sum + Number(r.amount), 0);
-  const collected = schedules
-    .filter((r) => r.status === 'paid')
-    .reduce((sum, r) => sum + Number(r.amount), 0);
-  const outstandingRows = schedules.filter(
-    (r) => r.status === 'invoiced' || r.status === 'overdue' || r.status === 'partial',
-  );
-  const outstanding = outstandingRows.reduce((sum, r) => sum + Number(r.amount), 0);
-  const tenantsInArrears = new Set(outstandingRows.map((r) => r.lease_id)).size;
-  const pct = billed > 0 ? Math.round((collected / billed) * 100) : 0;
+  const totals = summariseCollection(schedules, paid);
+  const tenantsInArrears = new Set(
+    schedules.filter((r) => scheduleOutstanding(r, paid) > 0).map((r) => r.lease_id),
+  ).size;
+  const pct = totals.expected > 0 ? Math.round((totals.collected / totals.expected) * 100) : 0;
 
-  return { pct, outstanding, tenantsInArrears };
+  return { pct, outstanding: totals.outstanding, tenantsInArrears };
 }
 
 // Real display name for the shell's account button (Lovable's own shell shows a real person's

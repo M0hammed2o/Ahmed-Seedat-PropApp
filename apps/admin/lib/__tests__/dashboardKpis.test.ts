@@ -117,6 +117,8 @@ describe('computeDashboardKpis', () => {
     expect(summary).toEqual({
       expectedRent: 0,
       rentCollected: 0,
+      rentFullyPaid: 0,
+      rentPartPaid: 0,
       outstandingRent: 0,
       expensesTotal: 0,
       netIncome: 0,
@@ -135,5 +137,54 @@ describe('computeDashboardKpis', () => {
     expect(summary.rentCollected).toBe(12500);
     expect(summary.expensesTotal).toBe(450.5);
     expect(summary.netIncome).toBe(12049.5);
+  });
+});
+
+describe('computeDashboardKpis with payments received per schedule (part-payments)', () => {
+  // Shape of the 2026-11-03 client demo: a part-paid month must not read as R0 collected, and its
+  // outstanding figure must be the unpaid balance (what accounts receivable says), not the full rent.
+  const inPeriod = [
+    { dueDate: '2026-11-01', amount: 12000, status: 'paid', paid: 12000 },
+    { dueDate: '2026-11-01', amount: 10000, status: 'partial', paid: 4000 },
+    { dueDate: '2026-11-01', amount: 9000, status: 'invoiced', paid: 0 },
+    { dueDate: '2026-11-01', amount: 8000, status: 'invoiced', paid: 8000.5 }, // over-reported: capped
+  ];
+  const arrears = [{ dueDate: '2026-09-01', amount: 7500, status: 'overdue', paid: 2500 }];
+
+  const summary = computeDashboardKpis({
+    rentSchedulesInPeriod: inPeriod,
+    rentSchedulesAsOfPeriodEnd: [...arrears, ...inPeriod],
+    expensesInPeriod: [{ amount: 3000, status: 'recorded' }],
+    paymentsAwaitingConfirmation: 0,
+  });
+
+  it('splits collected into fully paid and part-payments', () => {
+    expect(summary.rentFullyPaid).toBe(12000);
+    expect(summary.rentPartPaid).toBe(12000); // 4000 + 0 + 8000 (capped at the amount)
+    expect(summary.rentCollected).toBe(24000);
+  });
+
+  it('reports outstanding as the balance still owed, arrears included', () => {
+    expect(summary.outstandingRent).toBe(6000 + 9000 + 0 + 5000);
+  });
+
+  it('reconciles: expected = collected + the period outstanding balance', () => {
+    const periodOutstanding = summary.outstandingRent - 5000;
+    expect(summary.rentCollected + periodOutstanding).toBe(summary.expectedRent);
+  });
+
+  it('uses cash received (part-payments included) for net income', () => {
+    expect(summary.netIncome).toBe(24000 - 3000);
+  });
+
+  it('without per-schedule payments keeps the status-only behaviour', () => {
+    const legacy = computeDashboardKpis({
+      rentSchedulesInPeriod: inPeriod.map(({ paid: _paid, ...r }) => r),
+      rentSchedulesAsOfPeriodEnd: inPeriod.map(({ paid: _paid, ...r }) => r),
+      expensesInPeriod: [],
+      paymentsAwaitingConfirmation: 0,
+    });
+    expect(legacy.rentCollected).toBe(12000);
+    expect(legacy.outstandingRent).toBe(27000);
   });
 });

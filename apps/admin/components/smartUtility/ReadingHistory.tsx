@@ -77,7 +77,7 @@ export function ReadingHistory({ data, meter, canManage, onClose }: { data: Over
                 <tr key={r.id} className="border-t border-light-border align-top dark:border-dark-border">
                   <td className="py-1 pr-2">{fmtDateTime(r.readAt)}</td>
                   <td className="py-1 pr-2">{fmtNumber(r.reading, 3)}</td>
-                  <td className="py-1 pr-2">{r.source === 'manual' ? 'Entered by hand' : r.source === 'simulator' ? 'Simulator' : 'Device'}</td>
+                  <td className="py-1 pr-2">{r.source === 'manual' ? 'Entered by hand' : r.source === 'simulator' ? 'Simulated (demo)' : 'Device'}</td>
                   <td className="py-1 pr-2">
                     {r.documentId ? 'Photo' : '—'}
                     {r.source === 'manual' ? (

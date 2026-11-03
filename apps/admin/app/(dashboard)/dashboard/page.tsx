@@ -41,6 +41,14 @@ import {
   resolveSummaryMonth,
   type DashboardPeriod,
 } from '@/lib/dashboardKpis';
+import { fetchAllPagesResult } from '@/lib/pagedRead';
+import {
+  earliestPeriodNeeded,
+  loadPaidCentsByLeasePeriod,
+  scheduleOutstanding,
+  schedulePaid,
+} from '@/lib/rentCollection';
+import { southAfricanDateOf, southAfricanNow, southAfricanToday } from '@/lib/southAfricanTime';
 import {
   loadPortfolioFinancialOverview,
   loadPropertyFinancialOverview,
@@ -97,6 +105,9 @@ interface DashboardData {
    *  paymentsAwaitingConfirmation are new; monthlyBilled/outstandingRent are the pre-existing
    *  fields, now period-aware instead of hardcoded to "this calendar month." */
   rentCollected: number;
+  /** rentCollected split: schedules fully paid vs part-payments on schedules not yet settled. */
+  rentFullyPaid: number;
+  rentPartPaid: number;
   expensesTotal: number;
   netIncome: number;
   paymentsAwaitingConfirmation: number;
@@ -155,6 +166,8 @@ const DEMO_DATA: DashboardData = {
   outstandingRent: 6200,
   outstandingDelta: -2.1,
   rentCollected: 84500,
+  rentFullyPaid: 84500,
+  rentPartPaid: 0,
   expensesTotal: 7400,
   netIncome: 77100,
   paymentsAwaitingConfirmation: 2400,
@@ -412,14 +425,19 @@ export default async function DashboardPage({ searchParams }: SearchParams) {
       value: currency(data.rentCollected),
       delta: null, // Delta needs a prior-period comparable figure -- same "only for this_month, no filter" honesty rule as monthlyBilledDelta below.
       icon: CircleCheck,
-      foot: `Received in ${data.periodLabel}`,
+      // Received against rent due in the period, part-payments included -- so the split is shown
+      // rather than letting a part-paid month read as fully settled (or as R0).
+      foot:
+        data.rentPartPaid > 0
+          ? `${currency(data.rentFullyPaid)} fully paid · ${currency(data.rentPartPaid)} part-payments`
+          : `Received against ${data.periodLabel} rent`,
     },
     {
       label: 'Outstanding rent',
       value: currency(data.outstandingRent),
       delta: data.outstandingDelta,
       icon: ShieldAlert,
-      foot: `Unpaid as of ${data.periodLabel}`,
+      foot: `Balance unpaid as of ${data.periodLabel}`,
     },
     {
       label: 'Expenses',
@@ -864,9 +882,11 @@ async function loadData(filters: {
   to?: string;
 }): Promise<DashboardData> {
   const supabase = await getServerSupabaseClient();
-  const now = new Date();
-  const in45Days = new Date(now.getTime() + 45 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const todayIso = now.toISOString().slice(0, 10);
+  // South African calendar (Render runs in UTC): months and "today" roll over at SAST midnight.
+  const now = southAfricanNow();
+  const todayIso = southAfricanToday();
+  const in45 = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 45);
+  const in45Days = `${in45.getFullYear()}-${String(in45.getMonth() + 1).padStart(2, '0')}-${String(in45.getDate()).padStart(2, '0')}`;
   const periodRange = resolvePeriodRange(filters.period, { from: filters.from, to: filters.to }, now);
 
   // V1 commercial onboarding pass: resolved independently of the RLS-scoped queries below (which
@@ -909,16 +929,31 @@ async function loadData(filters: {
       .from('properties')
       .select('id, nickname, status, estimated_value, latitude, longitude')
       .eq('status', 'active'),
-    supabase.from('units').select('id, property_id, status'),
-    supabase.from('rent_schedules').select('lease_id, due_date, amount, status'),
+    fetchAllPagesResult<{ id: string; property_id: string; status: string }>('units', (from, to) =>
+      supabase.from('units').select('id, property_id, status').order('id').range(from, to),
+    ),
+    // Paged: an org passes PostgREST's 1000-row cap after ~85 leases x 12 months, and the rows cut
+    // off were the newest months (lib/pagedRead.ts).
+    fetchAllPagesResult<{ id: string; lease_id: string; due_date: string; amount: number; status: string }>(
+      'rent schedule',
+      (from, to) =>
+        supabase
+          .from('rent_schedules')
+          .select('id, lease_id, due_date, amount, status')
+          .order('id', { ascending: true })
+          .range(from, to),
+    ),
     // expenses carries property_id directly (unlike rent_schedules, which only has lease_id and
     // needs the lease->unit->property join built below) -- the property filter applies here as a
     // real server-side .eq(), not an in-memory filter.
-    (() => {
-      let q = supabase.from('expenses').select('created_at, amount, status, property_id');
-      if (filters.propertyId) q = q.eq('property_id', filters.propertyId);
-      return q;
-    })(),
+    fetchAllPagesResult<{ created_at: string; amount: number; status: string; property_id: string | null }>(
+      'expenses',
+      (from, to) => {
+        let q = supabase.from('expenses').select('id, created_at, amount, status, property_id');
+        if (filters.propertyId) q = q.eq('property_id', filters.propertyId);
+        return q.order('id', { ascending: true }).range(from, to);
+      },
+    ),
     // "Payments awaiting confirmation" -- payment_reports.status = 'reported' is the one real,
     // queryable concept for a tenant-reported-but-not-yet-staff-confirmed payment (same status
     // lib/ownerSummary.ts's own awaitingConfirmation bucket uses, never folded into rentCollected).
@@ -938,7 +973,19 @@ async function loadData(filters: {
       .select('id, action, entity_type, created_at')
       .order('created_at', { ascending: false })
       .limit(8),
-    supabase.from('leases').select('id, unit_id, rent_amount, status, end_date'),
+    fetchAllPagesResult<{
+      id: string;
+      unit_id: string;
+      rent_amount: number;
+      status: string;
+      end_date: string | null;
+    }>('leases', (from, to) =>
+      supabase
+        .from('leases')
+        .select('id, unit_id, rent_amount, status, end_date')
+        .order('id')
+        .range(from, to),
+    ),
     // data_source carries a triggering_records[0].property_id for budget_exceeded/
     // budget_approaching/unusual_utility_usage (added this pass, lib/portfolioIntelligence.ts) --
     // portfolio_insights itself has no property_id column (it's an org-wide table), so this is the
@@ -982,7 +1029,11 @@ async function loadData(filters: {
   const lastMonthKey = monthKey(new Date(now.getFullYear(), now.getMonth() - 1, 1));
 
   const rentSchedules = rentSchedulesResult.data ?? [];
-  const expenses = expensesResult.data ?? [];
+  // created_at is a timestamptz: bucket by its South African date, not the UTC one.
+  const expenses = (expensesResult.data ?? []).map((e) => ({
+    ...e,
+    created_at: southAfricanDateOf(e.created_at),
+  }));
   const leases = leasesResult.data ?? [];
   const activeLeases = leases.filter((l) => l.status === 'active');
   const unitPropertyById = new Map(units.map((u) => [u.id, u.property_id]));
@@ -998,22 +1049,29 @@ async function loadData(filters: {
     ? rentSchedules.filter((r) => leasePropertyById.get(r.lease_id) === filters.propertyId)
     : rentSchedules;
 
+  // Payments received against each schedule (part-payments included), for every month the KPIs and
+  // the 12-month chart show plus any older schedule still unpaid (lib/rentCollection.ts).
+  const chartStart = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+  const chartStartIso = `${chartStart.getFullYear()}-${String(chartStart.getMonth() + 1).padStart(2, '0')}-01`;
+  const paidByLeasePeriod = await loadPaidCentsByLeasePeriod(supabase, {
+    fromPeriod: earliestPeriodNeeded(
+      scopedRentSchedules,
+      periodRange.startIso < chartStartIso ? periodRange.startIso : chartStartIso,
+    ),
+  });
+
   const billedInMonth = (key: string) =>
     scopedRentSchedules
       .filter((r) => r.due_date.slice(0, 7) === key)
       .reduce((sum, r) => sum + Number(r.amount), 0);
   const collectedInMonth = (key: string) =>
     scopedRentSchedules
-      .filter((r) => r.status === 'paid' && r.due_date.slice(0, 7) === key)
-      .reduce((sum, r) => sum + Number(r.amount), 0);
+      .filter((r) => r.due_date.slice(0, 7) === key)
+      .reduce((sum, r) => sum + schedulePaid(r, paidByLeasePeriod), 0);
   const outstandingAsOf = (key: string) =>
     scopedRentSchedules
-      .filter(
-        (r) =>
-          (r.status === 'invoiced' || r.status === 'overdue' || r.status === 'partial') &&
-          r.due_date.slice(0, 7) <= key,
-      )
-      .reduce((sum, r) => sum + Number(r.amount), 0);
+      .filter((r) => r.due_date.slice(0, 7) <= key)
+      .reduce((sum, r) => sum + scheduleOutstanding(r, paidByLeasePeriod), 0);
 
   const pctDelta = (curr: number, prev: number): number | null => {
     if (prev === 0) return null; // No honest percentage change to compute from a zero base.
@@ -1048,11 +1106,13 @@ async function loadData(filters: {
       dueDate: r.due_date,
       amount: r.amount,
       status: r.status,
+      paid: schedulePaid(r, paidByLeasePeriod),
     })),
     rentSchedulesAsOfPeriodEnd: rentSchedulesAsOfPeriodEnd.map((r) => ({
       dueDate: r.due_date,
       amount: r.amount,
       status: r.status,
+      paid: schedulePaid(r, paidByLeasePeriod),
     })),
     expensesInPeriod: expensesInPeriod.map((e) => ({ amount: e.amount, status: e.status })),
     paymentsAwaitingConfirmation: paymentsAwaitingConfirmationTotal,
@@ -1179,6 +1239,8 @@ async function loadData(filters: {
     outstandingDelta:
       outstandingLastMonth !== null ? pctDelta(outstandingRent, outstandingLastMonth) : null,
     rentCollected: kpis.rentCollected,
+    rentFullyPaid: kpis.rentFullyPaid,
+    rentPartPaid: kpis.rentPartPaid,
     expensesTotal: kpis.expensesTotal,
     netIncome: kpis.netIncome,
     paymentsAwaitingConfirmation: kpis.paymentsAwaitingConfirmation,

@@ -11,6 +11,7 @@ import {
   canPostAccountingRecords,
 } from '@/lib/orgSession';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
+import { fetchAllPages } from '@/lib/pagedRead';
 
 type SearchParams = { searchParams: Promise<{ status?: string }> };
 
@@ -95,11 +96,26 @@ function FilterLink({ label, active, href }: { label: string; active: boolean; h
 
 async function loadRentSchedule(status?: RentScheduleStatus): Promise<RentSchedule[]> {
   const supabase = await getServerSupabaseClient();
-  let query = supabase.from('rent_schedules').select('*').order('due_date', { ascending: true });
-  if (status) query = query.eq('status', status);
-  const { data, error } = await query;
-  if (error) throw new Error(`Failed to load rent schedule: ${error.message}`);
-  return (data ?? []).map((row) => ({
+  // Paged past PostgREST's 1000-row cap (lib/pagedRead.ts): unpaged, an org with more than 1000
+  // schedules lost its NEWEST rows (this list is oldest first). id breaks due-date ties so pages
+  // never overlap or skip.
+  const data = await fetchAllPages<{
+    id: string;
+    org_id: string;
+    lease_id: string;
+    due_date: string;
+    amount: number;
+    status: string;
+    generated_at: string;
+  }>('rent schedule', (from, to) => {
+    let query = supabase.from('rent_schedules').select('*');
+    if (status) query = query.eq('status', status);
+    return query
+      .order('due_date', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to);
+  });
+  return data.map((row) => ({
     id: row.id,
     orgId: row.org_id,
     leaseId: row.lease_id,

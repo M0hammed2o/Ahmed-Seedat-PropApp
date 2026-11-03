@@ -17,12 +17,14 @@ import { enabledUtilityOrgs } from './ingest';
 import { reconcile } from './reconciliation';
 import { duePeriod, generateSubmission, sendDueDeliveries, syncDeliveryStatuses } from './submissions';
 import { runPollSync } from './sync';
+import { runDemoMeterSimulation, type DemoSimulationResult } from './demoSimulator';
 
 // runSmartUtilityJob (docs/SMART_UTILITY_ARCHITECTURE.md §9). Appended to POST
 // /api/v1/system/daily-jobs and exposed separately as POST /api/v1/system/smart-utility-jobs. Each
 // step is caught independently so one failing step never blocks the others.
 
 export interface SmartUtilityJobResult {
+  demoSimulation: DemoSimulationResult | { error: string };
   pollSync: { attempted: number; succeeded: number; failed: number } | { error: string };
   health: { stale: number; offline: number; alerts: number } | { error: string };
   anomalies: { metersAnalysed: number; alertsCreated: number } | { error: string };
@@ -451,6 +453,9 @@ export async function runSmartUtilityJob(
   now: Date = new Date(),
 ): Promise<SmartUtilityJobResult> {
   return {
+    // Fictional demo organisations only (demoSimulator.ts): continue their simulated meters up to
+    // now, before the health sweep, so a demo never decays into "every meter offline".
+    demoSimulation: await step(() => runDemoMeterSimulation(serviceClient, now)),
     // Poll first so the health sweep and rules see the freshest data.
     pollSync: await step(() => runPollSync(serviceClient, { now })),
     health: await step(() => runHealthSweep(serviceClient, now)),

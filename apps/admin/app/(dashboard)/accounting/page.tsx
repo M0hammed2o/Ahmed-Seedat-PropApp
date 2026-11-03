@@ -1,8 +1,9 @@
 import Link from 'next/link';
 import { Download, Receipt as ReceiptIcon } from 'lucide-react';
-import { INVOICE_STATUS_PRESENTATION } from '@propvault/ui';
+import type { StatusPresentation } from '@propvault/ui';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
-import { mapExpenseRow, mapInvoiceRow } from '@/lib/accounting';
+import { mapExpenseRow } from '@/lib/accounting';
+import { computeInvoiceDisplayStatus, type InvoiceDisplayStatus } from '@/lib/invoicing';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Panel } from '@/components/ui/Panel';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -11,6 +12,14 @@ import { Delta } from '@/components/ui/Delta';
 import { MoneyFlowChart } from '@/components/dashboard/MoneyFlowChart';
 import { CollectionsMixChart } from '@/components/dashboard/CollectionsMixChart';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
+import { fetchAllPagesResult } from '@/lib/pagedRead';
+import {
+  earliestPeriodNeeded,
+  loadPaidCentsByLeasePeriod,
+  scheduleOutstanding,
+  schedulePaid,
+} from '@/lib/rentCollection';
+import { southAfricanDateOf, southAfricanNow } from '@/lib/southAfricanTime';
 
 // New page -- Lovable's reference (reference/lovable-ui-reference/.../src/routes/accounting/
 // index.tsx) has one combined Accounting overview; PropertyVault had no landing route above its 7
@@ -40,8 +49,19 @@ interface InvoiceRow {
   tenantName: string;
   period: string;
   amount: number;
-  status: 'draft' | 'issued' | 'paid';
+  /** Derived from payments (lib/invoicing.ts computeInvoiceDisplayStatus), not invoices.status, which
+   *  stays 'issued' after payment -- the raw value showed paid invoices as "Issued". */
+  displayStatus: InvoiceDisplayStatus;
 }
+
+const INVOICE_DISPLAY_PRESENTATION: Record<InvoiceDisplayStatus, StatusPresentation> = {
+  Draft: { label: 'Draft', icon: 'eye', colorToken: 'statusNeedsReview' },
+  Issued: { label: 'Issued', icon: 'spinner', colorToken: 'statusProcessing' },
+  'Partially paid': { label: 'Partially paid', icon: 'dot', colorToken: 'statusNeedsReview' },
+  Paid: { label: 'Paid', icon: 'check', colorToken: 'statusPaid' },
+  Overdue: { label: 'Overdue', icon: 'alert-triangle', colorToken: 'statusOverdue' },
+  Void: { label: 'Void', icon: 'slash', colorToken: 'statusVoid' },
+};
 
 interface PaymentRow {
   id: string;
@@ -97,7 +117,7 @@ const DEMO_DATA: AccountingOverview = {
       tenantName: 'Naledi Khumalo',
       period: '2026-08-01',
       amount: 12500,
-      status: 'paid',
+      displayStatus: 'Paid',
     },
   ],
   payments: [{ id: 'demo-pmt-1', tenantName: 'Naledi Khumalo', amount: 12500, date: '2026-08-01' }],
@@ -114,7 +134,10 @@ function currency(n: number, compact = false): string {
 
 export default async function AccountingOverviewPage() {
   const data = ADMIN_DEMO_MODE ? DEMO_DATA : await loadData();
-  const monthLabel = new Date().toLocaleDateString('en-ZA', { month: 'long', year: 'numeric' });
+  const monthLabel = southAfricanNow().toLocaleDateString('en-ZA', {
+    month: 'long',
+    year: 'numeric',
+  });
 
   const stats = [
     { label: 'Income (MTD)', value: currency(data.incomeMtd), delta: data.incomeDelta },
@@ -220,7 +243,7 @@ export default async function AccountingOverviewPage() {
                       {currency(i.amount)}
                     </td>
                     <td className="px-5 py-3 text-right">
-                      <StatusBadge presentation={INVOICE_STATUS_PRESENTATION[i.status]} />
+                      <StatusBadge presentation={INVOICE_DISPLAY_PRESENTATION[i.displayStatus]} />
                     </td>
                   </tr>
                 ))}
@@ -269,16 +292,41 @@ export default async function AccountingOverviewPage() {
 
 async function loadData(): Promise<AccountingOverview> {
   const supabase = await getServerSupabaseClient();
-  const now = new Date();
+  // South African calendar (Render runs in UTC).
+  const now = southAfricanNow();
   const yearStart = `${now.getFullYear()}-01-01`;
+  const chartStart = new Date(now.getFullYear(), now.getMonth() - 8, 1);
+  const chartStartIso = `${chartStart.getFullYear()}-${String(chartStart.getMonth() + 1).padStart(2, '0')}-01`;
+  // Expenses back to whichever is earlier: the 9-month chart's first month or 1 January (YTD mix).
+  const expensesFrom = chartStartIso < yearStart ? chartStartIso : yearStart;
 
   const [rentSchedulesResult, expensesResult, invoicesResult, txResult] = await Promise.all([
-    supabase.from('rent_schedules').select('due_date, amount, status'),
-    supabase.from('expenses').select('*').gte('created_at', yearStart),
+    // Paged past PostgREST's 1000-row cap (lib/pagedRead.ts); unpaged, the newest months were lost.
+    fetchAllPagesResult<{ lease_id: string; due_date: string; amount: number; status: string }>(
+      'rent schedule',
+      (f, t) =>
+        supabase
+          .from('rent_schedules')
+          .select('id, lease_id, due_date, amount, status')
+          .order('id')
+          .range(f, t),
+    ),
+    fetchAllPagesResult<Parameters<typeof mapExpenseRow>[0]>('expenses', (f, t) =>
+      supabase
+        .from('expenses')
+        .select('*')
+        .gte('created_at', `${expensesFrom}T00:00:00+02:00`)
+        .order('id')
+        .range(f, t),
+    ),
     supabase
       .from('invoices')
-      .select('id, tenant_id, period, amount, status')
-      .order('created_at', { ascending: false })
+      .select(
+        'id, tenant_id, lease_id, period, amount, status, source, voided_at, invoice_payments(amount, reversed_at)',
+      )
+      // Newest billing period first; created_at ties when many invoices are issued in one run.
+      .order('period', { ascending: false })
+      .order('id', { ascending: true })
       .limit(6),
     supabase
       .from('bank_transactions')
@@ -296,8 +344,16 @@ async function loadData(): Promise<AccountingOverview> {
   if (txResult.error)
     throw new Error(`Failed to load bank transactions: ${txResult.error.message}`);
 
-  const rentSchedules = rentSchedulesResult.data ?? [];
-  const expenses = (expensesResult.data ?? []).map(mapExpenseRow);
+  const rentSchedules = rentSchedulesResult.data;
+  // createdAt is a timestamptz: bucket by its South African date.
+  const expenses = expensesResult.data
+    .map(mapExpenseRow)
+    .map((e) => ({ ...e, createdAt: southAfricanDateOf(e.createdAt) }));
+  const ytdExpenses = expenses.filter((e) => e.createdAt >= yearStart);
+  // Payments received per schedule (part-payments included) -- lib/rentCollection.ts.
+  const paidByLeasePeriod = await loadPaidCentsByLeasePeriod(supabase, {
+    fromPeriod: earliestPeriodNeeded(rentSchedules, chartStartIso),
+  });
 
   const monthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   const thisMonthKey = monthKey(now);
@@ -309,16 +365,12 @@ async function loadData(): Promise<AccountingOverview> {
       .reduce((sum, r) => sum + Number(r.amount), 0);
   const collectedInMonth = (key: string) =>
     rentSchedules
-      .filter((r) => r.status === 'paid' && r.due_date.slice(0, 7) === key)
-      .reduce((sum, r) => sum + Number(r.amount), 0);
+      .filter((r) => r.due_date.slice(0, 7) === key)
+      .reduce((sum, r) => sum + schedulePaid(r, paidByLeasePeriod), 0);
   const outstandingAsOf = (key: string) =>
     rentSchedules
-      .filter(
-        (r) =>
-          (r.status === 'invoiced' || r.status === 'overdue' || r.status === 'partial') &&
-          r.due_date.slice(0, 7) <= key,
-      )
-      .reduce((sum, r) => sum + Number(r.amount), 0);
+      .filter((r) => r.due_date.slice(0, 7) <= key)
+      .reduce((sum, r) => sum + scheduleOutstanding(r, paidByLeasePeriod), 0);
   const expensesInMonth = (key: string) =>
     expenses
       .filter(
@@ -356,11 +408,11 @@ async function loadData(): Promise<AccountingOverview> {
   // categories this org has actually used, largest first, capped to 5 slices (matching
   // CollectionsMixChart's legend size) with the remainder folded into "Other" rather than an
   // unbounded, unreadable legend.
-  const totalExpenseYtd = expenses
+  const totalExpenseYtd = ytdExpenses
     .filter((e) => e.status === 'recorded' || e.status === 'reimbursed')
     .reduce((sum, e) => sum + e.amount, 0);
   const byCategory = new Map<string, number>();
-  for (const e of expenses) {
+  for (const e of ytdExpenses) {
     if (e.status !== 'recorded' && e.status !== 'reimbursed') continue;
     byCategory.set(e.category, (byCategory.get(e.category) ?? 0) + e.amount);
   }
@@ -386,15 +438,32 @@ async function loadData(): Promise<AccountingOverview> {
       ? await supabase.from('tenants').select('id, full_name').in('id', invoiceTenantIds)
       : { data: [] };
   const tenantNameById = new Map((invoiceTenants ?? []).map((t) => [t.id, t.full_name]));
-  const invoices: InvoiceRow[] = invoiceRows
-    .map((r) => mapInvoiceRow(r as Parameters<typeof mapInvoiceRow>[0]))
-    .map((inv) => ({
-      id: inv.id,
-      tenantName: tenantNameById.get(inv.tenantId) ?? 'Unknown tenant',
-      period: inv.period,
-      amount: inv.amount,
-      status: inv.status,
-    }));
+  // The rent schedule's status decides Overdue vs Issued (grace period), as on the Invoices page.
+  const scheduleStatusByKey = new Map(
+    rentSchedules.map((r) => [`${r.lease_id}:${r.due_date}`, r.status] as const),
+  );
+  const invoices: InvoiceRow[] = invoiceRows.map((r) => {
+    const paidCents = (r.invoice_payments ?? [])
+      .filter((p) => p.reversed_at === null)
+      .reduce((sum, p) => sum + Math.round(Number(p.amount) * 100), 0);
+    const balance = Math.max(0, Math.round(Number(r.amount) * 100) - paidCents) / 100;
+    return {
+      id: r.id,
+      tenantName: tenantNameById.get(r.tenant_id) ?? 'Unknown tenant',
+      period: r.period,
+      amount: Number(r.amount),
+      displayStatus: computeInvoiceDisplayStatus({
+        invoiceStatus: r.status as 'draft' | 'issued' | 'paid',
+        balance,
+        paid: paidCents / 100,
+        scheduleStatus:
+          r.source === 'manual' ? undefined : scheduleStatusByKey.get(`${r.lease_id}:${r.period}`),
+        dueDate: r.period,
+        today: now,
+        voidedAt: r.voided_at,
+      }),
+    };
+  });
 
   const payments = await loadRecentPayments(supabase, txResult.data ?? []);
 

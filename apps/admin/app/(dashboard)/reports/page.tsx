@@ -11,6 +11,9 @@ import { getServerSupabaseClient } from '@/lib/supabase/server';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 import { resolvePortalSession } from '@/lib/orgSession';
 import { resolveSummaryMonth, resolvePeriodRange } from '@/lib/dashboardKpis';
+import { fetchAllPagesResult } from '@/lib/pagedRead';
+import { loadPaidCentsByLeasePeriod, earliestPeriodNeeded, schedulePaid } from '@/lib/rentCollection';
+import { southAfricanDateOf, southAfricanNow, southAfricanToday } from '@/lib/southAfricanTime';
 import { loadPortfolioFinancialOverview } from '@/lib/financialOverview';
 import { FinancialOverviewSection } from '@/components/dashboard/FinancialOverviewSection';
 
@@ -44,7 +47,7 @@ function monthLabel(isoDate: string): string {
 
 function lastNMonthKeys(n: number): string[] {
   const keys: string[] = [];
-  const now = new Date();
+  const now = southAfricanNow();
   for (let i = n - 1; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     keys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
@@ -361,7 +364,7 @@ function demoData(): ReportsData {
 async function loadData(): Promise<ReportsData> {
   const supabase = await getServerSupabaseClient();
   const monthKeys = lastNMonthKeys(12);
-  const yearStart = `${new Date().getFullYear()}-01-01`;
+  const yearStart = `${southAfricanNow().getFullYear()}-01-01`;
 
   const [
     propertiesResult,
@@ -375,18 +378,44 @@ async function loadData(): Promise<ReportsData> {
     vendorBillsResult,
   ] = await Promise.all([
     supabase.from('properties').select('id, nickname').eq('status', 'active'),
-    supabase.from('units').select('id, property_id, status'),
-    supabase.from('rent_schedules').select('due_date, amount, status'),
-    supabase.from('expenses').select('created_at, amount, status'),
-    supabase.from('maintenance_tickets').select('status'),
-    supabase.from('leases').select('unit_id, start_date, end_date, status'),
-    supabase.from('invoices').select('id, amount, period, voided_at'),
-    supabase.from('invoice_payments').select('invoice_id, amount, paid_at, reversed_at'),
-    supabase
-      .from('vendor_bills')
-      .select('amount, status, created_at')
-      .not('maintenance_ticket_id', 'is', null)
-      .gte('created_at', yearStart),
+    // Every list below grows with time, so each is paged past PostgREST's 1000-row cap
+    // (lib/pagedRead.ts) and ordered by id so pages never overlap.
+    fetchAllPagesResult<{ id: string; property_id: string; status: string }>('units', (f, t) =>
+      supabase.from('units').select('id, property_id, status').order('id').range(f, t),
+    ),
+    fetchAllPagesResult<{ lease_id: string; due_date: string; amount: number; status: string }>(
+      'rent schedule',
+      (f, t) =>
+        supabase.from('rent_schedules').select('id, lease_id, due_date, amount, status').order('id').range(f, t),
+    ),
+    fetchAllPagesResult<{ created_at: string; amount: number; status: string }>('expenses', (f, t) =>
+      supabase.from('expenses').select('id, created_at, amount, status').order('id').range(f, t),
+    ),
+    fetchAllPagesResult<{ status: string }>('maintenance tickets', (f, t) =>
+      supabase.from('maintenance_tickets').select('id, status').order('id').range(f, t),
+    ),
+    fetchAllPagesResult<{ unit_id: string; start_date: string; end_date: string | null; status: string }>(
+      'leases',
+      (f, t) => supabase.from('leases').select('id, unit_id, start_date, end_date, status').order('id').range(f, t),
+    ),
+    fetchAllPagesResult<{ id: string; amount: number; period: string; voided_at: string | null }>(
+      'invoices',
+      (f, t) => supabase.from('invoices').select('id, amount, period, voided_at').order('id').range(f, t),
+    ),
+    fetchAllPagesResult<{ invoice_id: string; amount: number; paid_at: string; reversed_at: string | null }>(
+      'invoice payments',
+      (f, t) =>
+        supabase.from('invoice_payments').select('id, invoice_id, amount, paid_at, reversed_at').order('id').range(f, t),
+    ),
+    fetchAllPagesResult<{ amount: number; status: string; created_at: string }>('vendor bills', (f, t) =>
+      supabase
+        .from('vendor_bills')
+        .select('id, amount, status, created_at')
+        .not('maintenance_ticket_id', 'is', null)
+        .gte('created_at', yearStart)
+        .order('id')
+        .range(f, t),
+    ),
   ]);
   if (propertiesResult.error)
     throw new Error(`Failed to load properties: ${propertiesResult.error.message}`);
@@ -400,22 +429,23 @@ async function loadData(): Promise<ReportsData> {
   if (vendorBillsResult.error)
     throw new Error(`Failed to load vendor bills: ${vendorBillsResult.error.message}`);
 
-  const rentRowsAll = (rentSchedulesResult.data ?? []) as {
-    due_date: string;
-    amount: number;
-    status: string;
-  }[];
+  const rentRowsAll = rentSchedulesResult.data;
+  // Rent income = received against each month's rent, part-payments included (lib/rentCollection.ts),
+  // the same definition the dashboard and accounting overview use.
+  const firstMonthIso = `${monthKeys[0]}-01`;
+  const paidByLeasePeriod = await loadPaidCentsByLeasePeriod(supabase, {
+    fromPeriod: earliestPeriodNeeded(rentRowsAll, firstMonthIso < yearStart ? firstMonthIso : yearStart),
+  });
   const incomeByMonth = new Map(monthKeys.map((k) => [k, 0]));
-  for (const row of rentSchedulesResult.data ?? []) {
-    if (row.status !== 'paid') continue;
+  for (const row of rentRowsAll) {
     const key = row.due_date.slice(0, 7);
     if (incomeByMonth.has(key))
-      incomeByMonth.set(key, (incomeByMonth.get(key) ?? 0) + Number(row.amount));
+      incomeByMonth.set(key, (incomeByMonth.get(key) ?? 0) + schedulePaid(row, paidByLeasePeriod));
   }
   const expenseByMonth = new Map(monthKeys.map((k) => [k, 0]));
   for (const row of expensesResult.data ?? []) {
     if (row.status !== 'recorded' && row.status !== 'reimbursed') continue;
-    const key = row.created_at.slice(0, 7);
+    const key = southAfricanDateOf(row.created_at).slice(0, 7);
     if (expenseByMonth.has(key))
       expenseByMonth.set(key, (expenseByMonth.get(key) ?? 0) + Number(row.amount));
   }
@@ -450,9 +480,7 @@ async function loadData(): Promise<ReportsData> {
   }));
 
   const ytdRentRows = rentRows.filter((r) => r.due_date >= yearStart);
-  const revenueYtd = ytdRentRows
-    .filter((r) => r.status === 'paid')
-    .reduce((sum, r) => sum + Number(r.amount), 0);
+  const revenueYtd = ytdRentRows.reduce((sum, r) => sum + schedulePaid(r, paidByLeasePeriod), 0);
   const billedYtd = ytdRentRows.reduce((sum, r) => sum + Number(r.amount), 0);
   const collectionRatePct = billedYtd > 0 ? Math.round((revenueYtd / billedYtd) * 100) : 0;
 
@@ -470,7 +498,7 @@ async function loadData(): Promise<ReportsData> {
   const session = await resolvePortalSession();
   const activeOrgId = session?.organizations.find((m) => m.status === 'active')?.orgId;
   const { month: summaryMonth, monthLabel: financialOverviewMonthLabel } = resolveSummaryMonth(
-    resolvePeriodRange('this_month', {}, new Date()),
+    resolvePeriodRange('this_month', {}, southAfricanNow()),
   );
   const financialOverview = activeOrgId
     ? await loadPortfolioFinancialOverview(supabase, activeOrgId, summaryMonth)
@@ -501,7 +529,7 @@ async function loadData(): Promise<ReportsData> {
       reversed_at: string | null;
     }[]
   ).filter((p) => !p.reversed_at);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = southAfricanToday();
   const monthly: MonthlyRow[] = monthKeys.map((k) => {
     const [y, m] = k.split('-').map(Number) as [number, number];
     const from = `${k}-01`;

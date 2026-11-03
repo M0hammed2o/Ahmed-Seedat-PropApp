@@ -1,5 +1,49 @@
 # Worklog
 
+## 2026-11-03 — Rent figures paged past 1,000 rows, outstanding = balance, SAST months, demo meter simulator
+
+**Defect (found on a client demo organisation, 1,155 rent schedules):** the dashboard, reports, accounting overview and
+Rent Due read `rent_schedules` (and invoices, payments, expenses) without paging. PostgREST returns at most 1,000 rows
+and says nothing, so the newest months were dropped: November's Expected/Collected/Outstanding showed R0 and the
+chart lost October and November. The original marketing demo (1,153) had the same symptom.
+
+**Fix:**
+- `lib/pagedRead.ts` `fetchAllPages`: pages of 1,000 ordered by a unique key; any page error throws, so a failed read
+  never shows as a smaller total. Used by the dashboard, reports, accounting overview, Rent Due (due date then id,
+  oldest first), property cards and the sidebar collection health. Property cards and collection health read by
+  status or org instead of a long `lease_id=in.(...)` list.
+- `lib/rentCollection.ts`: one definition of collected and outstanding. Collected counts part-payments (paid
+  schedules in full, otherwise non-reversed invoice payments capped at the amount); outstanding is the unpaid
+  balance, not the full amount of a part-paid schedule. The dashboard's "Rent collected" now shows the split
+  (fully paid / part-payments). Outstanding agrees with accounts receivable (1100).
+- `lib/southAfricanTime.ts`: months and "today" on these screens use Africa/Johannesburg (Render runs in UTC);
+  expense timestamps are bucketed by their SAST date.
+- Accounting overview: recent invoices ordered by period and shown with the payment-derived status (paid invoices
+  showed "Issued"); expenses read back to the 9-month chart's first month.
+- `lib/smartUtility/demoSimulator.ts`, first step of the daily Smart Utility job: continues each simulated meter of
+  an allow-listed fictional demo org (`SIMULATED_DEMO_ORG_IDS`, one client demo org) up to now from its own last-week
+  pattern. Only `connectivity = 'simulator'` meters with no integration; the org is skipped if it has any meter
+  integration or an enabled municipal submission schedule; rows are `source = 'simulator'`, labelled
+  "Simulated (demo)" with a note. Writes telemetry and last-reading bookkeeping only. Without it the health sweep
+  marked every demo meter offline (`last_reading_at` was null after seeding).
+
+**Evidence (before deploy):**
+- New unit tests: paging (2,345 / 1,155 / 1,000 / 431 / 0 rows, ties across pages, error on page 2), SAST
+  boundaries, collection/balance maths with reconciliation, invoice-payment loader past 1,000 invoices with
+  void/reversed/manual/other-org exclusions, KPI split, simulator (grid, shape, determinism, 14-day cap, guards).
+- Full admin vitest against local Supabase: 204 passed, 16 skipped, 6 failed on local Supabase socket errors during
+  a concurrent build plus one file edited mid-run; all 6 pass on rerun (35 tests). tsc and eslint clean;
+  `next build` passes.
+- Read-only production regression: for all 6 organisations with rent schedules, the new TypeScript figures equal
+  independent SQL (0 mismatches). Figures change only for the three demo orgs (two over 1,000 schedules; part-paid
+  schedules in the third); no real customer's figures change.
+- Local build against production data, temporary manager login (removed afterwards): 18/18 figure checks equal SQL;
+  client demo November expected R452,300, collected R295,300 (R236,700 fully paid + R58,600 part-payments),
+  outstanding R183,500 = AR ledger; Rent Due lists all 1,155 schedules in order; no horizontal overflow on 7 phone
+  pages.
+
+**Open:** TD-77 (remaining unpaged reads, collection-health cost, simulator allow-list in code).
+
 ## 2026-10-26 — Cemetery Management module, one-year property + cemetery demo, invoice-number defect (autonomous; NOT deployed)
 
 Module reference: `docs/CEMETERY_MANAGEMENT.md`. Approval plan: `docs/CEMETERY_DEPLOYMENT_PLAN_2026-10-26.md`.
