@@ -634,6 +634,32 @@ describeIfSupabase('Smart Utility Monitoring (real local Supabase integration)',
       .eq('user_id', manager.id)
       .eq('type', 'utility_alert');
     expect(notes!.length).toBeGreaterThanOrEqual(2);
+
+    // The leak continues the next day: a new dated alert row per rule, but no repeat notification
+    // while the earlier alerts are still open (2026-11-04).
+    await service.from('meter_telemetry_readings').insert(
+      Array.from({ length: 24 }, (_, i) => {
+        const h = 26 + i;
+        return {
+          org_id: orgId,
+          property_id: propertyId,
+          meter_id: meter!.id,
+          read_at: sastInstant(2026, 9, 1, h).toISOString(),
+          raw_value: h * 12,
+          multiplier: 1,
+          value: h * 12,
+          source: 'simulator',
+        };
+      }),
+    );
+    const nextDay = await runDailyAnomalies(service, sastInstant(2026, 9, 3, 3));
+    expect(nextDay.alertsCreated).toBeGreaterThanOrEqual(2);
+    const { data: notesAfter } = await service
+      .from('notifications')
+      .select('type')
+      .eq('user_id', manager.id)
+      .eq('type', 'utility_alert');
+    expect(notesAfter!.length).toBe(notes!.length);
   }, 30_000);
 
   describe('municipal submissions', () => {

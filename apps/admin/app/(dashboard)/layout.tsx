@@ -34,6 +34,7 @@ import {
 import { branding } from '@propvault/config';
 import { resolvePortalSession } from '@/lib/orgSession';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
+import { resolvedAlertNotificationIds } from '@/lib/notifications';
 import { fetchAllPages } from '@/lib/pagedRead';
 import {
   earliestPeriodNeeded,
@@ -411,23 +412,31 @@ async function loadOrgLegalName(orgId: string): Promise<string | undefined> {
   return data?.legal_name;
 }
 
-// Small (limit 5), real, RLS-scoped to the caller's own rows (notifications_select_own) -- same
+// Small (5), real, RLS-scoped to the caller's own rows (notifications_select_own) -- same
 // query shape as /notifications itself, just capped for a header popover rather than a full list.
+// Notifications about utility alerts that have since been resolved are history, not news: they
+// are skipped here (still listed under "Resolved alerts" on /notifications), so a run of resolved
+// meter alerts cannot crowd out what needs attention.
 async function loadHeaderNotifications(): Promise<HeaderNotification[]> {
   const supabase = await getServerSupabaseClient();
   const { data, error } = await supabase
     .from('notifications')
-    .select('id, title, body, created_at, read_at')
+    .select('id, title, body, created_at, read_at, related_entity_type, related_entity_id')
     .order('created_at', { ascending: false })
-    .limit(5);
+    .limit(50);
   if (error) throw new Error(`Failed to load notifications: ${error.message}`);
-  return (data ?? []).map((row) => ({
-    id: row.id,
-    title: row.title,
-    body: row.body,
-    createdAt: row.created_at,
-    readAt: row.read_at,
-  }));
+  const rows = data ?? [];
+  const resolved = await resolvedAlertNotificationIds(supabase, rows);
+  return rows
+    .filter((row) => !resolved.has(row.id))
+    .slice(0, 5)
+    .map((row) => ({
+      id: row.id,
+      title: row.title,
+      body: row.body,
+      createdAt: row.created_at,
+      readAt: row.read_at,
+    }));
 }
 
 // Real org name + real unit count in the exact visual slot Lovable's own sidebar uses for a

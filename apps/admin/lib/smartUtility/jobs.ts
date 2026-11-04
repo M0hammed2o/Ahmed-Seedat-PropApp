@@ -78,7 +78,13 @@ interface AlertInsert {
   supply_source_id?: string | null;
 }
 
-/** Inserts alerts that don't exist yet (dedupe_key) and notifies staff once per new alert. */
+/**
+ * Inserts alerts that don't exist yet (dedupe_key) and notifies staff once per new alert -- except
+ * when the same meter already has an unresolved alert for the same rule. A condition that persists
+ * (a leak, a vacant unit drawing power, a meter still offline) gets a fresh alert row each day as
+ * the dated record, but staff were already told and the earlier alert is still open, so a daily
+ * repeat notification would only bury other news (2026-11-04: 360 offline repeats in one inbox).
+ */
 async function insertAlerts(serviceClient: SupabaseClient, alerts: AlertInsert[]): Promise<number> {
   let created = 0;
   // Only organisations with Smart Utilities switched on get utility alerts or notifications.
@@ -92,6 +98,7 @@ async function insertAlerts(serviceClient: SupabaseClient, alerts: AlertInsert[]
     if (error) throw new Error(`alert insert failed: ${error.message}`);
     if (data && data.length > 0) {
       created += 1;
+      if (a.meter_id && (await hasEarlierOpenAlert(serviceClient, a, data[0]!.id))) continue;
       await notifyPropertyStaff(serviceClient, {
         orgId: a.org_id,
         propertyId: a.property_id,
@@ -105,6 +112,24 @@ async function insertAlerts(serviceClient: SupabaseClient, alerts: AlertInsert[]
     }
   }
   return created;
+}
+
+/** Another open/acknowledged alert for the same meter and rule (the condition is ongoing). */
+async function hasEarlierOpenAlert(
+  serviceClient: SupabaseClient,
+  a: AlertInsert,
+  newId: string,
+): Promise<boolean> {
+  const { count, error } = await serviceClient
+    .from('utility_alerts')
+    .select('id', { count: 'exact', head: true })
+    .eq('org_id', a.org_id)
+    .eq('meter_id', a.meter_id!)
+    .eq('rule', a.rule)
+    .neq('status', 'resolved')
+    .neq('id', newId);
+  if (error) throw new Error(`open alert lookup failed: ${error.message}`);
+  return (count ?? 0) > 0;
 }
 
 async function loadThresholds(
@@ -134,6 +159,33 @@ function thresholdsFor(
   return map.get(propertyId) ?? { ...DEFAULT_THRESHOLDS, discrepancyPct: 15 };
 }
 
+/**
+ * "Meter DEMO-E-101 is offline", or for a meter with no meter/serial number a description that
+ * still identifies it ("Unit 4 water meter is offline", "Check electricity meter (battery charge)
+ * is offline") -- never the bare "Meter is offline" (2026-11-04).
+ */
+export function offlineAlertTitle(
+  m: {
+    meter_number: string | null;
+    serial_number: string | null;
+    utility_type: string;
+    meter_role: string | null;
+    measurement_kind: string | null;
+  },
+  unitLabel?: string | null,
+): string {
+  const id = m.meter_number?.trim() || m.serial_number?.trim();
+  if (id) return `Meter ${id} is offline`;
+  const who =
+    unitLabel?.trim() ||
+    (m.meter_role === 'main' ? 'Main' : m.meter_role === 'check' ? 'Check' : 'Common');
+  const kind =
+    m.measurement_kind && m.measurement_kind !== 'consumption'
+      ? ` (${m.measurement_kind.replaceAll('_', ' ')})`
+      : '';
+  return `${who} ${m.utility_type} meter${kind} is offline`;
+}
+
 export async function runHealthSweep(serviceClient: SupabaseClient, now: Date) {
   const meters = await fetchAll<{
     id: string;
@@ -143,6 +195,8 @@ export async function runHealthSweep(serviceClient: SupabaseClient, now: Date) {
     utility_type: 'water' | 'electricity';
     meter_number: string | null;
     serial_number: string | null;
+    meter_role: string | null;
+    measurement_kind: string | null;
     expected_interval_minutes: number;
     last_reading_at: string | null;
     health_status: string;
@@ -151,7 +205,7 @@ export async function runHealthSweep(serviceClient: SupabaseClient, now: Date) {
     serviceClient
       .from('utility_meters')
       .select(
-        'id, org_id, property_id, unit_id, utility_type, meter_number, serial_number, expected_interval_minutes, last_reading_at, health_status, created_at',
+        'id, org_id, property_id, unit_id, utility_type, meter_number, serial_number, meter_role, measurement_kind, expected_interval_minutes, last_reading_at, health_status, created_at',
       )
       .eq('active', true)
       .neq('connectivity', 'manual')
@@ -162,6 +216,7 @@ export async function runHealthSweep(serviceClient: SupabaseClient, now: Date) {
   let stale = 0;
   let offline = 0;
   const alerts: AlertInsert[] = [];
+  const offlineMeters: (typeof meters)[number][] = [];
   for (const m of meters ?? []) {
     const staleAfter = 3 * m.expected_interval_minutes * 60_000;
     const last = new Date(m.last_reading_at ?? m.created_at).getTime();
@@ -180,26 +235,41 @@ export async function runHealthSweep(serviceClient: SupabaseClient, now: Date) {
     if (next === 'stale') stale += 1;
     if (next === 'offline') {
       offline += 1;
-      alerts.push({
-        org_id: m.org_id,
-        property_id: m.property_id,
-        meter_id: m.id,
-        unit_id: m.unit_id,
-        utility_type: m.utility_type,
-        rule: 'meter_offline',
-        severity: 'warning',
-        title: `Meter ${m.meter_number ?? m.serial_number ?? ''} is offline`.trim(),
-        message: `No reading has arrived since ${m.last_reading_at ? sastDateString(new Date(m.last_reading_at)) : 'it was added'}. Check the gateway power and connection, or the device battery.`,
-        period_start: m.last_reading_at,
-        period_end: now.toISOString(),
-        details: {
-          lastReadingAt: m.last_reading_at,
-          expectedIntervalMinutes: m.expected_interval_minutes,
-        },
-        estimated_cost: null,
-        dedupe_key: `offline:${m.id}:${sastDateString(now)}`,
-      });
+      offlineMeters.push(m);
     }
+  }
+  // Unit labels name an offline meter that has no meter or serial number.
+  const unitIds = [
+    ...new Set(
+      offlineMeters
+        .filter((m) => !m.meter_number && !m.serial_number && m.unit_id)
+        .map((m) => m.unit_id!),
+    ),
+  ];
+  const units = await fetchAllIn<{ id: string; unit_label: string }>(unitIds, (c, f, t) =>
+    serviceClient.from('units').select('id, unit_label').in('id', c).order('id').range(f, t),
+  );
+  const unitLabel = new Map(units.map((u) => [u.id, u.unit_label]));
+  for (const m of offlineMeters) {
+    alerts.push({
+      org_id: m.org_id,
+      property_id: m.property_id,
+      meter_id: m.id,
+      unit_id: m.unit_id,
+      utility_type: m.utility_type,
+      rule: 'meter_offline',
+      severity: 'warning',
+      title: offlineAlertTitle(m, m.unit_id ? unitLabel.get(m.unit_id) : undefined),
+      message: `No reading has arrived since ${m.last_reading_at ? sastDateString(new Date(m.last_reading_at)) : 'it was added'}. Check the gateway power and connection, or the device battery.`,
+      period_start: m.last_reading_at,
+      period_end: now.toISOString(),
+      details: {
+        lastReadingAt: m.last_reading_at,
+        expectedIntervalMinutes: m.expected_interval_minutes,
+      },
+      estimated_cost: null,
+      dedupe_key: `offline:${m.id}:${sastDateString(now)}`,
+    });
   }
   return { stale, offline, alerts: await insertAlerts(serviceClient, alerts) };
 }

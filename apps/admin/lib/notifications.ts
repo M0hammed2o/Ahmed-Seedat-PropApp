@@ -1,4 +1,5 @@
 import 'server-only';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
   Announcement,
   AppNotification,
@@ -59,6 +60,43 @@ export function mapNotificationRow(row: NotificationRow): AppNotification {
     readAt: row.read_at,
     createdAt: row.created_at,
   };
+}
+
+/**
+ * Notifications about a utility alert that has since been resolved (2026-11-04). They stay in the
+ * database as history -- nothing is deleted or rewritten -- but the inbox and the header bell show
+ * them under "Resolved" instead of among active items. An alert the caller cannot read (RLS) or
+ * that no longer exists is treated as active, so nothing is hidden by mistake.
+ */
+export async function resolvedAlertNotificationIds(
+  supabase: SupabaseClient,
+  rows: { id: string; related_entity_type: string | null; related_entity_id: string | null }[],
+): Promise<Set<string>> {
+  const alertIds = [
+    ...new Set(
+      rows
+        .filter((r) => r.related_entity_type === 'utility_alerts' && r.related_entity_id)
+        .map((r) => r.related_entity_id!),
+    ),
+  ];
+  const resolved = new Set<string>();
+  // Chunked: the ids travel in the request URL.
+  for (let i = 0; i < alertIds.length; i += 100) {
+    const { data, error } = await supabase
+      .from('utility_alerts')
+      .select('id')
+      .in('id', alertIds.slice(i, i + 100))
+      .eq('status', 'resolved');
+    if (error) throw new Error(`Failed to load alert statuses: ${error.message}`);
+    for (const a of data ?? []) resolved.add(a.id as string);
+  }
+  return new Set(
+    rows
+      .filter(
+        (r) => r.related_entity_type === 'utility_alerts' && resolved.has(r.related_entity_id!),
+      )
+      .map((r) => r.id),
+  );
 }
 
 interface NotificationPreferenceRow {

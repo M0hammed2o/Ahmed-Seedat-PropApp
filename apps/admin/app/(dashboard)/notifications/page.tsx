@@ -3,7 +3,7 @@ import type { AppNotification } from '@propvault/types';
 import { NotificationsFilterClient } from '@/components/notifications/NotificationsFilterClient';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { getServerSupabaseClient } from '@/lib/supabase/server';
-import { mapNotificationRow } from '@/lib/notifications';
+import { mapNotificationRow, resolvedAlertNotificationIds } from '@/lib/notifications';
 import { ADMIN_DEMO_MODE } from '@/lib/demoMode';
 
 const DEMO_NOTIFICATIONS: AppNotification[] = [
@@ -27,16 +27,18 @@ const DEMO_NOTIFICATIONS: AppNotification[] = [
  * milestone.
  */
 export default async function NotificationsPage() {
-  const notifications: AppNotification[] = ADMIN_DEMO_MODE
-    ? DEMO_NOTIFICATIONS
+  const { notifications, resolvedIds } = ADMIN_DEMO_MODE
+    ? { notifications: DEMO_NOTIFICATIONS, resolvedIds: [] as string[] }
     : await loadNotifications();
   const unreadCount = notifications.filter((n) => !n.readAt).length;
+  const resolvedCount = resolvedIds.length;
+  const activeCount = notifications.length - resolvedCount;
 
   return (
     <div className="space-y-5 animate-rise">
       <PageHeader
         title="Notifications"
-        subtitle={`${unreadCount} unread of ${notifications.length}.`}
+        subtitle={`${unreadCount} unread · ${activeCount} active${resolvedCount ? ` · ${resolvedCount} about resolved alerts` : ''}.`}
         actions={
           <Link
             href="/notifications/preferences"
@@ -47,17 +49,22 @@ export default async function NotificationsPage() {
         }
       />
 
-      <NotificationsFilterClient notifications={notifications} />
+      <NotificationsFilterClient notifications={notifications} resolvedIds={resolvedIds} />
     </div>
   );
 }
 
-async function loadNotifications(): Promise<AppNotification[]> {
+async function loadNotifications(): Promise<{
+  notifications: AppNotification[];
+  resolvedIds: string[];
+}> {
   const supabase = await getServerSupabaseClient();
   const { data, error } = await supabase
     .from('notifications')
     .select('*')
     .order('created_at', { ascending: false });
   if (error) throw new Error(`Failed to load notifications: ${error.message}`);
-  return (data ?? []).map(mapNotificationRow);
+  const rows = data ?? [];
+  const resolved = await resolvedAlertNotificationIds(supabase, rows);
+  return { notifications: rows.map(mapNotificationRow), resolvedIds: [...resolved] };
 }
