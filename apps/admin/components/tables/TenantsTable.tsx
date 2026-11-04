@@ -9,6 +9,7 @@ import { PORTAL_STATUS_TONE } from '@/lib/tenantPortalStatus';
 import { AdminDataTable } from '@/components/ui/AdminDataTable';
 import { Avatar } from '@/components/ui/Avatar';
 import { StatusBadge } from '@/components/ui/StatusBadge';
+import { formatSouthAfricanNumber } from '@propvault/utils';
 
 function initialsFor(name: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean);
@@ -18,7 +19,7 @@ function initialsFor(name: string): string {
 }
 
 function currency(n: number): string {
-  return `R${Math.round(n).toLocaleString('en-ZA')}`;
+  return `R${formatSouthAfricanNumber(Math.round(n))}`;
 }
 
 const columns: ColumnDef<TenantWithTenancy, unknown>[] = [

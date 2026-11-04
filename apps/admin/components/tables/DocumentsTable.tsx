@@ -5,6 +5,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import Link from 'next/link';
 import type { DocumentRecord } from '@propvault/types';
 import { AdminDataTable } from '@/components/ui/AdminDataTable';
+import { formatSouthAfricanDate } from '@/lib/southAfricanTime';
 
 const columns: ColumnDef<DocumentRecord, unknown>[] = [
   {
@@ -34,7 +35,7 @@ const columns: ColumnDef<DocumentRecord, unknown>[] = [
   {
     header: 'Uploaded',
     accessorKey: 'createdAt',
-    cell: (info) => new Date(info.getValue() as string).toLocaleDateString('en-ZA'),
+    cell: (info) => formatSouthAfricanDate(info.getValue() as string),
   },
 ];
 

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { southAfricanDateOf, southAfricanNow, southAfricanToday } from '../southAfricanTime';
+import {
+  formatSouthAfricanDate,
+  southAfricanDateOf,
+  southAfricanNow,
+  southAfricanToday,
+} from '../southAfricanTime';
 
 describe('southAfricanNow / southAfricanToday', () => {
   it('is already 1 November in South Africa at 22:30 UTC on 31 October', () => {
@@ -37,5 +42,28 @@ describe('southAfricanDateOf', () => {
 
   it('passes a bare date through unchanged', () => {
     expect(southAfricanDateOf('2026-11-01')).toBe('2026-11-01');
+  });
+});
+
+describe('formatSouthAfricanDate (client display, hydration-safe)', () => {
+  const ORIGINAL_TZ = process.env.TZ;
+
+  it.each(['UTC', 'Africa/Johannesburg', 'America/Los_Angeles', 'Asia/Tokyo'])(
+    'gives the South African date either side of SA midnight, whatever the runtime zone (%s)',
+    (zone) => {
+      process.env.TZ = zone;
+      try {
+        expect(formatSouthAfricanDate('2026-11-03T21:59:59.999Z')).toBe('2026/11/03');
+        expect(formatSouthAfricanDate('2026-11-03T22:00:00Z')).toBe('2026/11/04');
+        expect(formatSouthAfricanDate('2026-11-04T00:30:00+02:00')).toBe('2026/11/04');
+        expect(formatSouthAfricanDate(new Date('2026-12-31T23:00:00Z'))).toBe('2027/01/01');
+      } finally {
+        process.env.TZ = ORIGINAL_TZ;
+      }
+    },
+  );
+
+  it('passes a bare calendar date through unchanged', () => {
+    expect(formatSouthAfricanDate('2026-02-28')).toBe('2026/02/28');
   });
 });

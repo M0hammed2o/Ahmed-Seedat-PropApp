@@ -51,3 +51,16 @@ export function southAfricanDateOf(timestamp: string): string {
   if (Number.isNaN(ms)) return timestamp.slice(0, 10);
   return new Date(ms + SAST_OFFSET_MS).toISOString().slice(0, 10);
 }
+
+/**
+ * A timestamp's South African calendar date as YYYY/MM/DD (the en-ZA layout), for client
+ * components. Unlike `toLocaleDateString('en-ZA')` it ignores the runtime's time zone and ICU, so
+ * the server render (UTC on Render) and the browser hydration produce the same text -- a document
+ * uploaded at 23:00 UTC is the next day in South Africa on both (React error #418 otherwise).
+ */
+export function formatSouthAfricanDate(value: string | Date): string {
+  return southAfricanDateOf(value instanceof Date ? value.toISOString() : value).replaceAll(
+    '-',
+    '/',
+  );
+}

@@ -8,6 +8,7 @@ import { DOCUMENT_TYPES, type DocumentType } from '@propvault/types';
 import type { DocumentRecord } from '@propvault/types';
 import { Pill } from '@/components/ui/Pill';
 import { DocumentsTable } from './DocumentsTable';
+import { formatSouthAfricanDate } from '@/lib/southAfricanTime';
 
 export interface PropertyOption {
   id: string;
@@ -261,8 +262,7 @@ export function DocumentsFilterClient({
                       {d.originalFileName}
                     </p>
                     <p className="mt-0.5 text-[11px] text-muted-foreground">
-                      {currency(d.fileSizeBytes)} ·{' '}
-                      {new Date(d.createdAt).toLocaleDateString('en-ZA')}
+                      {currency(d.fileSizeBytes)} · {formatSouthAfricanDate(d.createdAt)}
                     </p>
                     <div className="mt-3">
                       <Pill>{DOCUMENT_TYPE_LABELS[d.documentType]}</Pill>

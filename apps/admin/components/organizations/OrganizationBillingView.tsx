@@ -12,6 +12,8 @@ import {
   type DowngradeImpact,
   type DowngradeSelection,
 } from './DowngradeImpactPicker';
+import { formatSouthAfricanNumber } from '@propvault/utils';
+import { formatSouthAfricanDate } from '@/lib/southAfricanTime';
 
 export interface SubscriptionPaymentSummary {
   id: string;
@@ -100,7 +102,7 @@ interface PendingDowngrade {
 }
 
 function formatMoney(amount: number, currency: string) {
-  return `${currency === 'ZAR' ? 'R' : currency + ' '}${amount.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `${currency === 'ZAR' ? 'R' : currency + ' '}${formatSouthAfricanNumber(amount, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function daysUntil(iso: string): number {
@@ -521,7 +523,7 @@ export function OrganizationBillingView({
             ) : null}
             {subscription?.currentPeriodEnd ? (
               <p className="mt-2 text-xs text-light-textSecondary dark:text-dark-textSecondary">
-                Renewal date: {new Date(subscription.currentPeriodEnd).toLocaleDateString('en-ZA')}
+                Renewal date: {formatSouthAfricanDate(subscription.currentPeriodEnd)}
               </p>
             ) : null}
           </div>
@@ -546,9 +548,7 @@ export function OrganizationBillingView({
               <p className="mt-1 text-sm text-light-textPrimary dark:text-dark-textPrimary">
                 On file via{' '}
                 {paymentMethod.provider === 'payfast' ? 'PayFast' : paymentMethod.provider}
-                {mounted
-                  ? ` — updated ${new Date(paymentMethod.updatedAt).toLocaleDateString('en-ZA')}`
-                  : ''}
+                {mounted ? ` — updated ${formatSouthAfricanDate(paymentMethod.updatedAt)}` : ''}
               </p>
             ) : hasProviderSubscriptionToken ? (
               <p className="mt-1 text-sm text-light-textSecondary dark:text-dark-textSecondary">
@@ -639,8 +639,8 @@ export function OrganizationBillingView({
               </p>
               <p className="mt-1 text-xs text-light-textSecondary dark:text-dark-textSecondary">
                 Scheduled plan: {pendingDowngradePlan.name}. Effective:{' '}
-                {new Date(pendingDowngrade.effectiveAt).toLocaleDateString('en-ZA')}. You keep your
-                current plan&rsquo;s access until then.
+                {formatSouthAfricanDate(pendingDowngrade.effectiveAt)}. You keep your current
+                plan&rsquo;s access until then.
               </p>
             </div>
             <Button
@@ -755,7 +755,7 @@ export function OrganizationBillingView({
             {quote.nextRenewalAmount !== null ? (
               <>
                 <dt className="text-light-textMuted dark:text-dark-textMuted">
-                  From {new Date(quote.effectiveAt).toLocaleDateString('en-ZA')}
+                  From {formatSouthAfricanDate(quote.effectiveAt)}
                 </dt>
                 <dd className="text-right text-light-textPrimary dark:text-dark-textPrimary">
                   {formatMoney(quote.nextRenewalAmount, quote.currency)}/
@@ -768,8 +768,8 @@ export function OrganizationBillingView({
           new Date(quote.effectiveAt).getTime() > Date.now() ? (
             <p className="mt-3 text-xs text-light-textSecondary dark:text-dark-textSecondary">
               You keep your current plan&rsquo;s full access until{' '}
-              {new Date(quote.effectiveAt).toLocaleDateString('en-ZA')} — no refund is issued for
-              the remainder of this billing period.
+              {formatSouthAfricanDate(quote.effectiveAt)} — no refund is issued for the remainder of
+              this billing period.
             </p>
           ) : quote.changeType === 'downgrade' ? (
             <p className="mt-3 text-xs text-light-textSecondary dark:text-dark-textSecondary">
@@ -850,7 +850,7 @@ export function OrganizationBillingView({
                     className="border-b border-light-border last:border-b-0 dark:border-dark-border"
                   >
                     <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">
-                      {new Date(payment.paidAt ?? payment.createdAt).toLocaleDateString('en-ZA')}
+                      {formatSouthAfricanDate(payment.paidAt ?? payment.createdAt)}
                     </td>
                     <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">
                       {paymentDescription(payment)}
@@ -902,7 +902,7 @@ export function OrganizationBillingView({
                     className="border-b border-light-border last:border-b-0 dark:border-dark-border"
                   >
                     <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">
-                      {new Date(payment.createdAt).toLocaleDateString('en-ZA')}
+                      {formatSouthAfricanDate(payment.createdAt)}
                     </td>
                     <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">
                       {paymentDescription(payment)}
@@ -969,7 +969,7 @@ export function OrganizationBillingView({
                       {invoice.invoiceNumber}
                     </td>
                     <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">
-                      {new Date(invoice.issuedAt).toLocaleDateString('en-ZA')}
+                      {formatSouthAfricanDate(invoice.issuedAt)}
                     </td>
                     <td className="px-4 py-3 text-light-textPrimary dark:text-dark-textPrimary">
                       {invoice.paymentPurpose === 'trial_activation'
